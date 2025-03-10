@@ -293,12 +293,12 @@ static const struct berlin_desc_group dolphin_avio_pinctrl_groups[] = {
 			BERLIN_PINCTRL_FUNCTION(0x4, "hdmi")), /* FBCLK */
 	BERLIN_PINCTRLCONF_GROUP("TX_EDDC_SCL", 0x4, 0x3, 0x12,
 			0x40, 10,
-			BERLIN_PINCTRL_FUNCTION(0x0, "gpio"), /* GPIO6 */
-			BERLIN_PINCTRL_FUNCTION(0x1, "tx_eddc")), /* SCL */
+			BERLIN_PINCTRL_FUNCTION(0x0, "tx_eddc"), /* SCL */
+			BERLIN_PINCTRL_FUNCTION(0x1, "gpio")), /* GPIO6 */
 	BERLIN_PINCTRLCONF_GROUP("TX_EDDC_SDA", 0x4, 0x3, 0x15,
 			0x44, 10,
-			BERLIN_PINCTRL_FUNCTION(0x0, "gpio"), /* GPIO5 */
-			BERLIN_PINCTRL_FUNCTION(0x1, "tx_eddc")), /* SDA */
+			BERLIN_PINCTRL_FUNCTION(0x0, "tx_eddc"), /* SDA */
+			BERLIN_PINCTRL_FUNCTION(0x1, "gpio")), /* GPIO5 */
 	BERLIN_PINCTRLCONF_GROUP("I2S3_DO", 0x4, 0x3, 0x18,
 			0x48, 8,
 			BERLIN_PINCTRL_FUNCTION(0x0, "gpio"), /* GPIO1 */
