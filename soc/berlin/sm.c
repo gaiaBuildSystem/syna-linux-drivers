@@ -27,6 +27,7 @@
 #include <linux/sched/signal.h>
 #include <soc/berlin/sm.h>
 #include <linux/version.h>
+#include <linux/rtc.h>
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(6, 11, 0))
 #define RET void
@@ -613,6 +614,46 @@ static long bsm_unlocked_ioctl(struct file *file,
 	return ret;
 }
 
+static int64_t get_sm_time(struct device *dev)
+{
+	int msg, rcv[4], len;
+	int64_t  ret;
+
+	msg = MV_SM_GET_SUSPEND_RESUME_TIME;
+	ret = bsm_msg_send(MV_SM_ID_POWER, &msg, sizeof(msg));
+	if (ret < 0)
+		return ret;
+
+	ret = bsm_msg_recv(MV_SM_ID_POWER, rcv, &len);
+	if (ret < 0)
+		return ret;
+
+	if (len != 8)
+		return -EIO;
+
+	ret = (rcv[0] + ((u64)rcv[1] << 32));
+	return ret;
+}
+
+static int smrtc_read_time(struct device *dev, struct rtc_time *tm)
+{
+	u64 ms;
+	time64_t secs;
+
+	ms = get_sm_time(dev);
+	if (ms < 0) {
+		dev_err(dev, "Failed to get time from SM\n");
+		return -EIO;
+	}
+	secs = ms / 1000;
+	rtc_time64_to_tm(secs, tm);
+	return rtc_valid_tm(tm);
+}
+
+static const struct rtc_class_ops smrtc_ops = {
+	.read_time = smrtc_read_time,
+};
+
 static const struct file_operations bsm_fops = {
 	.owner		= THIS_MODULE,
 	.open 		= bsm_open,
@@ -708,6 +749,7 @@ static int bsm_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	resource_size_t size;
 	const char *name;
+	struct rtc_device *rtc;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -763,6 +805,16 @@ static int bsm_probe(struct platform_device *pdev)
 
 	for (i = 0; i < ARRAY_SIZE(wakeup_events); i++)
 		sema_init(&wakeup_events[i].resume_sem, 0);
+
+	if (of_property_read_bool(np, "smrtc-enable")) {
+		dev_dbg(dev, "smrtc-enable is present in the device tree\n");
+		rtc = devm_rtc_device_register(&pdev->dev, "smrtc",
+			&smrtc_ops, THIS_MODULE);
+		if (IS_ERR(rtc))
+			return PTR_ERR(rtc);
+	} else {
+		dev_dbg(dev, "smrtc-enable is not present\n");
+	}
 
 	ret = misc_register(&sm_dev);
 	if (ret < 0)
