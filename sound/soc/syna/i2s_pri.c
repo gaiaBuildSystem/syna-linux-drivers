@@ -29,12 +29,16 @@ struct outdai_priv {
 	bool is_master;
 	bool continuous_clk;
 	bool output_mclk;
+	bool i2s_pri_switch;
 	/*  sample_period: sample period in terms of bclk numbers.
 	 *  Typically 32 is used. For some pcm mono format, 16 may be used
 	 */
 	int  sample_period;
 	void *aio_handle;
 };
+
+static const char * const i2s_pri_state_text[] = {"OFF", "ON"};
+static SOC_ENUM_SINGLE_EXT_DECL(i2s_pri_state, i2s_pri_state_text);
 
 static void outdai_ch_flush(struct outdai_priv *outdai, bool en)
 {
@@ -87,10 +91,32 @@ static void outdai_enable_primaryport(struct outdai_priv *out, bool en)
 		snd_printk("aio_enabletxport() return error(ret=%d)\n", ret);
 }
 
-static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
-	//TODO: add dai control here
-};
+static int i2s_pri_control_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct outdai_priv *outdai = snd_soc_dai_get_drvdata(cpu_dai);
 
+	ucontrol->value.enumerated.item[0] = outdai->i2s_pri_switch;
+
+	return 0;
+}
+
+static int i2s_pri_control_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct outdai_priv *outdai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	outdai->i2s_pri_switch = ucontrol->value.enumerated.item[0];
+
+	return 0;
+}
+
+static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
+	SOC_ENUM_EXT("I2S PRI SWITCH", i2s_pri_state,
+			i2s_pri_control_get, i2s_pri_control_put),
+};
 
 static void outdai_iosel_set_bclk(struct outdai_priv *out,
 			   bool inv)
@@ -369,10 +395,12 @@ static int berlin_outdai_trigger(struct snd_pcm_substream *substream,
 		outdai_ch_mute(outdai, 0);
 		outdai_enable_primaryport(outdai, 1);
 		outdai_ch_flush(outdai, 0);
+		outdai->i2s_pri_switch = 1;
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		outdai->i2s_pri_switch = 0;
 		if (!outdai->continuous_clk) {
 			outdai_enable_primaryport(outdai, 0);
 			outdai_ch_mute(outdai, 1);
