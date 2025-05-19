@@ -477,7 +477,7 @@ static int berlin_pcm_new(struct snd_soc_component *component,
 {
 	struct snd_pcm_chmap *chmap = NULL;
 	struct snd_kcontrol *kctl;
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	int err, i;
 
 	if (rtd->pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream_count) {
@@ -508,10 +508,10 @@ static int berlin_pcm_new(struct snd_soc_component *component,
 
 	snd_pcm_lib_preallocate_pages_for_all(rtd->pcm,
 			SNDRV_DMA_TYPE_CONTINUOUS,
-			snd_dma_continuous_data
-			(GFP_KERNEL),
+			component->dev,
 			PREALLOC_BUFFER,
 			PREALLOC_BUFFER_MAX);
+
 	return 0;
 }
 
@@ -610,9 +610,9 @@ static int berlin_pcm_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int berlin_pcm_dev_remove(struct platform_device *pdev)
+static RET_TYPE berlin_pcm_dev_remove(struct platform_device *pdev)
 {
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id berlin_pcm_of_match[] = {

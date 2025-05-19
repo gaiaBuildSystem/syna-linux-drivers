@@ -4,9 +4,10 @@
 #include <linux/gpio/consumer.h>
 #include <linux/of_platform.h>
 #include <linux/module.h>
-
+#include <linux/version.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include "berlin_pcm.h"
 #include "aio_hal.h"
 #include "avio_common.h"
 
@@ -22,12 +23,13 @@ static int berlin_asoc_link_hwparam(struct snd_pcm_substream *substream,
 				    struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec =  asoc_rtd_to_codec(rtd, 0);
+	struct snd_soc_dai *codec =  snd_soc_rtd_to_codec(rtd, 0);
 	int i = 0, cret = 0;
 
-	if (rtd->num_codecs == 2) {
-		for (i = 0; i < rtd->num_codecs; i++) {
-			struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, i);
+	if (rtd->dai_link->num_codecs == 2) {
+		for (i = 0; i < rtd->dai_link->num_codecs; i++) {
+
+			struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, i);
 
 			if (strstr(codec->name, "cx2072x") || strstr(codec->name, "cx9000")) {
 				cret = snd_soc_dai_set_sysclk(codec_dai, 1, 6144000, 0);
@@ -399,13 +401,14 @@ static int berlin_asoc_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int berlin_asoc_remove(struct platform_device *pdev)
+static RET_TYPE berlin_asoc_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
 	sysfs_remove_file(&card->snd_card->card_dev.kobj,
 		&dev_attr_mic_mute_state.attr);
-	return 0;
+
+	RETURN_VALUE;
 }
 
 #ifdef CONFIG_PM_SLEEP

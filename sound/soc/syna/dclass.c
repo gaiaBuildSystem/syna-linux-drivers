@@ -747,8 +747,7 @@ static int dclass_pcm_new(struct snd_soc_component *component,
 {
 	snd_pcm_lib_preallocate_pages_for_all(rtd->pcm,
 			SNDRV_DMA_TYPE_CONTINUOUS,
-			snd_dma_continuous_data
-			(GFP_KERNEL),
+			component->dev,
 			PREALLOC_BUFFER,
 			PREALLOC_BUFFER_MAX);
 
@@ -853,7 +852,7 @@ static int dclass_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int dclass_remove(struct platform_device *pdev)
+static RET_TYPE dclass_remove(struct platform_device *pdev)
 {
 	struct dclass_pcm *dclass = dev_get_drvdata(&pdev->dev);
 
@@ -861,7 +860,7 @@ static int dclass_remove(struct platform_device *pdev)
 	dclass_write(dclass, DCLS_DINP, 0);
 	dclass_write(dclass, DCLS_INTENB, 0);
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id dclass_pcm_of_match[] = {

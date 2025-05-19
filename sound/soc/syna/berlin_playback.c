@@ -16,6 +16,7 @@
 #include <sound/soc.h>
 
 #include "berlin_pcm.h"
+#include "berlin_playback.h"
 #include "berlin_spdif.h"
 #include "aio_hal.h"
 #include "avio_dhub_drv.h"
@@ -538,7 +539,7 @@ int berlin_playback_open(struct snd_pcm_substream *ss, int passthrough)
 
 	runtime->private_data = bp;
 	runtime->private_free = berlin_runtime_free;
-	if (rtd->num_codecs == 2)
+	if (rtd->dai_link->num_codecs == 2)
 		runtime->hw = berlin_playback_multi_codecs;
 	else
 		runtime->hw = berlin_playback_hw;
@@ -865,8 +866,7 @@ int berlin_playback_trigger(struct snd_pcm_substream *ss, int cmd)
 	return ret;
 }
 
-snd_pcm_uframes_t
-berlin_playback_pointer(struct snd_pcm_substream *ss)
+snd_pcm_uframes_t berlin_playback_pointer(struct snd_pcm_substream *ss)
 {
 	struct snd_pcm_runtime *runtime = ss->runtime;
 	struct berlin_playback *bp = runtime->private_data;

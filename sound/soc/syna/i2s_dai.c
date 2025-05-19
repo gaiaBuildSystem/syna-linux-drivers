@@ -686,14 +686,10 @@ static int i2s_soc_dai_trigger(struct snd_pcm_substream *substream,
 	struct snd_pcm_substream *s;
 	int stream_linked = 0;
 	bool stop = false;
-	struct i2s_io_params *i2s_ctrl = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
-			&soc_dai->io_params[AIO_I2S_IO_TX] : &soc_dai->io_params[AIO_I2S_IO_RX];
-
-	snd_printd("%s trigger on chid %d cmd(%d)\n", __func__, i2s_ctrl->i2s_chid, cmd);
 
 	snd_pcm_group_for_each_entry(s, substream) {
 		struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(s);
-		struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+		struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 		struct i2s_soc_dai *soc_dai = snd_soc_dai_get_drvdata(cpu_dai);
 		bool isTX = (s->stream == SNDRV_PCM_STREAM_PLAYBACK);
 		struct i2s_io_params *i2s_ctrl = isTX ?
@@ -806,11 +802,16 @@ static struct snd_soc_dai_ops syna_soc_dai_ops = {
 	.hw_free   = i2s_soc_dai_hw_free,
 	.trigger   = i2s_soc_dai_trigger,
 	.shutdown  = i2s_soc_dai_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe 	   = i2s_soc_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver i2s_soc_dai_drv = {
 	.name = "i2s_tx_rx",
-	.probe = i2s_soc_dai_probe,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+	.probe     = i2s_soc_dai_probe,
+#endif
 	.playback = {
 		.stream_name = "I2S-Playback",
 		.channels_min = 1,
@@ -830,7 +831,9 @@ static struct snd_soc_dai_driver i2s_soc_dai_drv = {
 
 static struct snd_soc_dai_driver syna_play_dai = {
 	.name = "i2s_tx",
-	.probe = i2s_soc_dai_probe,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+	.probe     = i2s_soc_dai_probe,
+#endif
 	.playback = {
 		.stream_name = "I2S-Playback",
 		.channels_min = 1,
@@ -843,7 +846,9 @@ static struct snd_soc_dai_driver syna_play_dai = {
 
 static struct snd_soc_dai_driver syna_record_dai = {
 	.name = "i2s_rx",
-	.probe = i2s_soc_dai_probe,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+	.probe     = i2s_soc_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "I2S-Capture",
 		.channels_min = 1,
@@ -1010,7 +1015,7 @@ err:
 	return ret;
 }
 
-static int syna_i2s_soc_dai_remove(struct platform_device *pdev)
+static RET_TYPE syna_i2s_soc_dai_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct i2s_soc_dai *soc_dai;
@@ -1024,7 +1029,7 @@ static int syna_i2s_soc_dai_remove(struct platform_device *pdev)
 		soc_dai->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id syna_i2s_dai_dt_ids[] = {

@@ -535,11 +535,16 @@ static struct snd_soc_dai_ops dmic_pdm_dai_ops = {
 	.hw_free = dmic_pdm_hw_free,
 	.trigger = dmic_pdm_trigger,
 	.shutdown = dmic_pdm_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = dmic_pdm_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver dmic_pdm_dai = {
 	.name = "dmic_pdm",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = dmic_pdm_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "DMIC-PDM-Capture",
 		.channels_min = MIN_CHANNELS,
@@ -696,7 +701,7 @@ error:
 	return ret;
 }
 
-static int dmic_pdm_remove(struct platform_device *pdev)
+static RET_TYPE dmic_pdm_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct dmic_data *dmic;
@@ -709,7 +714,7 @@ static int dmic_pdm_remove(struct platform_device *pdev)
 		dmic->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id dmic_pdm_dt_ids[] = {

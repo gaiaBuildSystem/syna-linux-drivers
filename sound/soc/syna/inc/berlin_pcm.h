@@ -12,6 +12,7 @@
 #include "avio_dhub_drv.h"
 #include "hal_dhub.h"
 #include "hal_dhub_wrap.h"
+#include "kernel_compatibility.h"
 
 enum berlin_xrun_t {
 	PCM_OVERRUN,
@@ -44,6 +45,19 @@ enum berlin_xrun_t {
 
 #define HDMI_STEREO_CHANNEL_NUM (2)
 #define HDMI_PCM_MAX_CHANNEL_NUM (8)
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#if defined(CONFIG_SND_DEBUG) || defined(CONFIG_SND_VERBOSE_PRINTK)
+#define	snd_printd	printk
+#define	snd_printk	printk
+#else
+#define	snd_printd(...)	do { } while (0)
+#define	snd_printk(...)	do { } while (0)
+#endif
+#else
+#define	snd_soc_rtd_to_cpu	asoc_rtd_to_cpu
+#define	snd_soc_rtd_to_codec	asoc_rtd_to_codec
+#endif
 
 struct berlin_chip {
 	struct snd_card *card;

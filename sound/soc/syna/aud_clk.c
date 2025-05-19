@@ -39,7 +39,7 @@ static u32 map_clk_tx_port(enum aud_clk_id clkId)
 	return AIO_ID_I2S_MAX_NUM;
 }
 
-int aud_berlin_set_pll(void *aio_handle, u32 apll_id, u32 apll)
+static int aud_berlin_set_pll(void *aio_handle, u32 apll_id, u32 apll)
 {
 	if (apll_id >= AIO_APLL_NUM) {
 		pr_err("apll%d not supported", apll_id);
@@ -61,7 +61,7 @@ int aud_berlin_set_pll(void *aio_handle, u32 apll_id, u32 apll)
 static int aud_clk_config(struct snd_pcm_substream *s)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(s);
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct i2s_soc_dai *soc_dai = snd_soc_dai_get_drvdata(cpu_dai);
 	struct i2s_io_params *i2s_ctrl = (s->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 			&soc_dai->io_params[AIO_I2S_IO_TX] : &soc_dai->io_params[AIO_I2S_IO_RX];
@@ -203,7 +203,7 @@ exit:
 static bool aud_clk_in_use(struct snd_pcm_substream *s)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(s);
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct i2s_soc_dai *soc_dai = snd_soc_dai_get_drvdata(cpu_dai);
 	struct i2s_io_params *i2s_ctrl = (s->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 			&soc_dai->io_params[AIO_I2S_IO_TX] : &soc_dai->io_params[AIO_I2S_IO_RX];
@@ -216,7 +216,7 @@ static bool aud_clk_in_use(struct snd_pcm_substream *s)
 static int aud_clk_start(struct snd_pcm_substream *s)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(s);
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct i2s_soc_dai *soc_dai = snd_soc_dai_get_drvdata(cpu_dai);
 	struct i2s_io_params *i2s_ctrl = (s->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 			&soc_dai->io_params[AIO_I2S_IO_TX] : &soc_dai->io_params[AIO_I2S_IO_RX];
@@ -248,7 +248,7 @@ static int aud_clk_start(struct snd_pcm_substream *s)
 static int aud_clk_stop(struct snd_pcm_substream *s)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(s);
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct i2s_soc_dai *soc_dai = snd_soc_dai_get_drvdata(cpu_dai);
 	struct i2s_io_params *i2s_ctrl = (s->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 			&soc_dai->io_params[AIO_I2S_IO_TX] : &soc_dai->io_params[AIO_I2S_IO_RX];

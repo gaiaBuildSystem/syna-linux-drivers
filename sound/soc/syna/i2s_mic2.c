@@ -375,11 +375,16 @@ static struct snd_soc_dai_ops i2s_dai_mic2_ops = {
 	.hw_free = i2s_mic2_hw_free,
 	.trigger = i2s_mic2_trigger,
 	.shutdown = i2s_mic2_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = i2s_mic2_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver i2s_mic2_dai = {
 	.name = "i2s-mic2",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = i2s_mic2_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "MIC2-Capture",
 		.channels_min = 1,
@@ -390,7 +395,7 @@ static struct snd_soc_dai_driver i2s_mic2_dai = {
 	.ops = &i2s_dai_mic2_ops,
 };
 
-int i2s_mic2_component_hw_free(struct snd_soc_component *component,
+static int i2s_mic2_component_hw_free(struct snd_soc_component *component,
 							struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
@@ -400,7 +405,8 @@ int i2s_mic2_component_hw_free(struct snd_soc_component *component,
 	if (rtd == NULL)
 		return 0;
 
-	cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+
 	if (cpu_dai == NULL || cpu_dai->dev == NULL)
 		return 0;
 
@@ -483,7 +489,7 @@ static int i2s_mic2_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int i2s_mic2_remove(struct platform_device *pdev)
+static RET_TYPE i2s_mic2_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mic2_priv *mic2;
@@ -496,7 +502,7 @@ static int i2s_mic2_remove(struct platform_device *pdev)
 		mic2->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id i2s_mic2_dt_ids[] = {

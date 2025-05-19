@@ -396,11 +396,16 @@ static struct snd_soc_dai_ops berlin_dai_outdai_ops = {
 	.hw_free   = berlin_outdai_hw_free,
 	.trigger   = berlin_outdai_trigger,
 	.shutdown  = berlin_outdai_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = berlin_outdai_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver berlin_outdai_dai = {
 	.name = "i2s-outdai",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = berlin_outdai_dai_probe,
+#endif
 	.playback = {
 		.stream_name = "Pri-I2S-Playback",
 		.channels_min = 1,
@@ -471,7 +476,7 @@ static int i2s_outdai_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int i2s_outdai_remove(struct platform_device *pdev)
+static RET_TYPE i2s_outdai_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct outdai_priv *outdai;
@@ -484,7 +489,7 @@ static int i2s_outdai_remove(struct platform_device *pdev)
 		outdai->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id i2s_outdai_dt_ids[] = {

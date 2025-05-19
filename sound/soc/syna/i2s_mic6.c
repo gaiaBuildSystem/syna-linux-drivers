@@ -313,11 +313,16 @@ static struct snd_soc_dai_ops i2s_dai_mic6_ops = {
 	.hw_free = i2s_mic6_hw_free,
 	.trigger = i2s_mic6_trigger,
 	.shutdown = i2s_mic6_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = i2s_mic6_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver i2s_mic6_dai = {
 	.name = "i2s-mic6",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = i2s_mic6_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "MIC6-Capture",
 		.channels_min = 2,
@@ -385,7 +390,7 @@ static int i2s_mic6_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int i2s_mic6_remove(struct platform_device *pdev)
+static RET_TYPE i2s_mic6_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mic6_priv *mic6;
@@ -398,7 +403,7 @@ static int i2s_mic6_remove(struct platform_device *pdev)
 		mic6->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id i2s_mic6_dt_ids[] = {

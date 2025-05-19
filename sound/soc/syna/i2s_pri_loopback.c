@@ -242,11 +242,16 @@ static struct snd_soc_dai_ops i2s_dai_pri_loopback_ops = {
 	.hw_free = i2s_pri_loopback_hw_free,
 	.trigger = i2s_pri_loopback_trigger,
 	.shutdown = i2s_pri_loopback_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = i2s_pri_loopback_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver i2s_pri_loopback_dai = {
 	.name = "i2s-pri-lpbk",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = i2s_pri_loopback_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "Pri-Loopback-Capture",
 		.channels_min = 2,
@@ -317,7 +322,7 @@ fail_register_dai:
 	return ret;
 }
 
-static int i2s_pri_loopback_remove(struct platform_device *pdev)
+static RET_TYPE i2s_pri_loopback_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct pri_lpbk_priv *lpbk;
@@ -330,7 +335,7 @@ static int i2s_pri_loopback_remove(struct platform_device *pdev)
 		lpbk->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id i2s_pri_loopback_dt_ids[] = {

@@ -350,11 +350,16 @@ static struct snd_soc_dai_ops i2s_dai_sec_ops = {
 	.hw_free = i2s_sec_hw_free,
 	.trigger = i2s_sec_trigger,
 	.shutdown = i2s_sec_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = i2s_sec_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver i2s_sec_dai = {
 	.name = "i2s-sec-dai",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = i2s_sec_dai_probe,
+#endif
 	.playback = {
 		.stream_name = "SEC-Playback",
 		.channels_min = 1,
@@ -421,7 +426,7 @@ static int i2s_sec_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int i2s_sec_remove(struct platform_device *pdev)
+static RET_TYPE i2s_sec_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct sec_priv *sec;
@@ -434,7 +439,7 @@ static int i2s_sec_remove(struct platform_device *pdev)
 		sec->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id i2s_sec_dt_ids[] = {

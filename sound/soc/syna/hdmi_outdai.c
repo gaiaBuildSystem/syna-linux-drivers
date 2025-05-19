@@ -373,7 +373,7 @@ static void hdmi_set_channel_mask(struct hdmi_priv *hdmi)
 }
 
 
-void hdmi_set_samplerate(struct hdmi_priv *hdmi, int freq, int hbr)
+static void hdmi_set_samplerate(struct hdmi_priv *hdmi, int freq, int hbr)
 {
 	int div;
 
@@ -475,7 +475,7 @@ static int hdmi_audioformat_en(bool en)
 	return ret;
 }
 
-int hdmi_set_audioformat(u32 channel_numbers, u32 channel_mask,
+static int hdmi_set_audioformat(u32 channel_numbers, u32 channel_mask,
 	 u32 fs, u32 samp_size, u32 clkFactor, u32 audioFmt, u32 hbrAudio, u32 enable)
 {
 	u8 FlFr = 0, Lfe = 0, Fc = 0, RlRr = 0, Rc = 0, FlcFrc = 0, RlcRrc = 0;
@@ -605,7 +605,7 @@ int hdmi_set_audioformat(u32 channel_numbers, u32 channel_mask,
 	return 0;
 }
 
-int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
+static int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
 {
 	u32 fs, samp_size, clk_factor, mfs;
 	u32 i2s_mode, i2s_DFM, i2s_CFM, channel_numbers, uiBitDepth;
@@ -916,9 +916,15 @@ static int berlin_outdai_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 static int berlin_outdai_set_channel_map(struct snd_soc_dai *dai,
 				   unsigned int tx_num, unsigned int *tx_slot,
 				   unsigned int rx_num, unsigned int *rx_slot)
+#else
+static int berlin_outdai_set_channel_map(struct snd_soc_dai *dai,
+				   unsigned int tx_num, const unsigned int *tx_slot,
+				   unsigned int rx_num, const unsigned int *rx_slot)
+#endif
 {
 	struct hdmi_priv *outdai = snd_soc_dai_get_drvdata(dai);
 	int i;
@@ -932,11 +938,17 @@ static int berlin_outdai_set_channel_map(struct snd_soc_dai *dai,
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 static int berlin_outdai_get_channel_map(struct snd_soc_dai *dai,
 				   unsigned int *tx_num, unsigned int *tx_slot,
 				   unsigned int *rx_num, unsigned int *rx_slot)
+#else
+static int berlin_outdai_get_channel_map(const struct snd_soc_dai *dai,
+				   unsigned int *tx_num, unsigned int *tx_slot,
+				   unsigned int *rx_num, unsigned int *rx_slot)
+#endif
 {
-	struct hdmi_priv *outdai = snd_soc_dai_get_drvdata(dai);
+	struct hdmi_priv *outdai = snd_soc_dai_get_drvdata((struct snd_soc_dai *)dai);
 	int i;
 
 	for (i = 0; i < 8; i++)
@@ -958,11 +970,16 @@ static struct snd_soc_dai_ops berlin_dai_outdai_ops = {
 	.shutdown  = berlin_outdai_shutdown,
 	.set_channel_map = berlin_outdai_set_channel_map,
 	.get_channel_map = berlin_outdai_get_channel_map,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe 	   = berlin_outdai_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver berlin_outdai_dai = {
 	.name = "berlin-hdmi-outdai",
-	.probe = berlin_outdai_dai_probe,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+	.probe 	   = berlin_outdai_dai_probe,
+#endif
 	.playback = {
 		.stream_name = "HdmiPlayback",
 		.channels_min = 1,
@@ -1024,7 +1041,7 @@ static int hdmi_outdai_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int hdmi_outdai_remove(struct platform_device *pdev)
+static RET_TYPE hdmi_outdai_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct hdmi_priv *outdai;
@@ -1037,7 +1054,7 @@ static int hdmi_outdai_remove(struct platform_device *pdev)
 		outdai->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id hdmi_outdai_dt_ids[] = {

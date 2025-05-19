@@ -576,11 +576,16 @@ static int ptrack_dai_probe(struct snd_soc_dai *dai)
 
 static struct snd_soc_dai_ops ptrack_dai_ops = {
 	.trigger = ptrack_dai_trigger,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = ptrack_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver ptrack0_dai = {
 	.name = "ptrack0_dai",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = ptrack_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "Ptrack0-Capture",
 		.channels_min = 1,
@@ -593,7 +598,9 @@ static struct snd_soc_dai_driver ptrack0_dai = {
 
 static struct snd_soc_dai_driver ptrack1_dai = {
 	.name = "ptrack1_dai",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = ptrack_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "Ptrack1-Capture",
 		.channels_min = 1,

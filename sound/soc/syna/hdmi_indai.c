@@ -20,15 +20,6 @@
 #include "mic.h"
 #include "hdmi_in_if.h"
 
-#include <linux/version.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
-#define RET void
-#define RETURN
-#else
-#define RET int
-#define RETURN return 0
-#endif
-
 #define HDMI_CAPTURE_RATES   (SNDRV_PCM_RATE_48000)
 #define HDMI_CAPTURE_FORMATS (SNDRV_PCM_FMTBIT_S16_LE \
 				| SNDRV_PCM_FMTBIT_S32_LE) \
@@ -354,9 +345,15 @@ static int berlin_indai_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+static int berlin_indai_get_channel_map(struct snd_soc_dai *dai,
+				   unsigned int *tx_num, unsigned int *tx_slot,
+				   unsigned int *rx_num, unsigned int *rx_slot)
+#else
 static int berlin_indai_get_channel_map(const struct snd_soc_dai *dai,
 				   unsigned int *tx_num, unsigned int *tx_slot,
 				   unsigned int *rx_num, unsigned int *rx_slot)
+#endif
 {
 	struct hdmi_priv *indai = snd_soc_dai_get_drvdata((struct snd_soc_dai *)dai);
 	int i;
@@ -373,9 +370,15 @@ static int berlin_indai_get_channel_map(const struct snd_soc_dai *dai,
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+static int berlin_indai_set_channel_map(struct snd_soc_dai *dai,
+				   unsigned int tx_num, unsigned int *tx_slot,
+				   unsigned int rx_num, unsigned int *rx_slot)
+#else
 static int berlin_indai_set_channel_map(struct snd_soc_dai *dai,
 				   unsigned int tx_num, const unsigned int *tx_slot,
 				   unsigned int rx_num, const unsigned int *rx_slot)
+#endif
 {
 	struct hdmi_priv *indai = snd_soc_dai_get_drvdata(dai);
 	int i;
@@ -399,11 +402,16 @@ static struct snd_soc_dai_ops berlin_dai_indai_ops = {
 	.shutdown  = berlin_indai_shutdown,
 	.set_channel_map = berlin_indai_set_channel_map,
 	.get_channel_map = berlin_indai_get_channel_map,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
 	.probe = berlin_indai_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver berlin_indai_dai = {
 	.name = "berlin-hdmi-indai",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+	.probe = berlin_indai_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "HdmiCapture",
 		.channels_min = 2,
@@ -451,7 +459,7 @@ static int hdmi_indai_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static RET hdmi_indai_remove(struct platform_device *pdev)
+static RET_TYPE hdmi_indai_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct hdmi_priv *indai;
@@ -464,7 +472,7 @@ static RET hdmi_indai_remove(struct platform_device *pdev)
 		indai->aio_handle = NULL;
 	}
 
-	RETURN;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id hdmi_indai_dt_ids[] = {

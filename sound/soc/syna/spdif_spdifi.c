@@ -149,11 +149,16 @@ static struct snd_soc_dai_ops dai_spdifi_ops = {
 	.hw_free = spdifi_hw_free,
 	.trigger = spdifi_trigger,
 	.shutdown = spdifi_shutdown,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.probe = spdifi_dai_probe,
+#endif
 };
 
 static struct snd_soc_dai_driver spdifi_dai = {
 	.name = "berlin-spdifi",
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.probe = spdifi_dai_probe,
+#endif
 	.capture = {
 		.stream_name = "spdifi-Capture",
 		.channels_min = 2,
@@ -284,7 +289,7 @@ fail_register_dai:
 	return ret;
 }
 
-static int spdifi_remove(struct platform_device *pdev)
+static RET_TYPE spdifi_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct spdifi_priv *spdifi;
@@ -297,7 +302,7 @@ static int spdifi_remove(struct platform_device *pdev)
 		spdifi->aio_handle = NULL;
 	}
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static struct platform_driver spdifi_driver = {
