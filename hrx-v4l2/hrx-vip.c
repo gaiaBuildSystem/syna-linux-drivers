@@ -790,6 +790,8 @@ void vip_config(struct syna_hrx_v4l2_dev *hrx_dev)
 	output_mode = hrx_dev->vip_omode;
 
 	hrx_dev->vip_enable_scaler = g_enscaler;
+	/* reset vip scl */
+	vip_scl_reset(hrx_dev);
 
 	/* reset VBI BCM buffer */
 	bcmbuf_reset(&(hrx_dev->vbi_bcm_buf[0]));
