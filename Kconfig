@@ -75,4 +75,6 @@ source "drivers/synaptics/rpmsg/Kconfig"
 
 source "drivers/synaptics/hrx-v4l2/Kconfig"
 
+source "drivers/synaptics/gpu/Kconfig"
+
 endmenu
