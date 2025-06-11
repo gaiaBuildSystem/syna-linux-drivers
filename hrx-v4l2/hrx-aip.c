@@ -419,8 +419,8 @@ static int aip_watcher_task(void *param)
 		msleep_interruptible(1000);
 
 		/* No need to watch if AIP is not running */
-		if (hrx_dev->aip_status == AIP_STATUS_CLOSE)
-			return 0;
+		if ((hrx_dev->aip_status != AIP_STATUS_ACTIVE) || (hrx_dev->aip_status != AIP_STATUS_START))
+			continue;
 
 		hrx_get_aud_err(hrx_dev, &pAudErr);
 		if (!pAudErr) {
