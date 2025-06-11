@@ -43,7 +43,7 @@ obj-$(CONFIG_SYNAPTICS_CLOCKSOURCE)	+= clocksource/
 
 obj-$(CONFIG_SYNAPTICS_DMA)			+= dma/
 
-obj-$(CONFIG_SYNAPTICS_GPU)			+= gpu/
+obj-$(CONFIG_MALI_MIDGARD)              += gpu/arm/mali-midgard/
 
 obj-$(CONFIG_SYNAPTICS_TTY)			+= tty/
 

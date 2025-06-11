@@ -6,3 +6,4 @@
 
 obj-y						+= dsi/ vivante/
 obj-$(CONFIG_MALI400)		+= arm/mali/
+obj-$(CONFIG_MALI_MIDGARD)	+= arm/mali-midgard/
