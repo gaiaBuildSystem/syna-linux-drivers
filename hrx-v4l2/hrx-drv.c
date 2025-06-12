@@ -3686,7 +3686,7 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 
 	hrx_intr = msg.m_Param1;
 	irq = msg.m_Param2;
-	HRX_LOG(HRX_DRV_DEBUG, "intr = %x irq : %llxx\n", msg.m_Param1, msg.m_Param2);
+	HRX_LOG(HRX_DRV_DEBUG, "intr = %x irq : %llxx\n", msg.m_Param1, (long long)msg.m_Param2);
 
 	switch (hrx_dev->HrxState) {
 	case HRX_STATE_DISCONNECTED:
