@@ -389,7 +389,11 @@ static ssize_t isp_dhub_config_proc_write(struct file *file,
 					 const char __user *buffer,
 					 size_t count, loff_t *f_pos)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+	isp_module_ctx *p_mCtx = (isp_module_ctx *)PDE_DATA(file_inode(file));
+#else
 	isp_module_ctx *p_mCtx = (isp_module_ctx *)pde_data(file_inode(file));
+#endif
 	ISP_DHUB_CTX *hDhubCtx = (ISP_DHUB_CTX *)p_mCtx->mod_prv;
 	unsigned long config = 0;
 	unsigned int i, ascii_code, dec_code;
@@ -445,7 +449,11 @@ static int isp_dhub_config_seq_show(struct seq_file *m, void *v)
 
 static int isp_dhub_config_proc_open(struct inode *inode, struct file *file)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+	return single_open(file, isp_dhub_config_seq_show, PDE_DATA(inode));
+#else
 	return single_open(file, isp_dhub_config_seq_show, pde_data(inode));
+#endif
 }
 
 static int isp_dhub_status_seq_show(struct seq_file *m, void *v)
@@ -464,7 +472,11 @@ static int isp_dhub_status_seq_show(struct seq_file *m, void *v)
 
 static int isp_dhub_status_proc_open(struct inode *inode, struct file *file)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+	return single_open(file, isp_dhub_status_seq_show, PDE_DATA(inode));
+#else
 	return single_open(file, isp_dhub_status_seq_show, pde_data(inode));
+#endif
 }
 
 static int isp_dhub_detail_seq_show(struct seq_file *m, void *v)
@@ -501,7 +513,12 @@ static int isp_dhub_detail_seq_show(struct seq_file *m, void *v)
 
 static int isp_dhub_detail_proc_open(struct inode *inode, struct file *file)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+	return single_open(file, isp_dhub_detail_seq_show, PDE_DATA(inode));
+#else
 	return single_open(file, isp_dhub_detail_seq_show, pde_data(inode));
+#endif
+
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)

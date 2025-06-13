@@ -362,7 +362,11 @@ static int isp_device_init(isp_device *isp_dev)
 		return ret;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0))
 	isp_dev->dev_class = class_create(ISP_DEVICE_NAME);
+#else
+	isp_dev->dev_class = class_create(THIS_MODULE, ISP_DEVICE_NAME);
+#endif
 	if (IS_ERR(isp_dev->dev_class)) {
 		isp_error(dev, "class_create failed...!\n");
 		ret = -ENOMEM;
