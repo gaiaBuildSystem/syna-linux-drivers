@@ -53,7 +53,10 @@ typedef int PLAT_RET_TYPE;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0))
 
 #define ignore_cap_streaming(ctx, trigger) \
-	ctx->ignore_cap_streaming = trigger
+	do {	\
+		ctx->ignore_cap_streaming = trigger; \
+		v4l2_m2m_set_dst_buffered(ctx, trigger); \
+	} while (0)
 
 #define set_v4l2_q_min_queued_buffers(vq, num) \
 	(vq->min_queued_buffers) = (num)
