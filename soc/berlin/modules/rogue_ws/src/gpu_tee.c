@@ -445,7 +445,7 @@ PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *ps
 	dma_buf_kunmap(fw_src_dma_buf, 0, fw_src_data);
 #endif
 	dma_buf_end_cpu_access(fw_src_dma_buf, DMA_FROM_DEVICE);
-
+	get_dma_buf(fw_src_dma_buf); //take additional ref to account for fd close
 	fw_src_fd = dma_buf_fd(fw_src_dma_buf, O_RDWR);
 	if (fw_src_fd < 0) {
 		dma_buf_put(fw_src_dma_buf);
