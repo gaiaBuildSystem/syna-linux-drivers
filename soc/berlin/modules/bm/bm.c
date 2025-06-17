@@ -456,7 +456,7 @@ static int pte_node_destroy_by_callback(struct berlin_pte_node *pn)
 			}
 			msleep(FREE_PT_TRY_INTERVAL);
 		} else {
-			pr_info("pt freed trying %d times, addr %pa\n",
+			pr_debug("pt freed trying %d times, addr %pa\n",
 				pn->try_count, &pn->phy_addr_pt);
 			break;
 		}
