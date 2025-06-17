@@ -506,11 +506,20 @@ static int berlin_pcm_new(struct snd_soc_component *component,
 		kctl->tlv.c = berlin_pcm_chmap_ctl_tlv;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+	snd_pcm_lib_preallocate_pages_for_all(rtd->pcm,
+			SNDRV_DMA_TYPE_CONTINUOUS,
+			snd_dma_continuous_data
+			(GFP_KERNEL),
+			PREALLOC_BUFFER,
+			PREALLOC_BUFFER_MAX);
+#else
 	snd_pcm_lib_preallocate_pages_for_all(rtd->pcm,
 			SNDRV_DMA_TYPE_CONTINUOUS,
 			component->dev,
 			PREALLOC_BUFFER,
 			PREALLOC_BUFFER_MAX);
+#endif
 
 	return 0;
 }
