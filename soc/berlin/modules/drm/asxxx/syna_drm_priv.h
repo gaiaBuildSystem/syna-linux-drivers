@@ -16,7 +16,6 @@
 #define VOUT_DEVICE VOUT_TFT
 #define VPP_GET_PLANE_ROTATE_INDX(INDX, PLANE)	 (INDX = PLANE);
 
-//#define VPP_BUILD_IN_FRAME_ENABLE
 #define VPP_BUILD_IN_FRAME_GFX_WIDTH    720
 #define VPP_BUILD_IN_FRAME_GFX_HEIGHT   480
 #define VPP_BUILD_IN_FRAME_GFX_NULL_WIDTH    8
@@ -33,5 +32,6 @@ VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id);
 struct drm_encoder *syna_encoder_create(struct drm_device *dev,
 					ENUM_VOUT_CONNECTOR vout_id, ENUM_CPCB_ID cpcb_id,
 					int possible_crtc_mask);
+void syna_push_buildin_frame(u32 plane);
 
 #endif /* !defined(__SYNA_DRM_PRIV_H__) */
