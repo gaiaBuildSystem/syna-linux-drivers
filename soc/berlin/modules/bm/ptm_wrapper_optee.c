@@ -40,10 +40,6 @@ static int ptm_wrapper_alloc(struct ptm_context *ptm_ctx, unsigned int len,
 {
 	struct tee_shm *shm;
 
-	shm = kzalloc(sizeof(struct tee_shm), GFP_KERNEL);
-	if (!shm)
-		return -ENOMEM;
-
 	shm = tee_shm_alloc_kernel_buf(ptm_ctx->teec_ctx, len);
 	if (IS_ERR(shm)) {
 		pr_err("fail to allocate share memory: size %x\n", len);
@@ -58,7 +54,6 @@ static int ptm_wrapper_alloc(struct ptm_context *ptm_ctx, unsigned int len,
 static void ptm_wrapper_free(void *handle)
 {
 	tee_shm_free(handle);
-	kfree(handle);
 }
 
 
