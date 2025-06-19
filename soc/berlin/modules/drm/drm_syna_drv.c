@@ -23,10 +23,6 @@
 #include <drm/drm_ioctl.h>
 #include <drm/drm_vblank.h>
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
-#include <drm/drm_gem_dma_helper.h>
-#endif
-
 #include "drm_syna_drv.h"
 #include "drm_syna_gem.h"
 #include "syna_drm.h"
@@ -356,6 +352,10 @@ static int syna_probe(struct platform_device *pdev)
 	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_suspend.attr);
 	if(ret)
 		DRM_ERROR("Sysfs suspend entry not created %d",ret);
+
+	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
+		IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE))
+			SYNA_DRM_FBDEV_SETUP(ddev, 32);
 
 	return 0;
 

@@ -202,6 +202,8 @@ config SYNA_DRM
 	select BERLIN_VPP
 	select BERLIN_AVIO
 	select DRM_KMS_HELPER
+	select DRM_TTM
+	select DRM_TTM_HELPER
 	help
 	  synaptics drm display support
 
