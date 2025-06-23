@@ -21,8 +21,7 @@ struct berlin_desc_group {
 	u8				bit_width;
 	u8				lsb;
 	u16				conf_offset;
-	u8				str_bit_width;
-	u8				str_lsb;
+	u8				conf_bits;
 	struct berlin_desc_function	*functions;
 };
 
@@ -38,15 +37,14 @@ struct berlin_pinctrl_function {
 };
 
 #define BERLIN_PINCTRLCONF_GROUP(_name, _offset, _width, _lsb,		\
-		_conf_offset, _str_width, _str_lsb, ...)		\
+		_conf_offset, _conf_bits, ...)				\
 	{								\
 		.name = _name,						\
 		.offset = _offset,					\
 		.bit_width = _width,					\
 		.lsb = _lsb,						\
 		.conf_offset = _conf_offset,				\
-		.str_bit_width = _str_width,				\
-		.str_lsb = _str_lsb,					\
+		.conf_bits = _conf_bits,				\
 		.functions = (struct berlin_desc_function[]){		\
 			__VA_ARGS__, { } },				\
 	}

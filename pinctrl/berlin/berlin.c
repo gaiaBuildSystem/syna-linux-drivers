@@ -26,6 +26,20 @@
 #include "../../../pinctrl/pinctrl-utils.h"
 #include "berlin.h"
 
+#define PINCFG_DS_10BIT		GENMASK(3, 0)
+#define PINCFG_IE_10BIT		BIT(4)
+#define PINCFG_PE_10BIT		BIT(5)
+#define PINCFG_PS_10BIT		BIT(6)
+#define PINCFG_SL_10BIT		BIT(7)
+#define PINCFG_SPU_10BIT	BIT(8)
+#define PINCFG_ST_10BIT		BIT(9)
+#define PINCFG_DS_8BIT		GENMASK(2, 0)
+#define PINCFG_IE_8BIT		BIT(3)
+#define PINCFG_PD_8BIT		BIT(4)
+#define PINCFG_PU_8BIT		BIT(5)
+#define PINCFG_SL_8BIT		BIT(6)
+#define PINCFG_ST_8BIT		BIT(7)
+
 struct berlin_pinctrl {
 	struct regmap *regmap;
 	struct regmap *conf;
@@ -210,36 +224,83 @@ static int berlin_pinconf_group_get(struct pinctrl_dev *pctrl_dev,
 	enum pin_config_param param = pinconf_to_config_param(*configs);
 	struct berlin_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctrl_dev);
 	const struct berlin_desc_group *group_desc = pctrl->desc->groups + group;
-	u32 mask, val;
-	int offset, ret;
+	bool enabled;
+	u32 val;
+	int ret;
+	u8 conf_bits = group_desc->conf_bits;
 
-	if (!group_desc->str_bit_width)
+	if (!conf_bits)
 		return -ENOTSUPP;
 
+	ret = regmap_read(pctrl->conf, group_desc->conf_offset, &val);
+	if (ret)
+		return ret;
+
 	switch (param) {
+	case PIN_CONFIG_BIAS_DISABLE:
+		if (conf_bits == 10)
+			enabled = !(val & PINCFG_PE_10BIT);
+		else
+			enabled = !(val & (PINCFG_PD_8BIT | PINCFG_PU_8BIT));
+		val = 0;
+		break;
+	case PIN_CONFIG_BIAS_PULL_DOWN:
+		if (conf_bits == 10)
+			enabled = (val & (PINCFG_PE_10BIT | PINCFG_PS_10BIT)) == PINCFG_PE_10BIT;
+		else
+			enabled = val & PINCFG_PD_8BIT;
+		val = enabled ? 1 : 0;
+		break;
+	case PIN_CONFIG_BIAS_PULL_UP:
+		if (conf_bits == 10) {
+			if ((val & (PINCFG_PE_10BIT | PINCFG_PS_10BIT)) == (PINCFG_PE_10BIT | PINCFG_PS_10BIT)) {
+				enabled = true;
+				val = 1;
+				if (val & PINCFG_SPU_10BIT)
+					val++;
+			} else {
+				enabled = false;
+				val = 0;
+			}
+		} else {
+			enabled = val & PINCFG_PU_8BIT;
+			val = enabled ? 1 : 0;
+		}
+		break;
 	case PIN_CONFIG_DRIVE_STRENGTH:
-		ret = regmap_read(pctrl->conf, group_desc->conf_offset, &val);
-		if (ret)
-			return ret;
-		val >>= group_desc->str_lsb;
-		mask = GENMASK(group_desc->str_bit_width - 1, 0);
-		val &= mask;
+		enabled = true;
+		if (conf_bits == 10)
+			val = FIELD_GET(PINCFG_DS_10BIT, val);
+		else
+			val = FIELD_GET(PINCFG_DS_8BIT, val);
+		break;
+	case PIN_CONFIG_INPUT_ENABLE:
+		if (conf_bits == 10)
+			enabled = val & PINCFG_IE_10BIT;
+		else
+			enabled = val & PINCFG_IE_8BIT;
+		val = enabled ? 1 : 0;
+		break;
+	case PIN_CONFIG_INPUT_SCHMITT_ENABLE:
+		if (conf_bits == 10)
+			val = val & PINCFG_ST_10BIT;
+		else
+			val = val & PINCFG_ST_8BIT;
+		val = enabled ? 1 : 0;
 		break;
 	case PIN_CONFIG_SLEW_RATE:
-		offset = group_desc->str_lsb + group_desc->str_bit_width + 3;
-		ret = regmap_read(pctrl->conf, group_desc->conf_offset, &val);
-		if (ret)
-			return ret;
-		val >>= offset;
-		mask = 1 << offset;
-		val &= mask;
+		if (conf_bits == 10)
+			enabled = val & PINCFG_SL_10BIT;
+		else
+			enabled = val & PINCFG_SL_8BIT;
+		val = enabled ? 1 : 0;
 		break;
 	default:
 		return -ENOTSUPP;
 	}
 
 	*configs = pinconf_to_config_packed(param, val);
-	return 0;
+	return enabled ? 0 : -EINVAL;
 }
 
 static int berlin_pinconf_group_set(struct pinctrl_dev *pctrl_dev,
@@ -248,40 +309,90 @@ static int berlin_pinconf_group_set(struct pinctrl_dev *pctrl_dev,
 {
 	struct berlin_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctrl_dev);
 	const struct berlin_desc_group *group_desc = pctrl->desc->groups + group;
-	int offset, i;
+	u8 conf_bits = group_desc->conf_bits;
+	u32 mask = 0, val = 0;
+	int i;
 
-	if (!group_desc->str_bit_width)
+	if (!conf_bits)
 		return -ENOTSUPP;
 
 	for (i = 0; i < nconfigs; i++) {
-		u32 mask, val;
 		enum pin_config_param param =
 					pinconf_to_config_param(configs[i]);
-		val = pinconf_to_config_argument(configs[i]);
+		u32 arg = pinconf_to_config_argument(configs[i]);
 		switch (param) {
+		case PIN_CONFIG_BIAS_DISABLE:
+			if (conf_bits == 10)
+				mask |= (PINCFG_PE_10BIT | PINCFG_PS_10BIT | PINCFG_SPU_10BIT);
+			else
+				mask |= (PINCFG_PU_8BIT | PINCFG_PD_8BIT);
+			break;
+		case PIN_CONFIG_BIAS_PULL_DOWN:
+			if (conf_bits == 10) {
+				mask |= (PINCFG_PE_10BIT | PINCFG_PS_10BIT | PINCFG_SPU_10BIT);
+				val |= PINCFG_PE_10BIT;
+			} else {
+				mask |= (PINCFG_PU_8BIT | PINCFG_PD_8BIT);
+				val |= PINCFG_PD_8BIT;
+			}
+			break;
+		case PIN_CONFIG_BIAS_PULL_UP:
+			if (conf_bits == 10) {
+				mask |= (PINCFG_PE_10BIT | PINCFG_PS_10BIT | PINCFG_SPU_10BIT);
+				val |= (PINCFG_PE_10BIT | PINCFG_PS_10BIT);
+				if (arg == 2)
+					val |= PINCFG_SPU_10BIT;
+			} else {
+				mask |= (PINCFG_PU_8BIT | PINCFG_PD_8BIT);
+				val |= PINCFG_PU_8BIT;
+			}
+			break;
 		case PIN_CONFIG_DRIVE_STRENGTH:
-			mask = GENMASK(group_desc->str_lsb + group_desc->str_bit_width - 1,
-					group_desc->str_lsb);
-			val <<= group_desc->str_lsb;
-			regmap_update_bits(pctrl->conf,
-					   group_desc->conf_offset,
-					   mask, val);
+			if (conf_bits == 10)
+				mask |= PINCFG_DS_10BIT;
+			else
+				mask |= PINCFG_DS_8BIT;
+			val |= arg;
+			break;
+		case PIN_CONFIG_INPUT_ENABLE:
+			if (conf_bits == 10) {
+				mask |= PINCFG_IE_10BIT;
+				if (arg)
+					val |= PINCFG_IE_10BIT;
+			} else {
+				mask |= PINCFG_IE_8BIT;
+				if (arg)
+					val |= PINCFG_IE_8BIT;
+			}
+			break;
+		case PIN_CONFIG_INPUT_SCHMITT_ENABLE:
+			if (conf_bits == 10) {
+				mask |= PINCFG_ST_10BIT;
+				if (arg)
+					val |= PINCFG_ST_10BIT;
+			} else {
+				mask |= PINCFG_ST_8BIT;
+				if (arg)
+					val |= PINCFG_ST_8BIT;
+			}
 			break;
 		case PIN_CONFIG_SLEW_RATE:
-			offset = group_desc->str_lsb +
-				 group_desc->str_bit_width + 3;
-			mask = 1 << offset;
-			val <<= offset;
-			regmap_update_bits(pctrl->conf,
-					   group_desc->conf_offset,
-					   mask, val);
+			if (conf_bits == 10) {
+				mask |= PINCFG_SL_10BIT;
+				if (arg)
+					val |= PINCFG_SL_10BIT;
+			} else {
+				mask |= PINCFG_SL_8BIT;
+				if (arg)
+					val |= PINCFG_SL_8BIT;
+			}
 			break;
 		default:
 			return -ENOTSUPP;
 		}
 	}
 
-	return 0;
+	return regmap_update_bits(pctrl->conf, group_desc->conf_offset, mask, val);
 }
 
 static const struct pinconf_ops berlin_confops = {
