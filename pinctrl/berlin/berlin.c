@@ -255,9 +255,10 @@ static int berlin_pinconf_group_get(struct pinctrl_dev *pctrl_dev,
 		if (conf_bits == 10) {
 			if ((val & (PINCFG_PE_10BIT | PINCFG_PS_10BIT)) == (PINCFG_PE_10BIT | PINCFG_PS_10BIT)) {
 				enabled = true;
-				val = 1;
 				if (val & PINCFG_SPU_10BIT)
-					val++;
+					val = 2;
+				else
+					val = 1;
 			} else {
 				enabled = false;
 				val = 0;
