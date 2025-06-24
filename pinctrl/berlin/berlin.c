@@ -284,9 +284,9 @@ static int berlin_pinconf_group_get(struct pinctrl_dev *pctrl_dev,
 		break;
 	case PIN_CONFIG_INPUT_SCHMITT_ENABLE:
 		if (conf_bits == 10)
-			val = val & PINCFG_ST_10BIT;
+			enabled = val & PINCFG_ST_10BIT;
 		else
-			val = val & PINCFG_ST_8BIT;
+			enabled = val & PINCFG_ST_8BIT;
 		val = enabled ? 1 : 0;
 		break;
 	case PIN_CONFIG_SLEW_RATE:
