@@ -7,24 +7,24 @@
 
 MODULE_NAME ?= pvrsrvkm
 
-TEE_INC_PATH += -I$(srctree)/drivers/soc/berlin/modules/tzd/tee/client_api \
-       -I$(srctree)/drivers/soc/berlin/modules/tzd/tee/common \
-       -I$(srctree)/drivers/soc/berlin/modules/tzd/tz/common \
-       -I$(srctree)/drivers/soc/berlin/modules/tzd/include \
-       -I$(srctree)/drivers/soc/berlin/modules/tzd
+TEE_INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/client_api \
+       -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/common \
+       -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tz/common \
+       -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/include \
+       -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd
 
 
-EXTRA_CFLAGS += -I$(src)/include/
-EXTRA_CFLAGS += -I$(src)/include/km/
+EXTRA_CFLAGS += -I $(srctree)/$(src)/include/
+EXTRA_CFLAGS += -I $(srctree)/$(src)/include/km/
 EXTRA_CFLAGS += $(TEE_INC_PATH)
 EXTRA_CFLAGS += -Werror
 
 ifeq ($(CONFIG_GPU_DOLPHIN),y)
-    EXTRA_CFLAGS += -include $(src)/dolphin_config_kernel.h
+    EXTRA_CFLAGS += -include $(srctree)/$(src)/dolphin_config_kernel.h
 else ifeq ($(CONFIG_GPU_PLATYPUS),y)
-    EXTRA_CFLAGS += -include $(src)/platypus_config_kernel.h
+    EXTRA_CFLAGS += -include $(srctree)/$(src)/platypus_config_kernel.h
 else ifeq ($(CONFIG_GPU_MYNA2),y)
-    EXTRA_CFLAGS += -include $(src)/myna2_config_kernel.h
+    EXTRA_CFLAGS += -include $(srctree)/$(src)/myna2_config_kernel.h
 endif
 
 OBJS := src/allocmem.o \
