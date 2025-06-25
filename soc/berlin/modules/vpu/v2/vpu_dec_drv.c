@@ -84,6 +84,7 @@ struct v4g_fmt {
 	bool postprocessed;
 	const struct v4g_fmt *tile_fmt;
 	struct v4l2_frmsize_stepwise frmsize;
+	bool is_skip;
 	u32 flags;
 };
 
@@ -116,7 +117,6 @@ static const struct v4g_fmt syna_v4g_dec_fmts[] = {
 	 .postprocessed = true,
 	 .tile_fmt = &nv12m_h4v1_fmt,
 	 },
-#ifndef NO_ENUM_V4L2_PIX_FMT_NV15M
 	{
 	 .fourcc = V4L2_PIX_FMT_NV15M,
 	 .fw_format = VDEC_OUTPUT_SPUV,
@@ -125,8 +125,10 @@ static const struct v4g_fmt syna_v4g_dec_fmts[] = {
 	 .comp_planes = 2,
 	 .postprocessed = true,
 	 .tile_fmt = &nv15m_v4h3p8_fmt,
-	 },
+#ifdef NO_ENUM_V4L2_PIX_FMT_NV15M
+	 .is_skip = true,
 #endif
+	 },
 	/* codec formats */
 	{
 	 .fourcc = V4L2_PIX_FMT_H264,
@@ -185,7 +187,6 @@ static const struct v4g_fmt syna_v4g_dec_fmts[] = {
 		     .step_height = 2,
 		     },
 	 },
-#ifndef NO_ENUM_V4L2_PIX_FMT_AV1
 	{
 	 .fourcc = V4L2_PIX_FMT_AV1,
 	 .fw_format = SYNA_VXG_AV1,
@@ -199,8 +200,10 @@ static const struct v4g_fmt syna_v4g_dec_fmts[] = {
 		     .max_height = 4096,
 		     .step_height = 2,
 		     },
-	 },
+#ifdef NO_ENUM_V4L2_PIX_FMT_AV1
+	 .is_skip = true,
 #endif
+	 },
 };
 
 static inline void idx_queue_push(struct idx_queue *q, uint32_t key,
@@ -406,6 +409,9 @@ static int vidioc_enum_fmt(struct v4l2_fmtdesc *f,
 
 		if (capture == mode_none)
 			continue;
+		if (formats[i].is_skip)
+			continue;
+
 		if (j == f->index) {
 			fmt = &formats[i];
 			f->pixelformat = fmt->fourcc;
@@ -660,6 +666,9 @@ static int vdec_set_default_graphics_fmt(struct syna_vcodec_ctx *ctx, u32 codec)
 	 */
 	p->dither_enable = 1;
 	p->dither_bit = 8;
+#ifdef NO_ENUM_V4L2_PIX_FMT_NV15M
+	set_bit(SYNA_VPU_DEC_PP_DITHER_EN, &ctx->status);
+#endif
 
 	if (fmt->postprocessed)
 		fmt = fmt->tile_fmt;
@@ -1028,6 +1037,13 @@ static int v4g_vdec_g_fmt_cap(struct syna_vcodec_ctx *ctx,
 					       ARRAY_SIZE(syna_v4g_dec_fmts));
 		if (!dst_fmt)
 			return -EINVAL;
+
+		if (dst_fmt->is_skip) {
+			dst_fmt = syna_v4g_find_format(V4L2_PIX_FMT_NV12M, 0,
+						       syna_v4g_dec_fmts,
+						       ARRAY_SIZE
+						       (syna_v4g_dec_fmts));
+		}
 
 		vdpu_update_dst_fmt(ctx, dst_fmt);
 		ctx->vpu_dst_fmt = dst_fmt;
