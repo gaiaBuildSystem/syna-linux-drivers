@@ -214,6 +214,7 @@ static int berlin_clk_is_enabled(struct clk_hw *hw)
 }
 
 static const struct clk_ops berlin_clk_ops = {
+	.determine_rate	= clk_hw_determine_rate_no_reparent,
 	.recalc_rate	= berlin_clk_recalc_rate,
 	.get_parent	= berlin_clk_get_parent,
 	.set_parent	= berlin_clk_set_parent,
