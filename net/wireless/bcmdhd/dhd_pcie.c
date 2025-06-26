@@ -13843,11 +13843,11 @@ dhdpcie_chipmatch(uint16 vendor, uint16 device)
 		case BCM43711_D11AX6E_ID:
 		case BCM43711_D11AC_ID:
 		case BCM43711_D11AX_ID:
+#if 0
 		case BCM4381_CHIP_ID:
 		case BCM4381_D11AX_ID:
 		case BCM4382_CHIP_ID:
 		case BCM4382_D11AX_ID:
-#if 0
 		case BCM4388_CHIP_ID:
 		case BCM4388_D11AX_ID:
 		case BCM4389_CHIP_ID:

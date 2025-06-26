@@ -60,6 +60,8 @@
 #endif /* CONFIG_WIFI_CONTROL_FUNC */
 #include <dhd_dbg.h>
 #include <dhd.h>
+#include <bcmdevs.h>
+#include <linux/pci.h>
 
 #ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
 extern int dhd_init_wlan_mem(void);
@@ -299,12 +301,52 @@ struct wifi_platform_data dhd_wlan_control = {
 };
 EXPORT_SYMBOL(dhd_wlan_control);
 
+#ifdef BCMPCIE
+static int dhd_check_pcie_devices(void)
+{
+	struct pci_dev *dev;
+
+	dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, NULL);
+	while (dev) {
+		printk(KERN_INFO "PCI device: %04x:%04x (class %06x) at %02x:%02x.%d\n",
+			   dev->vendor, dev->device,
+			   dev->class,
+			   dev->bus->number,
+			   PCI_SLOT(dev->devfn),
+			   PCI_FUNC(dev->devfn));
+
+		if (VENDOR_BROADCOM == dev->vendor) {
+			if ((BCM4362_CHIP_ID == dev->device) || (BCM43752_D11AX_ID == dev->device)) {
+				return 0;
+			}
+		}
+
+		if (VENDOR_SYNAPTICS == dev->vendor) {
+			if (BCM43711_D11AX6E_ID == dev->device) {
+				return 0;
+			}
+		}
+
+		dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev);
+	}
+
+	return -ENODEV;
+}
+#endif /* BCMPCIE */
+
+extern int dhd_wlan_deinit(void);
+
 int
 dhd_wlan_init(void)
 {
-	int ret;
+	int ret = 0;
+	int ret1 = 0;
 
-	DHD_INFO(("%s: START.......\n", __FUNCTION__));
+#if defined(CONFIG_ARCH_ASTRA) && defined(BCMPCIE)
+	msleep(300);
+#endif
+
+	DHD_ERROR(("%s: START.......\n", __func__));
 	ret = dhd_wifi_init_gpio();
 	if (ret < 0) {
 		DHD_ERROR(("%s: failed to initiate GPIO, ret=%d\n",
@@ -314,6 +356,17 @@ dhd_wlan_init(void)
 
 	dhd_wlan_resources.start = wlan_host_wake_irq;
 	dhd_wlan_resources.end = wlan_host_wake_irq;
+
+#ifdef BCMPCIE
+	ret1 = dhd_check_pcie_devices();
+	if (ret1 < 0) {
+		DHD_ERROR(("%s: No supported device, ret=%d\n",
+			__func__, ret1));
+		goto fail;
+	}
+#else
+	BCM_REFERENCE(ret1);
+#endif /* BCMPCIE */
 
 #ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
 	ret = dhd_init_wlan_mem();
@@ -329,6 +382,10 @@ dhd_wlan_init(void)
 
 fail:
 	DHD_INFO(("%s: FINISH.......\n", __FUNCTION__));
+	// add to free gpio resource
+	if (ret < 0) {
+		dhd_wlan_deinit();
+	}
 	return ret;
 }
 

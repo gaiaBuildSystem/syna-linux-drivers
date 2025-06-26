@@ -5,3 +5,5 @@
 
 
 obj-$(CONFIG_BCMDHD)	+= bcmdhd/
+obj-$(CONFIG_BCMDHD103)	+= bcmdhd103/
+obj-$(CONFIG_BCMDHD591)	+= bcmdhd591/
