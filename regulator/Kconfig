@@ -28,13 +28,6 @@ config REGULATOR_RT5739
 	help
 	  This driver supports RT5739 voltage regulator chip
 
-config REGULATOR_SY8824X
-	tristate "Silergy SY8824C/SY8824E regulator"
-	depends on I2C && (OF || COMPILE_TEST)
-	select REGMAP_I2C
-	help
-	  This driver supports SY8824C single output regulator.
-
 config REGULATOR_DVF9A
 	tristate "DSPG-DVF9A PMU"
 	depends on MFD_DSPG_DVF9A
