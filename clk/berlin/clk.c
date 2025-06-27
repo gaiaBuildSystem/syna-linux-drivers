@@ -13,6 +13,7 @@
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
+#include <linux/version.h>
 #include "clk.h"
 
 #define CLKEN		(1 << 0)
@@ -214,7 +215,9 @@ static int berlin_clk_is_enabled(struct clk_hw *hw)
 }
 
 static const struct clk_ops berlin_clk_ops = {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,5,0))
 	.determine_rate	= clk_hw_determine_rate_no_reparent,
+#endif
 	.recalc_rate	= berlin_clk_recalc_rate,
 	.get_parent	= berlin_clk_get_parent,
 	.set_parent	= berlin_clk_set_parent,
