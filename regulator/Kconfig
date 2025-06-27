@@ -14,13 +14,6 @@ config REGULATOR_HL7593
 	help
 	  This driver supports HL7593 single output regulator.
 
-config REGULATOR_RT5739
-	tristate "Richtek RT5739 Regulator"
-	depends on I2C && OF
-	select REGMAP_I2C
-	help
-	  This driver supports RT5739 voltage regulator chip
-
 config REGULATOR_DVF9A
 	tristate "DSPG-DVF9A PMU"
 	depends on MFD_DSPG_DVF9A
