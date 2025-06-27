@@ -14,13 +14,6 @@ config REGULATOR_HL7593
 	help
 	  This driver supports HL7593 single output regulator.
 
-config REGULATOR_MP886X
-	tristate "MPS MP8869 regulator driver"
-	depends on I2C && (OF || COMPILE_TEST)
-	select REGMAP_I2C
-	help
-	  This driver supports the MP8869 voltage regulator.
-
 config REGULATOR_RT5739
 	tristate "Richtek RT5739 Regulator"
 	depends on I2C && OF
