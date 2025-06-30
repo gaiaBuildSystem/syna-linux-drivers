@@ -892,6 +892,7 @@ static RET dwcmshc_remove(struct platform_device *pdev)
 	RETURN;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int dwcmshc_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
@@ -910,7 +911,6 @@ static int dwcmshc_suspend(struct device *dev)
 	return ret;
 }
 
-#ifdef CONFIG_PM_SLEEP
 static int dwcmshc_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
@@ -929,6 +929,11 @@ static int dwcmshc_resume(struct device *dev)
 	}
 
 	return sdhci_resume_host(host);
+}
+#else
+static int dwcmshc_suspend(struct device *dev)
+{
+	return 0;
 }
 #endif
 
