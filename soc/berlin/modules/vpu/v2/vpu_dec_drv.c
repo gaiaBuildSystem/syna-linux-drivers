@@ -1530,6 +1530,9 @@ static int vb2ops_vdec_buf_prepare(struct vb2_buffer *vb)
 	struct v4l2_pix_format_mplane *pix_fmt;
 	int ret;
 
+	if (test_bit(SYNA_VPU_STATUS_WAIT_NEW_RES_SETUP, &ctx->status))
+		return 0;
+
 	if (!V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		pix_fmt = &ctx->dst_fmt;
 		ret = v4g_frame_buf_plane_check(vb, pix_fmt);
@@ -1903,7 +1906,7 @@ static void vb2ops_vdec_stop_streaming(struct vb2_queue *q)
 	struct syna_vcodec_ctx *next_ctx;
 	struct syna_vpu_dev *vpu = ctx->vpu;
 	struct v4l2_m2m_ctx *m2m_ctx = ctx->fh.m2m_ctx;
-	struct vb2_queue *dst_vq;
+	struct vb2_queue *src_vq, *dst_vq;
 	struct vb2_v4l2_buffer *src_buf, *dst_buf;
 	int j;
 
@@ -1935,8 +1938,12 @@ static void vb2ops_vdec_stop_streaming(struct vb2_queue *q)
 	if (!V4L2_TYPE_IS_OUTPUT(q->type) && !vb2_start_streaming_called(dst_vq))
 		return;
 
-	/* seek is not supported */
-	vpu_srv_release_out(ctx->vpu->srv, ctx, &next_ctx);
+	next_ctx = NULL;
+	src_vq = v4l2_m2m_get_src_vq(m2m_ctx);
+	if ((ctx->dst_vb_bits || ctx->ref_slots)
+		|| !vb2_start_streaming_called(src_vq)) {
+		vpu_srv_release_out(ctx->vpu->srv, ctx, &next_ctx);
+	}
 
 	while ((dst_buf = v4l2_m2m_dst_buf_remove(m2m_ctx))) {
 		for (j = 0; j < dst_buf->vb2_buf.num_planes; j++)
@@ -2321,6 +2328,7 @@ decoding:
 
 	/* TA dead or something else */
 	if (ret) {
+		v4l2_m2m_src_buf_remove_by_buf(m2m_ctx, src_buf);
 		v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_ERROR);
 		vdpu_err(vpu, "[%p] src done err %d", m2m_ctx, src_buf->vb2_buf.index);
 		goto bail;
