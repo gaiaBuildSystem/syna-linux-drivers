@@ -16,12 +16,7 @@
 #include "dphy_wrap.h"
 #include "avio_memmap.h"
 #include "avioGbl.h"
-
-#define AVIO_GBL_BASE_ADDR  (MEMMAP_AVIO_REG_BASE+  AVIO_MEMMAP_AVIO_GBL_BASE)
-#define MIPI_SRAM_PWR_BASE_ADDR (AVIO_GBL_BASE_ADDR + RA_avioGbl_MIPI_SRAMPWR)
-#define MIPI_SRAM_PWRCTRL_ADDR (MIPI_SRAM_PWR_BASE_ADDR + RA_SRAMPWR_ctrl)
-
-#define MIPI_CTRL_ADDR (AVIO_GBL_BASE_ADDR +  RA_avioGbl_MIPI_CTRL)
+#include "lcdc_cfg_prv.h"
 
 static struct mipi_dsi_dev *mipi_dev = NULL;
 

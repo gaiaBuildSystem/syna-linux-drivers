@@ -29,6 +29,9 @@ config AVIO_DOLPHIN
 config AVIO_DOLPHIN_A0
 	bool	"Synaptics DOLPHIN A0"
 
+config AVIO_KLAMATH
+	bool	"Synaptics KLAMATH"
+
 endchoice
 
 endif

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2023 Synaptics Incorporated
- *
- *
- * Author: Prem Anand N <prem.anand@synaptics.com>
- *
  */
 #include "avio_type.h"
 #include "framequeue.h"
@@ -13,6 +9,7 @@
 #include "vpp_vbuf.h"
 #include "syna_lcdc_reg.h"
 #include "vpp_mem.h"
+#include "avio_dhub_drv.h"
 
 #define SYNA_LCDC_INTF_TYPE_DPI    (SYNA_LCDC_TYPE_DPI_MCU | SYNA_LCDC_TYPE_DPI_RGB)
 #define SYNA_LCDC_INTF_TYPE_DSI    (SYNA_LCDC_TYPE_DSI_CMD)
@@ -25,7 +22,7 @@
 #define INT_FRAME_DONE  0x2
 #define INT_UNDERRUN    0x4
 
-#define SYNA_MEMMAP_AVIO_GBL_BASE    (MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE)
+#define SYNA_MEMMAP_AVIO_GBL_BASE    SYNA_MEMMAP_AVIO_VPP_GBL_BASE
 
 #define LCDC_CMD_SIZE       0xA
 #define DSI_CMD_MODE_POS    14
@@ -37,6 +34,14 @@
 #define CURR_VBI_BCM_BUF    (&dev->bcmbuf[dev->bufferCurSet].vbi_bcm_buf)
 #define CURR_VBI_DMA_CFGQ   (&(dev->bcmbuf[dev->bufferCurSet].vbi_cfgQ[SYNA_DHUB_CFGQ_TYPE_DMA]))
 #define CURR_VBI_BCM_CFGQ   (&(dev->bcmbuf[dev->bufferCurSet].vbi_cfgQ[SYNA_DHUB_CFGQ_TYPE_BCM]))
+
+// VPP DHUB Handle
+#define SYNA_LCDC_VPP_DHUB_HANDLE Dhub_GetDhub2dHandle_ByDhubId(DHUB_ID_VPP_DHUB)
+
+//LCDC and MIPI interrupt enable
+#define SYNA_LCDC1_INTR_EN(intr_reg)      intr_reg.uINTR_CTRL_lcdc1_int_en = 1
+#define SYNA_LCDC2_INTR_EN(intr_reg)      intr_reg.uINTR_CTRL_lcdc2_int_en = 1
+#define SYNA_MIPI_INTR_EN(intr_reg)	  intr_reg.uINTR_CTRL_mipi_int_en = 1
 
 typedef enum SYNA_LCDC_ERROR_t {
 	SYNA_LCDC_OK            = 0x0000,   /**< Success. */
@@ -164,11 +169,8 @@ struct syna_lcdc_dev {
 	int is_first_frame;
 };
 
-extern HDL_dhub2d VPP_dhubHandle;
-extern HDL_dhub2d AG_dhubHandle;
-
-unsigned long syna_lcdc_readl(struct syna_lcdc_dev *dev, unsigned long addr);
-void syna_lcdc_writel(struct syna_lcdc_dev *dev, unsigned long addr, unsigned long val);
+unsigned int syna_lcdc_read(struct syna_lcdc_dev *dev, unsigned long addr);
+void syna_lcdc_write(struct syna_lcdc_dev *dev, unsigned long addr, unsigned int val);
 int syna_lcdc_pushframe(int planeID, void *pnew);
 int syna_lcdc_dlr_create(struct syna_lcdc_dev *dev, int num);
 void syna_lcdc_dlr_handler(struct syna_lcdc_dev *dev);
@@ -180,3 +182,7 @@ void syna_lcdc_releaseVsync(int lcdcId);
 void syna_lcdc_hw_config(int lcdcID, SYNA_LCDC_PANEL *panel);
 void syna_lcdc_dlr_destroy(struct syna_lcdc_dev *dev);
 int syna_lcdc_suspend (int enable);
+void syna_lcdc_cfg_setbitmap(struct syna_lcdc_dev *dev, int src_fmt, int order);
+void syna_lcdc_cfg_dlr_fifoflush(struct syna_lcdc_dev *dev);
+void syna_lcdc_cfg_dlr_init(struct syna_lcdc_dev *dev, int num);
+void syna_lcdc_cfg_wrap_interrupt_enable(void);

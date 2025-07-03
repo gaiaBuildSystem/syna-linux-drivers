@@ -5,8 +5,17 @@ SYNA_VPP_TYPE :=
 
 ifneq ($(filter y, $(CONFIG_AVIO_PLATYPUS) $(CONFIG_AVIO_DOLPHIN) $(CONFIG_AVIO_DOLPHIN_A0)), )
     SYNA_VPP_TYPE = vsxxx
-else ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA)), )
+else ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA) $(CONFIG_AVIO_KLAMATH)), )
     SYNA_VPP_TYPE = asxxx
+    ifeq ($(CONFIG_AVIO_KLAMATH),y)
+    SOC_FOLDER := klamath
+    CHIP_FOLDER := chip-klamath
+    ccflags-y += -DUSE_KLAMATH=1
+    else
+    SOC_FOLDER := myna2
+    CHIP_FOLDER := chip-myna
+    ccflags-y += -DUSE_MYNA=1
+    endif
 endif
 
 ###############################################################################
@@ -60,13 +69,12 @@ HEADER_PATH  += -I$(PWD)include/configs/chip-vsxxx/
 AVIO_INC_PATH += -I$(BERLIN_INC)/avio/vpp/ca/include/vsxxx
 endif
 
-ifneq ($(filter y, $(CONFIG_AVIO_MYNA2)), )
-FIRMWARE_INC_DIR_LOCAL=  $(BERLIN_INC)/avio/fw_inc/myna2/
-HEADER_PATH  += -I$(PWD)include/configs/chip-myna/
+ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA) $(CONFIG_AVIO_KLAMATH)), )
+FIRMWARE_INC_DIR_LOCAL=  $(BERLIN_INC)/avio/fw_inc/$(SOC_FOLDER)/
+HEADER_PATH  += -I$(PWD)include/configs/$(CHIP_FOLDER)/
 HEADER_PATH  += -I$(BERLIN_INC)/lcdc/include/
 HEADER_PATH  += -I$(BERLIN_INC)/bcmbuf/include/
 AVIO_INC_PATH += -I$(BERLIN_INC)/avio/vpp/ca/include/asxxx
-ccflags-y += -DUSE_MYNA=1
 endif
 
 ###############################################################################

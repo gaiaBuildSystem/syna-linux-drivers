@@ -16,6 +16,7 @@
 #include "dsih_hal.h"
 //#include "mipi_hal.h"
 #include "avioGbl.h"
+#include "lcdc_cfg_prv.h"
 
 uint16_t mipi_dsi_init_param(struct mipi_dsi_dev *dev);
 /**
@@ -41,7 +42,7 @@ uint16_t mipi_dsi_init_param(struct mipi_dsi_dev *dev)
 		mipi_dbg_print(MIPI_ERROR,"Dev Null\n");
 		return MIPI_RET(ENODEV);
 	}
-	phy->base = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_DPHYTX;
+	phy->base = SYNA_MEMMAP_AVIO_VPP_GBL_DPHYTX;
 	phy->pHandle = dev->pHandle;
 
 	dev->max_lanes = 4;
@@ -178,7 +179,7 @@ int mipi_dsi_init(struct mipi_dsi_dev *dev)
 
 	// Map memory blocks
 	mipi_dbg_print(MIPI_DEBUG,"%s:Map memory blocks\n", FUNC_NAME);
-	dev->core_addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_MEMMAP_MIPI;
+	dev->core_addr = SYNA_MEMMAP_AVIO_VPP_GBL_MIPI;
 
 	//INIT
 	mipi_dsi_init_param(dev);
