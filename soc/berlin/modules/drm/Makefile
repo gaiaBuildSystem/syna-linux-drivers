@@ -16,14 +16,22 @@ HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/vpp \
 
 ifneq ($(filter y, $(CONFIG_AVIO_PLATYPUS) $(CONFIG_AVIO_DOLPHIN) $(CONFIG_AVIO_DOLPHIN_A0)), )
     SYNA_DRM_TYPE = vsxxx
-else ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA)), )
+else ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA) $(CONFIG_AVIO_KLAMATH)), )
     SYNA_DRM_TYPE = asxxx
+    ifeq ($(CONFIG_AVIO_MYNA2),y)
+    SOC_FOLDER := myna2
+    ccflags-y += -DUSE_MYNA=1
+    else ifeq ($(CONFIG_AVIO_KLAMATH),y)
+    SOC_FOLDER := klamath
+    ccflags-y += -DUSE_KLAMATH=1
+    endif
 endif
 
 SYNA_DRM_DRV_ABS_PATH = $(DRM_ABS_PATH)/$(SYNA_DRM_TYPE)
 HEADER_PATH += -I$(AVIO_ABS_PATH)/vpp/ca/include/$(SYNA_DRM_TYPE)
 HEADER_PATH += -I$(SYNA_DRM_DRV_ABS_PATH)
 HEADER_PATH += -I$(SYNA_DRM_DRV_ABS_PATH)/dsi/
+HEADER_PATH += -I$(DRM_ABS_PATH)
 
 ifeq ($(CONFIG_AVIO_DOLPHIN),y)
 HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/dolphin
@@ -35,8 +43,8 @@ else ifeq ($(CONFIG_AVIO_PLATYPUS),y)
 HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/platypus
 ccflags-y += -DUSE_PLATYPUS=1
 else ifeq ($(SYNA_DRM_TYPE), asxxx)
-HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/myna2
-ccflags-y += -DUSE_MYNA=1
+HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/$(SOC_FOLDER)
+HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/lcdc/include/$(SOC_FOLDER)
 ccflags-y += -DGEN_3
 endif
 

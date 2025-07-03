@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2023 Synaptics Incorporated
- *
- *
- * Author: Prem Anand N <prem.anand@synaptics.com>
- *
  */
 #include "Galois_memmap.h"
 #include "avioGbl.h"
+#include "lcdc_cfg_prv.h"
 #include "avio_memmap.h"
 #include "lcdc.h"
 #include "syna_lcdc_dev.h"
@@ -20,7 +17,7 @@ struct syna_lcdc_dev *syna_lcdc[SYNA_LCDC_MAX];
 
 static LCDC_CTX     lcdc_ctx;
 
-unsigned long syna_lcdc_readl(struct syna_lcdc_dev *dev, unsigned long addr)
+unsigned int syna_lcdc_read(struct syna_lcdc_dev *dev, unsigned long addr)
 {
 	unsigned int val;
 
@@ -28,7 +25,7 @@ unsigned long syna_lcdc_readl(struct syna_lcdc_dev *dev, unsigned long addr)
 	return val;
 }
 
-void syna_lcdc_writel(struct syna_lcdc_dev *dev, unsigned long addr, unsigned long val)
+void syna_lcdc_write(struct syna_lcdc_dev *dev, unsigned long addr, unsigned int val)
 {
 	addr += dev->core_addr;
 
@@ -40,33 +37,24 @@ void syna_lcdc_writel(struct syna_lcdc_dev *dev, unsigned long addr, unsigned lo
 
 static void syna_lcdc_hw_param_update(struct syna_lcdc_dev *dev)
 {
-	syna_lcdc_writel(dev, LCDC_REG_PARUP, 1);
+	syna_lcdc_write(dev, LCDC_REG_PARUP, 1);
 
 	if (dev->panel->intf_type & SYNA_LCDC_TYPE_DPI_MCU)
-		syna_lcdc_writel(dev, LCDC_REG_CDISPUPR, 1); /*start sending display command & data*/
+		syna_lcdc_write(dev, LCDC_REG_CDISPUPR, 1); /*start sending display command & data*/
 
 	if (dev->panel->intf_type & SYNA_LCDC_INTF_TYPE_DSI)
 		/* send single new frame */
-		syna_lcdc_writel(dev, LCDC_REG_LCDCCR, 1);
-}
-
-
-static void syna_lcdc_wrap_interrupt_enable(void)
-{
-	unsigned int addr;
-	T32avioGbl_INTR_CTRL lcdc_intr;
-
-	addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_INTR_CTRL;
-	GA_REG_WORD32_READ(addr, &lcdc_intr.u32);
-	lcdc_intr.uINTR_CTRL_mipi_int_en = 1;
-	lcdc_intr.uINTR_CTRL_lcdc1_int_en = 1;
-	lcdc_intr.uINTR_CTRL_lcdc2_int_en = 1;
-	GA_REG_WORD32_WRITE(addr, lcdc_intr.u32);
+		syna_lcdc_write(dev, LCDC_REG_LCDCCR, 1);
 }
 
 static void syna_lcdc_semaintr_enable(int intr, int enable)
 {
-	HDL_semaphore *pSemHandle = dhub_semaphore(&VPP_dhubHandle.dhub);
+	HDL_dhub2d *vpp_dhubHandle = SYNA_LCDC_VPP_DHUB_HANDLE;
+	if (NULL == vpp_dhubHandle) {
+		avio_error("invalid vpp dhub Handle\n");
+		return;
+	}
+	HDL_semaphore *pSemHandle = dhub_semaphore(&vpp_dhubHandle->dhub);
 
 	semaphore_cfg(pSemHandle, intr, 1, 0);
 	semaphore_clr_full(pSemHandle, intr);
@@ -76,9 +64,9 @@ static void syna_lcdc_semaintr_enable(int intr, int enable)
 static void syna_lcdc_wrap_lcdcclk_enable(int lcdcID, int enable)
 {
 	unsigned int addr;
-	T32avioGbl_LCDC_CTRL lcdc_ctrl;
+	T32avioVppGbl_LCDC_CTRL lcdc_ctrl;
 
-	addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_LCDC_CTRL;
+	addr = SYNA_MEMMAP_AVIO_VPP_GBL_LCDC_CTRL;
 	GA_REG_WORD32_READ(addr, &lcdc_ctrl.u32);
 
 	if (lcdcID == SYNA_LCDC_1) {
@@ -105,9 +93,9 @@ static void syna_lcdc_wrap_lcdcclk_enable(int lcdcID, int enable)
 static void syna_lcdc_wrap_vpll_enable(int lcdc_id, int enable)
 {
 	unsigned int addr;
-	T32avioGbl_AVPLLA_CLK_EN avpll_clk_en;
+	T32avioVppGbl_AVPLLA_CLK_EN avpll_clk_en;
 
-	addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_AVPLLA_CLK_EN;
+	addr = SYNA_MEMMAP_AVIO_VPP_GBL_AVPLLA_CLK_EN;
 	GA_REG_WORD32_READ(addr, &avpll_clk_en.u32);
 	if (enable)
 		avpll_clk_en.uAVPLLA_CLK_EN_ctrl |= (1 << lcdc_id);
@@ -120,9 +108,9 @@ static void syna_lcdc_wrap_vpll_enable(int lcdc_id, int enable)
 static void syna_lcdc_wrap_vpll_pwron(int lcdc_id, int pwron)
 {
 	unsigned int addr;
-	T32avioGbl_SWPDWN_CTRL avpll_ctrl;
+	T32avioVppGbl_SWPDWN_CTRL avpll_ctrl;
 
-	addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_SWPDWN_CTRL;
+	addr = SYNA_MEMMAP_AVIO_VPP_GBL_SWPDOWN_CTRL;
 	GA_REG_WORD32_READ(addr, &avpll_ctrl.u32);
 	if (lcdc_id == SYNA_LCDC_1)
 		avpll_ctrl.uSWPDWN_CTRL_VPLL0_PD = !pwron;
@@ -135,14 +123,14 @@ static void syna_lcdc_wrap_vpll_pwron(int lcdc_id, int pwron)
 static void syna_lcdc_wrap_clkgating_disable(void)
 {
 	unsigned int addr;
-	T32avioGbl_CTRL gbl_ctrl;
+	T32avioVppGbl_CTRL gbl_ctrl;
 
-	addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_CTRL;
+	addr = SYNA_MEMMAP_AVIO_VPP_GBL_CTRL;
 	GA_REG_WORD32_READ(addr, &gbl_ctrl.u32);
-	gbl_ctrl.uCTRL_AIODHUB_dyCG_en = 0;
-	gbl_ctrl.uCTRL_AIODHUB_CG_en = 0;
-	gbl_ctrl.uCTRL_VPPDHUB_dyCG_en = 0;
-	gbl_ctrl.uCTRL_VPPDHUB_CG_en = 0;
+
+	SYNA_LCDC_AIODHUB_CG_DISABLE(gbl_ctrl);
+	SYNA_LCDC_VPPDHUB_CG_DISABLE(gbl_ctrl);
+
 	GA_REG_WORD32_WRITE(addr, gbl_ctrl.u32);
 }
 
@@ -153,15 +141,15 @@ static void syna_lcdc_set_hw_init(struct syna_lcdc_dev *dev)
 	T32LCDC_CTRL5 lcdc_ctrl;
 	struct syna_lcdc_panel_t *panel = dev->panel;
 
-	lcdc_ctrl.u32 = syna_lcdc_readl(dev, RA_LCDC_CTRL5);
+	lcdc_ctrl.u32 = syna_lcdc_read(dev, RA_LCDC_CTRL5);
 
 	if (panel->intf_type & SYNA_LCDC_TYPE_DPI_MCU)
-		syna_lcdc_writel(dev, LCDC_REG_LCDCCR, 2); /* FIF0 Reset */
+		syna_lcdc_write(dev, LCDC_REG_LCDCCR, 2); /* FIF0 Reset */
 
 	/* clear all pending interrupts (may exist from u-boot) */
-	syna_lcdc_writel(dev, LCDC_REG_INTSR,syna_lcdc_readl(dev, LCDC_REG_INTSR)); //clear all interrupts
+	syna_lcdc_write(dev, LCDC_REG_INTSR,syna_lcdc_read(dev, LCDC_REG_INTSR)); //clear all interrupts
 
-	syna_lcdc_writel(dev, LCDC_REG_INTER, INT_FRAME_DONE);
+	syna_lcdc_write(dev, LCDC_REG_INTER, INT_FRAME_DONE);
 
 	if (panel->intf_type & SYNA_LCDC_TYPE_DPI_MCU) {
 		dispir = 4; //CPU type LCD
@@ -273,12 +261,12 @@ static void syna_lcdc_set_hw_init(struct syna_lcdc_dev *dev)
 	if (panel->ext_te)
 		dispir |= LCDC_WAIT_FOR_TE;
 
-	syna_lcdc_writel(dev, LCDC_REG_DISPIR, dispir);
-	syna_lcdc_writel(dev, LCDC_REG_GPSELR, gpsel);
-	syna_lcdc_writel(dev, RA_LCDC_CTRL5, lcdc_ctrl.u32);
+	syna_lcdc_write(dev, LCDC_REG_DISPIR, dispir);
+	syna_lcdc_write(dev, LCDC_REG_GPSELR, gpsel);
+	syna_lcdc_write(dev, RA_LCDC_CTRL5, lcdc_ctrl.u32);
 
 	pancsr = (panel->iclk) | (panel->rgb_swap << 4);
-	syna_lcdc_writel(dev, LCDC_REG_PANCSR, pancsr);
+	syna_lcdc_write(dev, LCDC_REG_PANCSR, pancsr);
 }
 
 static void syna_lcdc_config_tg(struct syna_lcdc_dev *dev)
@@ -286,71 +274,71 @@ static void syna_lcdc_config_tg(struct syna_lcdc_dev *dev)
 	int  xres, yres;
 	SYNA_LCDC_PANEL *panel = dev->panel;
 
-	syna_lcdc_writel(dev, LCDC_REG_LCDCCR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_DISPCR, 0);
+	syna_lcdc_write(dev, LCDC_REG_LCDCCR, 0);
+	syna_lcdc_write(dev, LCDC_REG_DISPCR, 0);
 
 	xres = panel->hsync_len + panel->left_margin +
 		panel->xres + panel->right_margin;
 	yres = panel->vsync_len + panel->upper_margin +
 		panel->yres + panel->lower_margin;
 
-	syna_lcdc_writel(dev, LCDC_REG_VSTR, panel->vsync_len - 1);
-	syna_lcdc_writel(dev, LCDC_REG_VFTR, panel->upper_margin);
-	syna_lcdc_writel(dev, LCDC_REG_VATR, panel->yres - 1 + panel->vskip);
-	syna_lcdc_writel(dev, LCDC_REG_VETR, panel->lower_margin);
-	syna_lcdc_writel(dev, LCDC_REG_HSTR, panel->hsync_len - 1);
-	syna_lcdc_writel(dev, LCDC_REG_HFTR, panel->left_margin - 1);
-	syna_lcdc_writel(dev, LCDC_REG_HADSTR, panel->xres - 1 + panel->hskip);
-	syna_lcdc_writel(dev, LCDC_REG_HAPWR, panel->xres - 1 + panel->hskip);
-	syna_lcdc_writel(dev, LCDC_REG_HETR, panel->right_margin - 1);
+	syna_lcdc_write(dev, LCDC_REG_VSTR, panel->vsync_len - 1);
+	syna_lcdc_write(dev, LCDC_REG_VFTR, panel->upper_margin);
+	syna_lcdc_write(dev, LCDC_REG_VATR, panel->yres - 1 + panel->vskip);
+	syna_lcdc_write(dev, LCDC_REG_VETR, panel->lower_margin);
+	syna_lcdc_write(dev, LCDC_REG_HSTR, panel->hsync_len - 1);
+	syna_lcdc_write(dev, LCDC_REG_HFTR, panel->left_margin - 1);
+	syna_lcdc_write(dev, LCDC_REG_HADSTR, panel->xres - 1 + panel->hskip);
+	syna_lcdc_write(dev, LCDC_REG_HAPWR, panel->xres - 1 + panel->hskip);
+	syna_lcdc_write(dev, LCDC_REG_HETR, panel->right_margin - 1);
 
-	syna_lcdc_writel(dev, LCDC_REG_INDXSR, panel->xres - 1);
-	syna_lcdc_writel(dev, LCDC_REG_INDYSR, panel->yres - 1);
+	syna_lcdc_write(dev, LCDC_REG_INDXSR, panel->xres - 1);
+	syna_lcdc_write(dev, LCDC_REG_INDYSR, panel->yres - 1);
 
 	/* display position */
-	syna_lcdc_writel(dev, LCDC_REG_DISPXSPOSR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_DISPXEPOSR, panel->xres - 1);
-	syna_lcdc_writel(dev, LCDC_REG_DISPYEPOS1R, panel->yres - 1);
+	syna_lcdc_write(dev, LCDC_REG_DISPXSPOSR, 0);
+	syna_lcdc_write(dev, LCDC_REG_DISPXEPOSR, panel->xres - 1);
+	syna_lcdc_write(dev, LCDC_REG_DISPYEPOS1R, panel->yres - 1);
 
 	/* input buffer */
 	//start DMA command
 	if (dev->panel->intf_type & SYNA_LCDC_TYPE_DPI_MCU) {
-		syna_lcdc_writel(dev, LCDC_REG_CMDFSR, LCDC_CMD_SIZE); //CMDSIZE
-		syna_lcdc_writel(dev, LCDC_REG_GP0A_H_HI, 0x0E);
-		syna_lcdc_writel(dev, LCDC_REG_GP0A_V_ST, 0x0E);
-		syna_lcdc_writel(dev, LCDC_REG_GP0A_H_LO, 0x06);
-		syna_lcdc_writel(dev, LCDC_REG_GP0B_H_HI, 0x00);
-		syna_lcdc_writel(dev, LCDC_REG_GP0B_V_ST, 0x00);
-		syna_lcdc_writel(dev, LCDC_REG_GP0B_H_LO, 0x0B);
-		syna_lcdc_writel(dev, LCDC_REG_GP0B_V_END, 0x0B);
-		syna_lcdc_writel(dev, LCDC_REG_GP0BCNTR, 0xA800);
-		syna_lcdc_writel(dev, LCDC_REG_GP1B_H_HI, 0x02);
-		syna_lcdc_writel(dev, LCDC_REG_GP1B_V_ST, 0x03);
-		syna_lcdc_writel(dev, LCDC_REG_GP1B_H_LO, 0x07);
-		syna_lcdc_writel(dev, LCDC_REG_GP1B_V_END, 0x07);
-		syna_lcdc_writel(dev, LCDC_REG_GP1BCNTR, 0x20A0);
-		syna_lcdc_writel(dev, LCDC_REG_GP2_H_HI, 0x02);
-		syna_lcdc_writel(dev, LCDC_REG_GP2_V_ST, 0x03);
-		syna_lcdc_writel(dev, LCDC_REG_GP2_H_LO, 0x08);
-		syna_lcdc_writel(dev, LCDC_REG_GP2_V_END, 0x07);
-		syna_lcdc_writel(dev, LCDC_REG_GP2CNTR, 0xA800);
-		syna_lcdc_writel(dev, LCDC_REG_GP3_H_HI, 0x01);
-		syna_lcdc_writel(dev, LCDC_REG_GP3_V_ST, 0x02);
-		syna_lcdc_writel(dev, LCDC_REG_GP3_H_LO, 0x09);
-		syna_lcdc_writel(dev, LCDC_REG_GP3_V_END, 0x08);
-		syna_lcdc_writel(dev, LCDC_REG_GP3CNTR, 0xA8A0);
-		syna_lcdc_writel(dev, LCDC_REG_CTLTR0, 0x800);
-		syna_lcdc_writel(dev, LCDC_REG_GP0A_V_END, 0x0B);
-		syna_lcdc_writel(dev, LCDC_REG_GP0ACNTR, 0xA800);
-		syna_lcdc_writel(dev, LCDC_REG_GP_HMAXR, 0x103);
-		syna_lcdc_writel(dev, LCDC_REG_GP_VMAXR, 0x9C);
+		syna_lcdc_write(dev, LCDC_REG_CMDFSR, LCDC_CMD_SIZE); //CMDSIZE
+		syna_lcdc_write(dev, LCDC_REG_GP0A_H_HI, 0x0E);
+		syna_lcdc_write(dev, LCDC_REG_GP0A_V_ST, 0x0E);
+		syna_lcdc_write(dev, LCDC_REG_GP0A_H_LO, 0x06);
+		syna_lcdc_write(dev, LCDC_REG_GP0B_H_HI, 0x00);
+		syna_lcdc_write(dev, LCDC_REG_GP0B_V_ST, 0x00);
+		syna_lcdc_write(dev, LCDC_REG_GP0B_H_LO, 0x0B);
+		syna_lcdc_write(dev, LCDC_REG_GP0B_V_END, 0x0B);
+		syna_lcdc_write(dev, LCDC_REG_GP0BCNTR, 0xA800);
+		syna_lcdc_write(dev, LCDC_REG_GP1B_H_HI, 0x02);
+		syna_lcdc_write(dev, LCDC_REG_GP1B_V_ST, 0x03);
+		syna_lcdc_write(dev, LCDC_REG_GP1B_H_LO, 0x07);
+		syna_lcdc_write(dev, LCDC_REG_GP1B_V_END, 0x07);
+		syna_lcdc_write(dev, LCDC_REG_GP1BCNTR, 0x20A0);
+		syna_lcdc_write(dev, LCDC_REG_GP2_H_HI, 0x02);
+		syna_lcdc_write(dev, LCDC_REG_GP2_V_ST, 0x03);
+		syna_lcdc_write(dev, LCDC_REG_GP2_H_LO, 0x08);
+		syna_lcdc_write(dev, LCDC_REG_GP2_V_END, 0x07);
+		syna_lcdc_write(dev, LCDC_REG_GP2CNTR, 0xA800);
+		syna_lcdc_write(dev, LCDC_REG_GP3_H_HI, 0x01);
+		syna_lcdc_write(dev, LCDC_REG_GP3_V_ST, 0x02);
+		syna_lcdc_write(dev, LCDC_REG_GP3_H_LO, 0x09);
+		syna_lcdc_write(dev, LCDC_REG_GP3_V_END, 0x08);
+		syna_lcdc_write(dev, LCDC_REG_GP3CNTR, 0xA8A0);
+		syna_lcdc_write(dev, LCDC_REG_CTLTR0, 0x800);
+		syna_lcdc_write(dev, LCDC_REG_GP0A_V_END, 0x0B);
+		syna_lcdc_write(dev, LCDC_REG_GP0ACNTR, 0xA800);
+		syna_lcdc_write(dev, LCDC_REG_GP_HMAXR, 0x103);
+		syna_lcdc_write(dev, LCDC_REG_GP_VMAXR, 0x9C);
 	}
 	syna_lcdc_dlr_handler(dev);
 
 	syna_lcdc_hw_param_update(dev);
 
-	syna_lcdc_writel(dev, LCDC_REG_DISPCR, 1);
-	syna_lcdc_writel(dev, LCDC_REG_LCDCCR, 1);
+	syna_lcdc_write(dev, LCDC_REG_DISPCR, 1);
+	syna_lcdc_write(dev, LCDC_REG_LCDCCR, 1);
 }
 
 static struct syna_lcdc_dev *syna_lcdc_create(int num, SYNA_LCDC_PANEL *panel) {
@@ -360,22 +348,20 @@ static struct syna_lcdc_dev *syna_lcdc_create(int num, SYNA_LCDC_PANEL *panel) {
 	if (!panel)
 		return NULL;
 
-	dev = (struct syna_lcdc_dev *)kmalloc(sizeof(struct syna_lcdc_dev), GFP_KERNEL);
+	dev = (struct syna_lcdc_dev *)kzalloc(sizeof(struct syna_lcdc_dev), GFP_KERNEL);
 	if (!dev)
 		return NULL;
 
-	memset(dev, 0, sizeof(struct syna_lcdc_dev));
+	dev->core_addr = SYNA_LCDC_GET_BASE_ADDRESS(num);
 
-	if (!num)
-		dev->core_addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_LCDC1_REG_BASE;
-	else
-		dev->core_addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_LCDC2_REG_BASE;
 	//Save panel device pointer
 	dev->panel = panel;
 	dev->vpp_mem_list = lcdc_ctx.vpp_mem_lcdc_list;
 
-	if (SYNA_LCDC_OK != syna_lcdc_dlr_create(dev, num))
+	if (SYNA_LCDC_OK != syna_lcdc_dlr_create(dev, num)) {
+		kfree (dev);
 		return NULL;
+	}
 
 	return dev;
 }
@@ -386,8 +372,7 @@ int syna_lcdc_pushframe(int lcdcID, void *pnew)
 	if (frmq_push(&(syna_lcdc[lcdcID]->inputq), pnew) == 0)
 		return (SYNA_LCDC_EFRAMEQFULL);
 
-	if (!syna_lcdc[lcdcID]->en_intr_handler)
-	{
+	if (!syna_lcdc[lcdcID]->en_intr_handler) {
 		syna_lcdc[lcdcID]->is_first_frame = 1;
 		syna_lcdc[lcdcID]->en_intr_handler = 1;
 	}
@@ -401,11 +386,16 @@ void syna_lcdc_hw_config(int lcdcID, SYNA_LCDC_PANEL *panelcfg)
 	int use_vbi;
 
 	if (!syna_lcdc[lcdcID]->isTGConfig) {
+		HDL_dhub2d *vpp_dhubHandle = SYNA_LCDC_VPP_DHUB_HANDLE;
+		if (NULL == vpp_dhubHandle) {
+			avio_error("invalid vpp dhub Handle\n");
+			return;
+		}
 		memcpy(syna_lcdc[lcdcID]->panel, panelcfg, sizeof(SYNA_LCDC_PANEL));
 
 		display_info = avio_get_fastlogo_status();
 
-		syna_lcdc[lcdcID]->dhubID = (int)(long long)&VPP_dhubHandle;
+		syna_lcdc[lcdcID]->dhubID = (int)(long long)&vpp_dhubHandle;
 		if (!display_info.u.status) {
 			syna_lcdc_wrap_vpll_pwron(lcdcID, 1);
 			syna_lcdc_wrap_vpll_enable(lcdcID, 1);
@@ -438,11 +428,11 @@ void syna_lcdc_irq(int intrMask)
 	int stat, i;
 
 	for (i = 0; i < SYNA_LCDC_MAX; i++) {
-		if (intrMask & ((1 << (avioDhubSemMap_vpp128b_vpp_inr0 + i)))) {
+		if (intrMask & ((1 << (syna_lcdc[i]->intrID)))) {
 			dev = syna_lcdc[i];
 			/* read & clear active interrupts */
 
-			stat = syna_lcdc_readl(dev, LCDC_REG_INTSR);
+			stat = syna_lcdc_read(dev, LCDC_REG_INTSR);
 			GA_REG_WORD32_WRITE(dev->core_addr + LCDC_REG_INTSR, stat);
 
 			if (stat & INT_FRAME_DONE || dev->is_first_frame) {
@@ -481,36 +471,36 @@ static int syna_lcdc_dev_init(void)
 	unsigned int addr;
 	avio_fastlogo_info display_info;
 
-	addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_VPLL0_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
+	addr = SYNA_MEMMAP_AVIO_VPP_GBL_BASE + RA_avioVppGbl_VPLL0_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
 
 	display_info = avio_get_fastlogo_status();
 	if (!display_info.u.status) {
 		/*FIXME: configure based on resolution configuration*/
 		GA_REG_WORD32_WRITE(addr, 0x820);
 
-		addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_VPLL1_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
+		addr = SYNA_MEMMAP_AVIO_VPP_GBL_BASE + RA_avioVppGbl_VPPL1_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
 		GA_REG_WORD32_WRITE(addr, 0x820);
 
-		addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_LCDC2_CTRL;
+		addr = SYNA_MEMMAP_AVIO_VPP_GBL_BASE + RA_avioVppGbl_LCDC2_CTRL;
 		GA_REG_WORD32_WRITE(addr, 0x39);
 
 		syna_lcdc_wrap_clkgating_disable();
-		syna_lcdc_wrap_interrupt_enable();
+		syna_lcdc_cfg_wrap_interrupt_enable();
 	}
 
 	for (i = 0; i < SYNA_LCDC_MAX; i++) {
 		syna_panel_config = (SYNA_LCDC_PANEL *) kmalloc(sizeof(struct syna_lcdc_dev), GFP_KERNEL);
 		if (syna_panel_config == NULL) {
-			pr_err("failed to alloc panel mem lcdc\n");
+			avio_error("failed to alloc panel mem lcdc\n");
 			return SYNA_LCDC_EBADPARAM;
 		}
 
 		syna_lcdc[i] = syna_lcdc_create(i, syna_panel_config);
 		if (syna_lcdc[i] == NULL) {
-			pr_err("failed to create lcdc\n");
+			avio_error("failed to create lcdc\n");
 			if (i == 1)
 				syna_lcdc_destroy(0);
-
+			kfree (syna_panel_config);
 			return SYNA_LCDC_EBADPARAM;
 		}
 		syna_lcdc[i]->m_srcfmt = -1;
@@ -575,34 +565,32 @@ static const AVIO_MODULE_FUNC_TABLE lcdc_drv_fops = {
 
 int avio_module_drv_lcdc_probe(struct platform_device *dev)
 {
-	int res = 0;
-
 	avio_trace("%s:%d:\n", __func__, __LINE__);
 
 	lcdc_ctx.dev = &dev->dev;
 	avio_sub_module_register(AVIO_MODULE_TYPE_LCDC, LCDC_MODULE_NAME,
 			&lcdc_ctx, &lcdc_drv_fops);
 
-	return res;
+	return 0;
 }
 
 
 static void syna_lcdc_TG_Reset (struct syna_lcdc_dev *dev)
 {
-	syna_lcdc_writel(dev, LCDC_REG_LCDCCR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_VSTR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_VFTR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_VATR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_VETR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_HSTR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_HFTR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_HADSTR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_HAPWR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_HETR, 0);
+	syna_lcdc_write(dev, LCDC_REG_LCDCCR, 0);
+	syna_lcdc_write(dev, LCDC_REG_VSTR, 0);
+	syna_lcdc_write(dev, LCDC_REG_VFTR, 0);
+	syna_lcdc_write(dev, LCDC_REG_VATR, 0);
+	syna_lcdc_write(dev, LCDC_REG_VETR, 0);
+	syna_lcdc_write(dev, LCDC_REG_HSTR, 0);
+	syna_lcdc_write(dev, LCDC_REG_HFTR, 0);
+	syna_lcdc_write(dev, LCDC_REG_HADSTR, 0);
+	syna_lcdc_write(dev, LCDC_REG_HAPWR, 0);
+	syna_lcdc_write(dev, LCDC_REG_HETR, 0);
 
-	syna_lcdc_writel(dev, LCDC_REG_INDXSR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_INDYSR, 0);
-	syna_lcdc_writel(dev, LCDC_REG_INTER, 0);
+	syna_lcdc_write(dev, LCDC_REG_INDXSR, 0);
+	syna_lcdc_write(dev, LCDC_REG_INDYSR, 0);
+	syna_lcdc_write(dev, LCDC_REG_INTER, 0);
 }
 
 int syna_lcdc_suspend(int enable)

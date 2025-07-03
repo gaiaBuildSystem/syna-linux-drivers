@@ -387,6 +387,7 @@ static const struct of_device_id drm_match[] = {
 	{},
 };
 
+#ifdef CONFIG_PM_SLEEP
 static int syna_drm_suspend(struct device *dev)
 {
 	struct drm_device *ddev;
@@ -413,6 +414,7 @@ static int syna_drm_resume(struct device *dev)
 }
 
 static SIMPLE_DEV_PM_OPS(syna_drm_pmops, syna_drm_suspend, syna_drm_resume);
+#endif
 
 static struct platform_driver syna_platform_driver = {
 	.probe = syna_probe,
@@ -422,7 +424,9 @@ static struct platform_driver syna_platform_driver = {
 		.owner = THIS_MODULE,
 		.name = DRIVER_NAME,
 		.of_match_table = drm_match,
+#ifdef CONFIG_PM_SLEEP
 		.pm = &syna_drm_pmops,
+#endif
 	},
 };
 

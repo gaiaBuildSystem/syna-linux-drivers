@@ -17,6 +17,13 @@ ccflags-y += -DCONFIG_SUPPORT_VPP_TA
 USE_VPP_TA := 1
 else
 USE_VPP_TA := 0
+ifeq ($(CONFIG_AVIO_KLAMATH),y)
+SOC_FOLDER := klamath
+ccflags-y += -DUSE_KLAMATH=1
+else
+SOC_FOLDER := myna2
+ccflags-y += -DUSE_MYNA=1
+endif
 endif
 ###############################################################################
 # Fastcall - avio kernel sub-module objects
@@ -137,6 +144,7 @@ AVIO_VPP_API_OBJS += vpp/common/source/bcmbuf.o
 AVIO_VPP_API_OBJS += vpp/common/source/framequeue.o
 AVIO_VPP_API_OBJS += lcdc/source/syna_lcdc_dlr.o
 AVIO_VPP_API_OBJS += lcdc/source/syna_lcdc_dev.o
+AVIO_VPP_API_OBJS += lcdc/source/$(SOC_FOLDER)/lcdc_cfg_prv.o
 endif
 
 ###############################################################################
@@ -202,13 +210,12 @@ AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/fw_inc/as370
 AVIO_DHUB_CFG_OBJS += dhub/configs/as370/avio_dhub_cfg.o
 endif
 
-ifeq ($(CONFIG_AVIO_MYNA2),y)
-AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/fw_inc/myna2
-AVIO_DHUB_CFG_OBJS += dhub/configs/myna2/avio_dhub_cfg.o
-ccflags-y += -DUSE_MYNA=1
-endif
-
-ifeq ($(USE_VPP_TA), 1)
+ifeq ($(USE_VPP_TA), 0)
+AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/lcdc/include/$(SOC_FOLDER)
+AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/fw_inc/$(SOC_FOLDER)
+AVIO_DHUB_CFG_OBJS += dhub/configs/$(SOC_FOLDER)/avio_dhub_cfg.o
+AVIO_DHUB_CFG_OBJS += dhub/configs/$(SOC_FOLDER)/hal_dhub_ext.o
+else
 ifeq ($(CONFIG_AVIO_PLATYPUS),y)
 AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/fw_inc/platypus
 AVIO_DHUB_CFG_OBJS += dhub/configs/vsxxx/platypus/dhub_priv.o
@@ -223,10 +230,6 @@ endif
 AVIO_DHUB_CFG_OBJS += vpp/configs/vsxxx/drv_vpp_cfg.o
 AVIO_DHUB_CFG_OBJS += dhub/configs/vsxxx/avio_dhub_cfg.o
 AVIO_DHUB_CFG_OBJS += dhub/configs/vsxxx/hal_dhub_ext.o
-else
-ifeq ($(CONFIG_AVIO_MYNA2),y)
-AVIO_DHUB_CFG_OBJS += dhub/configs/myna2/hal_dhub_ext.o
-endif
 endif
 
 AVIO_CFG_OBJS := $(AVIO_DHUB_CFG_OBJS)

@@ -32,9 +32,14 @@ ifeq ($(CONFIG_AVIO_MYNA),y)
 ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/myna
 ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/aio/myna
 endif
+ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_KLAMATH)), )
 ifeq ($(CONFIG_AVIO_MYNA2),y)
-ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/myna2
-ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/aio/myna2
+SOC_FOLDER := myna2
+else
+SOC_FOLDER := klamath
+endif
+ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/$(SOC_FOLDER)
+ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/aio/$(SOC_FOLDER)
 endif
 ifeq ($(CONFIG_AVIO_AS370),y)
 ccflags-y += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/fw_inc/as370
