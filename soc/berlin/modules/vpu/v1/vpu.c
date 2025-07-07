@@ -175,7 +175,7 @@ static int vpu_pm_notifier(struct notifier_block *notifier,
 		dev_info(vpu->dev, "prevents system sleeping\n");
 		wait_for_completion(&vpu->power_transaction);
 		dev_info(vpu->dev, "could continue to sleep\n");
-		/* fallthrough */
+		break;
 	default:
 		break;
 	}
