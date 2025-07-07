@@ -13,6 +13,7 @@
 #include <linux/platform_device.h>
 #include <linux/cdev.h>
 #include <linux/mc_dfc.h>
+#include "kernel_compatibility.h"
 
 #define DEVICE_NAME	"mc_dfc"
 
@@ -241,7 +242,7 @@ static int syna_mc_dfc_create_dev(struct mc_dfc_priv *mc_dfc)
 		return ret;
 	}
 
-	mc_dfc->drv_class = class_create(THIS_MODULE, DEVICE_NAME);
+	mc_dfc->drv_class = SYNA_CLASS_CREATE(DEVICE_NAME);
 	if (IS_ERR(mc_dfc->drv_class)) {
 		dev_err(dev, "class create failed\n");
 		ret = PTR_ERR(mc_dfc->drv_class);
@@ -329,7 +330,7 @@ static int syna_mc_dfc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int syna_mc_dfc_remove(struct platform_device *pdev)
+static RET_TYPE syna_mc_dfc_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mc_dfc_priv *mc_dfc = dev_get_drvdata(dev);
@@ -338,7 +339,7 @@ static int syna_mc_dfc_remove(struct platform_device *pdev)
 	class_destroy(mc_dfc->drv_class);
 	unregister_chrdev_region(mc_dfc->dev_num, 1);
 
-	return 0;
+	RETURN_VALUE;
 }
 
 #ifdef CONFIG_PM_SLEEP
