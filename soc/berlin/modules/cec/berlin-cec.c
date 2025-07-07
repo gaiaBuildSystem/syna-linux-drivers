@@ -20,6 +20,7 @@
 #include <linux/mm.h>
 #include "drv_msg.h"
 #include "cec.h"
+#include "kernel_compatibility.h"
 
 #define CEC_DEVICE_NAME			"berlin-cec"
 #define CEC_DEVICE_PATH			("/dev/" CEC_DEVICE_NAME)
@@ -348,7 +349,7 @@ static int cec_drv_init(struct cec_device_t *cec_device)
 	}
 
 	/* add CEC devices to sysfs */
-	cec_device->dev_class = class_create(THIS_MODULE, cec_device->dev_name);
+	cec_device->dev_class = SYNA_CLASS_CREATE(cec_device->dev_name);
 	if (IS_ERR(cec_device->dev_class)) {
 		pr_err("class_create failed.\n");
 		res = -ENODEV;
@@ -443,12 +444,12 @@ err_prob_device_1:
 	return res;
 }
 
-static int cec_remove(struct platform_device *pdev)
+static RET_TYPE cec_remove(struct platform_device *pdev)
 {
 	cec_drv_exit(&cec_dev);
 	unregister_chrdev_region(MKDEV(cec_dev.major, 0), CEC_MAX_DEVS);
 	cec_dev.major = 0;
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id cec_match[] = {
