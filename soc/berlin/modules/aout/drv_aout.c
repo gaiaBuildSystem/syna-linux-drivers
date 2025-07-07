@@ -28,6 +28,7 @@
 #include "aio_hal.h"
 #include "avio_common.h"
 #include "aio.h"
+#include "kernel_compatibility.h"
 
 #define CPU_ID 0
 #define APLL_RATE_32K (16384000 * 8)
@@ -1262,7 +1263,7 @@ static int aout_status_seq_show(struct seq_file *m, void *v)
 
 static int aout_status_proc_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, aout_status_seq_show, PDE_DATA(inode));
+	return single_open(file, aout_status_seq_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -1334,7 +1335,7 @@ static void wrap_aout_start_cmd(struct aout_priv *aout,
 
 static void drv_aout_release_shm(struct aout_priv *aout, int path_id)
 {
-	struct dma_buf_map map = DMA_BUF_MAP_INIT_VADDR(aout->ap[path_id].shm.p);
+	struct iosys_map map = IOSYS_MAP_INIT_VADDR(aout->ap[path_id].shm.p);
 
 	if (IS_ERR_OR_NULL(aout->ap[path_id].shm.buf))
 		return;
@@ -1371,7 +1372,7 @@ static LONG drv_aout_ioctl_unlocked(struct file *filp, u32 cmd, ULONG arg)
 	struct dma_buf *buf = NULL;
 	void *param = NULL;
 	u32 path_id;
-	struct dma_buf_map map;
+	struct iosys_map map;
 
 	switch (cmd) {
 	/**************************************
@@ -1739,7 +1740,7 @@ static int aout_init(struct aout_priv *aout)
 	aout_trace("setup cdevs device minor [%d]\n", aout->minor);
 
 	/* add PE devices to sysfs */
-	aout->dev_class = class_create(THIS_MODULE, aout->dev_name);
+	aout->dev_class = SYNA_CLASS_CREATE(aout->dev_name);
 	if (IS_ERR(aout->dev_class)) {
 		aout_error("class_create failed.\n");
 		res = -ENODEV;
@@ -1881,7 +1882,7 @@ err_config:
 	return -1;
 }
 
-static int aout_remove(struct platform_device *pdev)
+static RET_TYPE aout_remove(struct platform_device *pdev)
 {
 	struct aout_priv *aout = get_aout_priv(&pdev->dev);
 
@@ -1890,7 +1891,7 @@ static int aout_remove(struct platform_device *pdev)
 	aout_trace("unregister cdev device major [%d]\n", amp_major);
 	amp_major = 0;
 	aout_trace("aout removed OK\n");
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id aout_match[] = {

@@ -19,7 +19,8 @@ AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/aio
 MSGQ_INC_PATH := -I$(srctree)/drivers/synaptics/soc/berlin/modules/msgQ
 EXTERN_INC_PATH := $(MSGQ_INC_PATH)
 
-EXTERN_INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/shm
+EXTERN_INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/shm \
+		   -I$(srctree)/drivers/synaptics/include
 
 
 AOUT_ALL_OBJS = drv_aout.o
