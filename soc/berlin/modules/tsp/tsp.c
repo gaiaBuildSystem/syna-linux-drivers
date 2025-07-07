@@ -31,6 +31,7 @@
 #include <linux/clk.h>
 #include "drv_msg.h"
 #include "tee_client_api.h"
+#include "kernel_compatibility.h"
 
 #define     TSP_ISR_MSGQ_SIZE                              32
 #define     TSP_ISR_START                                  0x1
@@ -813,7 +814,7 @@ static int tsp_drv_init(struct tsp_device_t *tsp_device)
 	pr_info("setup cdevs device minor [%d]\n", tsp_device->minor);
 
 	/* add TSP devices to sysfs */
-	tsp_device->dev_class = class_create(THIS_MODULE, tsp_device->dev_name);
+	tsp_device->dev_class = SYNA_CLASS_CREATE(tsp_device->dev_name);
 	if (IS_ERR(tsp_device->dev_class)) {
 		pr_err("class_create failed.\n");
 		res = -ENODEV;
@@ -922,7 +923,7 @@ err_prob_device_2:
 	return res;
 }
 
-static int berlin_tsp_remove(struct platform_device *pdev)
+static RET_TYPE berlin_tsp_remove(struct platform_device *pdev)
 {
 	pr_info("tsp_remove\n");
 	tsp_drv_exit(&tsp_dev);
@@ -930,7 +931,7 @@ static int berlin_tsp_remove(struct platform_device *pdev)
 	pr_info("unregister cdev device major [%d]\n", tsp_dev.major);
 	tsp_dev.major = 0;
 	pr_info("tsp_remove OK\n");
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id tsp_match[] = {
