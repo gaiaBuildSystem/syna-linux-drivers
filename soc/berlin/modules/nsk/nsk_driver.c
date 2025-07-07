@@ -11,6 +11,7 @@
 #include <linux/platform_device.h>
 #include <linux/arm-smccc.h>
 #include <soc/berlin/berlin_sip.h>
+#include "kernel_compatibility.h"
 
 #define NSK_ENABLE_SMCCC_FOR_REG_ACCESS
 
@@ -373,7 +374,7 @@ static int nsk_device_init(nsk_device *nsk_dev)
 		return ret;
 	}
 
-	nsk_dev->dev_class = class_create(THIS_MODULE, NSK_DEVICE_NAME);
+	nsk_dev->dev_class = SYNA_CLASS_CREATE(NSK_DEVICE_NAME);
 	if (IS_ERR(nsk_dev->dev_class)) {
 		nsk_error(dev, "class_create failed...!\n");
 		ret = -ENOMEM;
@@ -457,13 +458,13 @@ static int nsk_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int nsk_remove(struct platform_device *pdev)
+static RET_TYPE nsk_remove(struct platform_device *pdev)
 {
 	nsk_device *nsk_dev = dev_get_drvdata(&pdev->dev);
 
 	nsk_device_exit(nsk_dev);
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id nsk_match[] = {
