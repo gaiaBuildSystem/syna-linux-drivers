@@ -28,6 +28,7 @@
 #include "hdmirx.h"
 #include "avio_io.h"
 #include "avio_common.h"
+#include "kernel_compatibility.h"
 
 #define HDMIRX_CLEAR_ALL_INT 0xFFFFFFFF
 
@@ -457,7 +458,7 @@ static long drv_hrx_ioctl_unlocked(struct file *filp, u32 cmd,
 	case AIP_IOCTL_START_CMD:
 	{
 	#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-		struct dma_buf_map map;
+		struct iosys_map map;
 	#endif
 		if (copy_from_user
 			(aip_info, (int __user *) arg, 3 * sizeof(int))) {
@@ -516,7 +517,7 @@ error:
 	case AIP_IOCTL_STOP_CMD:
 	{
 	#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-		struct dma_buf_map map = DMA_BUF_MAP_INIT_VADDR(hrx->shm.p);
+		struct iosys_map map = IOSYS_MAP_INIT_VADDR(hrx->shm.p);
 	#endif
 		spin_lock_irqsave(&hrx->aip_spinlock, aip_spinlock_flags);
 		aip_stop_cmd(hrx);
@@ -813,7 +814,7 @@ static int hrx_init(struct hrx_priv *hrx)
 	hrx_trace("setup cdevs device minor [%d]\n", hrx->minor);
 
 	/* add PE devices to sysfs */
-	hrx->dev_class = class_create(THIS_MODULE, hrx->dev_name);
+	hrx->dev_class = SYNA_CLASS_CREATE(hrx->dev_name);
 	if (IS_ERR(hrx->dev_class)) {
 		hrx_error("class_create failed.\n");
 		res = -ENODEV;
@@ -974,7 +975,7 @@ err_config:
 	return ret;
 }
 
-static int hrx_remove(struct platform_device *pdev)
+static RET_TYPE hrx_remove(struct platform_device *pdev)
 {
 	struct hrx_priv *hrx = get_hrx_priv(&pdev->dev);
 
@@ -984,7 +985,7 @@ static int hrx_remove(struct platform_device *pdev)
 	hrx_major = 0;
 	shm_client_destroy(hrx->client);
 	hrx_trace("hrx removed OK\n");
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id hrx_match[] = {

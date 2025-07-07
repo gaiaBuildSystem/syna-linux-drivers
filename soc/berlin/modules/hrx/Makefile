@@ -16,6 +16,7 @@ EXTERN_INC_PATH := $(MSGQ_INC_PATH)
 
 EXTERN_INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/shm
 EXTERN_INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/berlin_inc
+EXTERN_INC_PATH += -I$(srctree)/drivers/synaptics/include
 
 HRX_ALL_OBJS = drv_hrx.o hrx_audio.o
 
