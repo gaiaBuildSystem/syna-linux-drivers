@@ -15,6 +15,8 @@
 #define iosys_map dma_buf_map
 #define iosys_map_set_vaddr dma_buf_map_set_vaddr
 #define iosys_map_clear dma_buf_map_clear
+#define iosys_map_is_null dma_buf_map_is_null
+#define IOSYS_MAP_INIT_VADDR DMA_BUF_MAP_INIT_VADDR
 #else
 #include <linux/iosys-map.h>
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)) */
@@ -22,6 +24,10 @@
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_fbdev_ttm.h>
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+#define pde_data PDE_DATA
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
