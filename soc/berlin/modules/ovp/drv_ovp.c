@@ -32,6 +32,7 @@
 /*************************************************************************
  * Local head files
  */
+#include "kernel_compatibility.h"
 #include "ovp_debug.h"
 #include "ovp_ioctl.h"
 #include "drv_ovp.h"
@@ -405,7 +406,7 @@ static int ovp_drv_init(struct ovp_device_t *ovp_device)
 
 	/* add PE devices to sysfs */
 	ovp_device->dev_class =
-		class_create(THIS_MODULE, ovp_device->dev_name);
+		SYNA_CLASS_CREATE(ovp_device->dev_name);
 	if (IS_ERR(ovp_device->dev_class)) {
 		ovp_error("class_create failed.\n");
 		res = -ENODEV;
@@ -570,7 +571,7 @@ err_fail1:
 	return ret;
 }
 
-static int ovp_drv_remove(struct platform_device *pdev)
+static RET_TYPE ovp_drv_remove(struct platform_device *pdev)
 {
 	ovp_trace("%s\n", __func__);
 
@@ -582,7 +583,7 @@ static int ovp_drv_remove(struct platform_device *pdev)
 
 	ovp_trace("%s OK\n", __func__);
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static void ovp_drv_disable_irq(void)

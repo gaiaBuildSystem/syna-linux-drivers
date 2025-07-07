@@ -27,7 +27,8 @@ TZ_INC_PATH += -I$(BERLIN_MOD_PATH)/tzd/tee/client_api \
 ###############################################################################
 MSGQ_INC_PATH := -I$(BERLIN_MOD_PATH)/msgQ
 
-EXTERN_INC_PATH := $(MSGQ_INC_PATH) $(TZ_INC_PATH)
+EXTERN_INC_PATH := $(MSGQ_INC_PATH) $(TZ_INC_PATH) \
+	-I$(srctree)/drivers/synaptics/include
 
 ###############################################################################
 #
