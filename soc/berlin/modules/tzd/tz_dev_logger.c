@@ -557,7 +557,7 @@ static ssize_t tzlogger_log_write(struct ree_logger_param *param)
 	n = snprintf(buf, LOGGER_BUF_SIZE,
 			kernel_log_head[param->prio & 0x7], param->tag);
 	if (likely(n < LOGGER_BUF_SIZE))
-		strlcpy(buf+n, param->text, LOGGER_BUF_SIZE - n);
+		strscpy(buf+n, param->text, LOGGER_BUF_SIZE - n);
 	buf[LOGGER_BUF_SIZE-1] = 0; // make sure null terminated
 	local_irq_restore(flags);
 

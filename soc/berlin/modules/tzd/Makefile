@@ -31,14 +31,15 @@ ifeq ($(CONFIG_REE_SYS_SEMAPHORE), y)
 tzd-objs += ../../tee/ree/ree_sys_callback_semaphore.o
 endif
 
-EXTRA_CFLAGS += -I $(srctree)/$(src)/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/include/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tz/nw_api/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tz/common/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tz/client_api/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tee/common/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tee/client_api/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tee/internal_api/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tee/mgr/
-EXTRA_CFLAGS += -I $(srctree)/$(src)/tee/ree/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/include/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tz/nw_api/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tz/common/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tz/client_api/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/common/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/client_api/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/internal_api/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/mgr/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/ree/
+EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/include
 EXTRA_CFLAGS += -DCONFIG_TEE

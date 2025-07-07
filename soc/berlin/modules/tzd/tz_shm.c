@@ -37,6 +37,7 @@
 #include "config.h"
 #include "tz_log.h"
 #include "tz_driver_private.h"
+#include "kernel_compatibility.h"
 
 struct shm_ops {
 	int (*init)(void);
@@ -77,7 +78,7 @@ static int tzd_dmabuf_heap_shm_alloc(struct tzd_shm *tzshm, gfp_t flags)
 	struct dma_buf *nc_dma_buf;
 	struct dma_buf_attachment * attach;
 	struct sg_table *table;
-	struct dma_buf_map map;
+	struct iosys_map map;
 
 	nc_dma_buf = dma_heap_buffer_alloc(nc_dma_heap, tzshm->len, 0, 0);
 	if (IS_ERR_OR_NULL(nc_dma_buf)) {
@@ -109,7 +110,7 @@ static int tzd_dmabuf_heap_shm_alloc(struct tzd_shm *tzshm, gfp_t flags)
 	pa = (void *)sg_dma_address(table->sgl);
 
 	dma_buf_vmap(nc_dma_buf, &map);
-	if (dma_buf_map_is_null(&map)) {
+	if (iosys_map_is_null(&map)) {
 		tz_error("dma heap buffer map failed.");
 		dma_buf_end_cpu_access(nc_dma_buf, DMA_BIDIRECTIONAL);
 		dma_buf_unmap_attachment(attach, table, DMA_BIDIRECTIONAL);
@@ -132,8 +133,8 @@ static int tzd_dmabuf_heap_shm_free(struct tzd_shm *tzshm)
 {
 	if (tzshm->userdata) {
 		struct dma_buf *dmabuf_heap = tzshm->userdata;
-		struct dma_buf_map map;
-		dma_buf_map_set_vaddr(&map, tzshm->k_addr);
+		struct iosys_map map;
+		iosys_map_set_vaddr(&map, tzshm->k_addr);
 		dma_buf_vunmap(dmabuf_heap, &map);
 
 		dma_buf_end_cpu_access(dmabuf_heap, DMA_BIDIRECTIONAL);

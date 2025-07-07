@@ -48,6 +48,7 @@
 #include "tee_mgr_cmd.h"
 #include "tee_client_api.h"
 #include "ree_sys_callback.h"
+#include "kernel_compatibility.h"
 
 struct tzd_drv {
 	struct device *class_dev;
@@ -187,14 +188,14 @@ void *tzd_get_kernel_dev_file(void)
 }
 EXPORT_SYMBOL(tzd_get_kernel_dev_file);
 
-static inline int __is_kernel_va(unsigned long va)
+static inline int __is_kernel_va(void *va)
 {
 	return virt_addr_valid(va);
 }
 
-static inline int __is_vmalloc_va(unsigned long va)
+static inline int __is_vmalloc_va(void *va)
 {
-	return (va <= VMALLOC_END && va >= VMALLOC_START);
+	return ((unsigned long)va <= VMALLOC_END && (unsigned long)va >= VMALLOC_START);
 }
 
 static inline int __is_user_va(unsigned long va)
@@ -217,10 +218,10 @@ int tz_get_meminfo(struct tz_mem_info *info)
 		return ret;
 	}
 
-	if (__is_kernel_va((unsigned long)info->va)) {
+	if (__is_kernel_va(info->va)) {
 		info->pa = (void *)virt_to_phys((void *)info->va);
 		info->attr = 0;
-	} else if (__is_vmalloc_va((unsigned long)info->va)) {
+	} else if (__is_vmalloc_va(info->va)) {
 		tz_error("virtual address is vmalloc, not support");
 		info->pa = NULL;
 		info->attr = 0;
@@ -837,7 +838,7 @@ static int tzd_probe(struct platform_device *pdev)
 		goto shm_exit;
 	}
 
-	driver_class = class_create(THIS_MODULE, TZ_CLIENT_DEVICE_NAME);
+	driver_class = SYNA_CLASS_CREATE(TZ_CLIENT_DEVICE_NAME);
 	if (IS_ERR(driver_class)) {
 		ret = -ENOMEM;
 		tz_error("class_create failed %d", ret);
@@ -892,11 +893,9 @@ shm_exit:
 	return ret;
 }
 
-static int tzd_remove(struct platform_device *pdev)
+static RET_TYPE tzd_remove(struct platform_device *pdev)
 {
 	struct tzd_drv *tzd = platform_get_drvdata(pdev);
-	if (!tzd)
-		return -ENOMEM;
 
 	tz_debug("tz driver exit\n");
 	tzd_shm_exit();
@@ -910,7 +909,7 @@ static int tzd_remove(struct platform_device *pdev)
 
 	tzlogger_exit();
 
-	return 0;
+	RETURN_VALUE;
 }
 
 static struct platform_driver tzd_driver = {
