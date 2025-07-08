@@ -131,7 +131,6 @@ struct dolphin_pll {
 	struct clk *bypass_clk;
 	struct clk_hw hw;
 	struct clk_hw hw1;
-	struct clk_hw_onecell_data clk_data;
 };
 
 struct pll_preset_param {
@@ -711,6 +710,7 @@ static const struct clk_ops dolphin_pll_clko1_ops = {
 static int dolphin_pll_setup(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct clk_hw_onecell_data *clk_data;
 	struct clk_init_data init;
 	struct dolphin_pll *pll;
 	const char *parent_name;
@@ -718,7 +718,12 @@ static int dolphin_pll_setup(struct platform_device *pdev)
 	char name[16];
 	int ret;
 
-	pll = devm_kzalloc(dev, struct_size(pll, clk_data.hws, 2), GFP_KERNEL);
+	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, 2), GFP_KERNEL);
+	if (!clk_data)
+		return -ENOMEM;
+	clk_data->num = 2;
+
+	pll = devm_kzalloc(dev, sizeof(*pll), GFP_KERNEL);
 	if (!pll)
 		return -ENOMEM;
 
@@ -777,9 +782,8 @@ static int dolphin_pll_setup(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	pll->clk_data.hws[0] = &pll->hw;
-	pll->clk_data.hws[1] = &pll->hw1;
-	pll->clk_data.num = 2;
+	clk_data->hws[0] = &pll->hw;
+	clk_data->hws[1] = &pll->hw1;
 
 	pll->rates[0] = clk_hw_get_rate(&pll->hw);
 	pll->rates[1] = clk_hw_get_rate(&pll->hw1);
@@ -787,7 +791,7 @@ static int dolphin_pll_setup(struct platform_device *pdev)
 	pll->rates[1] = (pll->rates[1] + FREQ_FACTOR / 2) / FREQ_FACTOR;
 
 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
-					  &pll->clk_data);
+					  clk_data);
 	if (ret)
 		return ret;
 
