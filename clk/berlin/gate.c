@@ -18,10 +18,6 @@
 
 #include "clk.h"
 
-struct berlin_gate_clk_priv {
-	struct clk_hw_onecell_data data;
-};
-
 static DEFINE_SPINLOCK(berlin_gateclk_lock);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5,17,0))
@@ -72,18 +68,17 @@ int berlin_gateclk_setup(struct platform_device *pdev,
 	int i;
 	void __iomem *base;
 	struct resource *res;
-	struct berlin_gate_clk_priv *priv;
+	struct clk_hw_onecell_data *clk_data;
 
-	priv = devm_kzalloc(&pdev->dev, struct_size(priv, data.hws, n), GFP_KERNEL);
-	if (!priv)
+	clk_data = devm_kzalloc(&pdev->dev, struct_size(clk_data, hws, n), GFP_KERNEL);
+	if (!clk_data)
 		return -ENOMEM;
+	clk_data->num = n;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (WARN_ON(!base))
 		return -ENOMEM;
-
-	priv->data.num = n;
 
 	for (i = 0; i < n; i++) {
 		struct clk_hw *clk;
@@ -96,10 +91,10 @@ int berlin_gateclk_setup(struct platform_device *pdev,
 		if (IS_ERR(clk))
 			return PTR_ERR(clk);
 
-		priv->data.hws[i] = clk;
+		clk_data->hws[i] = clk;
 	}
 
-	return devm_of_clk_add_hw_provider(&pdev->dev, of_clk_hw_onecell_get, &priv->data);
+	return devm_of_clk_add_hw_provider(&pdev->dev, of_clk_hw_onecell_get, clk_data);
 }
 EXPORT_SYMBOL_GPL(berlin_gateclk_setup);
 
