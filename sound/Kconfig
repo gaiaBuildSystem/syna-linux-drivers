@@ -9,5 +9,6 @@ menuconfig SYNAPTICS_SOUND
 if SYNAPTICS_SOUND
 
 source "drivers/synaptics/sound/soc/syna/Kconfig"
+source "drivers/synaptics/sound/soc/codecs/Kconfig"
 
 endif

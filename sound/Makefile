@@ -3,4 +3,4 @@
 #
 
 obj-$(CONFIG_SYNAPTICS_SOUND)		+= soc/syna/
-
+obj-$(CONFIG_SYNAPTICS_SOUND)		+= soc/codecs/
