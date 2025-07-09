@@ -35,13 +35,14 @@ int syna_vpu_ctx_switch_inst(struct syna_vcodec_ctx *old,
 int syna_vdec_create_instance(struct syna_vcodec_ctx *ctx);
 int syna_vdec_destroy_instance(struct syna_vcodec_ctx *ctx);
 int syna_vdec_configure_stream(struct syna_vcodec_ctx *ctx);
-int syna_vdec_stream_switch_in(struct syna_vcodec_ctx *ctx);
-int syna_vdec_stream_switch_out(struct syna_vcodec_ctx *ctx);
-int syna_vdec_close_stream(struct syna_vcodec_ctx *ctx);
-int syna_vdec_decode_stream(struct syna_vcodec_ctx *ctx);
 int syna_vdec_push_disp_buf(struct syna_vcodec_ctx *ctx, uint32_t index);
 int syna_vdec_push_strm_buf(struct syna_vcodec_ctx *ctx, uint32_t index);
 int syna_vdec_push_ref_buf(struct syna_vcodec_ctx *ctx, uint32_t index);
+int syna_vdec_drain_pool(struct syna_vcodec_ctx *ctx, u32 buftype);
+int syna_vdec_decode_stream(struct syna_vcodec_ctx *ctx);
+int syna_vdec_stream_switch_in(struct syna_vcodec_ctx *ctx);
+int syna_vdec_stream_switch_out(struct syna_vcodec_ctx *ctx);
+int syna_vdec_close_stream(struct syna_vcodec_ctx *ctx);
 int syna_vdec_hw_abort(struct syna_vcodec_ctx *ctx);
 
 int syna_venc_create_instance(struct syna_vcodec_ctx *ctx);

@@ -498,6 +498,12 @@ int syna_vdec_decode_stream(struct syna_vcodec_ctx *ctx)
 	return tz_vpu_stream_cmd1(VDEC_DECODE_STREAM_V2, ctx);
 }
 
+int syna_vdec_drain_pool(struct syna_vcodec_ctx *ctx, u32 buftype)
+{
+	return tz_vpu_buffer_cmd(VDEC_DRAIN_POOL_V2, ctx,
+				 buftype, 0U);
+}
+
 int syna_vdec_hw_abort(struct syna_vcodec_ctx *ctx)
 {
 	return tz_vpu_stream_cmd1(VDEC_ABORT_HW_V2, ctx);

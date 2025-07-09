@@ -550,7 +550,6 @@ static int syna_vpu_prepare_mtr_buffer(struct syna_vcodec_ctx *ctx,
 		return -ENOMEM;
 
 mtr_assign:
-	ctrl->mtr_base.memid = 0;
 	ctrl->mtr_base.addr = 0;
 	ctrl->mtr_base.offset = 0;
 	ctrl->mtr_base.type = CONTIGUOUS_MEM;
@@ -1907,8 +1906,8 @@ static void vb2ops_vdec_stop_streaming(struct vb2_queue *q)
 	struct syna_vpu_dev *vpu = ctx->vpu;
 	struct v4l2_m2m_ctx *m2m_ctx = ctx->fh.m2m_ctx;
 	struct vb2_queue *src_vq, *dst_vq;
-	struct vb2_v4l2_buffer *src_buf, *dst_buf;
-	int j;
+	struct vb2_v4l2_buffer *vb2_v4l2;
+	int j, ret;
 
 	vpu_srv_remove_from_pending(vpu->srv, ctx);
 
@@ -1916,46 +1915,67 @@ static void vb2ops_vdec_stop_streaming(struct vb2_queue *q)
 		 V4L2_TYPE_IS_OUTPUT(q->type) ? "output" : "capture");
 
 	v4l2_m2m_update_stop_streaming_state(m2m_ctx, q);
-	dst_vq = v4l2_m2m_get_dst_vq(m2m_ctx);
+
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
-		/**
-		 * FIXME: that is not right, hardware could still hold
-		 * an ES buffer.
-		 */
-		ctx->cur_src_buf = NULL;
-		while ((src_buf = v4l2_m2m_src_buf_remove(m2m_ctx))) {
-			if (src_buf != &ctx->eof_flush_buf.vb) {
-				v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_ERROR);
+		while ((vb2_v4l2 = v4l2_m2m_src_buf_remove(m2m_ctx))) {
+			if (vb2_v4l2 != &ctx->eof_flush_buf.vb) {
+				v4l2_m2m_buf_done(vb2_v4l2,
+						  VB2_BUF_STATE_ERROR);
 				vdpu_dbg(vpu, 5, "[%p] src done clear %d",
-					 m2m_ctx, src_buf->vb2_buf.index);
+					 m2m_ctx, vb2_v4l2->vb2_buf.index);
 			}
 		}
 
-		if (vb2_start_streaming_called(dst_vq))
-			return;
-	}
+		dst_vq = v4l2_m2m_get_dst_vq(m2m_ctx);
+		if (!vb2_start_streaming_called(dst_vq))
+			goto reset_inst;
 
-	if (!V4L2_TYPE_IS_OUTPUT(q->type) && !vb2_start_streaming_called(dst_vq))
+		ret = syna_vdec_drain_pool(ctx, SYNA_VPU_FW_VDEC_STRM);
+		if (ret) {
+			vdpu_err(vpu, "failed to drain the OUTPUT queue %x",
+				 ret);
+			goto reset_inst;
+		}
+		ret = syna_vdec_update_pop_status(ctx);
+		if (ret)
+			goto reset_inst;
+
+		ctx->cur_src_buf = NULL;
+
 		return;
+	} else {
+		while ((vb2_v4l2 = v4l2_m2m_dst_buf_remove(m2m_ctx))) {
+			for (j = 0; j < vb2_v4l2->vb2_buf.num_planes; j++)
+				vb2_set_plane_payload(&vb2_v4l2->vb2_buf, j, 0);
 
-	next_ctx = NULL;
-	src_vq = v4l2_m2m_get_src_vq(m2m_ctx);
-	if ((ctx->dst_vb_bits || ctx->ref_slots)
-		|| !vb2_start_streaming_called(src_vq)) {
-		vpu_srv_release_out(ctx->vpu->srv, ctx, &next_ctx);
+			v4l2_m2m_buf_done(vb2_v4l2, VB2_BUF_STATE_ERROR);
+			vdpu_dbg(vpu, 5, "[%p] dst done clear %d",
+				 m2m_ctx, vb2_v4l2->vb2_buf.index);
+		}
+
+		src_vq = v4l2_m2m_get_src_vq(m2m_ctx);
+		if (!vb2_start_streaming_called(src_vq))
+			goto reset_inst;
+
+		ret = 0;
+		if (ctx->dst_vb_bits || ctx->ref_slots)
+			ret = syna_vdec_drain_pool(ctx, SYNA_VPU_FW_VDEC_DISP);
+
+		if (ret) {
+			vdpu_err(vpu, "failed to drain the CAPTURE queue %x",
+				 ret);
+			goto reset_inst;
+		}
+
+		ret = syna_vdec_update_pop_status(ctx);
+		if (ret)
+			goto reset_inst;
+
+		return;
 	}
 
-	while ((dst_buf = v4l2_m2m_dst_buf_remove(m2m_ctx))) {
-		for (j = 0; j < dst_buf->vb2_buf.num_planes; j++)
-			vb2_set_plane_payload(&dst_buf->vb2_buf, 0, 0);
-
-		if (test_bit(dst_buf->vb2_buf.index, &ctx->dst_vb_bits))
-			vdpu_err(vpu, "[%p] warning: return buffer %d in using",
-				 m2m_ctx, dst_buf->vb2_buf.index);
-		v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_ERROR);
-		vdpu_dbg(vpu, 5, "[%p] dst done clear %d", m2m_ctx,
-			 dst_buf->vb2_buf.index);
-	}
+reset_inst:
+	vpu_srv_release_out(ctx->vpu->srv, ctx, &next_ctx);
 
 	if (next_ctx) {
 		m2m_ctx = next_ctx->fh.m2m_ctx;
