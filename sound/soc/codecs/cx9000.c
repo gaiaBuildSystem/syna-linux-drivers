@@ -2843,7 +2843,7 @@ static void cx9000_codec_remove(struct snd_soc_component *component)
 	gpiod_set_value(cx9000->enable_gpio, 0);
 };
 
-const static struct snd_soc_component_driver soc_codec_dev_cx9000 = {
+static const struct snd_soc_component_driver soc_codec_dev_cx9000 = {
 	.probe = cx9000_codec_probe,
 	.remove = cx9000_codec_remove,
 	.controls = cx9000_snd_controls,
