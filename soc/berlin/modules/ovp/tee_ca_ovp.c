@@ -60,7 +60,7 @@ int tz_ovp_invoke_cmd(OVP_CMD_ID cmd)
 			&operation,
 			NULL);
 	if (result != TEEC_SUCCESS)
-		ovp_trace("OVP %s failed: 0x%x\n",
+		ovp_error("OVP %s failed: 0x%x\n",
 			cmd == OVP_SUSPEND ? "SUSPEND" : "RESUME", result);
 
 	return operation.params[0].value.a;
@@ -76,10 +76,10 @@ int tz_ovp_initialize(void)
 			NULL,
 			&context);
 	if (result != TEEC_SUCCESS) {
-		ovp_trace("TEEC_InitializeContext ret=0x%08x\n", result);
+		ovp_error("TEEC_InitializeContext ret=0x%08x\n", result);
 		goto fun_ret;
-	} else
-		ovp_trace("TEEC_InitializeContext success\n");
+	}
+	ovp_trace("TEEC_InitializeContext success\n");
 
 	/* [2] Open session with TEE application */
 

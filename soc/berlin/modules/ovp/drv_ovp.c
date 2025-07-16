@@ -236,10 +236,10 @@ static int ovp_drv_open(struct inode *inode, struct file *filp)
 	err = request_irq(vec_num, ovp_drv_isr, 0,
 			  OVP_MODULE_NAME, hOvpCtx);
 	if (unlikely(err < 0)) {
-		ovp_trace("vec_num:%5d, err:%8x\n", vec_num, err);
+		ovp_error("vec_num:%5d, err:%8x\n", vec_num, err);
 		goto err_exit;
-	} else
-		ovp_trace("%s ok\n", __func__);
+	}
+	ovp_trace("%s ok\n", __func__);
 
 	err = tz_ovp_initialize();
 	if (err) {
