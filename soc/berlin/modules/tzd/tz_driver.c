@@ -551,7 +551,7 @@ int tzd_kernel_close_session(struct tz_session_param *close_param)
 	return close_session(kernel_dev_file, close_param);
 }
 
-long tzd_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+long tzd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = -EINVAL;
 	struct tzd_dev_file *dev;

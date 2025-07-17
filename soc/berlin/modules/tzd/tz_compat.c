@@ -149,7 +149,7 @@ static int tzd_compat_get_meminfo(struct tzd_dev_file *dev, unsigned long arg)
 	return 0;
 }
 
-long tzd_compat_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+long tzd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct tzd_dev_file *dev = (struct tzd_dev_file *) file->private_data;
 	if (unlikely(!dev))

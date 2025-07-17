@@ -113,12 +113,12 @@ void tzlogger_exit(void);
 /**
  * tzd device ioctl for 32-bit applications
  */
-long tzd_compat_ioctl(struct file *file, unsigned cmd, unsigned long arg);
+long tzd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 #endif
 
 /**
  * tzd device ioctl
  */
-long tzd_ioctl(struct file *file, unsigned cmd, unsigned long arg);
+long tzd_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
 #endif
