@@ -36,9 +36,7 @@ unsigned long tz_user_virt_to_pte(struct mm_struct *mm, unsigned long address)
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *ptep, pte;
-#ifdef pte_offset_map_lock
 	spinlock_t *lock;
-#endif
 
 	/* va in user space might not be mapped yet, so do a dummy read here
 	 * to trigger a page fault and tell kernel to create the revalant
@@ -64,21 +62,13 @@ unsigned long tz_user_virt_to_pte(struct mm_struct *mm, unsigned long address)
 	if (!pmd_present(*pmd))
 		return 0;
 
-#ifdef pte_offset_map_lock
 	ptep = pte_offset_map_lock(mm, pmd, address, &lock);
-#else
-	ptep = pte_offset_map(pmd, address);
-#endif
 	if (!ptep) {
-#ifdef pte_offset_map_lock
 		pte_unmap_unlock(ptep, lock);
-#endif
 		return 0;
 	}
 	pte = *ptep;
-#ifdef pte_offset_map_lock
 	pte_unmap_unlock(ptep, lock);
-#endif
 
 	if (pte_present(pte))
 		return pte_val(pte) & PHYS_MASK;
