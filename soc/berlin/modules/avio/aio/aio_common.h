@@ -18,7 +18,7 @@ int aio_read_gbl(struct aio_priv *aio, u32 offset);
 void aio_write_gbl(struct aio_priv *aio, u32 offset, u32 val);
 struct aio_priv *hd_to_aio(void *hd);
 struct aio_priv *get_aio(void);
-int aio_i2s_mclk_cfg(u32 fs, u32 tcf, struct mclk_info **mclk);
+int aio_i2s_mclk_cfg(u32 fs, u32 tcf, const struct mclk_info **mclk);
 int aio_misc_enable_audio_timer(void *hd, bool en);
 int aio_misc_get_audio_timer(void *hd, u32 *val);
 int aio_misc_enable_sampinfo(void *hd, u32 idx, bool en);

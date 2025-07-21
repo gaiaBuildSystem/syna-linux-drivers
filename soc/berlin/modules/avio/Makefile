@@ -88,14 +88,17 @@ endif
 
 ifeq ($(CONFIG_AVIO_PLATYPUS),y)
 AVIO_AIO_API_OBJS += aio/vsxxx/platypus/aio_priv.o
+AVIO_AIO_API_OBJS += aio/vsxxx/platypus/apll.o
 endif
 # dolphinz1 share the same aio_priv.c with platypus
 ifeq ($(CONFIG_AVIO_DOLPHIN),y)
 AVIO_AIO_API_OBJS += aio/vsxxx/platypus/aio_priv.o
+AVIO_AIO_API_OBJS += aio/vsxxx/dolphin/apll.o
 endif
 ifeq ($(CONFIG_AVIO_DOLPHIN_A0),y)
 AVIO_AIO_API_OBJS += aio/vsxxx/dolphin_a0/aio_priv.o
 AVIO_AIO_API_OBJS += aio/vsxxx/earc.o
+AVIO_AIO_API_OBJS += aio/vsxxx/dolphin_a0/apll.o
 endif
 
 AVIO_AIO_API_OBJS += aio/vsxxx/i2s.o

@@ -290,13 +290,13 @@ int aio_set_loopback_clk_gate(void *hd, u32 idx, u32 en)
 }
 EXPORT_SYMBOL(aio_set_loopback_clk_gate);
 
-__weak int aio_i2s_mclk_cfg(u32 fs, u32 tcf, struct mclk_info **mclk)
+__weak int aio_i2s_mclk_cfg(u32 fs, u32 tcf, const struct mclk_info **mclk)
 {
 	pr_info("weak %s called\n", __func__);
 	return 0;
 }
 
-int aio_i2s_get_mclk_cfg(u32 fs, u32 sample_period, struct mclk_info **mclk)
+int aio_i2s_get_mclk_cfg(u32 fs, u32 sample_period, const struct mclk_info **mclk)
 {
 	int ret;
 	ret = aio_i2s_mclk_cfg(fs, sample_period, mclk);

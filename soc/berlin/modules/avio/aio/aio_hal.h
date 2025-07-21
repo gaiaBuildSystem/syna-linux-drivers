@@ -255,6 +255,6 @@ int aio_configure_loopback(void *hd, u32 id, u8 chan_num, u8 dummy_data);
 void aio_spdifi_src_sel(void *hd, u32 clk_sel, u32 data_sel);
 void aio_earc_src_sel(void *hd, u32 sel);
 void aio_earc_i2s_frord_sel(void *hd, u32 sel);
-int aio_i2s_get_mclk_cfg(u32 fs, u32 sample_period, struct mclk_info **mclk);
+int aio_i2s_get_mclk_cfg(u32 fs, u32 sample_period, const struct mclk_info **mclk);
 int aio_i2s_mclk_ctrl(void *hd, u32 id, u32 en);
 #endif
