@@ -34,7 +34,6 @@ struct sec_priv {
 	 *  Typically 32 is used. For some pcm mono format, 16 may be used
 	 */
 	int  sample_period;
-	u32  apll_id;  /* APLL id being used. 0: AIO_APLL_0, 1: AIO_APLL_1 */
 	void *aio_handle;
 };
 
@@ -47,9 +46,9 @@ static struct snd_kcontrol_new i2s_sec_ctrls[] = {
  * Must be called with instance spinlock held.
  * Only one dai instance for playback, so no spin_lock needed
  */
-static void sec_set_aio_fmt(struct sec_priv *sec, u32 fs, int width, int chnum)
+static void sec_set_aio_fmt(struct sec_priv *sec, u32 fs, int width, int chnum, u32 mclkrate)
 {
-	unsigned int div, dfm, cfm, bclk;
+	unsigned int dfm, cfm, bclk;
 	struct aud_ctrl ctrl;
 
 	/* Change AIO_24DFM to AIO_32DFM */
@@ -69,9 +68,6 @@ static void sec_set_aio_fmt(struct sec_priv *sec, u32 fs, int width, int chnum)
 		bclk = fs * sec->sample_period * 2;
 	}
 
-	div = (24576000 * 8) / (8 * bclk);
-	div = ilog2(div);
-
 	ctrl.chcnt	= chnum;
 	ctrl.sample_period_in_bclk = cfm;
 	ctrl.sample_resolution	= dfm;
@@ -83,7 +79,7 @@ static void sec_set_aio_fmt(struct sec_priv *sec, u32 fs, int width, int chnum)
 	ctrl.istdm	= (chnum == 1) ? 0 : sec->ctrl.istdm;
 	ctrl.islframe	= sec->ctrl.islframe;
 
-	aio_setclkdiv(sec->aio_handle, AIO_ID_SEC_TX, div);
+	aio_setclkdiv(sec->aio_handle, AIO_ID_SEC_TX, berlin_get_bclk_div(mclkrate, bclk));
 	aio_set_ctl_ext(sec->aio_handle, AIO_ID_SEC_TX, &ctrl);
 	aio_set_pcm_mono(sec->aio_handle, AIO_ID_SEC_TX, (chnum == 1));
 }
@@ -239,6 +235,7 @@ static int i2s_sec_hw_params(struct snd_pcm_substream *substream,
 	struct sec_priv *sec = snd_soc_dai_get_drvdata(dai);
 	int ret;
 	u32 fs = params_rate(params);
+	const struct mclk_info *mclk = NULL;
 	struct berlin_ss_params ssparams;
 
 	snd_printd("%s\n", __func__);
@@ -255,11 +252,16 @@ static int i2s_sec_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 
 	if (sec->is_master) {
+
+		if (aio_i2s_get_mclk_cfg(fs, sec->sample_period, &mclk) && !mclk) {
+			snd_printk("fail to get mclk config");
+			return -EINVAL;
+		}
 		/* pll */
-		berlin_set_pll(sec->aio_handle, sec->apll_id, fs);
+		berlin_set_pll(sec->aio_handle, mclk->apll_id, mclk->apllrate);
 		/* mclk */
-		aio_i2s_set_clock(sec->aio_handle, AIO_ID_SEC_TX, 1, AIO_CLK_D3_SWITCH_NOR,
-							AIO_CLK_SEL_D8, sec->apll_id, 1);
+		aio_i2s_set_clock(sec->aio_handle, AIO_ID_SEC_TX, 1, mclk->d3_switch,
+							mclk->plldiv, mclk->apll_id, 1);
 		/* Set bclk master mode */
 		aio_set_slave_mode(sec->aio_handle, AIO_ID_SEC_TX, 0);
 		aio_set_bclk_sel(sec->aio_handle, AIO_ID_SEC_TX, 1);
@@ -272,7 +274,7 @@ static int i2s_sec_hw_params(struct snd_pcm_substream *substream,
 	aio_set_aud_ch_mute(sec->aio_handle, AIO_ID_SEC_TX, AIO_TSD0, 1);
 	aio_set_aud_ch_flush(sec->aio_handle, AIO_ID_SEC_TX, AIO_TSD0, 0);
 
-	sec_set_aio_fmt(sec, fs, params_width(params), params_channels(params));
+	sec_set_aio_fmt(sec, fs, params_width(params), params_channels(params), mclk->mclkrate);
 
 	if (sec->is_master) {
 		aio_set_i2s_clk_enable(sec->aio_handle, AIO_I2S_I2S3_BCLK, 1);
@@ -399,9 +401,6 @@ static int i2s_sec_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "sample-period", &sec->sample_period);
 	if (ret)
 		sec->sample_period = 32;
-	ret = of_property_read_u32(np, "apll-id", &sec->apll_id);
-	if (ret)
-		sec->apll_id = 0;
 
 	sec->dev_name = dev_name(dev);
 	sec->aio_handle = open_aio(sec->dev_name);

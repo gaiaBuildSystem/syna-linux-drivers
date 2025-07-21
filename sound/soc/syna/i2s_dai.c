@@ -237,7 +237,7 @@ static int i2s_soc_dai_set_aio(struct i2s_soc_dai *soc_dai, u32 id, u32 fs, int 
 {
 	unsigned int cfm, dfm;
 	unsigned int bclk;
-	struct mclk_info *mclk = NULL;
+	const struct mclk_info *mclk = NULL;
 	struct aud_ctrl ctrl;
 
 	/* Change AIO_24DFM to AIO_32DFM */

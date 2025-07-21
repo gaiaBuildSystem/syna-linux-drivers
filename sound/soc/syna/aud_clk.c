@@ -74,7 +74,7 @@ static int aud_clk_config(struct snd_pcm_substream *s)
 	u32 apll_outf = AIO_APLL_OUT, plldiv = 1;
 	u32 clk_chid = clkroot->clk_chid;
 	u32 apll_id = 0, aud_clk_mode;
-	struct mclk_info *mclk = NULL;
+	const struct mclk_info *mclk = NULL;
 	struct aud_ctrl ctrl;
 
 	clkrtCtrl = &clkroot->clkCfg.aCtrl;

@@ -41,7 +41,6 @@ struct mic2_priv {
 	 */
 	int  sample_period;
 	bool rx_force_tx;
-	u32  apll_id;  /* APLL id being used. 0: AIO_APLL_0, 1: AIO_APLL_1 */
 };
 
 static void mic2_enable(struct mic2_priv *mic2, u32 ch, bool en)
@@ -112,6 +111,7 @@ static int i2s_mic2_hw_params(struct snd_pcm_substream *ss,
 	u32 fs = params_rate(params);
 	u32 width = params_width(params);
 	u32 chnum = params_channels(params);
+	const struct mclk_info *mclk = NULL;
 	unsigned int dfm, cfm, bclk;
 	struct berlin_ss_params ssparams;
 	struct aud_ctrl ctrl;
@@ -165,25 +165,26 @@ static int i2s_mic2_hw_params(struct snd_pcm_substream *ss,
 	ctrl.islframe	= false;
 
 	if (mic2->cfg.is_master) {
-		u32 div;
 
 		/* mic2 does not support master mode, using xfeed from tx */
 		xfeed = 0;
 		blk_sel = 0;
 
+		if (aio_i2s_get_mclk_cfg(fs, mic2->sample_period, &mclk) && !mclk) {
+			snd_printk("fail to get mclk config");
+			return -EINVAL;
+		}
+
 		/* pll */
-		berlin_set_pll(mic2->aio_handle, mic2->apll_id, fs);
+		berlin_set_pll(mic2->aio_handle, mclk->apll_id, mclk->apllrate);
 
 		/* Check whether tx is enabled by rx or tx */
 		if (!aio_get_i2s_ch_en(AIO_ID_SEC_TX)) {
 			mic2->rx_force_tx = true;
 
-			div = (24576000 * 8) / (8 * bclk);
-			div = ilog2(div);
-
-			aio_i2s_set_clock(mic2->aio_handle, AIO_ID_SEC_TX, 1, AIO_CLK_D3_SWITCH_NOR,
-								AIO_CLK_SEL_D8, mic2->apll_id, 1);
-			aio_setclkdiv(mic2->aio_handle, AIO_ID_SEC_TX, div);
+			aio_i2s_set_clock(mic2->aio_handle, AIO_ID_SEC_TX, 1, mclk->d3_switch,
+								mclk->plldiv, mclk->apll_id, 1);
+			aio_setclkdiv(mic2->aio_handle, AIO_ID_SEC_TX, berlin_get_bclk_div(mclk->mclkrate, bclk));
 			aio_set_pcm_mono(mic2->aio_handle, AIO_ID_SEC_TX, (chnum == 1));
 			aio_set_ctl_ext(mic2->aio_handle, AIO_ID_SEC_TX, &ctrl);
 			aio_enabletxport(mic2->aio_handle, AIO_ID_SEC_TX, true);
@@ -463,9 +464,7 @@ static int i2s_mic2_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "sample-period", &mic2->sample_period);
 	if (ret)
 		mic2->sample_period = 32;
-	ret = of_property_read_u32(np, "apll-id", &mic2->apll_id);
-	if (ret)
-		mic2->apll_id = 0;
+
 	mic2->dev_name = dev_name(dev);
 	mic2->pdev = pdev;
 	mic2->aio_handle = open_aio(mic2->dev_name);

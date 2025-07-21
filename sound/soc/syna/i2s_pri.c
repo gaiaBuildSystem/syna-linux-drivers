@@ -113,11 +113,11 @@ static void outdai_iosel_set_bclk(struct outdai_priv *out,
  * Only one dai instance for playback, so no spin_lock needed
  */
 static void outdai_set_aio(struct outdai_priv *out,
-			   u32 fs, int width, int chnum)
+			   u32 fs, int width, int chnum, u32 mclkrate)
 {
 	unsigned int cfm, dfm;
 	struct aud_ctrl ctrl;
-	unsigned int div, bclk;
+	unsigned int bclk;
 
 	/* Change AIO_24DFM to AIO_32DFM */
 	dfm = berlin_get_sample_resolution((width == 24 ? 32 : width));
@@ -165,10 +165,8 @@ static void outdai_set_aio(struct outdai_priv *out,
 		else
 			dev_err(out->aio_handle, "not supported chnum: %d in I2S mode\n", chnum);
 	}
-	div = (24576000 * 8) / (8 * bclk);
-	div = ilog2(div);
 
-	outdai_set_clk_div(out, div);
+	outdai_set_clk_div(out, berlin_get_bclk_div(mclkrate, bclk));
 	outdai_set_ctl(out, &ctrl);
 
 	/* MIC1 will use the PRIAUD bclk and need to invert it */
@@ -299,6 +297,7 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 {
 	struct outdai_priv *outdai = snd_soc_dai_get_drvdata(dai);
 	u32 fs = params_rate(params), chnum = params_channels(params);
+	const struct mclk_info *mclk = NULL;
 	int ret;
 	struct berlin_ss_params ssparams;
 
@@ -306,10 +305,15 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 		dev_err(outdai->dev, "not in i2s mode, fatal error.\n");
 		return -EINVAL;
 	}
-	berlin_set_pll(outdai->aio_handle, AIO_APLL_0, fs);
+	if (aio_i2s_get_mclk_cfg(fs, outdai->sample_period, &mclk) && !mclk) {
+		snd_printk("fail to get mclk config");
+		return -EINVAL;
+	}
+
+	berlin_set_pll(outdai->aio_handle, mclk->apll_id, mclk->apllrate);
 	/* mclk */
-	aio_i2s_set_clock(outdai->aio_handle, AIO_ID_PRI_TX, 1, AIO_CLK_D3_SWITCH_NOR,
-						AIO_CLK_SEL_D8, AIO_APLL_0, 1);
+	aio_i2s_set_clock(outdai->aio_handle, AIO_ID_PRI_TX, 1, mclk->d3_switch,
+						mclk->plldiv, mclk->apll_id, 1);
 
 	ssparams.irq_num = 1;
 	ssparams.chid_num = 1;
@@ -326,7 +330,7 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 
 	outdai_ch_mute(outdai, 1);
 	outdai_ch_flush(outdai, 0);
-	outdai_set_aio(outdai, fs, params_width(params), chnum);
+	outdai_set_aio(outdai, fs, params_width(params), chnum, mclk->mclkrate);
 	snd_printd("i2s pri hw ready\n");
 	return ret;
 }

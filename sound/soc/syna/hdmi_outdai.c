@@ -295,43 +295,6 @@ static u32 GET_SndChMap2VppChMask(u32 ch_map)
 	return 0;
 }
 
-static u32 hdmi_get_div(u32 fs)
-{
-	u32 div;
-
-	switch (fs) {
-	case eAUD_Freq_8K:
-	case eAUD_Freq_11K:
-	case eAUD_Freq_12K:
-		div = AIO_DIV32;
-		break;
-	case eAUD_Freq_16K:
-	case eAUD_Freq_22K:
-	case eAUD_Freq_24K:
-		div = AIO_DIV16;
-		break;
-	case eAUD_Freq_32K:
-	case eAUD_Freq_44K:
-	case eAUD_Freq_48K:
-		div = AIO_DIV8;
-		break;
-	case eAUD_Freq_64K:
-	case eAUD_Freq_88K:
-	case eAUD_Freq_96K:
-		div = AIO_DIV4;
-		break;
-	case eAUD_Freq_176K:
-	case eAUD_Freq_192K:
-		div = AIO_DIV2;
-		break;
-	default:
-		div = AIO_DIV8;
-		break;
-	}
-
-	return div;
-}
-
 static void hdmi_set_channel_mask(struct hdmi_priv *hdmi)
 {
 	//use the default FL|FR
@@ -373,17 +336,25 @@ static void hdmi_set_channel_mask(struct hdmi_priv *hdmi)
 }
 
 
-static void hdmi_set_samplerate(struct hdmi_priv *hdmi, int freq, int hbr)
+static int hdmi_set_samplerate(struct hdmi_priv *hdmi, int freq, int bclk, int hbr)
 {
 	int div;
+	const struct mclk_info *mclk = NULL;
 
-	berlin_set_pll(hdmi->aio_handle, AIO_APLL_1, freq);
+	if (aio_i2s_get_mclk_cfg(freq, 32, &mclk) && !mclk) {
+		snd_printk("fail to get mclk config");
+		return -EINVAL;
+	}
+
+	berlin_set_pll(hdmi->aio_handle, mclk->apll_id, mclk->apllrate);
 	aio_i2s_set_clock(hdmi->aio_handle, AIO_ID_HDMI_TX,
-		 1, AIO_CLK_D3_SWITCH_NOR, AIO_CLK_SEL_D8, AIO_APLL_1, 1);
+		 1, mclk->d3_switch, mclk->plldiv, mclk->apll_id, 1);
 
-	div = hdmi_get_div(freq);
+	div = berlin_get_bclk_div(mclk->mclkrate, bclk);
 	snd_printd("aio_setclkdiv hdmi. div %d", div);
 	aio_setclkdiv(hdmi->aio_handle, AIO_ID_HDMI_TX, div);
+
+	return 0;
 }
 
 static int Disp_SetHdmiAudioFmt(int enable, VPP_HDMI_AUDIO_CFG *pAudioCfg)
@@ -673,7 +644,11 @@ static int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
 	hdmi->i2s_dfm = i2s_DFM;
 	hdmi->i2s_cfm = i2s_CFM;
 
-	hdmi_set_samplerate(hdmi, mfs, hdmi->hbr);
+	ret = hdmi_set_samplerate(hdmi, mfs, clk_factor*fs, hdmi->hbr);
+	if (ret < 0) {
+		snd_printk("hdmi_set_samplerate fail %d\n", ret);
+		return ret;
+	}
 	snd_printd("HDMI: ChanNr[%u], BitDepth[%u], I2SMode[%u], I2SDFM[%u], I2SCFM[%u], SampSize[%d]\n",
 			 channel_numbers, uiBitDepth, i2s_mode, i2s_DFM, i2s_CFM, samp_size);
 	set_portfmt(hdmi, hdmi->fmt, i2s_mode, i2s_CFM, i2s_DFM, channel_numbers, samp_size);
@@ -804,6 +779,7 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 	u32 fs = params_rate(params);
 	int ret = 0;
 	struct berlin_ss_params ssparams;
+	const struct mclk_info *mclk = NULL;
 
 	ssparams.irq_num = 1;
 	ssparams.chid_num = 1;
@@ -839,9 +815,15 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 	hdmi->ch_map[1] = SNDRV_CHMAP_FR;
 	hdmi->chan_mask = eAUD_CHMASK_LEFT | eAUD_CHMASK_RGHT;
 	hdmi->fmt = RAW_PCM;
+
+	if (aio_i2s_get_mclk_cfg(hdmi->sample_rate, 32, &mclk) && !mclk) {
+		snd_printk("fail to get mclk config");
+		return -EINVAL;
+	}
+
 	/* Disable HDMI TX audio output then delay to avoid pop noise */
 	aio_i2s_set_clock(hdmi->aio_handle, AIO_ID_HDMI_TX,
-		1, AIO_CLK_D3_SWITCH_NOR, AIO_CLK_SEL_D8, AIO_APLL_1, 1);
+		1, mclk->d3_switch, mclk->plldiv, mclk->apll_id, 1);
 	ret = hdmi_audioformat_en(false);
 	if (ret < 0) {
 		dev_err(hdmi->dev, "hdmi audio fmt set fail\n");

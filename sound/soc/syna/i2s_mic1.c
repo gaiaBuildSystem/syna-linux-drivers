@@ -216,7 +216,8 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 	u32 fs = params_rate(params);
 	u32 width = params_width(params);
 	u32 chnum = params_channels(params);
-	u32 dfm, cfm, chid_num, div, bclk;
+	const struct mclk_info *mclk = NULL;
+	u32 dfm, cfm, chid_num, bclk;
 	struct aud_ctrl ctrl;
 	int ret;
 	struct berlin_ss_params ssparams;
@@ -239,9 +240,6 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 		bclk = fs * mic1->sample_period * 2;
 	}
 
-	div = (24576000 * 8) / (8 * bclk);
-	div = ilog2(div);
-
 	mic1_sel_mic(mic1);
 
 	ctrl.chcnt	= chnum;
@@ -256,9 +254,14 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 	ctrl.islframe	= false;
 	mic1_set_ctl(mic1, &ctrl);
 
+	if (aio_i2s_get_mclk_cfg(fs, mic1->sample_period, &mclk) && !mclk) {
+		snd_printk("fail to get mclk config");
+		return -EINVAL;
+	}
+
 	/* mic1 clock source initilization */
-	aio_i2s_set_clock(mic1->aio_handle, AIO_ID_MIC_RX, 1, AIO_CLK_D3_SWITCH_NOR,
-						AIO_CLK_SEL_D8, AIO_APLL_0, 1);
+	aio_i2s_set_clock(mic1->aio_handle, AIO_ID_MIC_RX, 1, mclk->d3_switch,
+						mclk->plldiv, mclk->apll_id, 1);
 
 	/* xfeed configuration
 	 * 00: Master mode and I2S2_LRCKIO_DO_FB (clock)
@@ -275,7 +278,7 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 	 * per fs.
 	 */
 	if (mic1->use_pri_clk || mic1->cfg.is_master)
-		berlin_set_pll(mic1->aio_handle, AIO_APLL_0, fs);
+		berlin_set_pll(mic1->aio_handle, mclk->apll_id, mclk->apllrate);
 
 	if (mic1->use_pri_clk) {
 		mic1_set_bclk(mic1, 2, mic1->cfg.invbclk);
@@ -307,7 +310,7 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 			mic1_set_ws_prd(mic1, period - 1, (2 * period) - 1, 1);
 		}
 		mic1_set_mm_mode(mic1, 1);
-		mic1_set_clk_div(mic1, div);
+		mic1_set_clk_div(mic1, berlin_get_bclk_div(mclk->mclkrate, bclk));
 	} else {
 		xfeed |= 1;
 		mic1_set_mm_mode(mic1, 0);

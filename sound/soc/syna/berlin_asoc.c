@@ -76,7 +76,7 @@ static int berlin_asoc_link_hwparam(struct snd_pcm_substream *substream,
 		}
 
 		if (strstr(codec->name, "tlv320aic3x")) {
-			struct mclk_info *mclk = NULL;
+			const struct mclk_info *mclk = NULL;
 			uint32_t rate = 24576000;
 
 			if (!aio_i2s_get_mclk_cfg(params_rate(params), 32,

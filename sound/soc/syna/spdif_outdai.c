@@ -75,12 +75,18 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 {
 	struct spdifo_priv *outdai = snd_soc_dai_get_drvdata(dai);
 	u32 fs = params_rate(params);
+	const struct mclk_info *mclk = NULL;
 	int ret;
 	struct berlin_ss_params ssparams;
 
+	if (aio_i2s_get_mclk_cfg(fs, 32, &mclk) && !mclk) {
+		snd_printk("fail to get mclk config");
+		return -EINVAL;
+	}
+
 	/* mclk */
-	aio_i2s_set_clock(outdai->aio_handle, AIO_ID_SPDIF_TX, 1, AIO_CLK_D3_SWITCH_NOR,
-						AIO_CLK_SEL_D8, AIO_APLL_1, 1);
+	aio_i2s_set_clock(outdai->aio_handle, AIO_ID_SPDIF_TX, 1, mclk->d3_switch,
+						mclk->plldiv, mclk->apll_id, 1);
 
 	ssparams.irq_num = 1;
 	ssparams.chid_num = 1;
@@ -96,7 +102,7 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 
 	aio_set_aud_ch_flush(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 0);
 
-	berlin_set_pll(outdai->aio_handle, AIO_APLL_1, fs);
+	berlin_set_pll(outdai->aio_handle, mclk->apll_id, mclk->apllrate);
 
 	outdai_set_aio(outdai, fs);
 

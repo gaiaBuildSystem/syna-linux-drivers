@@ -8,60 +8,20 @@
 #include "aio_hal.h"
 #include "berlin_util.h"
 
-#define APLL_RATE_32K (16384000 * 8)
-#define APLL_RATE_44_1K (22579200 * 8)
-#define APLL_RATE_48K (24576000 * 8)
-
-static int berlin_get_pll(u32 fs)
+int berlin_set_pll(void *aio_handle, u32 apll_id, u32 clk_rate)
 {
-	unsigned long apll;
-
-	switch (fs) {
-	case 11025:
-	case 22050:
-	case 44100:
-	case 88200:
-	case 176400:
-		apll = APLL_RATE_44_1K;
-		break;
-	case 8000:
-	case 16000:
-	case 32000:
-	case 64000:
-		apll = APLL_RATE_32K;
-		break;
-	case 12000:
-	case 24000:
-	case 48000:
-	case 96000:
-	case 192000:
-	case 384000:
-		apll = APLL_RATE_48K;
-		break;
-	default:
-		apll = APLL_RATE_48K;
-		break;
-	}
-	return apll;
-}
-
-int berlin_set_pll(void *aio_handle, u32 apll_id, u32 fs)
-{
-	unsigned long apll;
-
 	if (apll_id >= AIO_APLL_NUM) {
 		pr_err("apll%d not supported", apll_id);
 		return 0;
 	}
 
-	apll = berlin_get_pll(fs);
-	if (aio_get_clk_rate(aio_handle, apll_id) != apll) {
+	if (aio_get_clk_rate(aio_handle, apll_id) != clk_rate) {
 		aio_clk_enable(aio_handle, apll_id, false);
-		aio_set_clk_rate(aio_handle, apll_id, apll);
+		aio_set_clk_rate(aio_handle, apll_id, clk_rate);
 		aio_clk_enable(aio_handle, apll_id, true);
-		pr_info("set apll%d to %lu, fs %d", apll_id, apll, fs);
+		pr_info("set apll%d to %u\n", apll_id, clk_rate);
 	} else {
-		pr_info("apll%d already set %lu, fs %d", apll_id, apll, fs);
+		pr_info("apll%d already set to %u\n", apll_id, clk_rate);
 	}
 
 	return 0;

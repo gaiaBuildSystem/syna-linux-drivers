@@ -11,7 +11,7 @@
 
 u32 berlin_get_dfm(u32 word_w);
 u32 berlin_get_cfm(u32 word_s);
-int berlin_set_pll(void *aio_handle, u32 apll_id, u32 fs);
+int berlin_set_pll(void *aio_handle, u32 apll_id, u32 clk_rate);
 u32 berlin_get_div(u32 fs);
 u32 berlin_get_sample_resolution(u32 word_w);
 u32 berlin_get_sample_period_in_bclk(u32 word_s);
