@@ -53,6 +53,14 @@ static int i2c_dyndmx_master_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[
 	return ret;
 }
 
+static int i2c_dyndmx_master_xfer_atomic(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
+{
+	struct i2c_dyndmx_chan *chan = adap->algo_data;
+	struct i2c_adapter *parent = chan->parent_adap;
+
+	return i2c_transfer(parent, msgs, num);
+}
+
 static u32 i2c_dyndmx_functionality(struct i2c_adapter *adap)
 {
 	struct i2c_dyndmx_chan *chan = adap->algo_data;
@@ -173,6 +181,7 @@ static int i2c_dyndmx_pinctrl_probe(struct platform_device *pdev)
 
 	priv->dev = dev;
 	priv->algo.master_xfer = i2c_dyndmx_master_xfer;
+	priv->algo.xfer_atomic = i2c_dyndmx_master_xfer_atomic;
 	priv->algo.functionality = i2c_dyndmx_functionality;
 	rt_mutex_init(&priv->dmx_lock);
 
