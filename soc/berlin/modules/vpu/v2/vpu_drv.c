@@ -41,6 +41,63 @@
 #endif // CONFIG_OPTEE
 
 
+static unsigned int vdec_enable_clk_gate;
+static unsigned int venc_enable_clk_gate;
+static struct syna_vpu_dev *g_dec_dev, *g_enc_dev;
+
+static int vpu_set_clock_gate(const char *val, const struct kernel_param *param,
+			      struct syna_vpu_dev *vpu)
+{
+	int err;
+	unsigned int enable;
+	err = param_set_uint(val, param);
+	if (err || !vpu || !vpu->core_clk) {
+		pr_err("Failed to set decoder clock gate %d, %p\n", err, vpu);
+		return err;
+	}
+
+	if (vpu->variant->hw_type == VPU_V2G) {
+		enable = vdec_enable_clk_gate;
+	} else {
+		enable = venc_enable_clk_gate;
+	}
+	if (enable == 1) {
+		dev_info(vpu->dev, "enable clock gate \n");
+		clk_disable(vpu->core_clk);
+	} else {
+		dev_info(vpu->dev, "disable clock gate \n");
+		clk_enable(vpu->core_clk);
+	}
+	return 0;
+}
+
+static int vdec_set_clock_gate(const char *val,
+			       const struct kernel_param *param)
+{
+	vpu_set_clock_gate(val, param, g_dec_dev);
+	return 0;
+}
+
+static int venc_set_clock_gate(const char *val,
+			       const struct kernel_param *param)
+{
+	vpu_set_clock_gate(val, param, g_enc_dev);
+	return 0;
+}
+
+static const struct kernel_param_ops vdec_clk_gate_ops = {
+	.set = vdec_set_clock_gate,
+	.get = &param_get_uint,
+};
+
+static const struct kernel_param_ops venc_clk_gate_ops = {
+	.set = venc_set_clock_gate,
+	.get = &param_get_uint,
+};
+module_param_cb(vdec_clk_gate, &vdec_clk_gate_ops, &vdec_enable_clk_gate, 0644);
+module_param_cb(venc_clk_gate, &venc_clk_gate_ops, &venc_enable_clk_gate, 0644);
+
+
 static irqreturn_t syna_vpu_isr(int irq, void *dev_id)
 {
 	struct syna_vpu_dev *vpu = dev_id;
@@ -137,10 +194,17 @@ static int syna_vpu_v4l2_probe(struct syna_vpu_auxiliary_device *auxdev,
 
 	vpu_dev->irq = auxdev->irq;
 
+	vpu_dev->core_clk = devm_clk_get(dev->parent, NULL);
+	if (IS_ERR(vpu_dev->core_clk)) {
+		dev_err(dev, "failed to get clk from dts\n");
+		goto failed_irq_workq;
+	}
+	clk_prepare_enable(vpu_dev->core_clk);
+
 	ret = syna_vpu_open_tz_session(vpu_dev);
 	if (ret) {
 		dev_err(dev, "tz initilize failed\n");
-		goto failed_irq_workq;
+		goto failed_session;
 	}
 
 	ret = syna_vpu_get_hwdata(vpu_dev);
@@ -201,9 +265,11 @@ static int syna_vpu_v4l2_probe(struct syna_vpu_auxiliary_device *auxdev,
 	switch (variant->hw_type) {
 	case VPU_V2G:
 		ret = syna_vdpu_v4g_init(vpu_dev);
+		g_dec_dev = vpu_dev;
 		break;
 	case VPU_H1_0:
 		ret = syna_vepu_h1_init(vpu_dev);
+		g_enc_dev = vpu_dev;
 		break;
 	default:
 		ret = -EINVAL;
@@ -222,6 +288,8 @@ failed_ctx_buf:
 	vb2_syna_dh_bm_put(vpu_dev->vpu_ctx_buf);
 failed_hwdata:
 	syna_vpu_close_tz_session(vpu_dev);
+failed_session:
+	clk_disable_unprepare(vpu_dev->core_clk);
 failed_irq_workq:
 	syna_srv_destroy(&vpu_dev->srv);
 	destroy_workqueue(vpu_dev->vcodec_workq);
@@ -243,9 +311,11 @@ static void syna_vpu_v4l2_remove(struct syna_vpu_auxiliary_device *auxdev)
 	switch (vpu_dev->variant->hw_type) {
 	case VPU_V2G:
 		syna_vdpu_v4g_finalize(vpu_dev);
+		g_dec_dev = NULL;
 		break;
 	case VPU_H1_0:
 		syna_vepu_h1_finalize(vpu_dev);
+		g_enc_dev = NULL;
 #if IS_ENABLED(CONFIG_OPTEE)
 		h1_irq_destroy();
 #endif // CONFIG_OPTEE
@@ -256,6 +326,7 @@ static void syna_vpu_v4l2_remove(struct syna_vpu_auxiliary_device *auxdev)
 
 	syna_vpu_close_tz_session(vpu_dev);
 	vb2_syna_dh_bm_put(vpu_dev->vpu_ctx_buf);
+	clk_disable_unprepare(vpu_dev->core_clk);
 }
 
 const struct syna_vpu_auxiliary_driver syna_vpu_v4l2_drv = {

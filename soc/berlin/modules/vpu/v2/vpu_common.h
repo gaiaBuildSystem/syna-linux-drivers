@@ -16,6 +16,7 @@
 #include <linux/kfifo.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
+#include <linux/clk.h>
 
 #include <linux/videodev2.h>
 #include <media/v4l2-ctrls.h>
@@ -84,7 +85,7 @@ struct syna_vpu_dev {
 	struct syna_vpu_variant const *variant;
 	/* we can reuse variant->hw_ver if dtsi support it */
 	u32 hw_ver_bit;
-
+	struct clk *core_clk;
 	int irq;
 	struct syna_vpu_srv *srv;
 	/* device_run work */
