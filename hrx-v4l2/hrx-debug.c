@@ -89,25 +89,24 @@ static int status_show(struct seq_file *s, void *data)
 
 	seq_printf(
 			s,
-			"VIC \t\t\t= 0x%x\nResolution(VIP Input) \t= %dx%d %s\nResolution(VIP Output) \t= %dx%d %s\n",
+			"VIC \t\t\t= 0x%x\nResolution(Src Total) \t= %dx%d@%d %s\nResolution(Src Active) \t= %dx%d@%d %s\nResolution(VIP Output) \t= %dx%d@%d %s\nResolution(V4L2 Output) = %dx%d@%d %s\n",
 			hrx_dev->current_vic,
-			hrx_dev->vip_htotal,
-			hrx_dev->vip_vtotal,
-			((hrx_dev->vip_imode < 0) || (hrx_dev->vip_imode >= MAX_NUM_VIP_IMODE)) ? "NULL" : VIP_IMODE_NAME[hrx_dev->vip_imode],
-			hrx_dev->vip_hwidth,
-			hrx_dev->vip_vheight,
-			((hrx_dev->vip_omode < 0) || (hrx_dev->vip_omode >= MAX_NUM_VIP_OMODE)) ? "NULL" : VIP_OMODE_NAME[hrx_dev->vip_omode]
-	);
-
-	seq_printf(
-			s,
-			"Resolution(Total) \t= %dx%d@%d\nResolution(Active) \t= %dx%d@%d\n",
 			hrx_dev->video_params.HrxIpTimingParam.HTotal,
 			hrx_dev->video_params.HrxIpTimingParam.VTotal,
 			hrx_dev->video_params.FITotal.denominator,
+			((hrx_dev->vip_imode < 0) || (hrx_dev->vip_imode >= MAX_NUM_VIP_IMODE)) ? "NULL" : VIP_IMODE_NAME[hrx_dev->vip_imode],
 			hrx_dev->video_params.HrxIpTimingParam.HActive,
 			hrx_dev->video_params.HrxIpTimingParam.VActive,
-			hrx_dev->video_params.FIActive.denominator
+			hrx_dev->video_params.FITotal.denominator,
+			((hrx_dev->vip_imode < 0) || (hrx_dev->vip_imode >= MAX_NUM_VIP_IMODE)) ? "NULL" : VIP_IMODE_NAME[hrx_dev->vip_imode],
+			hrx_dev->scl_res[VIP_FRC_SCL_Y].OHRes,
+			hrx_dev->scl_res[VIP_FRC_SCL_Y].OVRes,
+			hrx_dev->video_params.FITotal.denominator,
+			((hrx_dev->vip_omode < 0) || (hrx_dev->vip_omode >= MAX_NUM_VIP_OMODE)) ? "NULL" : VIP_OMODE_NAME[hrx_dev->vip_omode],
+			hrx_dev->format.width,
+			hrx_dev->format.height,
+			hrx_dev->video_params.FIActive.denominator,
+			((hrx_dev->vip_omode < 0) || (hrx_dev->vip_omode >= MAX_NUM_VIP_OMODE)) ? "NULL" : VIP_OMODE_NAME[hrx_dev->vip_omode]
 	);
 
 	seq_printf(
