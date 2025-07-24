@@ -47,6 +47,7 @@
 #include "hrx-aip-fifo-cmd.h"
 
 #include "hrx-debug.h"
+#include "hrx-sig-stat-notify.h"
 
 #define STEPWISE_SUPPORT
 

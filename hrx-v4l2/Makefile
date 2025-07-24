@@ -55,4 +55,4 @@ hrx-v4l2-y += hrx-vip-scl.o
 hrx-v4l2-y += hrx-audio.o hrx-aip.o hrx-aip-buffer.o
 hrx-v4l2-y += hrx-aip-fifo-cmd.o hrx-aip-isr.o
 hrx-v4l2-y += hrx-aip-hal.o hrx-aip-i2s.o hrx-aip-alsa-if.o
-hrx-v4l2-y += hrx-debug.o
+hrx-v4l2-y += hrx-debug.o hrx-sig-stat-notify.o

@@ -3682,11 +3682,18 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 	int hrx_intr = 0xff;
 	u32 irq = 0;
 	int ret, iter;
+	int hrx_dev_prev_state;
+	static u32 curr_vic;
+	static struct hdmi_rx_input_change_event hrx_prev_event;
+	static u32 prev_vic;
+	struct hdmi_rx_input_change_event hrx_in_event = {0,0,0,0,0};
 
 	hrx_intr = msg.m_Param1;
 	irq = msg.m_Param2;
-	HRX_LOG(HRX_DRV_DEBUG, "intr = %x irq : %llxx\n", msg.m_Param1, (long long)msg.m_Param2);
+	prev_vic = curr_vic;
 
+	HRX_LOG(HRX_DRV_DEBUG, "intr = %x irq : %llxx\n", msg.m_Param1, (long long)msg.m_Param2);
+	hrx_dev_prev_state = hrx_dev->HrxState;
 	switch(hrx_intr) {
 		case HDMIRX_INTR_SYNC:
 			hrx_dev->hrx_cmd_id = HRX_CMD_CLOCK_CHANGE;
@@ -3718,7 +3725,7 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				hrx_dev->HrxState = HRX_STATE_ALL_STABLE;
 				hrx_dev->video_params.IsValid = true;
 				hrx_dev->video_params.Vic = hrx_dev->video_params.HrxIpTimingParam.DispResId;
-				HRX_LOG(HRX_DRV_DEBUG, "Vic %u \n", hrx_dev->video_params.Vic );
+				curr_vic = hrx_dev->video_params.Vic;
 				HRX_LOG(HRX_DRV_DEBUG, " state change disconnect -> stable\n");
 			} else
 				HRX_LOG(HRX_DRV_DEBUG, " state change disconnect -> unstable\n");
@@ -3739,7 +3746,7 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				hrx_dev->HrxState = HRX_STATE_ALL_STABLE;
 				hrx_dev->video_params.IsValid = true;
 				hrx_dev->video_params.Vic = hrx_dev->video_params.HrxIpTimingParam.DispResId;
-				HRX_LOG(HRX_DRV_DEBUG, "Vic %u \n", hrx_dev->video_params.Vic );
+				curr_vic = hrx_dev->video_params.Vic;
 				HRX_LOG(HRX_DRV_DEBUG, " clk state change unstable -> stable\n");
 
 			} else {
@@ -3776,6 +3783,7 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				hrx_dev->HrxState = HRX_STATE_ALL_STABLE;
 				hrx_dev->video_params.IsValid = true;
 				hrx_dev->video_params.Vic = hrx_dev->video_params.HrxIpTimingParam.DispResId;
+				curr_vic = hrx_dev->video_params.Vic;
 				HRX_LOG(HRX_DRV_DEBUG, "clk, all stable -> all stable\n");
 				hrx_dev->trig_scl_reset = true;
 			} else {
@@ -3817,10 +3825,28 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 		return 0;
 	}
 
+
 	if (hrx_dev->HrxState == HRX_STATE_ALL_STABLE) {
 		hrx_update_active_frame_interval(hrx_dev);
 		hrx_update_total_frame_interval(hrx_dev);
 		hrx_handle_aip_vip_restart(hrx_dev);
+		hrx_in_event.hrx_stable_state = 1;
+		hrx_in_event.width = hrx_dev->video_params.HrxIpTimingParam.HActive;
+		hrx_in_event.height = hrx_dev->video_params.HrxIpTimingParam.VActive;
+		hrx_in_event.fi_num = hrx_dev->video_params.FITotal.numerator;
+		hrx_in_event.fi_den = hrx_dev->video_params.FITotal.denominator;
+		HRX_LOG(HRX_DRV_DEBUG, "curr_vic : %u\n",curr_vic);
+	}
+
+	if ((hrx_dev->hrx_cmd_id == HRX_CMD_CLOCK_CHANGE) &&
+		((hrx_prev_event.hrx_stable_state != hrx_in_event.hrx_stable_state) ||
+		(hrx_prev_event.width != hrx_in_event.width) ||
+		(hrx_prev_event.height != hrx_in_event.height) ||
+		(hrx_prev_event.fi_num != hrx_in_event.fi_num) ||
+		(hrx_prev_event.fi_den != hrx_in_event.fi_den) ||
+		(curr_vic != prev_vic))) {
+		hrx_sig_stat_set_attr (&hrx_in_event);
+		memcpy(&hrx_prev_event,&hrx_in_event,sizeof(struct hdmi_rx_input_change_event));
 	}
 	return 0;
 }
@@ -3839,8 +3865,7 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 
 	hrx_dev = devm_kzalloc(&pdev->dev, sizeof(*hrx_dev), GFP_KERNEL);
 	if (!hrx_dev) {
-		ret = -ENOMEM;
-		goto EXIT;
+		return -ENOMEM;
 	}
 
 	dev_set_drvdata(dev, (void *)hrx_dev);
@@ -3855,43 +3880,47 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 
 	mutex_init(&hrx_dev->vip_mutex);
 
-	ret = syna_hrx_parse_dt(pdev);
+	ret = hrx_sig_stat_create();
 	if (ret < 0)
 		goto EXIT;
+
+	ret = syna_hrx_parse_dt(pdev);
+	if (ret < 0)
+		goto EXIT1;
 
 	ret = syna_hrx_init_dhub(hrx_dev);
 	if (ret < 0)
-		goto EXIT;
+		goto EXIT1;
 
 	ret = syna_hrx_interrupt_config(pdev);
 	if (ret < 0)
-		goto EXIT;
+		goto EXIT1;
 
 	ret = syna_hrx_video_init(hrx_dev);
 	if (ret < 0)
-		goto EXIT;
+		goto EXIT1;
 
 	ret = syna_hrx_audio_init(hrx_dev);
 	if (ret < 0) {
 		HRX_LOG(HRX_DRV_ERROR, "Can't Initialize audio\n");
-		goto EXIT1;
+		goto EXIT2;
 	} else
 		HRX_LOG(HRX_DRV_INFO, "audio init succcessfully\n");
 
 	ret = hrx_init(hrx_dev);
 	if (ret < 0)
-		goto EXIT2;
+		goto EXIT3;
 
 	ret = syna_hrx_get_hrx5v(hrx_dev);
 	if (ret < 0) {
-		goto EXIT3;
+		goto EXIT4;
 	}
 
 	hrx_dev->mem_list = devm_kzalloc(&pdev->dev, sizeof(VPP_MEM_LIST), GFP_KERNEL);
 
 	if (!hrx_dev->mem_list) {
 		ret = -ENOMEM;
-		goto EXIT3;
+		goto EXIT4;
 	}
 
 	hrx_dev->mem_list->dev = dev;
@@ -3899,14 +3928,14 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 	ret = VPP_MEM_InitMemory(hrx_dev->mem_list);
 	if (ret != 0) {
 		ret = -ENOMEM;
-		goto EXIT3;
+		goto EXIT4;
 	}
 
 	hrx_dev->aip_mem_list = devm_kzalloc(&pdev->dev, sizeof(VPP_MEM_LIST), GFP_KERNEL);
 
 	if (!hrx_dev->aip_mem_list) {
 		ret = -ENOMEM;
-		goto EXIT3;
+		goto EXIT4;
 	}
 
 	hrx_dev->aip_mem_list->dev = dev;
@@ -3914,7 +3943,7 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 	ret = VPP_MEM_InitMemory(hrx_dev->aip_mem_list);
 	if (ret != 0) {
 		ret = -ENOMEM;
-		goto EXIT3;
+		goto EXIT4;
 	}
 
 	vip_init(hrx_dev);
@@ -3925,15 +3954,17 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 
 	ret = hrx_debug_create();
 	if (ret != 0)
-		goto EXIT3;
+		goto EXIT4;
 
 	return 0;
-EXIT3:
+EXIT4:
 	hrx_deinit(hrx_dev);
-EXIT2:
+EXIT3:
 	syna_hrx_audio_exit(hrx_dev);
-EXIT1:
+EXIT2:
 	syna_hrx_video_finalize(hrx_dev);
+EXIT1:
+	hrx_sig_stat_remove();
 EXIT:
 	mutex_destroy(&hrx_dev->vip_mutex);
 	return ret;
@@ -3960,6 +3991,8 @@ static RET syna_hrx_v4l2_remove(struct platform_device *pdev)
 	}
 
 	hrx_debug_remove();
+
+	hrx_sig_stat_remove();
 
 	mutex_destroy(&hrx_dev->vip_mutex);
 	RETURN;
