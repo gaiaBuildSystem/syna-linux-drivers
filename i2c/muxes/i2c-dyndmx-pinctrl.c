@@ -181,7 +181,7 @@ static int i2c_dyndmx_pinctrl_probe(struct platform_device *pdev)
 
 	priv->dev = dev;
 	priv->algo.master_xfer = i2c_dyndmx_master_xfer;
-	priv->algo.xfer_atomic = i2c_dyndmx_master_xfer_atomic;
+	priv->algo.master_xfer_atomic = i2c_dyndmx_master_xfer_atomic;
 	priv->algo.functionality = i2c_dyndmx_functionality;
 	rt_mutex_init(&priv->dmx_lock);
 
