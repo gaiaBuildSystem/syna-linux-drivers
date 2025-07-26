@@ -871,6 +871,7 @@ static int dhdsdio_download_code_array(dhd_bus_t *bus);
 #endif
 static int dhdsdio_bussleep(dhd_bus_t *bus, bool sleep);
 static int dhdsdio_clkctl(dhd_bus_t *bus, uint target, bool pendok);
+static int dhd_sdiod_set_force_ht_clock(dhd_bus_t *bus, bool set, uint8 *fht_required);
 static uint8 dhdsdio_sleepcsr_get(dhd_bus_t *bus);
 static bool dhdsdio_dpc(dhd_bus_t *bus);
 static int dhd_bcmsdh_send_buffer(void *bus, uint8 *frame, uint16 len);
@@ -1572,6 +1573,29 @@ dhdsdio_clk_devsleep_iovar(dhd_bus_t *bus, bool on)
 			__FUNCTION__, bus->kso, on, err));
 		if (!on && retry > 2)
 			bus->kso = FALSE;
+	}
+
+	return err;
+}
+
+static int
+dhd_sdiod_set_force_ht_clock(dhd_bus_t *bus, bool set, uint8 *fht_enable)
+{
+	int err = 0;
+	bool is_set;
+	uint8 clkreq;
+	bcmsdh_info_t *sdh = bus->sdh;
+
+	uint8 clkctl = bcmsdh_cfg_read(sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR, &err);
+	if (err)
+		return err;
+
+	is_set = clkctl & SBSDIO_FORCE_HT;
+	*fht_enable = is_set;
+
+	if (set != is_set) {
+		clkreq = set ? (clkctl | SBSDIO_FORCE_HT) : (clkctl & ~SBSDIO_FORCE_HT);
+		bcmsdh_cfg_write(sdh, SDIO_FUNC_1, SBSDIO_FUNC1_CHIPCLKCSR, clkreq, &err);
 	}
 
 	return err;
@@ -12611,13 +12635,14 @@ static int
 _dhdsdio_download_firmware(struct dhd_bus *bus)
 {
 	int bcmerror = -1;
-
+	int err = -1;
 	bool embed = FALSE;	/* download embedded firmware */
 	bool dlok = FALSE;	/* download firmware succeeded */
 #ifdef DHD_METADATA_DOWNLOAD
 	uint8 *metadata_block = NULL;
 #endif /* DHD_METADATA_DOWNLOAD */
 
+	uint8 fht_enable = 1;
 	/* Out immediately if no image to download */
 	if ((bus->fw_path == NULL) || (bus->fw_path[0] == '\0')) {
 #ifdef BCMEMBEDIMAGE
@@ -12692,6 +12717,14 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 	if (dhdsdio_download_state(bus, TRUE)) {
 		DHD_ERROR(("%s: error placing ARM core in reset\n", __FUNCTION__));
 		goto err;
+	}
+
+	if (BCM4612_CHIP(bus->sih->chip) || BCM5312_CHIP(bus->sih->chip)) {
+		if ((err = dhd_sdiod_set_force_ht_clock(bus, true, &fht_enable)))
+			DHD_ERROR(("%s: Failed to set FHT clock request (err=%d)\n",
+					__FUNCTION__, err));
+		else
+			DHD_ERROR(("%s: Set FHT clock\n", __FUNCTION__));
 	}
 
 	/* External image takes precedence if specified */
@@ -12797,6 +12830,15 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 #endif
 	}
 #endif /* DHD_METADATA_DOWNLOAD */
+
+	if ((BCM4612_CHIP(bus->sih->chip) || BCM5312_CHIP(bus->sih->chip)) && (!fht_enable)) {
+		if ((err = dhd_sdiod_set_force_ht_clock(bus, false, &fht_enable)))
+			DHD_ERROR(("%s: Failed to clear FHT clock request (err=%d)\n",
+					__FUNCTION__, err));
+		else
+			DHD_ERROR(("%s: Clear FHT clock\n", __FUNCTION__));
+	}
+
 	/* Take arm out of reset */
 	if (dhdsdio_download_state(bus, FALSE)) {
 		DHD_ERROR(("%s: error getting out of ARM core reset\n", __FUNCTION__));
