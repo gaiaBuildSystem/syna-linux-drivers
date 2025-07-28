@@ -40,7 +40,7 @@ static const struct clk_desc platypus_descs[] = {
 	{ "perifsysclk",		0x24, CLK_IS_CRITICAL, CLK_RATE_NO_CHANGE },
 	{ "atbclk",			0x28, CLK_IS_CRITICAL, CLK_RATE_NO_CHANGE },
 	{ "decoderclk",			0x2c },
-	{ "encoderclk",			0x34 },
+	{ "encoderclk",			0x34, CLK_IS_CRITICAL, CLK_RATE_NO_CHANGE },
 	{ "ovpcoreclk",			0x38, CLK_IS_CRITICAL, CLK_RATE_NO_CHANGE },
 	{ "gfx3dcoreclk",		0x40 },
 	{ "apbcoreclk",			0x80, CLK_IS_CRITICAL, CLK_RATE_NO_CHANGE },
