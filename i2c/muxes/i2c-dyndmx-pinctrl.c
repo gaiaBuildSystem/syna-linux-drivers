@@ -209,7 +209,6 @@ err_rollback:
 	return ret;
 }
 
-
 static RET i2c_dyndmx_pinctrl_remove(struct platform_device *pdev)
 {
 	struct i2c_dyndmx_pinctrl_priv *priv = platform_get_drvdata(pdev);
@@ -224,6 +223,15 @@ static RET i2c_dyndmx_pinctrl_remove(struct platform_device *pdev)
 	RETURN;
 }
 
+static int i2c_dyndmx_pinctrl_suspend(struct device *dev)
+{
+	struct i2c_dyndmx_pinctrl_priv *priv = dev_get_drvdata(dev);
+
+	return pinctrl_select_state(priv->pinctrl, priv->chan[0].state);
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(i2c_dyndmx_pinctrl_pm_ops, i2c_dyndmx_pinctrl_suspend, NULL);
+
 static const struct of_device_id i2c_dyndmx_pinctrl_of_match[] = {
 	{ .compatible = "i2c-dyndmx-pinctrl", },
 	{},
@@ -233,6 +241,7 @@ MODULE_DEVICE_TABLE(of, i2c_dyndmx_pinctrl_of_match);
 static struct platform_driver i2c_dyndmx_pinctrl_driver = {
 	.driver	= {
 		.name = "i2c-dyndmx-pinctrl",
+		.pm = pm_sleep_ptr(&i2c_dyndmx_pinctrl_pm_ops),
 		.of_match_table = i2c_dyndmx_pinctrl_of_match,
 	},
 	.probe	= i2c_dyndmx_pinctrl_probe,
