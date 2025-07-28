@@ -23,7 +23,6 @@ struct syna_hrx_dma_buffer {
 	struct	syna_hrx_v4l2_dev *hrx_dev;
 };
 
-static int count;
 #define to_syna_hrx_dma_buffer(vb)	container_of(vb, struct syna_hrx_dma_buffer, buf)
 
 static atomic_t hrx_dev_refcnt = ATOMIC_INIT(0);
@@ -194,10 +193,10 @@ struct vb2_buffer *syna_hrx_get_free_buf(struct syna_hrx_v4l2_dev *hrx_dev)
 
 	pbuf = syna_hrx_dma_buffer_remove(hrx_dev);
 	if (pbuf != NULL) {
-		count++;
 		return &(pbuf->vb2_buf);
 	} else {
 		/* Use reserved buffer for hrx, in case sink element is holding rest of the buffers */
+		hrx_dev->frame_drop_count++;
 		return hrx_dev->reserved_buf;
 	}
 }
@@ -209,7 +208,6 @@ void syna_hrx_buf_processed(struct syna_hrx_v4l2_dev *hrx_dev, struct vb2_buffer
 	{
 		/* Don't submit the reserved buffer */
 		if(hrx_dev->reserved_buf != buf) {
-			count--;
 			if (!kfifo_is_full(&hrx_dev->processed_buffer_queue))
 			{
 				kfifo_in(&hrx_dev->processed_buffer_queue, &pBuffer, sizeof(void *));
@@ -264,6 +262,7 @@ static int vb2ops_hrx_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct syna_hrx_v4l2_dev *hrx_dev = vb2_get_drv_priv(q);
 
 	/* block reserve buffer */
+	hrx_dev->frame_drop_count = 0;
 	hrx_dev->reserved_buf = syna_hrx_get_free_buf(hrx_dev);
 
 	switch (hrx_dev->pix_fmt.pixelformat) {
@@ -302,6 +301,7 @@ static void vb2ops_hrx_stop_streaming(struct vb2_queue *q)
 		vb2_buffer_done(hrx_dev->reserved_buf, VB2_BUF_STATE_ERROR);
 	hrx_dev->reserved_buf = NULL;
 	hrx_dev->frame_count = 0;
+	hrx_dev->frame_drop_count = 0;
 
 	if (hrx_dev->dum_thread)
 		kthread_stop(hrx_dev->dum_thread);
@@ -323,7 +323,6 @@ void syna_hrx_buf_unused(struct syna_hrx_v4l2_dev *hrx_dev, struct vb2_buffer *b
 {
 	/* Don't queue reserved buffer */
 	if(hrx_dev->reserved_buf != buf) {
-		count--;
 		vb2ops_hrx_buf_queue(buf);
 	}
 }
@@ -377,7 +376,6 @@ static int hrx_driver_open(struct file *filp)
 		return 0;
 	}
 	mutex_init(&hrx_dev->mutex);
-	count = 0;
 	return ret;
 }
 

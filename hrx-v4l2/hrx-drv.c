@@ -1748,7 +1748,7 @@ static INT hrx_get_refresh_rate(struct syna_hrx_v4l2_dev *hrx_dev, u32 *refresh_
 {
 	u32 cd;
 	u16 Htotal, Vtotal;
-	u32 tmds_freq;
+	u64 tmds_freq;
 	u32 RefRate = 0;
 
 	Htotal = hrx_reg_mask_read(hrx_dev, HDMI_VMON_STATUS3,
@@ -1967,8 +1967,8 @@ static int hdmi_rx_look_up_table(struct syna_hrx_v4l2_dev *hrx_dev, hrx_applicat
 	hrx_display_resolution DispId;
 	hrx_refresh_rate RefRateIndex;
 	u8 pr;
-	u32 tmds_freq;
-	u32 fPixelClkFreq = 0; /* scale to 100 */
+	u64 tmds_freq;
+	u64 fPixelClkFreq = 0; /* scale to 100 */
 	u32 RefRate = 0; /* scale to 100 */
 	hrx_signal_param_status rawData;
 	struct v4l2_dv_timings timings;
@@ -2049,8 +2049,8 @@ static int hdmi_rx_look_up_table(struct syna_hrx_v4l2_dev *hrx_dev, hrx_applicat
 	//TODO:: correct 3d frmat
 	if (pVideoParams->VideoFrmt == HRX_SIG_VID_FMT_3D_FRAME_PACKING)
 		Vtotal = Vtotal>>1;
-	HRX_LOG(HRX_DRV_DEBUG, "HRX_DRV_INFO: Htotal=%d, Vtotal=%d, RefRate=%u,\n PixRepValue=%d, RxColDepth=%d VideoFrmt = %d\n",
-		Htotal, Vtotal, RefRate, PixRepValue, RxColDepth, pVideoParams->VideoFrmt);
+	HRX_LOG(HRX_DRV_DEBUG, "HRX_DRV_INFO: Htotal=%d, Vtotal=%d, RefRate=%u,\n PixRepValue=%d, RxColDepth=%d VideoFrmt = %d fPixelClkFreq : %llu tmds_freq : %llu\n",
+		Htotal, Vtotal, RefRate, PixRepValue, RxColDepth, pVideoParams->VideoFrmt, fPixelClkFreq, tmds_freq);
 
 	//Lookup table
 	rawData.HTotal = Htotal;
@@ -2070,7 +2070,7 @@ static int hdmi_rx_look_up_table(struct syna_hrx_v4l2_dev *hrx_dev, hrx_applicat
 	pVideoParams->PixelReptFactor = PixRepValue;
 	pVideoParams->HrxIpPixelClkFreq = fPixelClkFreq;
 	hrx_dev->hdmiRxDrv.RxColDepth = RxColDepth;
-	hrx_dev->hdmiRxDrv.tmds_clock = (u32)(tmds_freq * 1000);
+	hrx_dev->hdmiRxDrv.tmds_clock = (u64)(tmds_freq * 1000);
 
 	if ((DispId == HRX_UNKNOWN_MODE) && (TimingDispId == HRX_UNKNOWN_MODE))
 		return -1;
@@ -2982,8 +2982,13 @@ static int hrx_config_controller(struct syna_hrx_v4l2_dev *hrx_dev)
 					ret = hrx_phy_init(hrx_dev, true,
 						false);
 					HRX_LOG(HRX_DRV_DEBUG, "Force 6G mode\n");
+				}	else if (tmds_lost_count == HRX_6G_TMDS_DETECT_THRESHOLD) {
+					ret = hrx_phy_init(hrx_dev, true,
+						false);
+					if (hrx_is_5v_connected(hrx_dev))
+						hrx_toggle_scdc_hpd(hrx_dev);
+					HRX_LOG(HRX_DRV_ERROR, "hrx_toggle_scdc_hpd\n");
 				}
-
 				if (tmds_lost_count++ > HRX_6G_TMDS_DETECT_THRESHOLD) {
 					hrx_enable_vital_ints(hrx_dev);
 					ret = -ETIMEDOUT;
@@ -3179,11 +3184,9 @@ static int hrx_power_on(struct syna_hrx_v4l2_dev *hrx_dev)
 	ret = hrx_config(hrx_dev);
 	if (ret)
 		HRX_LOG(HRX_DRV_ERROR, "failed to configure HDMI\n");
-
 	hrx_dev->pending_config = false;
 
 	return ret;
-
 }
 
 static void hrx_handle_tmds_change(struct syna_hrx_v4l2_dev *hrx_dev)
@@ -3935,7 +3938,7 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 
 	if (!hrx_dev->aip_mem_list) {
 		ret = -ENOMEM;
-		goto EXIT4;
+		goto EXIT5;
 	}
 
 	hrx_dev->aip_mem_list->dev = dev;
@@ -3943,7 +3946,7 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 	ret = VPP_MEM_InitMemory(hrx_dev->aip_mem_list);
 	if (ret != 0) {
 		ret = -ENOMEM;
-		goto EXIT4;
+		goto EXIT5;
 	}
 
 	vip_init(hrx_dev);
@@ -3954,9 +3957,13 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 
 	ret = hrx_debug_create();
 	if (ret != 0)
-		goto EXIT4;
+		goto EXIT6;
 
 	return 0;
+EXIT6:
+	VPP_MEM_DeInitMemory(hrx_dev->aip_mem_list);
+EXIT5:
+	VPP_MEM_DeInitMemory(hrx_dev->mem_list);
 EXIT4:
 	hrx_deinit(hrx_dev);
 EXIT3:

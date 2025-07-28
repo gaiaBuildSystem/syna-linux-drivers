@@ -11,8 +11,12 @@ static struct kobj_attribute hrx_sig_stat_attribute = __ATTR_RO(signal_status);
 
 void hrx_sig_stat_set_attr (struct hdmi_rx_input_change_event *in_event)
 {
-	sprintf(curr_status_buf, "%d:%dx%d@%d/%d\n",in_event->hrx_stable_state,in_event->width,in_event->height,in_event->fi_den,in_event->fi_num);
-	sysfs_notify(hrx_kobj, NULL, ATTRIBUTE_NAME);
+	if (hrx_kobj != NULL) {
+		sprintf(curr_status_buf, "%d:%dx%d@%d/%d\n", in_event->hrx_stable_state,
+			in_event->width, in_event->height, in_event->fi_den, in_event->fi_num);
+		sysfs_notify(hrx_kobj, NULL, ATTRIBUTE_NAME);
+	} else
+		HRX_LOG(HRX_DRV_ERROR, "%s is not available\n", ATTRIBUTE_NAME);
 }
 
 int hrx_sig_stat_create(void)

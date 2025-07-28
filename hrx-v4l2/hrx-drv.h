@@ -493,7 +493,7 @@ typedef struct tag_hrx_auto_detect_vid_params {
 	u8								hdmiAVIF[16];
 	u8								hdmiAudioIF[8];
 	u8								hdmiChStatus[6];
-	u32								HrxIpPixelClkFreq; /* scale to 100 */
+	u64								HrxIpPixelClkFreq; /* scale to 100 */
 	u8								hdmiSPDIF[28];
 	bool							videoFullrange;
 	unsigned char					PixelReptFactor;
@@ -551,7 +551,7 @@ typedef struct hdmi_rx_drv_t {
 // fill it with driver priv information
 	bool IsHDMIMode;
 	hrx_hdmi_rx_col_depth_type RxColDepth;
-	u32 tmds_clock;
+	u64 tmds_clock;
 } hdmi_rx_drv;
 
 struct syna_hrx_vid_fmt {
@@ -814,6 +814,7 @@ struct syna_hrx_v4l2_dev {
 	bool aip_restart;
 	int null_data_count;
 	bool trig_scl_reset;
+	int frame_drop_count;
 
 };
 

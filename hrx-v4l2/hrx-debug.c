@@ -126,6 +126,11 @@ static int status_show(struct seq_file *s, void *data)
 			"VIP Stable \t\t= %d\n",
 			syna_hrx_is_vip_stable(hrx_dev)
 	);
+	seq_printf(
+			s,
+			"Frame drop \t\t= %d\n",
+			hrx_dev->frame_drop_count
+	);
 
 	seq_printf(
 			s,
