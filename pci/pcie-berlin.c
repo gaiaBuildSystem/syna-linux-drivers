@@ -422,6 +422,8 @@ static int berlin_pcie_suspend_noirq(struct device *dev)
 
 	berlin_pcie_wait_l2(priv);
 
+	gpiod_set_value_cansleep(priv->reset_gpio, 1);
+
 	phy_power_off(priv->phy);
 	phy_exit(priv->phy);
 	reset_control_assert(priv->rc_rst);
