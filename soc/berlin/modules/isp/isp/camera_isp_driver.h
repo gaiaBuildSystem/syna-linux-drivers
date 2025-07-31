@@ -1,0 +1,148 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+* Copyright (C) 2021 - 2023 Synaptics Incorporated
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
+
+#ifndef __CAMERA_ISP_DRIVER_H__
+#define __CAMERA_ISP_DRIVER_H__
+
+#include <linux/list.h>
+#include <linux/videodev2.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-event.h>
+#include <media/v4l2-fh.h>
+#include <media/v4l2-ioctl.h>
+#include <media/v4l2-mc.h>
+#include <media/v4l2-ctrls.h>
+#include <media/videobuf2-dma-contig.h>
+#include <linux/wait.h>
+#include <linux/spinlock.h>
+
+#include "wb.h"
+
+#define MAX_PL 2
+#define BCM_ENABLE
+
+typedef void* CSIPIPE_HANDLE;
+
+/* Interrupt queue between ISR and process thread */
+#define ISP_INTR_Q_SIZE 64
+
+/* regmap is done with 0xF7458000, we just need these offsets to read/write regs */
+#define CSIPIPE_OFFSET    0
+#define VIP_GBL_OFFSET    0x8000
+#define VIP_BCMQ_OFFSET   0xC000
+
+//#define HAL_ISP_CORE_REG_WRITE32(dev, addr, val)    writel(val, dev->core_base_addr + addr)
+#define HAL_ISP_CORE_REG_WRITE32(dev, addr, val) \
+	do { \
+		writel(val, dev->core_base_addr + addr); \
+		pr_debug("ISPWC 0X%lX = 0x%lx\n", \
+			(unsigned long)addr, (unsigned long)val); \
+	} while (0)
+#define HAL_ISP_CORE_REG_READ32(dev, addr)     readl(dev->core_base_addr + addr)
+
+/* Chip control register access macros */
+#define HAL_ISP_CHIP_CTRL_REG_WRITE32(dev, addr, val)    writel(val, dev->chip_ctrl_base_addr + addr)
+#define HAL_ISP_CHIP_CTRL_REG_READ32(dev, addr)     readl(dev->chip_ctrl_base_addr + addr)
+
+/* mapped address is set in the 'ra' value, hence no need of passing the dhub base address again*/
+//#define HAL_ISP_DHUB_REG_WRITE32(addr, val)    writel(val, (void *)addr)
+#define HAL_ISP_DHUB_REG_WRITE32(addr, val) \
+	do { \
+		writel(val, (void *)addr); \
+		pr_debug("ISPWD 0X%lX = 0x%lx\n", \
+			(unsigned long)addr, (unsigned long)val); \
+	} while (0)
+
+#define HAL_ISP_DHUB_REG_READ32(addr, val) \
+	do { \
+		(val) = readl((void *)addr); \
+		pr_debug("ISPRD 0X%lX = 0x%lx\n", \
+			(unsigned long)addr, (unsigned long)val); \
+	} while (0)
+
+#define CAM_HAL_WriteReg            CAM_BCMBUF_Write
+//#define CAM_HAL_ReadReg(addr)       readl((void __iomem *)(uintptr_t)(addr))
+#define CAM_HAL_ReadReg(dev, addr)       HAL_ISP_CORE_REG_READ32(dev, addr)
+
+#define GET_BIT_MASK(N_BIT)     ( (1<<N_BIT) - 1 )
+#define SET_BIT(VARIABLE, VALUE, BIT_POS, N_BIT) \
+	(VARIABLE = (VARIABLE & (~(GET_BIT_MASK(N_BIT) << BIT_POS))) | \
+		((VALUE & GET_BIT_MASK(N_BIT)) << BIT_POS))
+
+#define CAMERA_ISP_NAME "camera-isp-subdev"
+
+/* ISP dimension constraints */
+#define CAMERA_ISP_WIDTH_ALIGN  16
+#define CAMERA_ISP_HEIGHT_ALIGN 8
+#define CAMERA_ISP_WIDTH_MIN    32
+#define CAMERA_ISP_HEIGHT_MIN   16
+#define CAMERA_ISP_WIDTH_MAX    4096
+#define CAMERA_ISP_HEIGHT_MAX   3072
+
+/* Default format dimensions */
+#define CAMERA_ISP_DEFAULT_WIDTH  1920
+#define CAMERA_ISP_DEFAULT_HEIGHT 1080
+
+/* ISP pad definitions */
+enum camera_isp_pad_id {
+    CAMERA_ISP_PAD_SINK = 0,            /* Input from sensor */
+    CAMERA_ISP_PAD_SOURCE_PATH0,        /* Path 0 output to video device 0 */
+    CAMERA_ISP_PAD_SOURCE_PATH1,        /* Path 1 output to video device 1 */
+    CAMERA_ISP_PAD_NR,
+};
+
+/* Media bus format structure */
+struct camera_isp_mbus_fmt {
+	uint32_t code;
+};
+
+/* ISP device structure */
+struct camera_isp_dev {
+	struct device *dev;
+	struct v4l2_subdev sd;
+	struct media_pad pads[CAMERA_ISP_PAD_NR];
+	uint32_t id;
+
+	/* Format information for each pad */
+	struct v4l2_mbus_framefmt formats[CAMERA_ISP_PAD_NR];
+
+	/* Runtime state */
+	uint8_t streaming;
+	struct mutex lock;
+	struct v4l2_async_notifier notifier;
+	struct v4l2_ctrl_handler ctrl_handler;
+
+	void __iomem *core_base_addr;
+	void __iomem *dhub_base_addr;
+	void __iomem *chip_ctrl_base_addr;
+	CSIPIPE_HANDLE pipe[MAX_PL];
+	WB_CONFIG_t wb_config;
+	void *intr_handle;
+	int irq_num;
+
+	/* Interrupt handling infrastructure */
+	wait_queue_head_t wq;
+	spinlock_t isr_lock;
+	int pending_intr_count;
+	struct task_struct *intr_thread;
+
+	/* ring buffer for intr numbers */
+	unsigned int intr_q_head;
+	unsigned int intr_q_tail;
+	unsigned int intr_q[ISP_INTR_Q_SIZE];
+};
+
+/* IOCTL definitions */
+#define CAMERA_ISP_IOC_QUERYCAP     _IOR('V', 0, struct v4l2_capability)
+
+/* Function declarations */
+extern struct camera_isp_mbus_fmt camera_isp_mp_fmts[];
+extern struct camera_isp_mbus_fmt camera_isp_sp_fmts[];
+
+#endif /* __CAMERA_ISP_DRIVER_H__ */

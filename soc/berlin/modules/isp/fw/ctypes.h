@@ -18,8 +18,8 @@ typedef	unsigned short      UNSG16;
 typedef	signed short        SIGN16;
 typedef	unsigned int        UNSG32;
 typedef	signed int          SIGN32;
-typedef	unsigned long long  UNSG64;
-typedef	signed long long    SIGN64;
+typedef	unsigned long       UNSG64;
+typedef	signed long         SIGN64;
 typedef	float               REAL32;
 typedef	double              REAL64;
 
