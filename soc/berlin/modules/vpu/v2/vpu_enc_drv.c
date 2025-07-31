@@ -85,7 +85,7 @@ static const struct hantro_fmt syna_venc_fmts[] = {
 	 .version = SYNA_VPU_ENC_HW,
 	 },
 	{
-	 .fourcc = V4L2_PIX_FMT_YUV422P,
+	 .fourcc = V4L2_PIX_FMT_YUYV,
 	 .codec_mode = HANTRO_MODE_NONE,
 	 .enc_fmt = VENC_YUV422_YUYV,
 	 .version = SYNA_VPU_ENC_HW,
