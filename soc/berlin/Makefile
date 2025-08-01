@@ -28,3 +28,4 @@ obj-$(CONFIG_SYNAPTICS_BT_DEVICE) += modules/bluetooth/
 obj-$(CONFIG_SYNA_DRM)		+= modules/drm/
 obj-$(CONFIG_SYNA_MC_DFC) += modules/mc/
 obj-$(CONFIG_MEDIA_DRM) += modules/media_drm/
+obj-$(CONFIG_SYNA_PLATFORM_CEC) += modules/syna_cec/

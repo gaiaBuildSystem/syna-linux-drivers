@@ -233,4 +233,14 @@ config MEDIA_DRM
 	help
 	  synaptics media drm module
 
+config SYNA_PLATFORM_CEC
+	tristate "Synaptics HDMI CEC driver"
+	select CEC_CORE
+	select CEC_NOTIFIER
+	depends on !BERLIN_CEC
+	default n
+	help
+	  This is a HDMI CEC driver for Synaptics.
+
+
 endmenu
