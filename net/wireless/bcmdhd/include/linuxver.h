@@ -995,4 +995,12 @@ static inline void do_gettimeofday(struct timeval *tv)
 #define	WDEV_CLIENT(wdev, field)		(wdev->field)
 #endif /* LINUX_VER >= 5.15 || CFG80211_BKPORT_MLO */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
+#define NETDEV_ADDR_SET(net, dst_len, addr, src_len) \
+	__dev_addr_set(net, addr, dst_len)
+#else
+#define NETDEV_ADDR_SET(net, dst_len, addr, src_len) \
+	(void)memcpy_s(net->dev_addr, dst_len, addr, src_len)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0) */
+
 #endif /* _linuxver_h_ */
