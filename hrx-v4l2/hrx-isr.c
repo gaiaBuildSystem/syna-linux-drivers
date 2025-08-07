@@ -35,7 +35,6 @@ int hrx_isr_handler(struct syna_hrx_v4l2_dev *hrx_dev)
 	if ((mu0_stat & HDMI_MAINUNIT_0_INT_STATUS_TMDSQP_CK_OFF) ||
 		(mu2_stat & HDMI_MAINUNIT_2_INT_STATUS_TMDSVALID_STABLE)) {
 		hrx_intr = HDMIRX_INTR_SYNC;
-		hrx_dev->hrx_cmd_id = HRX_CMD_CLOCK_CHANGE;
 		mu0_mask = hrx_reg_read(hrx_dev, HDMI_MAINUNIT_0_INT_MASK_N);
 		mu2_mask = hrx_reg_read(hrx_dev, HDMI_MAINUNIT_2_INT_MASK_N);
 		mu0_mask = (mu0_mask & (~mu0_stat));
@@ -45,7 +44,6 @@ int hrx_isr_handler(struct syna_hrx_v4l2_dev *hrx_dev)
 	} else if ((pkt0_stat & HDMI_PKT_0_INT_STATUS_AVIIF) ||
 			 (pkt0_stat & HDMI_PKT_0_INT_STATUS_VSIF)) {
 		hrx_intr = HDMIRX_INTR_PKT;
-		hrx_dev->hrx_cmd_id = HRX_CMD_PACKET_CHANGE;
 	} else if ((mu2_stat & HDMI_MAINUNIT_2_INT_STATUS_AUDPLL_LOCK_STABLE) ||
 		(mu0_stat & HDMI_MAINUNIT_0_INT_STATUS_AUDIO_CK_OFF) ||
 		(mu0_stat & HDMI_MAINUNIT_0_INT_STATUS_AUDIO_CK_LOCKED) ||
@@ -60,9 +58,6 @@ int hrx_isr_handler(struct syna_hrx_v4l2_dev *hrx_dev)
 			pkt0_stat & HDMI_IRQ_AUDIO_PKT0_FLAG,
 			pkt0_stat & HDMI_PKT_0_INT_STATUS_AUDIF);
 		hrx_intr = HDMIRX_INTR_CHNL_STS;
-
-//		dev_info(hrx_dev->dev, "HRX_CMD_AUDIO_CHANGE\n");
-		hrx_dev->hrx_cmd_id = HRX_CMD_AUDIO_CHANGE;
 	} else if ((hdcp_stat & HDMI_HDCP_INT_STATUS_ENCDIS) ||
 			 (hdcp_stat & HDMI_HDCP_INT_STATUS_ENCEN)) {
 		hrx_intr = HDMIRX_INTR_HDCP;

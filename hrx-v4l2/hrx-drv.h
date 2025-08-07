@@ -542,6 +542,8 @@ enum dw_earctx_audio_format {
 #define VID_TOTAL_RES_IDS	(VID_RES_ID_END - VID_RES_ID_START + 1)
 
 extern resource_size_t hrx_base_glbl;
+extern resource_size_t vip_base_glbl;
+
 extern struct platform_device *pdev_glbl;
 
 typedef struct hdmi_rx_drv_t {
@@ -809,6 +811,9 @@ struct syna_hrx_v4l2_dev {
 
 	bool vip_restart;
 	bool aip_restart;
+	int null_data_count;
+	bool trig_scl_reset;
+
 };
 
 int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg);
@@ -828,6 +833,13 @@ void hrx_update_active_frame_interval(struct syna_hrx_v4l2_dev *hrx_dev);
 void hrx_audio_reset(struct syna_hrx_v4l2_dev *hrx_dev);
 
 extern int aip_alsa_set_ops(const struct alsa_aip_ops *ptr);
+
+static inline int
+syna_hrx_is_vip_stable(struct syna_hrx_v4l2_dev *hrx_dev)
+{
+	return ((hrx_dev->hdmi_state == HDMI_STATE_POWER_ON) &&
+					(hrx_dev->hrx_v4l2_state == HRX_V4L2_STREAMING_ON) && (hrx_dev->HrxState == HRX_STATE_ALL_STABLE));
+}
 
 #define HRX_ISR_MSGQ_SIZE						128
 #define MEMMAP_AVIO_REG_BASE					0xF7400000

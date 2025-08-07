@@ -112,6 +112,24 @@ static int status_show(struct seq_file *s, void *data)
 
 	seq_printf(
 			s,
+			"HrxState \t\t= %d\n",
+			hrx_dev->HrxState
+	);
+
+	seq_printf(
+			s,
+			"VIP Status \t\t= %d\n",
+			hrx_dev->vip_status
+	);
+
+	seq_printf(
+			s,
+			"VIP Stable \t\t= %d\n",
+			syna_hrx_is_vip_stable(hrx_dev)
+	);
+
+	seq_printf(
+			s,
 			"---------------------------------------\n"
 	);
 	seq_printf(

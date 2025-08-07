@@ -10,7 +10,7 @@
 #include <linux/string.h>
 
 
-const HRX_REG_INFO hrx_reg_table[] = {
+const HRX_REG_INFO hrx_pipe_reg_table[] = {
 	{"FA_HDMIRX_PIPE_CTRL",										0x0000},
 	{"FA_HDMIRX_PIPE_CTRL0",									0x0004},
 	{"FA_HDMIRX_PIPE_BYPASS_CTRL",								0x0008},
@@ -295,6 +295,8 @@ const HRX_REG_INFO hrx_reg_table[] = {
 	{"FA_HDMIRX_PIPE_VIPSCLTOP_OVPSCL_OTG_UV_INTPOS",			0x029c},
 	{"FA_HDMIRX_PIPE_VIPSCLTOP_OVPSCL_OTG_UV_MODE",				0x02a0},
 	{"FA_HDMIRX_PIPE_VIPSCLTOP_OVPSCL_OTG_UV_HVREF",			0x02a4},
+};
+const HRX_REG_INFO hrx_reg_table[] = {
 	{"HDMI_AUDIO_FIFO_CONFIG",									0x0460},
 	{"HDMI_AUDIO_FIFO_CONTROL",									0x0464},
 	{"HDMI_AUDIO_FIFO_THR_PASS",								0x0468},
@@ -506,11 +508,20 @@ void hrx_dump_reg(struct seq_file *s)
 	int size, idx;
 	u32 regVal;
 
+	seq_printf(s, "********************* HRX PIPE REG DUMP *********************\n");
+	seq_printf(s, "0x%08X vs 0x%08llx", HDMIRX_PIPE_REG_BASE,vip_base_glbl);
+	size = sizeof(hrx_pipe_reg_table)/sizeof(HRX_REG_INFO);
+	for (idx = 0; idx < size; idx++) {
+		regVal = glb_reg_read(HDMIRX_PIPE_REG_BASE + hrx_pipe_reg_table[idx].addr);
+		seq_printf(s, "%-60s 0x%08X 0x%X\n", hrx_pipe_reg_table[idx].addr_name, HDMIRX_PIPE_REG_BASE + hrx_pipe_reg_table[idx].addr, regVal);
+		regVal =0xdeadbeef;
+	}
 	seq_printf(s, "********************* HRX REG DUMP *********************\n");
 	size = sizeof(hrx_reg_table)/sizeof(HRX_REG_INFO);
 	for (idx = 0; idx < size; idx++) {
-		regVal = glb_reg_read(HDMIRX_PIPE_REG_BASE + hrx_reg_table[idx].addr);
-		seq_printf(s, "%-60s 0x%08X 0x%X\n", hrx_reg_table[idx].addr_name, HDMIRX_PIPE_REG_BASE + hrx_reg_table[idx].addr, regVal);
+		regVal = glb_reg_read(hrx_base_glbl + hrx_reg_table[idx].addr);
+		seq_printf(s, "%-60s 0x%08llX 0x%X\n", hrx_reg_table[idx].addr_name, hrx_base_glbl + hrx_reg_table[idx].addr, regVal);
+		regVal =0xdeadbeef;
 	}
 }
 

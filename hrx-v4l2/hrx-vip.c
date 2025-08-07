@@ -630,6 +630,7 @@ void vip_start(struct syna_hrx_v4l2_dev *hrx_dev)
 {
 	mutex_lock(&hrx_dev->vip_mutex);
 	hrx_dev->vip_intr_num = 0;
+	hrx_dev->vip_first_frame = 0;
 
 	syna_hrx_get_inputMode(hrx_dev, &hrx_dev->vip_imode);
 	if (!is_valid_input_output_mode(hrx_dev->vip_imode, hrx_dev->vip_omode)) {
@@ -718,6 +719,11 @@ void vip_stop(struct syna_hrx_v4l2_dev *hrx_dev)
 		syna_hrx_buf_unused(hrx_dev, (struct vb2_buffer *)hrx_dev->vip_curr_frame_descr);
 		hrx_dev->vip_curr_frame_descr = NULL;
 	}
+		/* set signal status to unstable on start */
+	hrx_dev->vip_signal_status = VIP_SIGNAL_UNSTABLE;
+
+	/* no DMA command pending */
+	hrx_dev->vip_dma_cmd_issued = 0;
 
 	while (!vip_frmq_isempty(&hrx_dev->frmq)) {
 		void *frame_descr;
@@ -790,8 +796,6 @@ void vip_config(struct syna_hrx_v4l2_dev *hrx_dev)
 	output_mode = hrx_dev->vip_omode;
 
 	hrx_dev->vip_enable_scaler = g_enscaler;
-	/* reset vip scl */
-	vip_scl_reset(hrx_dev);
 
 	/* reset VBI BCM buffer */
 	bcmbuf_reset(&(hrx_dev->vbi_bcm_buf[0]));

@@ -25,7 +25,7 @@
 #define HRX_LOG(type, arg...)			\
 do {									\
 	if ((!(type)) || (type & debug))	\
-		pr_info(arg);					\
+		pr_info("[hrx-drv] "arg);					\
 } while (0)
 
 extern int debug;

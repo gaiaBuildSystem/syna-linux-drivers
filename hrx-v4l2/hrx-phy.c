@@ -231,7 +231,7 @@ int hrx_phy_init(struct syna_hrx_v4l2_dev *hrx_dev, bool data_rate_6g, bool full
 	HRX_LOG(HRX_DRV_INFO, "configuring phy: Is_data_rate_6g=%d\n", data_rate_6g);
 	hrx_phy_tmds_clock_ratio(hrx_dev, data_rate_6g);
 	if (!full_config) {
-		HRX_LOG(HRX_DRV_ERROR, "not programming full PHY\n");
+		HRX_LOG(HRX_DRV_DEBUG, "not programming full PHY\n");
 		return 0;
 	}
 	switch (hrx_dev->phy_cfg_clk) {
@@ -387,7 +387,7 @@ bool has_clock(struct syna_hrx_v4l2_dev *hrx_dev)
 			mdelay(5);
 			clock_status = !(hrx_reg_read(hrx_dev, HDMI_CMU_STATUS) &
 					HDMI_CMU_STATUS_TMDSQP_CK_OFF);
-			HRX_LOG(HRX_DRV_DEBUG, "iter = %d clock_status = %d", i, clock_status);
+			HRX_LOG(HRX_DRV_DEBUG, "iter = %d clock_status = %d\n", i, clock_status);
 			if (clock_status)
 				break;
 		}

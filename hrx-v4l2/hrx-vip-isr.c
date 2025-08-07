@@ -202,7 +202,71 @@ exit:
 		ret = kfifo_out(&hrx_dev->processed_buffer_queue, &frame_descr, sizeof(void *));
 	return ret;
 }
+static bool check_invalid_frame (unsigned char * data, int len, int chk_val)
+{
+	int i,null_chk = 0, ff_chk = 0xff;
 
+	if(data == NULL)
+		return false;
+
+	for(i = 0; i < len ; i++) {
+		ff_chk &= data[i];
+		null_chk |= data[i];
+	}
+	if(chk_val == 0)
+		return (null_chk == 0x00);
+	else
+		return (ff_chk == 0xff);
+}
+
+static void syna_hrx_buf_validate_and_process(struct syna_hrx_v4l2_dev *hrx_dev, void * frame_descr)
+{
+	bool dis_frame = false;
+	static int null_data_chk;
+	static int discard_frame_count;
+	unsigned char *Yaddr = NULL;
+	unsigned char *UVaddr = NULL;
+
+	int width_byte = (hrx_dev->format.width + 7) / 8 * hrx_dev->vip_bits_per_pixel;
+
+	Yaddr = (unsigned char*)syna_hrx_dh_plane_vaddr(frame_descr, 0);
+	if ((hrx_dev->vip_omode == VIP_OMODE2_8BIT_YUV420) ||
+		(hrx_dev->vip_omode == VIP_OMODE3_10BIT_YUV420) ||
+		(hrx_dev->vip_omode == VIP_OMODE4_12BIT_YUV420))
+		UVaddr = Yaddr + (width_byte * hrx_dev->format.height);
+
+	if(discard_frame_count < 5)
+		goto trigger;
+
+	if ((null_data_chk < 5) &&
+		(check_invalid_frame((unsigned char *)Yaddr, 10, 0) ||
+		(check_invalid_frame((unsigned char *)UVaddr, 10, 0)) ||
+		(check_invalid_frame((unsigned char *)UVaddr, 10, 1)))) {
+		dis_frame = true;
+		if(++null_data_chk == 5) {
+			hrx_dev->null_data_count++;
+			HRX_LOG(VIP_DEBUG,"Triggering Scalar Reset due to wrong color \n");
+			hrx_dev->trig_scl_reset = true;
+		}
+	}
+
+trigger:
+	if(hrx_dev->trig_scl_reset) {
+			vip_scl_reset(hrx_dev);
+			HRX_LOG(VIP_DEBUG,"Triggered Scalar Reset \n");
+			hrx_dev->trig_scl_reset = false;
+			dis_frame = true;
+			null_data_chk = 0;
+			discard_frame_count = 0;
+	}
+	if(discard_frame_count++ < 5)
+		dis_frame = true;
+
+	if(dis_frame || (hrx_dev->HrxState != HRX_STATE_ALL_STABLE))
+		syna_hrx_buf_unused(hrx_dev, (struct vb2_buffer *)frame_descr);
+	else
+		syna_hrx_buf_processed(hrx_dev, (struct vb2_buffer *)frame_descr);
+}
 
 static int vip_isr_service(struct syna_hrx_v4l2_dev *hrx_dev)
 {
@@ -283,7 +347,7 @@ static int vip_isr_service(struct syna_hrx_v4l2_dev *hrx_dev)
 			else {
 				void *frame_descr;
 				vip_frmq_pop(&hrx_dev->frmq, &frame_descr);
-				syna_hrx_buf_processed(hrx_dev, (struct vb2_buffer *)frame_descr);
+				syna_hrx_buf_validate_and_process(hrx_dev,frame_descr);
 			}
 		}
 
@@ -740,6 +804,7 @@ static int vip_watcher_task(void *param)
 #endif
 	unsigned int vcount_vip_tg = 0;
 	static unsigned int prev_vcount_vip_tg;
+	static unsigned int restart_count;
 	//static unsigned int no_change_count;
 
 #if 0
@@ -750,11 +815,20 @@ static int vip_watcher_task(void *param)
 #endif
 
 	while (!kthread_should_stop()) {
-		msleep_interruptible(1000);
+		msleep_interruptible(300);
 
 		/* No need to watch if VIP is not running */
 		if (hrx_dev->vip_status != VIP_STATUS_START)
 			continue;
+
+		if(restart_count > 3) {
+			HRX_LOG(VIP_DEBUG, "Toggle HPD\n");
+			hrx_toggle_hpd(hrx_dev, 0);
+			msleep(200);
+			hrx_toggle_hpd(hrx_dev, 1);
+			msleep(800);
+			restart_count = 0;
+		}
 
 #ifdef CHECK_INTR_CNT
 		vcount_vip_tg = hrx_dev->vip_intr_num;
@@ -769,13 +843,16 @@ static int vip_watcher_task(void *param)
 			vcount_vip_tg = status1 & MSK32HDMIRX_PIPE_STATUS1_HDRX_oTg;
 		}
 #endif
-		if (prev_vcount_vip_tg != vcount_vip_tg)
+		if (prev_vcount_vip_tg != vcount_vip_tg) {
 			prev_vcount_vip_tg = vcount_vip_tg;
+			restart_count = 0;
+		}
 		else {
-			if ((hrx_dev->hdmi_state == HDMI_STATE_POWER_ON) && (hrx_dev->hrx_v4l2_state == HRX_V4L2_STREAMING_ON)) {
+			if (syna_hrx_is_vip_stable(hrx_dev)) {
 				HRX_LOG(VIP_DEBUG, "Restarting vip\n");
 				vip_stop(hrx_dev);
 				vip_start(hrx_dev);
+				restart_count++;
 			}
 		}
 	}

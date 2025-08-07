@@ -26,6 +26,7 @@
 #endif
 
 resource_size_t hrx_base_glbl;
+resource_size_t vip_base_glbl;
 struct platform_device *pdev_glbl;
 
 #define HDMI_SF_BYTE	0
@@ -1043,6 +1044,7 @@ static void hrx_update_total_frame_interval(struct syna_hrx_v4l2_dev *hrx_dev)
 
 	hrx_dev->video_params.FITotal.numerator = 1;
 	hrx_dev->video_params.FITotal.denominator = RefRate/1000;
+	hrx_dev->frame_count = 0;
 
 	// Updated buffer display index w.r.t. Active FPS
 	hrx_dev->display_frame_index = (hrx_dev->video_params.FITotal.denominator / hrx_dev->video_params.FIActive.denominator);
@@ -1797,7 +1799,7 @@ static void hrx_audio_pll_config_static_in(struct syna_hrx_v4l2_dev *hrx_dev)
 		}
 	}
 
-	HRX_LOG(HRX_DRV_ERROR, "REFCLK_CNT set to 0x%X\n", ref_count);
+	HRX_LOG(HRX_DRV_DEBUG, "REFCLK_CNT set to 0x%X\n", ref_count);
 	hrx_reg_mask_write(hrx_dev, ref_count, SNPS_AUDPLL_CONFIG2,
 		SNPS_AUDPLL_CONFIG2_REFCLK_CNT_OFFSET,
 		SNPS_AUDPLL_CONFIG2_REFCLK_CNT_MASK);
@@ -1841,7 +1843,7 @@ static void hrx_audio_pll_config_dynamic_in(struct syna_hrx_v4l2_dev *hrx_dev)
 		SNPS_AUDPLL_CONFIG3_GEAR_SHIFT_MASK);
 
 	if (!has_audio_clock(hrx_dev)) {
-		HRX_LOG(HRX_DRV_ERROR, "Audio clock off\n");
+		HRX_LOG(HRX_DRV_DEBUG, "Audio clock off\n");
 		hrx_reg_mask_write(hrx_dev, 0x0, SNPS_AUDPLL_CONFIG3,
 			SNPS_AUDPLL_CONFIG3_REFPLLRST_N_OFFSET,
 			SNPS_AUDPLL_CONFIG3_REFPLLRST_N_MASK);
@@ -2341,7 +2343,7 @@ static int syna_hrx_interrupt_config(struct platform_device *pdev)
 	HRX_LOG(HRX_DRV_INFO, "uvtg_intr = %d [%d]\n", hrx_dev->uvtg_intr,
 		(u32)irqd_to_hwirq(irq_get_irq_data(hrx_dev->uvtg_intr)));
 	HRX_LOG(HRX_DRV_INFO, "itg_intr = %d [%d]\n", hrx_dev->itg_intr,
-		(u32)irqd_to_hwirq(irq_get_irq_data(hrx_dev->ytg_intr)));
+		(u32)irqd_to_hwirq(irq_get_irq_data(hrx_dev->itg_intr)));
 	HRX_LOG(HRX_DRV_INFO, "mic3_intr = %d [%d]\n", hrx_dev->mic3_intr,
 		(u32)irqd_to_hwirq(irq_get_irq_data(hrx_dev->mic3_intr)));
 
@@ -2421,6 +2423,7 @@ static int syna_hrx_parse_dt(struct platform_device *pdev)
 
 	hrx_dev->vip_base = vip_addr_resource->start;
 	hrx_base_glbl = hrx_dev->hrx_base;
+	vip_base_glbl = hrx_dev->vip_base;
 
 	hrx_dev->gpiod_hrxhpd = devm_gpiod_get_optional(&pdev->dev,
 				"hrxhpd", GPIOD_OUT_LOW);
@@ -3062,6 +3065,7 @@ static int hrx_config(struct syna_hrx_v4l2_dev *hrx_dev)
 		switch (hrx_dev->hdmi_state) {
 		case HDMI_STATE_NO_INIT:
 			{
+				HRX_LOG(HRX_DRV_DEBUG, "Hdmi RX State Not Initialised\n");
 				return -EINVAL;
 			}
 		case HDMI_STATE_POWER_OFF:
@@ -3208,8 +3212,6 @@ static void hrx_handle_tmds_change(struct syna_hrx_v4l2_dev *hrx_dev)
 		} else {
 			if (hrx_is_5v_connected(hrx_dev))
 				hrx_power_on(hrx_dev);
-			else
-				hrx_power_off(hrx_dev);
 		}
 	} else /* TMDSVALID gained */
 		hrx_power_on(hrx_dev);
@@ -3217,10 +3219,8 @@ static void hrx_handle_tmds_change(struct syna_hrx_v4l2_dev *hrx_dev)
 
 void hrx_handle_clock_change(struct syna_hrx_v4l2_dev *hrx_dev)
 {
-	if (!has_clock(hrx_dev)) {
-		hrx_power_off(hrx_dev);
+	if ((!has_clock(hrx_dev)) || !(hrx_is_5v_connected(hrx_dev))) {
 		HRX_LOG(HRX_DRV_DEBUG, "[TMDS] clock is off\n");
-		hrx_toggle_scdc_hpd(hrx_dev);
 		hrx_phy_tmds_clock_ratio(hrx_dev, hrx_is_hdmi2(hrx_dev));
 		hrx_enable_vital_ints(hrx_dev);
 	} else {
@@ -3599,7 +3599,7 @@ static unsigned int hrx_isr_irq_handler(struct syna_hrx_v4l2_dev *hrx_dev, u32 i
 	if ((avp1_check & (AVPUNIT1_INTR)) | (pkt0_check & (PKT_0_INTR | HDMI_PKT_0_INT_STATUS_AUDIF))) {
 		avp1_mask = hrx_reg_read(hrx_dev, HDMI_AVPUNIT_1_INT_MASK_N);
 		pkt0_mask = hrx_reg_read(hrx_dev, HDMI_PKT_0_INT_MASK_N);
-		HRX_LOG(HRX_DRV_ERROR, "Error : %x(%x):%x(%x)\n", avp1_check, avp1_mask, pkt0_check, pkt0_mask);
+		HRX_LOG(HRX_DRV_DEBUG, "Error : %x(%x):%x(%x)\n", avp1_check, avp1_mask, pkt0_check, pkt0_mask);
 		hrx_reg_write(hrx_dev, avp1_mask, HDMI_AVPUNIT_1_INT_MASK_N);
 		hrx_reg_write(hrx_dev, pkt0_mask, HDMI_PKT_0_INT_MASK_N);
 		hrx_clear_ints(hrx_dev);
@@ -3683,16 +3683,32 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 	u32 irq = 0;
 	int ret, iter;
 
-
 	hrx_intr = msg.m_Param1;
 	irq = msg.m_Param2;
 	HRX_LOG(HRX_DRV_DEBUG, "intr = %x irq : %llxx\n", msg.m_Param1, (long long)msg.m_Param2);
+
+	switch(hrx_intr) {
+		case HDMIRX_INTR_SYNC:
+			hrx_dev->hrx_cmd_id = HRX_CMD_CLOCK_CHANGE;
+			break;
+		case HDMIRX_INTR_PKT:
+			hrx_dev->hrx_cmd_id = HRX_CMD_PACKET_CHANGE;
+			break;
+		case HDMIRX_INTR_CHNL_STS:
+			hrx_dev->hrx_cmd_id = HRX_CMD_AUDIO_CHANGE;
+			break;
+		default:
+			HRX_LOG(HRX_DRV_ERROR,"Invalid intr : %d \n",hrx_intr);
+			return 0;
+
+	}
 
 	switch (hrx_dev->HrxState) {
 	case HRX_STATE_DISCONNECTED:
 	if (hrx_dev->hrx_cmd_id == HRX_CMD_CLOCK_CHANGE) {
 		if (!hrx_is_5v_connected(hrx_dev)) {
 			hrx_isr_irq_handler(hrx_dev, irq);
+			HRX_LOG(HRX_DRV_DEBUG, "invalid video, disconnected -> disconnected\n");
 		} else {
 			hrx_dev->HrxState = HRX_STATE_UNSTABLE;
 			hrx_dev->video_params.IsValid = false;
@@ -3702,8 +3718,10 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				hrx_dev->HrxState = HRX_STATE_ALL_STABLE;
 				hrx_dev->video_params.IsValid = true;
 				hrx_dev->video_params.Vic = hrx_dev->video_params.HrxIpTimingParam.DispResId;
+				HRX_LOG(HRX_DRV_DEBUG, "Vic %u \n", hrx_dev->video_params.Vic );
+				HRX_LOG(HRX_DRV_DEBUG, " state change disconnect -> stable\n");
 			} else
-				HRX_LOG(HRX_DRV_DEBUG, " state change disconnect -> unstable");
+				HRX_LOG(HRX_DRV_DEBUG, " state change disconnect -> unstable\n");
 		}
 	}
 		break;
@@ -3711,6 +3729,7 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 	if (hrx_dev->hrx_cmd_id == HRX_CMD_CLOCK_CHANGE) {
 		if (!hrx_is_5v_connected(hrx_dev)) {
 			hrx_dev->HrxState = HRX_STATE_DISCONNECTED;
+			HRX_LOG(HRX_DRV_DEBUG, "clk invalid video, unstable -> disconnected\n");
 			hrx_isr_irq_handler(hrx_dev, irq);
 		} else {
 			hrx_dev->video_params.IsValid = false;
@@ -3720,9 +3739,12 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				hrx_dev->HrxState = HRX_STATE_ALL_STABLE;
 				hrx_dev->video_params.IsValid = true;
 				hrx_dev->video_params.Vic = hrx_dev->video_params.HrxIpTimingParam.DispResId;
+				HRX_LOG(HRX_DRV_DEBUG, "Vic %u \n", hrx_dev->video_params.Vic );
+				HRX_LOG(HRX_DRV_DEBUG, " clk state change unstable -> stable\n");
+
 			} else {
 				hrx_dev->video_params.IsValid = false;
-				HRX_LOG(HRX_DRV_DEBUG, "invalid video, unstable -> unstable");
+				HRX_LOG(HRX_DRV_DEBUG, "clk invalid video, unstable -> unstable\n");
 
 				for (iter = 0; iter < 40; iter++) {
 					if (has_clock(hrx_dev))
@@ -3730,7 +3752,8 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 					if (!hrx_is_5v_connected(hrx_dev)) {
 						hrx_dev->HrxState = HRX_STATE_DISCONNECTED;
 				  // call back disconnected
-						HRX_LOG(HRX_DRV_DEBUG, "Additional check for 5V triggered at iter = %d", iter);
+						HRX_LOG(HRX_DRV_DEBUG, "Additional check for 5V triggered at iter = %d\n", iter);
+						HRX_LOG(HRX_DRV_DEBUG, "clk invalid video, unstable -> disconnected\n");
 						break;
 					}
 				}
@@ -3742,6 +3765,7 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 	if (hrx_dev->hrx_cmd_id == HRX_CMD_CLOCK_CHANGE) {
 		if (!hrx_is_5v_connected(hrx_dev)) {
 			hrx_dev->HrxState = HRX_STATE_DISCONNECTED;
+			HRX_LOG(HRX_DRV_DEBUG, "clk invalid video, allstable -> disconnected\n");
 			hrx_isr_irq_handler(hrx_dev, irq);
 		} else {
 			hrx_dev->video_params.IsValid = false;
@@ -3752,6 +3776,11 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				hrx_dev->HrxState = HRX_STATE_ALL_STABLE;
 				hrx_dev->video_params.IsValid = true;
 				hrx_dev->video_params.Vic = hrx_dev->video_params.HrxIpTimingParam.DispResId;
+				HRX_LOG(HRX_DRV_DEBUG, "clk, all stable -> all stable\n");
+				hrx_dev->trig_scl_reset = true;
+			} else {
+				hrx_dev->video_params.IsValid = false;
+				HRX_LOG(HRX_DRV_DEBUG, "clk change, all stable -> unstable\n");
 			}
 		}
 	} else if (hrx_dev->hrx_cmd_id == HRX_CMD_PACKET_CHANGE) {
@@ -3765,10 +3794,11 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 					HRX_LOG(HRX_DRV_DEBUG, "Sample  freq is 0 not notifying\n");
 				else
 					HRX_LOG(HRX_DRV_DEBUG, "Sample notifying\n");
-			} else {
-				hrx_dev->HrxState = HRX_STATE_UNSTABLE;
-				HRX_LOG(HRX_DRV_DEBUG, "packet change, all_stable ->unstable");
 			}
+		HRX_LOG(HRX_DRV_DEBUG, "packet change, all stable -> all stable\n");
+		} else {
+			hrx_dev->HrxState = HRX_STATE_UNSTABLE;
+			HRX_LOG(HRX_DRV_DEBUG, "packet change, all_stable ->unstable\n");
 		}
 	} else if (hrx_dev->hrx_cmd_id == HRX_CMD_AUDIO_CHANGE) {
 		if (hrx_tmds_valid(hrx_dev)) {
@@ -3777,8 +3807,9 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 				HRX_LOG(HRX_DRV_DEBUG, "Sample  freq is 0 not notifying\n");
 		} else {
 			      //HRX_SetState(hrx_dev,HRX_STATE_UNSTABLE);
-			HRX_LOG(HRX_DRV_DEBUG, "Ignore Audio change as tmds is not valid");
+			HRX_LOG(HRX_DRV_DEBUG, "Ignore Audio change as tmds is not valid\n");
 		}
+		HRX_LOG(HRX_DRV_DEBUG, "audio change, all_stable ->all stable\n");
 	}
 		break;
 	default:
@@ -3787,10 +3818,10 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 	}
 
 	if (hrx_dev->HrxState == HRX_STATE_ALL_STABLE) {
+		hrx_update_active_frame_interval(hrx_dev);
 		hrx_update_total_frame_interval(hrx_dev);
 		hrx_handle_aip_vip_restart(hrx_dev);
 	}
-
 	return 0;
 }
 
@@ -3890,6 +3921,7 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 	aip_init(hrx_dev);
 
 	aip_set_audio_mono_mode(hrx_dev, AIP_STEREO);
+	hrx_dev->null_data_count = 0;
 
 	ret = hrx_debug_create();
 	if (ret != 0)

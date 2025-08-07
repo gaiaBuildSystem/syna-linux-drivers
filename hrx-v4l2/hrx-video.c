@@ -278,7 +278,7 @@ static int vb2ops_hrx_start_streaming(struct vb2_queue *q, unsigned int count)
 	wake_up_interruptible(&hrx_dev->vblank_wq);
 	hrx_dev->hrx_v4l2_state = HRX_V4L2_STREAMING_ON;
 
-	if (hrx_dev->hdmi_state == HDMI_STATE_POWER_ON)
+	if ((hrx_dev->hdmi_state == HDMI_STATE_POWER_ON) && (hrx_dev->HrxState == HRX_STATE_ALL_STABLE))
 		vip_start(hrx_dev);
 	vip_create_watcher_task(hrx_dev);
 
