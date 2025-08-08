@@ -8983,16 +8983,13 @@ dhdsdio_chipmatch(uint16 chipid)
 	if (BCM4349_CHIP(chipid))
 		return TRUE;
 	if (chipid == BCM4364_CHIP_ID)
-			return TRUE;
-
+		return TRUE;
 	if (chipid == BCM4381_CHIP_ID) {
 		return TRUE;
 	}
-
 	if (chipid == BCM4382_CHIP_ID) {
 		return TRUE;
 	}
-
 	if (chipid == BCM43012_CHIP_ID)
 		return TRUE;
 

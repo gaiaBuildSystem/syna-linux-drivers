@@ -62,6 +62,8 @@
 #include <dhd.h>
 #include <bcmdevs.h>
 #include <linux/pci.h>
+#include <epivers.h>
+#include <bcmdevs_legacy.h>
 
 #ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
 extern int dhd_init_wlan_mem(void);
@@ -301,7 +303,7 @@ struct wifi_platform_data dhd_wlan_control = {
 };
 EXPORT_SYMBOL(dhd_wlan_control);
 
-#ifdef BCMPCIE
+#if defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
 static int dhd_check_pcie_devices(void)
 {
 	struct pci_dev *dev;
@@ -316,7 +318,8 @@ static int dhd_check_pcie_devices(void)
 			   PCI_FUNC(dev->devfn));
 
 		if (VENDOR_BROADCOM == dev->vendor) {
-			if ((BCM4362_CHIP_ID == dev->device) || (BCM43752_D11AX_ID == dev->device)) {
+			if ((BCM4362_CHIP_ID == dev->device) || (BCM43752_D11AX_ID == dev->device) ||
+				(BCM4345_CHIP_ID == dev->device)) {
 				return 0;
 			}
 		}
@@ -342,11 +345,11 @@ dhd_wlan_init(void)
 	int ret = 0;
 	int ret1 = 0;
 
-#if defined(CONFIG_ARCH_ASTRA) && defined(BCMPCIE)
-	msleep(300);
+#if defined(CONFIG_ARCH_ASTRA) && defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
+		msleep(300);
 #endif
 
-	DHD_ERROR(("%s: START.......\n", __func__));
+	DHD_ERROR(("%s: START.......%s\n", __func__, EPI_VERSION_STR));
 	ret = dhd_wifi_init_gpio();
 	if (ret < 0) {
 		DHD_ERROR(("%s: failed to initiate GPIO, ret=%d\n",
@@ -357,7 +360,7 @@ dhd_wlan_init(void)
 	dhd_wlan_resources.start = wlan_host_wake_irq;
 	dhd_wlan_resources.end = wlan_host_wake_irq;
 
-#ifdef BCMPCIE
+#if defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
 	ret1 = dhd_check_pcie_devices();
 	if (ret1 < 0) {
 		DHD_ERROR(("%s: No supported device, ret=%d\n",

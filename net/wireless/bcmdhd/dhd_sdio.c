@@ -9056,8 +9056,10 @@ dhdsdio_chipmatch(uint16 chipid)
 		return TRUE;
 	if (chipid == BCM4339_CHIP_ID)
 		return TRUE;
+#ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
 	if (BCM4345_CHIP(chipid))
 		return TRUE;
+#endif
 	if (chipid == BCM4350_CHIP_ID)
 		return TRUE;
 	if (chipid == BCM4354_CHIP_ID)
@@ -9072,15 +9074,14 @@ dhdsdio_chipmatch(uint16 chipid)
 		return TRUE;
 	if (chipid == BCM4364_CHIP_ID)
 			return TRUE;
-
+#ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
 	if (chipid == BCM4381_CHIP_ID) {
 		return TRUE;
 	}
-
 	if (chipid == BCM4382_CHIP_ID) {
 		return TRUE;
 	}
-
+#endif
 	if (chipid == BCM43012_CHIP_ID)
 		return TRUE;
 

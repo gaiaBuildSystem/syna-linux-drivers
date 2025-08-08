@@ -322,7 +322,7 @@ static int dummy_probe(struct sdio_func *func,
 			(id->vendor != SDIO_VENDOR_ID_SYNAPTICS)) {
 				return -ENODEV;
 			}
-
+#ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
 		/* Only support 4381/4382 */
 		if ((id->vendor != SDIO_VENDOR_ID_BROADCOM) ||
 			(id->device != 0xffff)) {
@@ -331,6 +331,7 @@ static int dummy_probe(struct sdio_func *func,
 		} else {
 			sd_err(("%s: Found supported chip \n", __FUNCTION__));
 		}
+#endif
 	}
 
 	if (func && (func->num != 2)) {

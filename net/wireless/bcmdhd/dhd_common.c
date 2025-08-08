@@ -11822,18 +11822,15 @@ static chip_name_map_t chip_name_map[] = {
 	{BCM43756_CHIP_ID, 0x4, "fw_bcm43756.bin",     "bcmdhd_43756.cal",     "bcmdhd_clm_43756.blob",  NULL},
 	{BCM43756_CHIP_ID, 0x6, "fw_bcm43756e.bin",    "bcmdhd_43756e.cal",    "bcmdhd_clm_43756e.blob", NULL},
 	{BCM43711_CHIP_ID, 0x0, "fw_bcm43711.bin",     "bcmdhd_43711.cal",     "bcmdhd_clm_43711.blob",  NULL},
-	{BCM4345_CHIP_ID,  0x9, "fw_bcm43456.bin",     "bcmdhd_43456.cal",     NULL,                     NULL},
-	{BCM4381_CHIP_ID,  0x0, "fw_bcm4381.bin",      "bcmdhd_4381.cal",      "bcmdhd_clm_4381.blob",   NULL},
-	{BCM4381_CHIP_ID,  0x1, "fw_bcm4381.bin",      "bcmdhd_4381.cal",      "bcmdhd_clm_4381.blob",   NULL},
-	{BCM4382_CHIP_ID,  0x1, "fw_bcm4382.bin",      "bcmdhd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
-	{BCM4382_CHIP_ID,  0x2, "fw_bcm4382.bin",      "bcmdhd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
-	{BCM4382_CHIP_ID,  0x3, "fw_bcm4382.bin",      "bcmdhd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
+	{BCM4345_CHIP_ID,  0x9, "fw_bcm43456.bin",     "bcmdhd_43456.cal",     "bcmdhd_clm_43456.blob",  NULL},
 #else
 	{BCM43752_CHIP_ID, 0x2, "fw_sd_bcm43752.bin",  "bcmdhd_sd_43752.cal",  "bcmdhd_clm_43752.blob",  NULL},
 	{BCM43756_CHIP_ID, 0x4, "fw_sd_bcm43756.bin",  "bcmdhd_sd_43756.cal",  "bcmdhd_clm_43756.blob",  NULL},
 	{BCM43756_CHIP_ID, 0x6, "fw_sd_bcm43756e.bin", "bcmdhd_sd_43756e.cal", "bcmdhd_clm_43756e.blob", NULL},
 	{BCM43711_CHIP_ID, 0x0, "fw_sd_bcm43711.bin",  "bcmdhd_sd_43711.cal",  "bcmdhd_clm_43711.blob",  NULL},
-	{BCM4345_CHIP_ID,  0x9, "fw_sd_bcm43456.bin",  "bcmdhd_sd_43456.cal",  NULL,                     NULL},
+#ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
+	{BCM4345_CHIP_ID,  0x9, "fw_sd_bcm43456.bin",  "bcmdhd_sd_43456.cal",  "bcmdhd_clm_43456.blob",  NULL},
+#endif
 	{BCM4612_CHIP_ID,  0x1, "fw_sd_bcm4612.bin",   "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
 #endif
 };

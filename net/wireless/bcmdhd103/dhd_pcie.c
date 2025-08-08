@@ -16369,7 +16369,7 @@ dhdpcie_chipmatch(uint16 vendor, uint16 device)
 	}
 
 	switch (device) {
-#if 0
+#ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
 	case BCM4345_CHIP_ID:
 	case BCM43454_CHIP_ID:
 	case BCM43455_CHIP_ID:

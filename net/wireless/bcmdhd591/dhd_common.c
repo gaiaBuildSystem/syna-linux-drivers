@@ -164,6 +164,8 @@
 
 #include <wldev_common.h>
 
+#include <bcmdevs_legacy.h>
+
 #ifdef DHD_LOG_PRINT_RATE_LIMIT
 int log_print_threshold = 0;
 #endif /* DHD_LOG_PRINT_RATE_LIMIT */
@@ -12216,11 +12218,12 @@ static chip_name_map_t chip_name_map[] = {
 	{BCM4382_CHIP_ID,  0x2, "fw_bcm4382.bin",      "bcmdhd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
 	{BCM4382_CHIP_ID,  0x3, "fw_bcm4382.bin",      "bcmdhd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
 #else
-	{BCM4381_CHIP_ID,  0x0, "fw_sd_bcm4381.bin",      "bcmdhd_sd_4381.cal",      "bcmdhd_clm_4381.blob",   NULL},
-	{BCM4381_CHIP_ID,  0x1, "fw_sd_bcm4381.bin",      "bcmdhd_sd_4381.cal",      "bcmdhd_clm_4381.blob",   NULL},
-	{BCM4382_CHIP_ID,  0x1, "fw_sd_bcm4382.bin",      "bcmdhd_sd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
-	{BCM4382_CHIP_ID,  0x2, "fw_sd_bcm4382.bin",      "bcmdhd_sd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
-	{BCM4382_CHIP_ID,  0x3, "fw_sd_bcm4382.bin",      "bcmdhd_sd_4382.cal",      "bcmdhd_clm_4382.blob",   NULL},
+	{BCM4381_CHIP_ID,  0x0, "fw_sd_bcm4381.bin",   "bcmdhd_sd_4381.cal",   "bcmdhd_clm_4381.blob",   NULL},
+	{BCM4381_CHIP_ID,  0x1, "fw_sd_bcm4381.bin",   "bcmdhd_sd_4381.cal",   "bcmdhd_clm_4381.blob",   NULL},
+	{BCM4382_CHIP_ID,  0x1, "fw_sd_bcm4382.bin",   "bcmdhd_sd_4382.cal",   "bcmdhd_clm_4382.blob",   NULL},
+	{BCM4382_CHIP_ID,  0x2, "fw_sd_bcm4382.bin",   "bcmdhd_sd_4382.cal",   "bcmdhd_clm_4382.blob",   NULL},
+	{BCM4382_CHIP_ID,  0x3, "fw_sd_bcm4382.bin",   "bcmdhd_sd_4382.cal",   "bcmdhd_clm_4382.blob",   NULL},
+	{BCM4345_CHIP_ID,  0x9, "fw_sd_bcm43456.bin",  "bcmdhd_sd_43456.cal",  "bcmdhd_clm_43456.blob",  NULL},
 #endif
 };
 

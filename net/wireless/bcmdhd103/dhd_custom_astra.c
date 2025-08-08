@@ -62,6 +62,7 @@
 #include <dhd.h>
 #include <bcmdevs.h>
 #include <linux/pci.h>
+#include <epivers.h>
 
 #ifdef CUSTOMER_HW_AMLOGIC
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
@@ -570,7 +571,7 @@ struct wifi_platform_data dhd_wlan_control = {
 #endif /* CUSTOMER_HW_AMLOGIC */
 };
 
-#ifdef BCMPCIE
+#if defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
 static int dhd_check_pcie_devices(void)
 {
 	struct pci_dev *dev;
@@ -603,11 +604,11 @@ dhd_wlan_init(void)
 	int ret = 0;
 	int ret1 = 0;
 
-#if defined(CONFIG_ARCH_ASTRA) && defined(BCMPCIE)
+#if defined(CONFIG_ARCH_ASTRA) && defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
 		msleep(1000);
 #endif
 
-	DHD_ERROR(("%s: START.......\n", __func__));
+	DHD_ERROR(("%s: START.......%s\n", __func__, EPI_VERSION_STR));
 #ifdef DHD_USE_HOST_WAKE
 	ret = dhd_wifi_init_gpio();
 	if (ret < 0) {
@@ -625,7 +626,7 @@ dhd_wlan_init(void)
 	BCM_REFERENCE(ret);
 #endif /* DHD_USE_HOST_WAKE */
 
-#ifdef BCMPCIE
+#if defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
 	ret1 = dhd_check_pcie_devices();
 	if (ret1 < 0) {
 		DHD_ERROR(("%s: No supported device, ret=%d\n",

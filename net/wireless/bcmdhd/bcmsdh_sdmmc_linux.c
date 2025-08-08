@@ -329,10 +329,12 @@ static int dummy_probe(struct sdio_func *func,
 			(id->vendor != SDIO_VENDOR_ID_SYNAPTICS))
 				return -ENODEV;
 
+#ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
 		/* Remove 4381/4382 SDIO support */
 		if ((id->vendor == SDIO_VENDOR_ID_BROADCOM) &&
 			(id->device == 0xffff))
 				return -ENODEV;
+#endif
 	}
 
 	if (func && (func->num != 2)) {
