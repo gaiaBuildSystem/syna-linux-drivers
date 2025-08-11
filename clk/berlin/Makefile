@@ -9,4 +9,4 @@ obj-$(CONFIG_SYNA_MYNA_CLK)	+= myna-clks.o
 obj-$(CONFIG_SYNA_MYNA2_CLK)	+= myna2-clks.o
 obj-$(CONFIG_SYNA_PLATYPUS_CLK)	+= platypus-clks.o
 obj-$(CONFIG_SYNA_DOLPHIN_CLK)	+= dolphin-clks.o
-
+obj-$(CONFIG_SYNA_SL261X_CLK)	+= sl261x-clks.o

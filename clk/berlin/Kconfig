@@ -47,3 +47,10 @@ config SYNA_DOLPHIN_CLK
 	depends on SYNA_CLK_BASE
 	help
 	  Build the clk drivers for berlin DOLPHIN SOCs.
+
+config SYNA_SL261X_CLK
+	tristate "Synaptics SL261X SOC's clk drivers"
+	depends on SYNA_CLK_BASE
+	default n
+	help
+	  Build the clk drivers for Synaptics SL261X SOCs.
