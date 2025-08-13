@@ -677,7 +677,7 @@ DHDCFLAGS += -DCUSTOM_ROAM_DELTA_SETTING=10
 DHDCFLAGS += -DSUPPORT_PM2_ONLY
 
 # ADPS
-DHDCFLAGS += -DWLADPS
+#DHDCFLAGS += -DWLADPS
 
 # For special PNO Event keep wake lock for 10sec
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
@@ -874,7 +874,7 @@ ifneq ($(CONFIG_ARCH_ASTRA),)
   DHDCFLAGS += -DCUSTOM_SDIO_CREDTRIG=32
   DHDCFLAGS += -DMAX_HDR_READ=256
   DHDCFLAGS += -DDHD_FIRSTREAD=256
-  DHDCFLAGS +=  -DDHD_RXBOUND=512
+  DHDCFLAGS += -DDHD_RXBOUND=512
   DHDCFLAGS += -DDISABLE_FLOW_CONTROL
 else
   DHDCFLAGS += -DMAX_HDR_READ=128
@@ -1212,6 +1212,15 @@ EXTRA_CFLAGS += -I$(BCMDHD_ROOT)/include/ -I$(BCMDHD_ROOT)/ -I $(BCMDHD_ROOT_OLD
 KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(CURDIR) -Wno-date-time -Wno-vla -Wno-error
 
 ifneq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
+KBUILD_CFLAGS += -Wno-macro-redefined -Wno-typedef-redefinition
+endif
+
+GCC_VERSION_FULL := $(shell gcc -dumpversion)
+GCC_MAJOR_VERSION := $(shell echo $(GCC_VERSION_FULL) | cut -d '.' -f 1)
+GCC_MINOR_VERSION := $(shell echo $(GCC_VERSION_FULL) | cut -d '.' -f 2)
+GCC_MAJOR_MINOR_NUM := $(shell echo $(GCC_MAJOR_VERSION)*10 + $(GCC_MINOR_VERSION) | bc)
+
+ifeq ($(shell [ $(GCC_MAJOR_MINOR_NUM) -ge 46 ]), 0)
 KBUILD_CFLAGS += -Wno-macro-redefined -Wno-typedef-redefinition
 endif
 

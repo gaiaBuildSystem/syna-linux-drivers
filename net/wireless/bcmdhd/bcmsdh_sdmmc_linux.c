@@ -334,6 +334,14 @@ static int dummy_probe(struct sdio_func *func,
 		if ((id->vendor == SDIO_VENDOR_ID_BROADCOM) &&
 			(id->device == 0xffff))
 				return -ENODEV;
+
+		/* Remove support 461x */
+		if ((id->vendor == SDIO_VENDOR_ID_SYNAPTICS) &&
+			(id->device == 0x4612)) {
+				return -ENODEV;
+		} else {
+			sd_err(("%s: Found supported chip \n", __FUNCTION__));
+		}
 #endif
 	}
 
