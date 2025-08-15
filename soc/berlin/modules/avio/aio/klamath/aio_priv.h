@@ -16,46 +16,46 @@
 #define PCM_DEF_CHL_MAP (0xFF)
 
 // AIO Klamath porting
-#define    RA_avioGbl_APLL0_WRAP   RA_aioGbl_APLL0_WRAP
-#define RA_avioGbl_APLL1_WRAP  RA_aioGbl_APLL1_WRAP
-#define RA_avioGbl_CTRL0   RA_aioGbl_CTRL0
+#define RA_avioGbl_APLL0_WRAP RA_aioGbl_APLL0_WRAP
+#define RA_avioGbl_APLL1_WRAP RA_aioGbl_APLL1_WRAP
+#define RA_avioGbl_CTRL0 RA_aioGbl_CTRL0
 #define RA_avioGbl_SWPDWN_CTRL RA_aioGbl_SWPDWN_CTRL
-#define RA_avioGbl_AVPLLA_CLK_EN   RA_aioGbl_AVPLLA_CLK_EN
-#define    T32avioGbl_SWPDWN_CTRL  T32aioGbl_SWPDWN_CTRL
+#define RA_avioGbl_AVPLLA_CLK_EN RA_aioGbl_AVPLLA_CLK_EN
+#define T32avioGbl_SWPDWN_CTRL T32aioGbl_SWPDWN_CTRL
 
 // PDM to DHUB write size in bytes while in interleave mode & dummy byte inserted
 #define PDM_DHUB_OCPF_CHUNK_SZ (32)
 
-#define AIO_PLL_POWER_CTRL(__on)                                               \
-	{                                                                      \
-		unsigned int reg_val = 0;                                      \
-		T32avioGbl_SWPDWN_CTRL pll_pd = {};                            \
-                                                                               \
-		pll_pd.u32 = readl_relaxed(                                    \
-			(aio->gbl_base + RA_avioGbl_SWPDWN_CTRL));             \
-		reg_val = readl_relaxed(                                       \
-			(aio->gbl_base + RA_avioGbl_AVPLLA_CLK_EN));           \
-		reg_val = __on ? (reg_val | 0x0F) : (reg_val & ~0x0F);         \
-		pll_pd.uSWPDWN_CTRL_APLL0_PD = __on ? 0 : 1;                   \
-		pll_pd.uSWPDWN_CTRL_APLL1_PD = __on ? 0 : 1;                   \
-		if (__on) {                                                    \
-			writel_relaxed(pll_pd.u32, (aio->gbl_base +            \
-						    RA_avioGbl_SWPDWN_CTRL));  \
-			writel_relaxed(reg_val, (aio->gbl_base +               \
-						 RA_avioGbl_AVPLLA_CLK_EN));   \
-		} else {                                                       \
-			writel_relaxed(reg_val,                                \
-				       aio->gbl_base +                         \
-					       RA_avioGbl_AVPLLA_CLK_EN);      \
-			writel_relaxed(pll_pd.u32,                             \
-				       aio->gbl_base +                         \
-					       RA_avioGbl_SWPDWN_CTRL);        \
-		}                                                              \
+#define AIO_PLL_POWER_CTRL(__on)                                              \
+	{                                                                     \
+		unsigned int reg_val = 0;                                     \
+		T32avioGbl_SWPDWN_CTRL pll_pd = {};                           \
+                                                                              \
+		pll_pd.u32 = readl_relaxed(                                   \
+			(aio->gbl_base + RA_avioGbl_SWPDWN_CTRL));            \
+		reg_val = readl_relaxed(                                      \
+			(aio->gbl_base + RA_avioGbl_AVPLLA_CLK_EN));          \
+		reg_val = __on ? (reg_val | 0x0F) : (reg_val & ~0x0F);        \
+		pll_pd.uSWPDWN_CTRL_APLL0_PD = __on ? 0 : 1;                  \
+		pll_pd.uSWPDWN_CTRL_APLL1_PD = __on ? 0 : 1;                  \
+		if (__on) {                                                   \
+			writel_relaxed(pll_pd.u32, (aio->gbl_base +           \
+						    RA_avioGbl_SWPDWN_CTRL)); \
+			writel_relaxed(reg_val, (aio->gbl_base +              \
+						 RA_avioGbl_AVPLLA_CLK_EN));  \
+		} else {                                                      \
+			writel_relaxed(reg_val,                               \
+				       aio->gbl_base +                        \
+					       RA_avioGbl_AVPLLA_CLK_EN);     \
+			writel_relaxed(pll_pd.u32,                            \
+				       aio->gbl_base +                        \
+					       RA_avioGbl_SWPDWN_CTRL);       \
+		}                                                             \
 	}
 
-#define AVIO_DEFAULT_GBL_CONFIG                                                \
-	_AVIO_GBL_REG_(RA_avioGbl_APLL0_WRAP, 0x260),                          \
-		_AVIO_GBL_REG_(RA_avioGbl_APLL1_WRAP, 0x260),                  \
+#define AVIO_DEFAULT_GBL_CONFIG                               \
+	_AVIO_GBL_REG_(RA_avioGbl_APLL0_WRAP, 0x260),         \
+		_AVIO_GBL_REG_(RA_avioGbl_APLL1_WRAP, 0x260), \
 		_AVIO_GBL_REG_(RA_avioGbl_CTRL0, 0x400),
 
 #define IS_INVALID_ID(id) ((id) >= AIO_ID_I2S_MAX_NUM)
@@ -72,17 +72,17 @@
 #define MSK32AIO_APRKT_EN_MIC25 0x00000200
 #define MSK32AIO_APRKT_EN_PDM 0x00000400
 
-#define DMIC_CLK_TABLE_CONFIG                                                  \
-	{ 8000, 294912000, 143, 96, 0, 1, 48, AIO_APLL_OUT },                  \
-		{ 11025, 270950400, 63, 256, 0, 1, 8, AIO_APLL_OUT },          \
-		{ 16000, 294912000, 71, 48, 0, 1, 48, AIO_APLL_OUT },          \
-		{ 22050, 270950400, 31, 128, 0, 1, 8, AIO_APLL_OUT },          \
-		{ 32000, 294912000, 35, 144, 0, 1, 8, AIO_APLL_OUT },          \
-		{ 44100, 270950400, 15, 64, 0, 1, 8, AIO_APLL_OUT },           \
-		{ 48000, 294912000, 23, 96, 0, 1, 8, AIO_APLL_OUT },           \
-		{ 64000, 294912000, 17, 72, 0, 1, 8, AIO_APLL_OUT },           \
-		{ 88200, 270950400, 7, 32, 0, 1, 8, AIO_APLL_OUT },            \
-		{ 96000, 294912000, 11, 48, 0, 1, 8, AIO_APLL_OUT },
+#define DMIC_CLK_TABLE_CONFIG                               \
+	{ 8000, 294912000, 143, 96, 0, 1, 48, AIO_APLL_OUT },   \
+	{ 11025, 270950400, 63, 256, 0, 1, 8, AIO_APLL_OUT },   \
+	{ 16000, 294912000, 71, 48, 0, 1, 48, AIO_APLL_OUT },   \
+	{ 22050, 270950400, 31, 128, 0, 1, 8, AIO_APLL_OUT },   \
+	{ 32000, 294912000, 35, 144, 0, 1, 8, AIO_APLL_OUT },   \
+	{ 44100, 270950400, 15, 64, 0, 1, 8, AIO_APLL_OUT },    \
+	{ 48000, 294912000, 23, 96, 0, 1, 8, AIO_APLL_OUT },    \
+	{ 64000, 294912000, 17, 72, 0, 1, 8, AIO_APLL_OUT },    \
+	{ 88200, 270950400, 7, 32, 0, 1, 8, AIO_APLL_OUT },     \
+	{ 96000, 294912000, 11, 48, 0, 1, 8, AIO_APLL_OUT },
 
 enum aio_i2s_state {
 	AIO_I2S_STATE_TX_MASTER = 0,
@@ -103,14 +103,16 @@ enum aio_aprkt_mode {
 };
 
 enum aio_ch_xid {
-	AIO_ID_I2S1_TX = 0,
+	AIO_ID_I2S1_TX 	= 0,
 	AIO_ID_I2S1_RX = 1,
 	AIO_ID_I2S2_TX = 2,
 	AIO_ID_I2S2_RX = 3,
 	AIO_ID_I2S3_TX = 4,
 	AIO_ID_I2S3_RX = 5,
-	AIO_ID_PDM_IN = 9,
+	AIO_ID_I2S3_DUMMY = 6,
 	AIO_ID_BCM = 7,
+	AIO_ID_I2S3_DUMMY = 8,
+	AIO_ID_PDM_IN = 9,
 	AIO_ID_I2S_MAX_NUM,
 };
 

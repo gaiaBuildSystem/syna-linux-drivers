@@ -14,7 +14,9 @@
 #define CPUINDEX    0
 
 static HDL_dhub2d VPP_dhubHandle;
+static HDL_dhub2d AG_dhubHandle;
 
+/* R1P6 */
 /* Total size 14KB */
 #define AVIO_VPPDHUB_LCDC2Y_SIZE  (6912)
 #define AVIO_VPPDHUB_LCDC2C_SIZE  (6912)
@@ -31,6 +33,53 @@ static DHUB_channel_config  LCDC_config[] = {
 		(AVIO_VPPDHUB_LCDC2C_SIZE-64), dHubChannel_CFG_MTU_256byte, 1, 0, 1, 0xF, 0xF}, \
 	{avioDhubChMap_vpp128b_BCM_R,     AVIO_VPPDHUB_BCM_BASE,    AVIO_VPPDHUB_BCM_BASE+128,  128, \
 		(AVIO_VPPDHUB_BCM_SIZE-128),   dHubChannel_CFG_MTU_256byte, 0, 0, 1, 0xF, 0xF}, \
+};
+
+static DHUB_channel_config  AG_config[AG_NUM_OF_CHANNELS] = {
+	// Bank0
+	{avioDhubChMap_aio64b_I2S1_R, AIO_DHUB_I2S1_R_BASE,
+		AIO_DHUB_I2S1_R_BASE+32, 32, (AIO_DHUB_I2S1_R_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_I2S1_W, AIO_DHUB_I2S1_W_BASE,
+		AIO_DHUB_I2S1_W_BASE+64, 64, (AIO_DHUB_I2S1_W_SIZE-64),
+		dHubChannel_CFG_MTU_128byte, 1, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_I2S2_R, AIO_DHUB_I2S2_R_BASE,
+		AIO_DHUB_I2S2_R_BASE+32, 32, (AIO_DHUB_I2S2_R_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_I2S2_W, AIO_DHUB_I2S2_W_BASE,
+		AIO_DHUB_I2S2_W_BASE+32, 32, (AIO_DHUB_I2S2_W_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_I2S3_R, AIO_DHUB_I2S3_R_BASE,
+		AIO_DHUB_I2S3_R_BASE+32, 32, (AIO_DHUB_I2S3_R_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_I2S3_W, AIO_DHUB_I2S3_W_BASE,
+		AIO_DHUB_I2S3_W_BASE+32, 32, (AIO_DHUB_I2S3_W_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_PDM_W, AIO_DHUB_PDM_W_BASE,
+		AIO_DHUB_PDM_W_BASE+32,    32, (AIO_DHUB_PDM_W_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_PDM_R, AIO_DHUB_PDM_R_BASE,
+		AIO_DHUB_PDM_R_BASE+32,  32, (AIO_DHUB_PDM_R_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_BCM_R, AIO_DHUB_BCM_R_BASE,
+		AIO_DHUB_BCM_R_BASE+128,  128, (AIO_DHUB_BCM_R_SIZE-128),
+		dHubChannel_CFG_MTU_256byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_SPDIF_R, AIO_DHUB_SPDI_R_BASE,
+		AIO_DHUB_SPDI_R_BASE+32,    32, (AIO_DHUB_SPDI_R_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
+
+	{avioDhubChMap_aio64b_SPDIF_W, AIO_DHUB_SPDI_W_BASE,
+		AIO_DHUB_SPDI_W_BASE+32,    32, (AIO_DHUB_SPDI_W_SIZE-32),
+		dHubChannel_CFG_MTU_128byte, 0, 0, 1, 0xF, 0xF},
 };
 
 int drv_dhub_initialize_dhub(void *h_dhub_ctx)
@@ -58,12 +107,32 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 				LCDC_config, VPP_NUM_OF_CHANNELS,
 				DHUB_TYPE_128BIT, hDhubCtx->vpp_bcm_base, 0, channel_init_mask);
 
+	/* Avoid initializing BCM channel when logo is displayed from bootloader
+	 * TBD : Root cause need for AGDHUB re-initialization, when AGDHUB
+	 * is already initialized in bootloader
+	*/
+	channel_init_mask = (1 << AG_NUM_OF_CHANNELS) - 1;
+	if (display_info.u.status)
+		channel_init_mask &= ~(1 << avioDhubChMap_aio64b_BCM_R);
+
+	DhubInitialization(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
+				hDhubCtx->ag_sram_base,
+				&AG_dhubHandle, AG_config, AG_NUM_OF_CHANNELS,
+				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0, channel_init_mask);
 	return 0;
 }
 
 void drv_dhub_config_ctx(void *h_dhub_ctx, UNSG32 avio_base)
 {
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
+
+	hDhubCtx->ag_dhub_base = avio_base +
+				AVIO_MEMMAP_AIO64B_DHUB_REG_BASE +
+				RA_aio64bDhub_dHub0;
+
+	hDhubCtx->ag_sram_base = avio_base +
+				AVIO_MEMMAP_AIO64B_DHUB_REG_BASE +
+				RA_aio64bDhub_tcm0;
 
 	hDhubCtx->vpp_bcm_base   = avio_base + AVIO_MEMMAP_VPP_BCMQ_REG_BASE;
 

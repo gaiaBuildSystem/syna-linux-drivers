@@ -67,13 +67,13 @@ AVIO_AIO_API_OBJS += aio/myna/dmic.o
 AVIO_AIO_API_OBJS += aio/myna/misc.o
 endif
 
-ifeq ($(CONFIG_AVIO_MYNA2),y)
-AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/aio/myna2
-AVIO_AIO_API_OBJS += aio/myna2/i2s.o
-AVIO_AIO_API_OBJS += aio/myna2/pdm.o
-AVIO_AIO_API_OBJS += aio/myna2/dmic.o
-AVIO_AIO_API_OBJS += aio/myna2/misc.o
-AVIO_AIO_API_OBJS += aio/myna2/apll.o
+ifeq ($(filter y,$(CONFIG_AVIO_KLAMATH) $(CONFIG_AVIO_MYNA2)),y)
+AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/aio/$(SOC_FOLDER)
+AVIO_AIO_API_OBJS += aio/$(SOC_FOLDER)/i2s.o
+AVIO_AIO_API_OBJS += aio/$(SOC_FOLDER)/pdm.o
+AVIO_AIO_API_OBJS += aio/$(SOC_FOLDER)/dmic.o
+AVIO_AIO_API_OBJS += aio/$(SOC_FOLDER)/misc.o
+AVIO_AIO_API_OBJS += aio/$(SOC_FOLDER)/apll.o
 endif
 
 ifneq ($(filter y, $(CONFIG_AVIO_PLATYPUS) $(CONFIG_AVIO_DOLPHIN) $(CONFIG_AVIO_DOLPHIN_A0)), )
