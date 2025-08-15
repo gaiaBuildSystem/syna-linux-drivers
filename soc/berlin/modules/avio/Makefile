@@ -76,6 +76,15 @@ AVIO_AIO_API_OBJS += aio/myna2/misc.o
 AVIO_AIO_API_OBJS += aio/myna2/apll.o
 endif
 
+ifeq ($(CONFIG_AVIO_KLAMATH),y)
+AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/aio/klamath
+AVIO_AIO_API_OBJS += aio/klamath/i2s.o
+AVIO_AIO_API_OBJS += aio/klamath/pdm.o
+AVIO_AIO_API_OBJS += aio/klamath/dmic.o
+AVIO_AIO_API_OBJS += aio/klamath/misc.o
+AVIO_AIO_API_OBJS += aio/klamath/apll.o
+endif
+
 ifneq ($(filter y, $(CONFIG_AVIO_PLATYPUS) $(CONFIG_AVIO_DOLPHIN) $(CONFIG_AVIO_DOLPHIN_A0)), )
 ifeq ($(CONFIG_AVIO_PLATYPUS),y)
 AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/aio/vsxxx/platypus

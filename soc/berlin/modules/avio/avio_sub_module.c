@@ -144,6 +144,7 @@ int avio_sub_module_probe(struct platform_device *pdev)
 		g_avio_module[AVIO_MODULE_TYPE_AIO].is_probed = 1;
 		err = avio_module_drv_aio_probe(pdev);
 	}
+
 	return err;
 }
 
