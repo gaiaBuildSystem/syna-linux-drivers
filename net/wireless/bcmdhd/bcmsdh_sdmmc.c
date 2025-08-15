@@ -230,6 +230,43 @@ sdioh_sdmmc_card_enablefuncs(sdioh_info_t *sd)
 }
 
 /*
+ *  Set standard CCCR driver strength. Default value is type B.
+ *  Type: Value, driver strength
+ *     A:  0x10, x1.5
+ *     B:  0x00, x1
+ *     C:  0x20, x0.75
+ *     D:  0x30, x0.5
+ */
+int
+sdioh_set_driver_strength(struct sdio_func *func, uint8 level)
+{
+	int reg;
+	int err = 0;
+
+	sdio_claim_host(func);
+	reg = sdio_readb(func, SDIOD_CCCR_DRIVER_STRENGTH, &err);
+	if (err) {
+		sd_err(("sd_ds error for read SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+		goto done;
+	} else {
+		sd_err(("SYNA: sd_ds get cccr driver strength 0x%x\n", reg));
+	}
+
+	reg = ((reg & 0xf) | level);
+	sdio_writeb(func, reg, SDIOD_CCCR_DRIVER_STRENGTH, &err);
+
+	if (err) {
+		sd_err(("sd_ds error for write SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+		goto done;
+	} else {
+		sd_err(("SYNA: sd_ds set cccr driver strength 0x%x\n", reg));
+	}
+done:
+	sdio_release_host(func);
+	return err;
+}
+
+/*
  *	Public entry points & extern's
  */
 extern sdioh_info_t *
@@ -261,7 +298,13 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 	sd->func[3] = NULL;
 #endif /* defined (BT_OVER_SDIO) */
 
-	if ((func->device == BCM43012_CHIP_ID)) {
+
+
+	if (func->device == BCM4362_CHIP_ID) {
+		/* Save the device ID for Wi-Fi reset next time */
+		sd->func[0]->device = func->device;
+		sdioh_set_driver_strength(sd->func[0], 0x20);
+	} else if (func->device == BCM43012_CHIP_ID) {
 		sdmmc_set_timing(sd, MMC_TIMING_UHS_SDR50);
 		sdmmc_set_clock_rate(sd, 50*1000*1000);
 		/* Save the device ID for Wi-Fi reset next time */
@@ -1506,7 +1549,11 @@ sdioh_start(sdioh_info_t *sd, int stage)
 			sd->use_client_ints = TRUE;
 			sd->client_block_size[0] = 64;
 
-			if ((sd->func[0]->device == BCM43012_CHIP_ID)) {
+
+
+			if (sd->func[0]->device == BCM4362_CHIP_ID) {
+				sdioh_set_driver_strength(sd->func[0], 0x20);
+			} else if (sd->func[0]->device == BCM43012_CHIP_ID) {
 				sdmmc_set_timing(sd, MMC_TIMING_UHS_SDR50);
 				sdmmc_set_clock_rate(sd, 50*1000*1000);
 			}
