@@ -7192,7 +7192,7 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 		DHD_ERROR(("%s : disable runtime PM in monitor mode\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 
-		scan_suppress = TRUE;
+		scan_suppress = FALSE; /* End user should set "wl scansuppress 1" manually */
 		/* Set the SCAN SUPPRESS Flag in the firmware to disable scan in Monitor mode */
 		ret = dhd_iovar(&dhd->pub, 0, "scansuppress", (char *)&scan_suppress,
 			sizeof(scan_suppress), NULL, 0, TRUE);

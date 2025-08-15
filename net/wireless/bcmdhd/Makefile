@@ -224,11 +224,12 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
 # IRQSET in DHD
 	DHDCFLAGS += -DDHD_LB_IRQSET
 
+ifeq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
 # Support Monitor Mode
 	DHDCFLAGS += -DWL_MONITOR
-
 # Enable monitor chanspec setting from cfg80211 ops
 	DHDCFLAGS += -DWL_CFG80211_MONITOR
+endif #CONFIG_ANDROID_VENDOR_OEM_DATA
 endif
 
 ifneq ($(CONFIG_BCMDHD_PCIE),)
