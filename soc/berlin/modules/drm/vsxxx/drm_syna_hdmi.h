@@ -8,6 +8,9 @@
 #define __DRM_SYNA_HDMI_H__
 
 #include "drm_syna_drv.h"
+#if IS_ENABLED(CONFIG_CEC_CORE)
+#include <media/cec-notifier.h>
+#endif
 
 #define HDMITX_CORE_CONFIG_ENTRIES 2
 #define to_syna_conn_hdmi(conn) container_of(conn, struct syna_conn_hdmi, base)
@@ -32,5 +35,8 @@ struct syna_conn_hdmi {
 
 	struct dentry *debugfs_res_node;
 	struct dentry *debugfs_hpd_node;
+#if IS_ENABLED(CONFIG_CEC_CORE)
+	struct cec_notifier *cec;
+#endif
 };
 #endif

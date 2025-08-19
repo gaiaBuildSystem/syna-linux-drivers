@@ -178,6 +178,16 @@ static int syna_hdmi_connector_helper_get_modes(struct drm_connector *connector)
 
 		kfree(hdmi_edid);
 	}
+#if IS_ENABLED(CONFIG_CEC_CORE)
+	if (connector->display_info.source_physical_address != CEC_PHYS_ADDR_INVALID && syna_hdmi->cec) {
+		pr_info("Setting CEC physical address to 0x%04x\n", connector->display_info.source_physical_address);
+		cec_notifier_set_phys_addr(syna_hdmi->cec, connector->display_info.source_physical_address);
+	} else {
+		pr_warn("Cannot set CEC physical address: %s\n",
+				connector->display_info.source_physical_address == CEC_PHYS_ADDR_INVALID ?
+				"Invalid address" : "CEC notifier not initialized");
+	}
+#endif
 
 	if (num_modes && len) {
 		struct drm_display_mode *pref_mode_user = NULL;
@@ -257,6 +267,11 @@ static void syna_hdmi_connector_destroy(struct drm_connector *connector)
 	}
 	DRM_DEBUG_DRIVER("[CONNECTOR:%d:%s]\n",
 			 connector->base.id, connector->name);
+
+#if IS_ENABLED(CONFIG_CEC_CORE)
+	if (syna_hdmi->cec)
+		cec_notifier_conn_unregister(syna_hdmi->cec);
+#endif
 
 	if (syna_hdmi->syna_hdmi_conf.hdmiTxConfigFields.hpdHandlingEnabled)
 		kthread_stop(syna_hdmi->hpd_monitor_task);
@@ -414,6 +429,9 @@ struct drm_connector *syna_hdmi_connector_create(struct drm_device *dev)
 {
 	struct syna_conn_hdmi *syna_hdmi;
 	struct drm_connector *connector;
+#if IS_ENABLED(CONFIG_CEC_CORE)
+	struct cec_connector_info conn_info;
+#endif
 	int retVal;
 
 	syna_hdmi = kzalloc(sizeof(*syna_hdmi), GFP_KERNEL);
@@ -450,6 +468,20 @@ struct drm_connector *syna_hdmi_connector_create(struct drm_device *dev)
 		DRM_DEBUG_DRIVER("hpd handling not enabled. assume connected always\n");
 		connector->status = connector_status_connected;
 	}
+
+
+#if IS_ENABLED(CONFIG_CEC_CORE)
+	cec_fill_conn_info_from_drm(&conn_info, connector);
+	syna_hdmi->cec = cec_notifier_conn_register(dev->dev, NULL,
+					 &conn_info);
+	if (!syna_hdmi->cec) {
+		pr_err("Couldn't allocate CEC notifier\n");
+		return ERR_PTR(-ENOMEM);
+	}
+#else
+	syna_hdmi->cec = NULL;
+	pr_info("CEC support not enabled in kernel config\n");
+#endif
 
 	DRM_DEBUG_DRIVER("[CONNECTOR:%d:%s]\n", connector->base.id,
 			 connector->name);
