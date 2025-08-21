@@ -914,7 +914,11 @@ void dhd_lb_stats_rxc_percpu_cnt_incr(dhd_pub_t *dhdp)
 INLINE void
 dhd_tasklet_schedule(void *tasklet)
 {
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+	tasklet_hi_schedule((struct tasklet_struct *)tasklet);
+#else
 	tasklet_schedule((struct tasklet_struct *)tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 }
 
 /**

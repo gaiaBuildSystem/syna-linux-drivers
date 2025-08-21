@@ -191,7 +191,7 @@ int dhd_msg_level = DHD_ERROR_VAL | DHD_EVENT_VAL
 #endif /* REDUCE_PM_LOG */
 		| DHD_PKT_MON_VAL;
 int dhd_log_level = DHD_ERROR_VAL | DHD_EVENT_VAL
-                | DHD_MSGTRACE_VAL
+		| DHD_MSGTRACE_VAL
 		| DHD_RPM_VAL
 		| DHD_PKT_MON_VAL | DHD_FWLOG_VAL | DHD_IOVAR_MEM_VAL;
 #else
@@ -268,6 +268,7 @@ extern bool softap_enabled;
 
 extern uint dhd_rx_hc_rts_cts_noucast_interval;
 
+extern int dhd_low_latency;
 #ifdef REPORT_FATAL_TIMEOUTS
 /* Default timeout value in ms */
 #ifdef DHD_EFI
@@ -596,6 +597,7 @@ enum {
 #endif /* DHD_PKT_LOGGING */
 	IOV_PKT_LLC_ENABLE,
 	IOV_PKT_LLC_PAYLOAD,
+	IOV_LOW_LATENCY,
 	IOV_LAST
 };
 
@@ -802,6 +804,7 @@ const bcm_iovar_t dhd_iovars[] = {
 #endif /* DHD_PKT_LOGGING */
 	{"pkt_llc_enable", IOV_PKT_LLC_ENABLE, 0, 0, IOVT_BOOL, 0},
 	{"pkt_llc_payload", IOV_PKT_LLC_PAYLOAD, 0, 0, IOVT_BUFFER, 0},
+	{"low_latency",	IOV_LOW_LATENCY,	0,	0, IOVT_BOOL,	0 },
 
 	/* --- add new iovars *ABOVE* this line --- */
 	{NULL, 0, 0, 0, 0, 0 }
@@ -4626,6 +4629,44 @@ dhd_doiovar(dhd_pub_t *dhd_pub, int ifidx, const bcm_iovar_t *vi, uint32 actioni
 		bcmerror = dhd_pktlog_ring_reinit(dhd_pub);
 		break;
 #endif /* DHD_PKT_LOGGING */
+	case IOV_GVAL(IOV_LOW_LATENCY): {
+		int_val = dhd_low_latency ? 1 : 0;
+		bcopy(&int_val, arg, val_size);
+		break;
+	}
+	case IOV_SVAL(IOV_LOW_LATENCY): {
+		if (int_val == dhd_low_latency)
+			goto exit;
+		else {
+			uint wl_down = 1;
+			uint txbf_bfe_cap = 0;
+			uint ampdu_rts = 0;
+			uint32 ampdu_ba_wsize = 4;
+
+			dhd_low_latency = int_val?TRUE:FALSE;
+
+			if (dhd_low_latency == FALSE) {
+				txbf_bfe_cap = 2;
+				ampdu_rts = 1;
+#ifdef CUSTOM_AMPDU_BA_WSIZE
+				ampdu_ba_wsize = CUSTOM_AMPDU_BA_WSIZE;
+#else
+				ampdu_ba_wsize = 64;
+#endif
+			}
+			dhd_wl_ioctl_cmd(dhd_pub, WLC_DOWN,
+				(char *)&wl_down, sizeof(wl_down), TRUE, 0);
+
+			dhd_iovar(dhd_pub, 0, "txbf_bfe_cap",
+				(char *)&txbf_bfe_cap, sizeof(txbf_bfe_cap), NULL, 0, TRUE);
+			dhd_iovar(dhd_pub, 0, "ampdu_rts",
+				(char *)&ampdu_rts, sizeof(ampdu_rts), NULL, 0, TRUE);
+			dhd_iovar(dhd_pub, 0, "ampdu_ba_wsize",
+				(char *)&ampdu_ba_wsize, sizeof(ampdu_ba_wsize), NULL, 0, TRUE);
+		}
+
+		break;
+	}
 	default:
 		bcmerror = BCME_UNSUPPORTED;
 		break;
@@ -13316,6 +13357,7 @@ static chip_name_map_t chip_name_map[] = {
 /*   ChipID                Rev   FW_Name               NVRAM_Name              BLOB_Name            CERT_Name  */
 #ifndef BCMSDIO
 	{BCM4384_CHIP_ID,  0x0, "fw_bcm4384.bin",      "bcmdhd_4384.cal",      "bcmdhd_clm_4384.blob",   NULL},
+	{BCM4390_CHIP_ID,  0x5, "fw_bcm4390.bin",      "bcmdhd_4390.cal",      "bcmdhd_clm_4390.blob",   NULL},
 #else
 	{BCM4384_CHIP_ID,  0x0, "fw_sd_bcm4384.bin",   "bcmdhd_sd_4384.cal",   "bcmdhd_clm_4384.blob",   NULL},
 #endif
@@ -13329,7 +13371,6 @@ int dhd_autosel_fwnv_name(dhd_pub_t *dhd, char *fw_path, char *nv_path, char* si
 
 	chip = dhd_bus_chip_id(dhd);
 	chiprev = dhd_bus_chiprev_id(dhd);
-
 
 	maxsize = sizeof(chip_name_map)/sizeof(chip_name_map[0]);
 	for (i = 0; i < maxsize; i++) {
@@ -13345,7 +13386,7 @@ int dhd_autosel_fwnv_name(dhd_pub_t *dhd, char *fw_path, char *nv_path, char* si
 		}
 	}
 
-	if(i == maxsize) {
+	if (i == maxsize) {
 		DHD_ERROR(("%s: No matching chip:0x%x:0x%x\n", __FUNCTION__, chip, chiprev));
 		return BCME_ERROR;
 	}
@@ -13362,7 +13403,6 @@ int dhd_autosel_blob_name(dhd_pub_t *dhd, char **blob_path)
 	chip = dhd_bus_chip_id(dhd);
 	chiprev = dhd_bus_chiprev_id(dhd);
 
-
 	maxsize = sizeof(chip_name_map)/sizeof(chip_name_map[0]);
 	for (i = 0; i < maxsize; i++) {
 		row = &chip_name_map[i];
@@ -13373,7 +13413,7 @@ int dhd_autosel_blob_name(dhd_pub_t *dhd, char **blob_path)
 		}
 	}
 
-	if(i == maxsize) {
+	if (i == maxsize) {
 		DHD_ERROR(("%s: No matching chip\n", __FUNCTION__));
 		return BCME_ERROR;
 	}

@@ -2464,7 +2464,11 @@ dhd_update_chip_specific_tunables(dhd_pub_t *dhd)
 	uint set_ring_size_version;
 
 #ifdef FLOW_RING_PREALLOC
+#ifdef MAX_FLOW_RINGS_CUSTOM
+	dhd->max_prealloc_flowrings = MAX_FLOW_RINGS_CUSTOM;
+#else
 	dhd->max_prealloc_flowrings = MAX_FLOW_RINGS_V1;
+#endif /* MAX_FLOW_RINGS_CUSTOM */
 #endif /* FLOW_RING_PREALLOC */
 
 	dhd->htput_support = FALSE;
@@ -6053,25 +6057,21 @@ dhdpcie_dump_sreng_regs(dhd_bus_t *bus)
 static void
 dhd_change_dumptype_for_d2h_timeout(dhd_pub_t *dhdp)
 {
-	int ret;
-	uint16 dma_idx_rd, dma_idx_wr;
-	uint16 sysmem_rd, sysmem_wr;
 	bool wr_ahead, wait_for_isr;
 
 	/* Initialize subtype */
 	dhdp->d2h_timeout_subtype = D2H_TIMEOUT_NONE;
 
-	ret = dhd_prot_get_ctrl_cpln_ring_ptr(dhdp, &dma_idx_rd, &dma_idx_wr,
-		&sysmem_rd, &sysmem_wr);
-	if (ret) {
+	if (!dhdp->dma_d2h_ring_upd_support) {
 		return;
 	}
 
-	wr_ahead = dhd_prot_is_ctrl_cpln_wr_ahead(dhdp, dma_idx_rd, dma_idx_wr);
+	wr_ahead = dhd_prot_is_ctrl_cpln_wr_ahead(dhdp,
+		dhdp->ctrlcpl_dmaidx_rd, dhdp->ctrlcpl_dmaidx_wr);
 	wait_for_isr = dhd_prot_is_wait_for_isr(dhdp);
 
 	/* For D2H Completion ring, WR is owned by dongle */
-	if (dma_idx_wr != sysmem_wr) {
+	if (dhdp->ctrlcpl_dmaidx_wr != dhdp->ctrlcpl_sysmem_wr) {
 		if (wr_ahead && wait_for_isr) {
 			dhdp->d2h_timeout_subtype = D2H_TIMEOUT_DMA_IDX_CACHE_MSI;
 		} else {
@@ -6092,6 +6092,10 @@ dhd_change_dumptype_for_d2h_timeout(dhd_pub_t *dhdp)
 			dhdp->d2h_timeout_subtype));
 	}
 
+	dhdp->ctrlcpl_dmaidx_rd = 0;
+	dhdp->ctrlcpl_dmaidx_wr = 0;
+	dhdp->ctrlcpl_sysmem_rd = 0;
+	dhdp->ctrlcpl_sysmem_wr = 0;
 }
 
 static int
@@ -16497,11 +16501,11 @@ dhdpcie_chipmatch(uint16 vendor, uint16 device)
 	case BCM4398_D11AX_ID:
 	case BCM4383_CHIP_ID:
 	case BCM4383_D11AX_ID:
+#endif
 	case BCM4390_CHIP_GRPID:
 	case BCM4390_D11BE_ID:
 	case BCM4399_CHIP_GRPID:
 	case BCM4399_D11BE_ID:
-#endif
 	case BCM4384_CHIP_ID:
 	case BCM4384_D11BE_ID:
 		return 0;

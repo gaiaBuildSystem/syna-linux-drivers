@@ -63,6 +63,7 @@
 #include <bcmdevs.h>
 #include <linux/pci.h>
 #include <epivers.h>
+#include <bcmdevs_legacy.h>
 
 #ifdef CUSTOMER_HW_AMLOGIC
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
@@ -586,7 +587,27 @@ static int dhd_check_pcie_devices(void)
 			   PCI_FUNC(dev->devfn));
 
 		if (VENDOR_BROADCOM == dev->vendor) {
-			if (BCM4384_D11BE_ID == dev->device) {
+			if ((BCM4362_CHIP_ID == dev->device) ||
+				(BCM43752_D11AX_ID == dev->device) ||
+				(BCM4345_CHIP_ID == dev->device)) {
+				return -ENODEV;
+			}
+		}
+
+		if (VENDOR_SYNAPTICS == dev->vendor) {
+			if (BCM43711_D11AX6E_ID == dev->device) {
+				return -ENODEV;
+			}
+		}
+
+		if (VENDOR_BROADCOM == dev->vendor) {
+			if ((BCM4381_CHIP_ID == dev->device) ||
+				(BCM4382_CHIP_ID == dev->device)) {
+					return -ENODEV;
+			}
+
+			if ((BCM4384_D11BE_ID == dev->device) ||
+			    (BCM4390_D11BE_ID == dev->device)) {
 				return 0;
 			}
 		}
@@ -605,7 +626,7 @@ dhd_wlan_init(void)
 	int ret1 = 0;
 
 #if defined(CONFIG_ARCH_ASTRA) && defined(BCMPCIE) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
-		msleep(1000);
+		msleep(2000);
 #endif
 
 	DHD_ERROR(("%s: START.......%s\n", __func__, EPI_VERSION_STR));

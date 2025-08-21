@@ -273,7 +273,8 @@ typedef int bcmerror_t;
 
 /* FTM error codes [-1024, -2047] */
 enum {
-	WL_FTM_E_LAST			= -1094,
+	WL_FTM_E_LAST			= -1095,
+	WL_FTM_E_INVALID_BSSCFG		= -1095,
 	WL_FTM_E_SUPPRESS		= -1094,
 	WL_FTM_E_NO_CSI_DATA		= -1093,
 	WL_FTM_E_PHY_CSI_FATAL_ERR	= -1092,
@@ -880,7 +881,9 @@ enum {
 	/* PTKSA lifetime expired */
 	WL_PASN_E_AUTH_PTKSA_EXPIRED		= -8231,
 	/* Local to deauth peer. */
-	WL_PASN_E_DEAUTH_PEER			= -8232
+	WL_PASN_E_DEAUTH_PEER			= -8232,
+	/* WLC down */
+	WL_PASN_E_WLC_DOWN			= -8233
 };
 
 /* bcm fsm status codes. [-9216, -10239] */

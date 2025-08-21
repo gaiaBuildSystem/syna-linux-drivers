@@ -1267,6 +1267,7 @@ typedef volatile struct pcieregs pcieregs_t;
 #define pciegen2_dar_intstatus_ADDR                                                     0xa10u
 #define pciegen2_dar_errorlog_ADDR                                                      0xa60u
 #define pciegen2_dar_errorlog_addr_ADDR                                                 0xa64u
+#define pciegen2_dar_h2d3_doorbell1_ADDR                                                0xa3cu
 #define pciegen2_mailboxint_ADDR                                                        0xc30u
 #define pciegen2_mailboxintmask_ADDR                                                    0xc34u
 #define pciegen2_FISCtrl_ADDR                                                           0xa6cu
@@ -1333,6 +1334,7 @@ typedef volatile struct pcieregs pcieregs_t;
 #define pciegen2_hmapwindowconfig_V0_ADDR	0x5d0u
 #define pciegen2_dar_control_V0_ADDR		0xa00u
 #define pciegen2_dar_intstatus_V0_ADDR		0xa20u
+#define pciegen2_dar_h2d0_doorbell1_ADDR	0xa24u
 #define pciegen2_dar_h2d0_doorbell0_V0_ADDR	0xa28u
 #define pciegen2_dar_h2d0_doorbell1_V0_ADDR	0xa2cu
 #define pciegen2_dar_h2d1_doorbell0_V0_ADDR	0xa30u

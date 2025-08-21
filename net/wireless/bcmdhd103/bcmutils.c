@@ -426,6 +426,15 @@ end:
 }
 #endif /* BCM_BOOTLOADER */
 
+#if defined(WLC_NVRAMSIG)
+int
+getvarsig(const uint8 **sig, uint *ssize, const char **var, int *vsize, uint idx)
+{
+	NVRAM_RECLAIM_CHECK("getvarsig");
+	return nvram_get_sig(sig, ssize, var, vsize, idx);
+}
+#endif /* WLC_NVRAMSIG */
+
 #if defined(BCMNVRAMR) || defined(BCMNVRAMW)
 /* Search for token in comma separated token-string */
 static int
@@ -833,7 +842,7 @@ bcm_sm_logger_deinit(osl_t *osh, bcm_sm_log_info_t *bsli)
 /**
  * @brief Logs the state info in a given logger instance.
  *
- * @param[in] bcmli	 Pointer to logger instance
+ * @param[in] bcmli	Pointer to logger instance
  * @param[in] state      State number (supports upto 255)
  * @param[in] event      Event number (supports upto 255)
  * @param[in] call_site  Caller address
@@ -6515,7 +6524,11 @@ BCMATTACHFN(initvars_table)(osl_t *osh, char *start, char *end, char **vars,
 
 	/* do it only when there is more than just the null string */
 	if (c > 1) {
+#if defined(BCMSDIODEV_ENABLED)
+		char *vp = MALLOC_NOPERSIST(osh, c);
+#else
 		char *vp = MALLOCZ(osh, c);
+#endif
 		ASSERT(vp != NULL);
 		if (!vp)
 			return BCME_NOMEM;

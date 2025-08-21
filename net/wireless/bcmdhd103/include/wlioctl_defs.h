@@ -2432,12 +2432,6 @@ typedef uint32 ratespec_t;
 #define WL_DFRTS_LOGIC_OR	1	/* OR all non-zero threshold conditions */
 #define WL_DFRTS_LOGIC_AND	2	/* AND all non-zero threshold conditions */
 
-/* Definitions for Reliable Multicast */
-#define WL_RELMCAST_MAX_CLIENT		32
-#define WL_RELMCAST_FLAG_INBLACKLIST	1
-#define WL_RELMCAST_FLAG_ACTIVEACKER	2
-#define WL_RELMCAST_FLAG_RELMCAST	4
-
 /* structures for proximity detection device role */
 #define WL_PROXD_MODE_DISABLE	0
 #define WL_PROXD_MODE_NEUTRAL	1

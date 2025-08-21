@@ -85,8 +85,10 @@
 #define RTE_REAL_D3_D0		0x891F	/* Transition from real D3/D0. */
 #define RTERXCMPLCHAINENABLE	0x8920	/* Chained RxCompletion Enable */
 #define RTEGRADIO_STAT		0x8921	/* Radio Stat */
+#define RTEDEVGETSTATSTYPE	0x8922	/* Get flowring stats type from WL */
+#define RTEDEVGETSTATSBITMAP	0x8923	/* Get flowring stats bitmap from WL */
 /* Ensure last RTE IOCTL define val is assigned to RTEIOCTLEND */
-#define RTEIOCTLEND		0x8920  /* LAST RTE IOCTL value */
+#define RTEIOCTLEND		0x8923  /* LAST RTE IOCTL value */
 
 #define RTE_IOCTL_QUERY		0x00
 #define RTE_IOCTL_SET		0x01
@@ -457,6 +459,12 @@ typedef struct epmu_dump_resp {
 	uint16 len;
 	char val[];		/* preformated string of register 'addr: val' pairs */
 } epmu_dump_resp_t;
+
+typedef struct flowring_stats_cfg {
+	uint8 ifindex;
+	uint8 tid;
+	uint8 peer_mac[6]; /* Peer MAC address */
+} flowring_stats_cfg_t;
 
 #define EPMU_DUMP_VER_0		0u
 #define EPMU_DUMP_VER		EPMU_DUMP_VER_0

@@ -807,7 +807,7 @@ typedef struct edcf_acparam edcf_acparam_t;
 #define EDCF_ACM_MASK                0x10        /* ACM mask */
 #define EDCF_ACI_MASK                0x60        /* ACI mask */
 #define EDCF_ACI_SHIFT               5           /* ACI shift */
-#define EDCF_AIFSN_SHIFT             12          /* 4 MSB(0xFFF) in ifs_ctl for AC idx */
+#define EDCF_ACI_AIFSN_RSVD          0x80        /* Reserved: could be used as override flag */
 
 /* ECW */
 #define EDCF_ECW_MIN                 0           /* cwmin/cwmax exponent minimum value */

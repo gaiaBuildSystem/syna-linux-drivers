@@ -423,7 +423,7 @@ typedef struct bcm_iovar {
 	const char *name;	/* name for lookup and display */
 	uint16 varid;		/* id for switch */
 	uint16 flags;		/* driver-specific flag bits */
-	uint8 flags2;		 /* driver-specific flag bits */
+	uint8 flags2;		/* driver-specific flag bits */
 	uint8 type;		/* base type of argument */
 	uint16 minlen;		/* min length for buffer vars */
 } bcm_iovar_t;
@@ -606,12 +606,11 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
 #define VALID_MASK(mask)	!((mask) & ((mask) + 1))
 
 #ifndef OFFSETOF
-#if ((__GNUC__ >= 4) && (__GNUC_MINOR__ >= 8)) || defined(BCMFUZZ)
-	/* GCC 4.8+ complains when using our OFFSETOF macro in array length declarations. */
+#if defined(__GNUC__) || defined(BCMFUZZ)
 	#define	OFFSETOF(type, member)	__builtin_offsetof(type, member)
 #else
 	#define	OFFSETOF(type, member)	((uint)(uintptr)&((type *)0)->member)
-#endif /* GCC 4.8 or newer */
+#endif /* GCC || BCMFUZZ */
 #endif /* OFFSETOF */
 
 #ifndef CONTAINEROF
@@ -1060,7 +1059,7 @@ extern uint bcm_mkiovar(const char *name, const char *data, uint datalen, char *
 
 enum pkttrace_info {
 	PKTLIST_PRECQ,		/* Pkt in Prec Q */
-	PKTLIST_FAIL_PRECQ, 	/* Pkt failed to Q in PRECQ */
+	PKTLIST_FAIL_PRECQ,	/* Pkt failed to Q in PRECQ */
 	PKTLIST_DMAQ,		/* Pkt in DMA Q */
 	PKTLIST_MI_TFS_RCVD,	/* Received TX status */
 	PKTLIST_TXDONE,		/* Pkt TX done */
@@ -1733,6 +1732,19 @@ typedef struct ver_len_info {
 	uint16 len;
 } ver_len_info_t;
 
+/* Nvram related constants and magics */
+#define NV_SIG_MAGIC_VAL {0xCD, 0xCA, 0xDC, 0xAC, 0xBA, 0xB0, 0xAB, 0x0B};
+#define NV_SIG_MAGIC_SZ 8
+#define NV_SIG_KEY_LEN_SZ sizeof(uint16)
+#define NV_SIG_HDR_SZ (NV_SIG_MAGIC_SZ + NV_SIG_KEY_LEN_SZ)
+#define NVRAM_SIG_MIN_SZ 204
+/* NVRAM extension */
+#define NV_EXT_MAGIC "ENDOFEXT"
+#define NV_EXT_MAGIC_SZ 8
+#define NV_EXT_KEY "rt_extension"
+#define NV_EXT_KEY_SZ 12
+#define NV_MAX_RT_EXT 200
+
 /* 32/16/8 bits list with 2^16 capacity.
  * When being used to carry out data from an API the caller of the API must initialize the cnt field
  * to indicate the available array size of the elem field and the API must update the cnt field to
@@ -1753,5 +1765,9 @@ typedef struct bcm_uint8_list {
 	uint16	cnt;		/* element count in the element array */
 	uint8	elem[];		/* element array */
 } bcm_uint8_list_t;
+
+#if defined(WLC_NVRAMSIG)
+int getvarsig(const uint8 **sig, uint *ssize, const char **var, int *vsize, uint idx);
+#endif /* WLC_NVRAMSIG */
 
 #endif	/* _bcmutils_h_ */

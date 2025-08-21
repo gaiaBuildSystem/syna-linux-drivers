@@ -103,6 +103,7 @@
 #include <wl_cfgvif.h>
 #ifdef WL_NAN
 #include <wl_cfgnan.h>
+#include <nan.h>
 #endif /* WL_NAN */
 #ifdef WL_TWT_HAL_IF
 #include <wl_cfgtwt.h>
@@ -5074,6 +5075,37 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 			}
 			cmd_data->service_instance_id = nla_get_u16(iter);
 			break;
+		case  NAN_ATTRIBUTE_GTK_CSID:
+			if (nla_len(iter) != sizeof(uint8)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			cmd_data->gtk_csid = nla_get_u8(iter);
+			if ((cmd_data->gtk_csid == NAN_SEC_ALGO_NCS_GK_CCM_128) ||
+					(cmd_data->gtk_csid == NAN_SEC_ALGO_NCS_GK_GCM_256)) {
+				cmd_data->sde_control_flag |= NAN_SDE_CF_GTK_REQUIRED;
+			} else {
+				ret = BCME_UNSUPPORTED;
+			}
+
+			break;
+		case  NAN_ATTRIBUTE_CSIA_CAPABILITIES:
+
+			if (nla_len(iter) != sizeof(uint8)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			cmd_data->csia_cap = nla_get_u8(iter);
+
+			if ((!((cmd_data->gtk_csid == NAN_SEC_ALGO_NONE) &&
+					(!(cmd_data->sde_control_flag &
+				NAN_SDE_CF_SECURITY_REQUIRED)))) &&
+				(!(cmd_data->csia_cap &
+				NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK))) {
+				ret = BCME_UNSUPPORTED;
+			}
+
+			break;
 		default:
 			WL_ERR(("Unknown type, %d\n", attr_type));
 			ret = -EINVAL;
@@ -5880,6 +5912,33 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->response = nla_get_u8(iter);
+			break;
+		case  NAN_ATTRIBUTE_GTK_CSID:
+			if (nla_len(iter) != sizeof(uint8)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			cmd_data->gtk_csid = nla_get_u8(iter);
+			if ((cmd_data->gtk_csid == NAN_SEC_ALGO_NCS_GK_CCM_128) ||
+					(cmd_data->gtk_csid == NAN_SEC_ALGO_NCS_GK_GCM_256)) {
+				cmd_data->sde_control_flag |= NAN_SDE_CF_GTK_REQUIRED;
+			}
+			break;
+		case   NAN_ATTRIBUTE_CSIA_CAPABILITIES:
+			if (nla_len(iter) != sizeof(uint8)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			cmd_data->csia_cap = nla_get_u8(iter);
+
+			if ((!((cmd_data->gtk_csid == NAN_SEC_ALGO_NONE) &&
+					(!(cmd_data->sde_control_flag &
+				NAN_SDE_CF_SECURITY_REQUIRED)))) &&
+				(!(cmd_data->csia_cap &
+				NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK))) {
+
+				ret = BCME_UNSUPPORTED;
+			}
 			break;
 		default:
 			WL_ERR(("Unknown attr type, %d\n", attr_type));
@@ -7000,6 +7059,21 @@ wl_cfgvendor_nan_dp_ind_event_data_filler(struct sk_buff *msg,
 		WL_TRACE(("scid info len = %d\n", event_data->scid.dlen));
 	}
 #endif /* WL_NAN_INSTANT_MODE */
+	if (event_data->gtk_required) {
+		ret = nla_put_u8(msg, NAN_ATTRIBUTE_GTK_CSID, event_data->peer_gtk_csid);
+		if (unlikely(ret)) {
+			WL_ERR(("Failed to put GTK CSID, ret=%d\n", ret));
+			goto fail;
+		}
+	}
+
+	if (event_data->csia_cap) {
+		ret = nla_put_u8(msg, NAN_ATTRIBUTE_CSIA_CAPABILITIES, event_data->csia_cap);
+		if (unlikely(ret)) {
+			WL_ERR(("Failed to put CSIA , ret=%d\n", ret));
+			goto fail;
+		}
+	}
 
 fail:
 	return ret;
@@ -7257,6 +7331,22 @@ wl_cfgvendor_nan_sub_match_event_filler(struct sk_buff *msg,
 		goto fail;
 	}
 #endif /* WL_NAN_INSTANT_MODE */
+	if (event_data->sde_control_flag & NAN_SDE_CF_GTK_REQUIRED) {
+		ret = nla_put_u8(msg, NAN_ATTRIBUTE_GTK_CSID, event_data->peer_gtk_csid);
+		if (unlikely(ret)) {
+			WL_ERR(("Failed to put GTK CSID, ret=%d\n", ret));
+			goto fail;
+		}
+	}
+
+	if (event_data->csia_cap) {
+		ret = nla_put_u8(msg, NAN_ATTRIBUTE_CSIA_CAPABILITIES, event_data->csia_cap);
+		if (unlikely(ret)) {
+			WL_ERR(("Failed to put CSIA , ret=%d\n", ret));
+			goto fail;
+		}
+	}
+
 	if (event_data->publish_rssi) {
 		event_data->publish_rssi = -event_data->publish_rssi;
 		ret = nla_put_u8(msg, NAN_ATTRIBUTE_RSSI_PROXIMITY,
@@ -9010,7 +9100,7 @@ static int wl_cfgvendor_send_stats_info(struct wiphy *wiphy,
 		goto fail;
 	}
 
-	ret = nla_put(skb, ANDR_ML_LSTAT_ATTRIBUTE_STATS_INFO, len, data);
+	ret = nla_put(skb, ANDR_LSTAT_ATTRIBUTE_STATS_INFO, len, data);
 	if (unlikely(ret)) {
 		WL_ERR(("Failed to put stats info , ret=%d\n", ret));
 		goto fail;
@@ -9132,7 +9222,7 @@ wl_cfgvendor_get_radio_stats(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			}
 			radio_h_v2[i].tx_time = radio_v2->tx_time;
 			radio_h_v2[i].num_tx_levels = 0;
-			radio_h_v2[i].tx_time_per_levels = NULL;
+			radio_h_v2[i].tx_time_per_levels = 0;
 			radio_h_v2[i].rx_time = radio_v2->myrx_time;
 			if (radio_v2->radio != WL_RADIOSTAT_SLICE_INDEX_SCAN) {
 				radio_h_v2[i].on_time_scan =
@@ -9549,6 +9639,7 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 	COMPAT_BZERO_IFACE(wifi_link_stat, iface);
 	bzero(&peer_info, sizeof(wifi_peer_info_v1));
 
+#ifndef LINKSTAT_EXT_SUPPORT
 	COMPAT_ASSIGN_VALUE(iface, link_id, link_id);
 	COMPAT_ASSIGN_VALUE(iface, state, wl_map_to_wifihal_link_state(link_pwrst));
 
@@ -9561,6 +9652,7 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 	COMPAT_ASSIGN_VALUE(iface, frequency,
 		wl_channel_to_frequency(wf_chspec_primary20_chan(chanspec),
 		CHSPEC_BAND(chanspec)));
+#endif /* LINKSTAT_EXT_SUPPORT */
 
 	COMPAT_ASSIGN_VALUE(iface, ac[WIFI_AC_VO].ac, WIFI_AC_VO);
 	COMPAT_ASSIGN_VALUE(iface, ac[WIFI_AC_VI].ac, WIFI_AC_VI);
@@ -9626,7 +9718,9 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 		cnt_v3.length = dtoh16(cnt_v3.length);
 		for (wme_ac = AC_BE; wme_ac < AC_COUNT; wme_ac++) {
 			ac = wl_map_fw_to_wifihal_ac(wme_ac);
-			COMPAT_ASSIGN_VALUE(iface, ac[ac].tx_mpdu, cnt_v3.tx_mpdu[wme_ac].packets);
+			COMPAT_ASSIGN_VALUE(iface, ac[ac].tx_mpdu,
+				(cnt_v3.tx_mpdu[wme_ac].packets -
+				cnt_v3.tx_mpdu_failed[wme_ac].packets));
 			COMPAT_ASSIGN_VALUE(iface, ac[ac].rx_mpdu, cnt_v3.rx_mpdu[wme_ac].packets);
 			COMPAT_ASSIGN_VALUE(iface, ac[ac].mpdu_lost,
 				cnt_v3.tx_mpdu_failed[wme_ac].packets);
@@ -9713,6 +9807,15 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 	COMPAT_ASSIGN_VALUE(iface, rssi_mgmt, scbval.val);
 
 	/* Update duty cycle info based on RSDB/VSDB */
+#ifdef LINKSTAT_EXT_SUPPORT
+	if (wl_cfg80211_determine_rsdb_scc_mode(cfg, link_idx)) {
+		COMPAT_ASSIGN_VALUE(iface, info.time_slicing_duty_cycle_percent,
+			WIFI_RSDB_TIMESLICE_DUTY_CYCLE);
+	} else {
+		COMPAT_ASSIGN_VALUE(iface, info.time_slicing_duty_cycle_percent,
+			WIFI_VSDB_TIMESLICE_DUTY_CYCLE);
+	}
+#else
 	if (wl_cfg80211_determine_rsdb_scc_mode(cfg, link_idx)) {
 		COMPAT_ASSIGN_VALUE(iface, time_slicing_duty_cycle_percent,
 			WIFI_RSDB_TIMESLICE_DUTY_CYCLE);
@@ -9720,8 +9823,9 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 		COMPAT_ASSIGN_VALUE(iface, time_slicing_duty_cycle_percent,
 			WIFI_VSDB_TIMESLICE_DUTY_CYCLE);
 	}
+#endif /* LINKSTAT_EXT_SUPPORT */
 
-	if (!wl_get_drv_status(cfg, CONNECTED, inet_ndev)) {
+	if ((cfg->stas_associated >= 1) && !wl_get_drv_status(cfg, CONNECTED, inet_ndev)) {
 		WL_ERR(("Sta is not connected to an AP!\n"));
 		COMPAT_MEMCOPY_IFACE(*output, *total_len, wifi_link_stat, iface);
 		err = BCME_OK;
@@ -9770,6 +9874,9 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 		peer_info.num_rate = num_rate;
 	}
 
+#ifdef LINKSTAT_EXT_SUPPORT
+	if (peer_list_info && (peer_list_info->count > 0)) {
+#endif /* LINKSTAT_EXT_SUPPORT */
 	err = wldev_link_iovar_getbuf(inet_ndev, link_idx, "bssload_report", NULL,
 		0, iovar_buf, WLC_IOCTL_MAXLEN, NULL);
 	if (err == BCME_OK) {
@@ -9788,9 +9895,17 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 		WL_ERR(("error (%d) - size = %zu\n", err, sizeof(wl_bssload_t)));
 		goto exit;
 	}
+#ifdef LINKSTAT_EXT_SUPPORT
+	}
 
+	*output -= sizeof(wifi_peer_info_v1);
+	err  = memcpy_s(*output, (WLC_IOCTL_MAXLEN - *total_len),
+		&peer_info, sizeof(wifi_peer_info_v1));
+	*output += offsetof(wifi_peer_info_v1, rate_stats);
+#else
 	err  = memcpy_s(*output, (WLC_IOCTL_MAXLEN - *total_len),
 		&peer_info, (sizeof(wifi_peer_info_v1) + sizeof(wifi_rate_stat_v1)));
+#endif /* LINKSTAT_EXT_SUPPORT */
 	if (err) {
 		WL_ERR(("Can't get buf data, err %d, diff %d, data len %ld\n",
 			err, (WLC_IOCTL_MAXLEN - *total_len), sizeof(wifi_peer_info_v1)));
@@ -9798,8 +9913,10 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 		goto exit;
 	}
 
+#ifndef LINKSTAT_EXT_SUPPORT
 	*output += (sizeof(wifi_peer_info_v1) + sizeof(wifi_rate_stat_v1));
 	*total_len += (sizeof(wifi_peer_info_v1) + sizeof(wifi_rate_stat_v1));
+#endif /* LINKSTAT_EXT_SUPPORT */
 
 	if ((err == BCME_OK) && (peer_list_info && peer_list_info->count > 0)) {
 		for (i = 0; i < num_rate; i++) {
@@ -9888,6 +10005,7 @@ static int wl_update_multi_link_stat(struct bcm_cfg80211 *cfg, struct net_device
 		ml_iface.num_links = 1;
 	}
 
+#ifndef LINKSTAT_EXT_SUPPORT
 	err  = memcpy_s(*output, (WLC_IOCTL_MAXLEN - *total_len),
 		&ml_iface, sizeof(wifi_iface_ml_stat));
 	if (err) {
@@ -9899,6 +10017,7 @@ static int wl_update_multi_link_stat(struct bcm_cfg80211 *cfg, struct net_device
 
 	*output += sizeof(wifi_iface_ml_stat);
 	*total_len += sizeof(wifi_iface_ml_stat);
+#endif /* LINKSTAT_EXT_SUPPORT */
 
 	/* Update per link info */
 	for (i = 0; i < ml_iface.num_links; i++) {
@@ -14249,6 +14368,8 @@ const struct nla_policy nan_attr_policy[NAN_ATTRIBUTE_MAX] = {
 	[NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION] = { .type = NLA_U32, .len = sizeof(uint32) },
 	[NAN_ATTRIBUTE_BS_METHODS] = { .type = NLA_U16, .len = sizeof(uint16) },
 	[NAN_ATTRIBUTE_KEY_DATA_PASSPHRASE] = { .type = NLA_BINARY, .len = NAN_MAX_PASSPHRASE_LEN},
+	[NAN_ATTRIBUTE_GTK_CSID] = { .type = NLA_U8, .len = sizeof(uint8) },
+	[NAN_ATTRIBUTE_CSIA_CAPABILITIES] = { .type = NLA_U8, .len = sizeof(uint8) },
 };
 #endif /* WL_NAN */
 

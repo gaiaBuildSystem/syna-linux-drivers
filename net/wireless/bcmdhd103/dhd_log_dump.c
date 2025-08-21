@@ -293,7 +293,7 @@ dhd_log_dump(void *handle, void *event_info, u8 event)
 	dhdp = &dhd->pub;
 
 #if defined(WL_CFG80211)
-	if (!dhd_query_bus_erros(dhdp)) {
+	if (!dhd_query_bus_erros(dhdp) || !dhd_os_proto_is_blocked(dhdp)) {
 		/* flush the fw preserve logs */
 		wl_flush_fw_log_buffer(dhd_linux_get_primary_netdev(dhdp),
 			FW_LOGSET_MASK_ALL);

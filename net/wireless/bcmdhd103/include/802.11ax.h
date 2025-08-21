@@ -675,7 +675,11 @@ typedef BWL_PRE_PACKED_STRUCT struct he_op_ie {
 /* Figure 9-906 Control field format in Draft P802.11-REVme/D5.0 */
 #define HE_6G_CTL_CHBW_MASK         0x03u
 #define HE_6G_OP_CTL_CHBW(ctl) (ctl & HE_6G_CTL_CHBW_MASK)
+
 #define HE_6G_CTL_DUP_BCN_MASK      0x04u
+#define HE_6G_CTL_DUP_BCN_SHIFT     0x02u
+#define HE_6G_OP_CTL_DUP_BCN(ctl) \
+	((ctl & HE_6G_CTL_DUP_BCN_MASK) >> HE_6G_CTL_DUP_BCN_SHIFT)
 
 #define HE_6G_CTL_REG_INFO_MASK		0x38u /* Reg Info 3 bits leagcy version */
 #define HE_6G_CTL_REG_INFO_MASK_4BITS	0x78u /* Use Reg Info 4 bits, Draft P802.11-REVme/D5.0 */
@@ -708,10 +712,6 @@ typedef BWL_PRE_PACKED_STRUCT struct he_op_ie {
  * Do not change this value.
  */
 #define HE_6G_OP_REG_INFO_CAT_MAX			5u
-
-#define HE_6G_CTL_DUP_BCN_SHIFT     0x02u
-#define HE_6G_OP_CTL_DUP_BCN(ctl) \
-	((ctl & HE_6G_CTL_DUP_BCN_MASK) >> HE_6G_CTL_DUP_BCN_SHIFT)
 
 /* HE 6G Operation info */
 typedef BWL_PRE_PACKED_STRUCT struct he_6g_op_info {

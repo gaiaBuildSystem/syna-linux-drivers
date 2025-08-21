@@ -250,6 +250,9 @@ int mq_select_disable = FALSE;
 int dhd_logger = TRUE;
 module_param(dhd_logger, int, 0644);
 
+int dhd_low_latency = FALSE;
+module_param(dhd_low_latency, int, 0644);
+
 #if defined(DISABLE_L2_IN_D3)
 int dhd_disable_l2_in_d3 = 1;
 #else
@@ -3950,7 +3953,11 @@ dhd_dpc_tasklet_dispatcher_work(struct work_struct *work)
 
 	DHD_INFO(("%s:\n", __FUNCTION__));
 
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+	tasklet_hi_schedule(&dhd->tasklet);
+#else
 	tasklet_schedule(&dhd->tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 }
 
 void
@@ -5063,7 +5070,11 @@ dhd_dpc(ulong data)
 		DHD_LB_STATS_INCR(dhd->dhd_dpc_cnt);
 #endif /* DHD_LB_STATS && PCIE_FULL_DONGLE */
 		if (dhd_bus_dpc(dhd->pub.bus)) {
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+			tasklet_hi_schedule(&dhd->tasklet);
+#else
 			tasklet_schedule(&dhd->tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 			dhd_plat_report_bh_sched(dhd->pub.plat_info, 1);
 		} else {
 			dhd_plat_report_bh_sched(dhd->pub.plat_info, 0);
@@ -5092,7 +5103,11 @@ dhd_sched_dpc(dhd_pub_t *dhdp)
 		}
 		return;
 	} else {
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+		tasklet_hi_schedule(&dhd->tasklet);
+#else
 		tasklet_schedule(&dhd->tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 	}
 }
 
@@ -6595,7 +6610,8 @@ dhd_force_collect_socram_during_wifi_onoff(dhd_pub_t *dhdp)
 #ifdef DHD_SSSR_DUMP
 		dhdp->collect_sssr = TRUE;
 #endif /* DHD_SSSR_DUMP */
-		dhdp->memdump_type = DUMP_TYPE_DONGLE_TRAP_DURING_WIFI_ONOFF;
+		dhdp->memdump_type = DUMP_TYPE_DONGLE_TRAP;
+		dhdp->dongle_trap_occured = TRUE;
 		dhd_bus_mem_dump(dhdp);
 	}
 #endif /* DHD_FW_COREDUMP */
@@ -7472,6 +7488,8 @@ dhd_open(struct net_device *net)
 #if defined(BCMPCIE) && defined(DHDTCPACK_SUPPRESS)
 #ifdef BOARD_STB
 		dhd_tcpack_suppress_set(&dhd->pub, TCPACK_SUP_HOLD);
+#elif defined(DHDTCPACK_SUPPRESS_DEF_MODE)
+		dhd_tcpack_suppress_set(&dhd->pub, DHDTCPACK_SUPPRESS_DEF_MODE);
 #else
 		dhd_tcpack_suppress_set(&dhd->pub, TCPACK_SUP_OFF);
 #endif /* BOARD_STB */
@@ -8317,7 +8335,7 @@ dhd_cleanup_ifp(dhd_pub_t *dhdp, dhd_if_t *ifp)
 #ifdef PCIE_FULL_DONGLE
 		/* Delete flowrings of virtual interface */
 		ifidx = ifp->idx;
-		if ((ifidx != 0) && if_flow_lkup &&
+		if ((ifidx != 0) && if_flow_lkup && ifidx < DHD_MAX_IFS &&
 			(if_flow_lkup[ifidx].role != WLC_E_IF_ROLE_AP)) {
 			if (!ifp->static_if || (ifp->idx != DHD_INVALID_IFIDX)) {
 				dhd_flow_rings_delete(dhdp, ifidx);
@@ -13294,6 +13312,19 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_iovar(dhd, 0, "okc_enable", (char *)&okc, sizeof(okc), NULL, 0, TRUE);
 #endif
 
+	if (dhd_low_latency)
+	{
+		uint wl_down = 1;
+		uint txbf_bfe_cap = 0;
+		uint ampdu_rts = 0;
+		dhd_wl_ioctl_cmd(dhd, WLC_DOWN,
+			(char *)&wl_down, sizeof(wl_down), TRUE, 0);
+
+		dhd_iovar(dhd, 0, "txbf_bfe_cap",
+			(char *)&txbf_bfe_cap, sizeof(txbf_bfe_cap), NULL, 0, TRUE);
+		dhd_iovar(dhd, 0, "ampdu_rts",
+			(char *)&ampdu_rts, sizeof(ampdu_rts), NULL, 0, TRUE);
+	}
 #ifdef WLTDLS
 	dhd->tdls_enable = FALSE;
 	dhd_tdls_set_mode(dhd, false);
@@ -13521,6 +13552,8 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 #ifdef CUSTOM_AMPDU_BA_WSIZE
 	ampdu_ba_wsize = CUSTOM_AMPDU_BA_WSIZE;
 #endif
+	if (dhd_low_latency)
+		ampdu_ba_wsize = 4;
 #if defined(WLAIBSS) && defined(CUSTOM_IBSS_AMPDU_BA_WSIZE)
 	if (dhd->op_mode == DHD_FLAG_IBSS_MODE)
 		ampdu_ba_wsize = CUSTOM_IBSS_AMPDU_BA_WSIZE;
@@ -15396,22 +15429,20 @@ void dhd_detach(dhd_pub_t *dhdp)
 		/* Cleanup virtual interfaces */
 		dhd_net_if_lock_local(dhd);
 		for (i = 1; i < DHD_MAX_IFS; i++) {
-			if (dhd->iflist[i]) {
+			if (dhd->iflist[i] && !(dhd->iflist[i]->static_if)) {
 				dhd_remove_if(&dhd->pub, i, TRUE);
 			}
 		}
-		dhd_net_if_unlock_local(dhd);
 
 #if defined(WL_STATIC_IF)
-		dhd_net_if_lock_local(dhd);
 		for (i = 0; i < DHD_MAX_STATIC_IFS; i++) {
 			dhd_if_t *static_ifp = dhd->static_iflist[i];
 			if (static_ifp && static_ifp->net) {
 				dhd_remove_static_if(&dhd->pub, static_ifp->net, TRUE);
 			}
 		}
-		dhd_net_if_unlock_local(dhd);
 #endif /* WL_STATIC_IF */
+		dhd_net_if_unlock_local(dhd);
 
 		/* 'ifp' indicates primary interface 0, clean it up. */
 		if (ifp && ifp->net) {
@@ -16116,7 +16147,7 @@ dhd_os_proto_block(dhd_pub_t *pub)
 
 	if (dhd) {
 		down(&dhd->proto_sem);
-
+		OSL_ATOMIC_INC(pub->osh, &dhd->proto_cnt);
 		return 1;
 	}
 
@@ -16130,7 +16161,22 @@ dhd_os_proto_unblock(dhd_pub_t *pub)
 
 	if (dhd) {
 		up(&dhd->proto_sem);
+		OSL_ATOMIC_DEC(pub->osh, &dhd->proto_cnt);
 		return 1;
+	}
+
+	return 0;
+}
+
+bool
+dhd_os_proto_is_blocked(dhd_pub_t *pub)
+{
+	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
+
+	if (dhd) {
+		if (OSL_ATOMIC_READ(pub->osh, &dhd->proto_cnt)) {
+			return 1;
+		}
 	}
 
 	return 0;

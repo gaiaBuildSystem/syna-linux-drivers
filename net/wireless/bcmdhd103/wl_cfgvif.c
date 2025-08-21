@@ -3497,7 +3497,8 @@ exit:
 
 #if defined(WL_SAE) || defined(WL_SAE_STD_API)
 s32
-wl_set_ap_passphrase(struct net_device *dev, struct cfg80211_crypto_settings *crypto)
+wl_set_ap_passphrase(struct net_device *dev, struct cfg80211_crypto_settings *crypto,
+	u32 dev_role)
 {
 #ifndef WL_SAE_STD_API
 	struct net_info *_net_info;
@@ -3507,14 +3508,29 @@ wl_set_ap_passphrase(struct net_device *dev, struct cfg80211_crypto_settings *cr
 	int err = BCME_OK;
 	bzero(&pp_config, sizeof(wl_config_passphrase_t));
 
-	if (cfg->hostapd_ssid.SSID_len == 0) {
-		WL_ERR(("Invalid config ssid_len %d\n", cfg->hostapd_ssid.SSID_len));
-		err = BCME_BADARG;
-		goto done;
+	if (dev_role == NL80211_IFTYPE_AP) {
+		if (cfg->hostapd_ssid.SSID_len == 0) {
+			WL_ERR(("Invalid AP config ssid_len %d\n", cfg->hostapd_ssid.SSID_len));
+			err = BCME_BADARG;
+			goto done;
+		} else {
+			pp_config.ssid = cfg->hostapd_ssid.SSID;
+			pp_config.ssid_len = cfg->hostapd_ssid.SSID_len;
+		}
 	}
 
-	pp_config.ssid = cfg->hostapd_ssid.SSID;
-	pp_config.ssid_len = cfg->hostapd_ssid.SSID_len;
+#ifdef WL_P2P_6G
+	if (dev_role == NL80211_IFTYPE_P2P_GO) {
+		if (cfg->p2p->ssid.SSID_len == 0) {
+			WL_ERR(("Invalid GO config ssid_len %d\n", cfg->p2p->ssid.SSID_len));
+			err = BCME_BADARG;
+			goto done;
+		} else {
+			pp_config.ssid = cfg->p2p->ssid.SSID;
+			pp_config.ssid_len = cfg->p2p->ssid.SSID_len;
+		}
+	}
+#endif /* WL_P2P_6G */
 
 #ifdef WL_SAE_STD_API
 	if (crypto && crypto->sae_pwd) {
@@ -3601,6 +3617,21 @@ wl_cfg80211_bcn_validate_sec(
 			}
 		}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && WL_IDAUTH */
+#ifdef WL_P2P_6G
+#if defined(WL_SAE) || defined(WL_SAE_STD_API)
+		/* Set SAE passphrase */
+		if (sec->fw_wpa_auth & (WPA3_AUTH_SAE_PSK | WPA3_AUTH_SAE_EXT_PSK)) {
+			wl_set_ap_passphrase(dev, crypto, dev_role);
+#ifdef WL_SAE_STD_API
+			err = wl_set_sae_pwe(dev, crypto->sae_pwe);
+			if (unlikely(err)) {
+				WL_ERR(("Unable to set sae_pwe\n"));
+				return err;
+			}
+#endif /* WL_SAE_STD_API */
+		}
+#endif /* WL_SAE || WL_SAE_STD_API */
+#endif /* WL_P2P_6G */
 	} else if (dev_role == NL80211_IFTYPE_AP) {
 
 		WL_DBG(("SoftAP: validating security"));
@@ -3668,7 +3699,7 @@ wl_cfg80211_bcn_validate_sec(
 #if defined(WL_SAE) || defined(WL_SAE_STD_API)
 		/* Set SAE passphrase */
 		if (sec->fw_wpa_auth & (WPA3_AUTH_SAE_PSK | WPA3_AUTH_SAE_EXT_PSK)) {
-			wl_set_ap_passphrase(dev, crypto);
+			wl_set_ap_passphrase(dev, crypto, dev_role);
 #ifdef WL_SAE_STD_API
 			err = wl_set_sae_pwe(dev, crypto->sae_pwe);
 			if (unlikely(err)) {
@@ -4960,6 +4991,8 @@ wl_cfg80211_start_ap(
 	}
 #endif /* ((LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)) */
 
+	/* clear prev security configurations */
+	wl_cfg80211_clear_security(cfg, dev);
 /*
  * TODO:
  * Check whether 802.11ac-160MHz bandwidth channel setting has to use the
@@ -9166,7 +9199,7 @@ wl_cfgvif_scb_authorized(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	if (cfg->idauth_enabled && (status == WLC_E_AUTHORIZED)) {
 		WL_INFORM_MEM(("Sending port authorized event for STA " MACDBG "\n",
 			MAC2STRDBG(sta_addr)));
-#ifdef WL_AP_PORT_AUTH_BKPORT
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)) || defined(WL_AP_PORT_AUTH_BKPORT)
 		CFG80211_PORT_AUTHORIZED(cfgdev_to_ndev(cfgdev), (const u8 *)sta_addr,
 			NULL, 0, GFP_KERNEL);
 #else

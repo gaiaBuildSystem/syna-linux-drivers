@@ -3963,7 +3963,17 @@ typedef struct wlc_btc_stats_v13 {
 	/* core1, channel3 histogram count of ACI power (2%) */
 	uint32 fbagc_fbc_gain_stuck_cnt;
 	/* fbc gain stuck counter */
-	uint32 fbcx_forced_ded_dur;	/* fored dedicated cnt */
+	uint32 fbcx_forced_ded_dur;	/* forced dedicated cnt */
+	uint32 bt_gcishm_bt_stats;	/* BT Tasks info shared in GCI Shm */
+	uint32 hybrid_durn_win;		/* Hybrid Window Duration */
+	uint32 bt_gcishm_sar_query_cnt;	/* Dynamic SAR query count */
+	uint8 cxcpu_ranging_cnt;
+	uint8 cxcpu_assoc_cnt;
+	uint8 cxcpu_scan_cnt;
+	uint8 pad[1];
+	uint16 bt_pm_no_ack_cnt;	/* BTCX no Ack for PM count */
+	uint16 bt_thread_crt_cnt;	/* BTCX Thread Critical count */
+	uint16 bt_thread_hi_pri_cnt;	/* BTCX Thread Hi Pri count */
 } wlc_btc_stats_v13_t;
 
 #define BTCX_STATS_VER_12 12

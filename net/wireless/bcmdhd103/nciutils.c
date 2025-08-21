@@ -711,7 +711,8 @@ BCMATTACHFN(nci_save_iface1_reg)(si_t *sih, interface_desc_t *desc, uint32 iface
 		}
 
 		bpid_str = BACKPLANE_ID_NAME_4397A0;
-	} else if (BCM4384_CHIP(CHIPID(sii->pub.chip))) {
+	} else if (
+		BCM4384_CHIP(CHIPID(sii->pub.chip))) {
 		apb_start = BP_APB_WL;
 		apb_end = BP_CCI400;
 

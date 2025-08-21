@@ -318,7 +318,8 @@ static int dhd_check_pcie_devices(void)
 			   PCI_FUNC(dev->devfn));
 
 		if (VENDOR_BROADCOM == dev->vendor) {
-			if ((BCM4362_CHIP_ID == dev->device) || (BCM43752_D11AX_ID == dev->device) ||
+			if ((BCM4362_CHIP_ID == dev->device) ||
+				(BCM43752_D11AX_ID == dev->device) ||
 				(BCM4345_CHIP_ID == dev->device)) {
 				return 0;
 			}
@@ -329,6 +330,18 @@ static int dhd_check_pcie_devices(void)
 				return 0;
 			}
 		}
+
+		if (VENDOR_BROADCOM == dev->vendor) {
+			if ((BCM4381_CHIP_ID == dev->device) ||
+				(BCM4382_CHIP_ID == dev->device)) {
+					return -ENODEV;
+			}
+
+			if ((BCM4384_D11BE_ID == dev->device) ||
+				(BCM4390_D11BE_ID == dev->device)) {
+				return -ENODEV;
+			}
+                }
 
 		dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev);
 	}

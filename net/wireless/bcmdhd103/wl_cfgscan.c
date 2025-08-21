@@ -7309,18 +7309,27 @@ wl_cfgscan_update_dynamic_channels(struct bcm_cfg80211 *cfg,
 			/* MLO case, check for each link chanspec */
 			for (i = 0; i < MAX_MLO_LINK; i++) {
 				perlink = &netinfo->mlinfo.links[i];
-				WL_DBG(("check for indoor/radar:0x%x\n", perlink->chspec));
-				if (perlink->chspec &&
-						wl_is_channel_dynamic(cfg, perlink->chspec)) {
+				if (!wf_chspec_valid(perlink->chspec)) {
+					WL_ERR(("invalid chanspec\n"));
+					return BCME_ERROR;
+				}
+				WL_INFORM_MEM(("check for indoor/radar:0x%x, num_links : %d\n",
+					perlink->chspec, netinfo->mlinfo.num_links));
+				if (wl_is_channel_dynamic(cfg, perlink->chspec)) {
 					dynamic_channel_found = TRUE;
 					break;
 				}
 			}
 		} else {
 			sta_chanspec = (chanspec_t *)wl_read_prof(cfg, ndev, WL_PROF_CHAN);
-			WL_DBG(("check for indoor/radar:0x%x\n", *sta_chanspec));
-			if ((sta_chanspec) && (wl_is_channel_dynamic(cfg, *sta_chanspec))) {
-				dynamic_channel_found = TRUE;
+			if (sta_chanspec && wf_chspec_valid(*sta_chanspec)) {
+				WL_INFORM_MEM(("check for indoor/radar:0x%x\n", *sta_chanspec));
+				if (wl_is_channel_dynamic(cfg, *sta_chanspec)) {
+					dynamic_channel_found = TRUE;
+				}
+			} else {
+				WL_ERR(("invalid sta chanspec\n"));
+				return BCME_ERROR;
 			}
 		}
 	}

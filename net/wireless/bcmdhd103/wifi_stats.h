@@ -258,7 +258,11 @@ typedef struct {
 	uint32 on_time;
 	uint32 tx_time;
 	uint32 num_tx_levels;
-	uint32 *tx_time_per_levels;
+#ifdef LINKSTAT_HAL_32BIT
+	uint32 tx_time_per_levels;
+#else /* HAL 64 bit */
+	uint64 tx_time_per_levels;
+#endif /* LINKSTAT_HAL_32BIT */
 	uint32 rx_time;
 	uint32 on_time_scan;
 	uint32 on_time_nbd;
@@ -335,7 +339,7 @@ typedef struct {
 	wifi_rate_stat_v1 rate_stats[BCM_FLEX_ARRAY];	/* per rate statistics,
 							 * num of entries = num_rate
 							 */
-} wifi_peer_info_v1;
+} PACK_ATTRIBUTE wifi_peer_info_v1;
 
 typedef struct {
 	wifi_peer_type type;           /* peer type (AP, TDLS, GO etc.) */
@@ -390,10 +394,15 @@ typedef enum {
 
 /* ML interface statistics */
 typedef struct {
+#ifdef LINKSTAT_EXT_SUPPORT
+	wifi_interface_handle_v1 iface;	/* wifi interface */
+	wifi_interface_info_v1 info;	/* current state of the interface */
+#else
 	uint8 link_id;			/* Identifier for the link */
 	wifi_link_state state;		/* State for the link. */
 	wifi_radio radio;		/* Radio on which link stats are sampled. */
 	u32 frequency;			/* Frequency on which link is operating. */
+#endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 beacon_rx;		/* access point beacon received count from connected AP */
 	uint64 average_tsf_offset;	/* average beacon offset encountered (beacon_TSF - TBTT)
 					 * The average_tsf_offset field is used so as to calculate
@@ -427,10 +436,12 @@ typedef struct {
 					 */
 	wifi_rssi rssi_ack;		/* access Point ACK RSSI (averaged) from connected AP */
 	wifi_wmm_ac_stat ac[WIFI_AC_MAX];	/* per ac data packet statistics */
+#ifndef LINKSTAT_EXT_SUPPORT
 	uint8 time_slicing_duty_cycle_percent;	/* If this link is being served using */
+#endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 num_peers;		/* number of peers */
 	wifi_peer_info_v1 peer_info[BCM_FLEX_ARRAY];	/* per peer statistics */
-} wifi_link_stat;
+} PACK_ATTRIBUTE wifi_link_stat;
 
 typedef struct {
 	wifi_interface_handle_v1 iface;	/* wifi interface */
@@ -449,14 +460,19 @@ typedef struct {
 	wifi_rate_stat_v1 rate_stats[BCM_FLEX_ARRAY];	/* per rate statistics,
 							 * num of entries = num_rate
 							 */
-} compat_wifi_peer_info_v1;
+} PACK_ATTRIBUTE compat_wifi_peer_info_v1;
 
 /* ML interface statistics */
 typedef struct {
+#ifdef LINKSTAT_EXT_SUPPORT
+	wifi_interface_handle_v1 iface;	/* wifi interface */
+	wifi_interface_info_v1 info;	/* current state of the interface */
+#else
 	uint8 link_id;			/* Identifier for the link */
 	wifi_link_state state;		/* State for the link. */
 	wifi_radio radio;		/* Radio on which link stats are sampled. */
 	u32 frequency;			/* Frequency on which link is operating. */
+#endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 beacon_rx;		/* access point beacon received count from connected AP */
 	uint64 average_tsf_offset;	/* average beacon offset encountered (beacon_TSF - TBTT)
 					 * The average_tsf_offset field is used so as to calculate
@@ -490,10 +506,12 @@ typedef struct {
 					 */
 	wifi_rssi rssi_ack;		/* access Point ACK RSSI (averaged) from connected AP */
 	wifi_wmm_ac_stat ac[WIFI_AC_MAX];	/* per ac data packet statistics */
+#ifndef LINKSTAT_EXT_SUPPORT
 	uint8 time_slicing_duty_cycle_percent;	/* If this link is being served using */
+#endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 num_peers;		/* number of peers */
 	wifi_peer_info_v1 peer_info[BCM_FLEX_ARRAY];	/* per peer statistics */
-} compat_wifi_link_stat;
+} PACK_ATTRIBUTE compat_wifi_link_stat;
 
 typedef struct {
 	wifi_interface_handle_v1 iface;	/* wifi interface */

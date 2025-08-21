@@ -269,6 +269,7 @@ typedef union bcm_event_msg_u {
 #define WLC_E_AUTHORIZED	136	/* a STA been authroized for traffic */
 #define WLC_E_PROBREQ_MSG_RX	137 /* probe req with wl_event_rx_frame_data_t header */
 #define WLC_E_PFN_SCAN_COMPLETE	138	/* PFN completed scan of network list */
+/* TODO: remove obsolete RELMCAST code once no branches have them. */
 #define WLC_E_RMC_EVENT		139	/* RMC Event */
 #define WLC_E_DPSTA_INTF_IND	140	/* DPSTA interface indication */
 #define WLC_E_RRM		141	/* RRM Event */
@@ -907,11 +908,6 @@ enum {
 	"RC_UNSPECIFIED",				\
 }
 #endif /* WLTDLS */
-
-/* reason codes for WLC_E_RMC_EVENT event */
-#define WLC_E_REASON_RMC_NONE		0
-#define WLC_E_REASON_RMC_AR_LOST		1
-#define WLC_E_REASON_RMC_AR_NO_ACK		2
 
 #ifdef WLTDLS
 /* TDLS Action Category code */

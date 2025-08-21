@@ -361,6 +361,8 @@ BCMFASTPATH(__dhd_sendpkt)(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 			wl_handle_wps_states(dhd_idx2net(dhdp, ifidx),
 				pktdata, PKTLEN(dhdp->osh, pktbuf), TRUE);
 #endif /* WL_CFG80211 && WL_WPS_SYNC */
+		} else if (ntoh16(eh->ether_type) == ETHER_TYPE_ARP) {
+				PKTSETPRIO(pktbuf, PRIO_8021D_VO);
 		}
 	} else {
 		PKTCFREE(dhdp->osh, pktbuf, TRUE);
@@ -488,6 +490,12 @@ BCMFASTPATH(__dhd_sendpkt)(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 		dhd_prot_hdrpush(dhdp, ifidx, pktbuf);
 	}
 
+	if (ntoh16(eh->ether_type) == ETHER_TYPE_IP) {
+		struct iphdr *ipheader = (struct iphdr*)((uint8 *)eh + ETHER_HDR_LEN);
+		if (ipheader && ipheader->protocol == IPPROTO_ICMP) {
+			PKTSETPRIO(pktbuf, PRIO_8021D_VO);
+		}
+	}
 	/* Use bus module to send data frame */
 #ifdef PROP_TXSTATUS
 	{

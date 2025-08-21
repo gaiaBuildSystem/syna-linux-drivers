@@ -53,11 +53,6 @@
 /* Action frame type for vendor specific action frames */
 #define	VS_AF_TYPE	221
 
-#ifdef IBSS_RMC
-/* customer's OUI */
-#define RMC_PROP_OUI		"\x00\x16\x32"
-#endif
-
 /* WFA definitions for LEGACY P2P */
 #ifdef WL_LEGACY_P2P
 #define APPLE_OUI		"\x00\x17\xF2"	/* MACOSX OUI */

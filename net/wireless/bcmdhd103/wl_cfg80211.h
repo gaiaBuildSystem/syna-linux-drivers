@@ -148,10 +148,6 @@ struct wl_ibss;
 #endif /* CONFIG_ARCH_MESON && CONFIG_ANDROID */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0))
-#ifndef WL_CLIENT_SAE
-#define WL_CLIENT_SAE
-#endif /* WL_CLIENT_SAE */
-
 /* OWE */
 #ifndef WL_OWE
 #define WL_OWE
@@ -192,9 +188,11 @@ struct wl_ibss;
 #error "required backports are not present to enable STD SAE"
 #endif /* !(KERNEL > 6.7.0) && (!AUTH_BKPORT || !4WAY_BKPORT || !APCAP_BKPORT || !PWE_BKPORT) */
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 25))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0))
 #if !defined(WL_AP_PORT_AUTH_BKPORT)
 #error "required backports are not present to enable STD SAE"
 #endif /* !WL_AP_PORT_AUTH_BKPORT */
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)) */
 #endif /* KERNEL_VERSION == 5. 4. 55 */
 #ifndef WL_IDAUTH
 #error "WL_IDAUTH is needed to enable WL_SAE_STD_API for softap"
@@ -1102,6 +1100,7 @@ typedef enum wl_pm_state {
 	PM_STATE_PRIV_CMD,
 	PM_STATE_HOST_SET,
 	PM_STATE_CONN_NOTIFIER,
+	PM_STATE_CONN_NOTIFIER2,
 	PM_STATE_CONN_DONE,
 	PM_STATE_WORK_HDLR,
 	PM_STATE_BTCOEX,
@@ -1577,6 +1576,7 @@ struct net_info {
 	bool ps_managed;
 	uint32 ps_managed_start_ts;
 	wl_pm_state_t ps_managed_state;
+	bool ps_usr_managed;
 	/* used to comapre with incoming config
 	* Delete config from firmware if both are not matching
 	* If matching, skip configuring iovar again
@@ -3881,6 +3881,7 @@ struct wireless_dev * wl_cfg80211_add_if(struct bcm_cfg80211 *cfg, struct net_de
 s32 _wl_cfg80211_del_if(struct bcm_cfg80211 *cfg, struct net_device *primary_ndev,
 	struct wireless_dev *wdev, char *ifname);
 s32 wl_cfg80211_delete_iface(struct bcm_cfg80211 *cfg, wl_iftype_t sec_data_if_type);
+void wl_cfg80211_clear_security(struct bcm_cfg80211 *cfg, struct net_device *ndev);
 
 #ifdef WL_STATIC_IF
 extern struct net_device *wl_cfg80211_register_static_if(struct bcm_cfg80211 *cfg,
@@ -4186,6 +4187,8 @@ extern s32 wl_cfg80211_set_wsec_info_algos(struct net_device *dev, uint32 algos,
 extern u32 wl_rsn_cipher_wsec_key_algo_lookup(uint32 cipher);
 extern s32 wl_cfg80211_set_pm(struct net_device *dev, u32 pm_enable, wl_pm_state_t state);
 extern s32 wl_validate_bss_length(uint32 version, uint32 tot_len, uint32 ie_length);
+bool wl_cfg80211_verify_bss(struct bcm_cfg80211 *cfg, struct net_device *ndev,
+		struct cfg80211_bss **bss);
 
 #ifdef WL_CFG80211_MONITOR
 extern int wl_cfg80211_set_monitor_channel(struct wiphy *wiphy,

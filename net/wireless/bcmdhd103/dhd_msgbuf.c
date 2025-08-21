@@ -3509,19 +3509,16 @@ dhd_prot_allocate_bufs(dhd_pub_t *dhd, dhd_prot_t *prot)
 	 */
 	/* ioctl response buffer */
 	if (dhd_dma_buf_alloc(dhd, &prot->retbuf, IOCT_RETBUF_SIZE)) {
-		DHD_ERROR(("%s: alloc IOCT_RETBUF failed\n", __FUNCTION__));
 		goto fail;
 	}
 
 	/* IOCTL request buffer */
 	if (dhd_dma_buf_alloc(dhd, &prot->ioctbuf, IOCT_RETBUF_SIZE)) {
-		DHD_ERROR(("%s: alloc IOCT_IOCTBUF failed\n", __FUNCTION__));
 		goto fail;
 	}
 
 	/* Host TS request buffer one buffer for now */
 	if (dhd_dma_buf_alloc(dhd, &prot->hostts_req_buf, CTRLSUB_HOSTTS_MEESAGE_SIZE)) {
-		DHD_ERROR(("%s: alloc CTRLSUB_HOSTTS_MEESAGE_SIZE failed\n", __FUNCTION__));
 		goto fail;
 	}
 	prot->hostts_req_buf_inuse = FALSE;
@@ -3534,7 +3531,7 @@ dhd_prot_allocate_bufs(dhd_pub_t *dhd, dhd_prot_t *prot)
 	if (dhd_dma_buf_alloc(dhd, &prot->d2h_dma_scratch_buf, DMA_D2H_SCRATCH_BUF_LEN)) {
 
 #endif /* BCM_HOST_BUF */
-		DHD_ERROR(("%s: alloc DMA_D2H_SCRATCH_BUF_LEN failed\n", __FUNCTION__));
+
 		goto fail;
 	}
 
@@ -3542,7 +3539,7 @@ dhd_prot_allocate_bufs(dhd_pub_t *dhd, dhd_prot_t *prot)
 	/* Allocate buffer for hmaptest  */
 	DHD_PRINT(("allocating memory for hmaptest \n"));
 	if (dhd_dma_buf_alloc(dhd, &prot->hmaptest.mem, HMAP_SANDBOX_BUFFER_LEN)) {
-		DHD_ERROR(("%s: alloc HMAP_SANDBOX_BUFFER_LEN failed\n", __FUNCTION__));
+
 		goto fail;
 	} else {
 		uint32 scratch_len;
@@ -3561,14 +3558,12 @@ dhd_prot_allocate_bufs(dhd_pub_t *dhd, dhd_prot_t *prot)
 
 	/* scratch buffer bus throughput measurement */
 	if (dhd_dma_buf_alloc(dhd, &prot->host_bus_throughput_buf, DHD_BUS_TPUT_BUF_LEN)) {
-		DHD_ERROR(("%s: alloc DHD_BUS_TPUT_BUF_LEN failed\n", __FUNCTION__));
 		goto fail;
 	}
 
 #ifdef SNAPSHOT_UPLOAD
 	/* snapshot upload buffer */
 	if (dhd_dma_buf_alloc(dhd, &prot->snapshot_upload_buf, SNAPSHOT_UPLOAD_BUF_SIZE)) {
-		DHD_ERROR(("%s: alloc SNAPSHOT_UPLOAD_BUF_SIZE failed\n", __FUNCTION__));
 		goto fail;
 	}
 #endif	/* SNAPSHOT_UPLOAD */
@@ -16547,6 +16542,8 @@ dhd_prot_ctrl_info_print(dhd_pub_t *dhd)
 		drd = dhd_prot_dma_indx_get(dhd, D2H_DMA_INDX_RD_UPD, ring->idx);
 		dwr = dhd_prot_dma_indx_get(dhd, D2H_DMA_INDX_WR_UPD, ring->idx);
 		DHD_PRINT(("CtrlCpl: From Host DMA mem: RD: %d WR %d \r\n", drd, dwr));
+		dhd->ctrlcpl_dmaidx_rd = drd;
+		dhd->ctrlcpl_dmaidx_wr = dwr;
 	}
 	if (dhd->bus->is_linkdown) {
 		DHD_PRINT(("CtrlCpl: From Shared Mem: RD and WR are invalid"
@@ -16555,6 +16552,8 @@ dhd_prot_ctrl_info_print(dhd_pub_t *dhd)
 		dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
 		dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
 		DHD_PRINT(("CtrlCpl: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
+		dhd->ctrlcpl_sysmem_rd = rd;
+		dhd->ctrlcpl_sysmem_wr = wr;
 	}
 	DHD_PRINT(("CtrlCpl: Expected seq num: %d \r\n", ring->seqnum % H2D_EPOCH_MODULO));
 
@@ -16890,24 +16889,6 @@ dhd_prot_ringupd_dump(dhd_pub_t *dhd, struct bcmstrbuf *b)
 		bcm_bprintf(b, "\tD2H RXCPLT: value 0x%04x\n", value);
 	}
 
-	return 0;
-}
-
-/* Retuns RD/WR pointers of the Ctrl Completion ring from DMA memory and Shared memory */
-uint32
-dhd_prot_get_ctrl_cpln_ring_ptr(dhd_pub_t *dhd, uint16 *dma_idx_rd, uint16 *dma_idx_wr,
-	uint16 *sysmem_rd, uint16 *sysmem_wr)
-{
-	msgbuf_ring_t *ring = &dhd->prot->d2hring_ctrl_cpln;
-
-	if (!dhd->dma_d2h_ring_upd_support) {
-		return -1;
-	}
-
-	*dma_idx_rd = dhd_prot_dma_indx_get(dhd, D2H_DMA_INDX_RD_UPD, ring->idx);
-	*dma_idx_wr = dhd_prot_dma_indx_get(dhd, D2H_DMA_INDX_WR_UPD, ring->idx);
-	dhd_bus_cmn_readshared(dhd->bus, sysmem_rd, RING_RD_UPD, ring->idx);
-	dhd_bus_cmn_readshared(dhd->bus, sysmem_wr, RING_WR_UPD, ring->idx);
 	return 0;
 }
 

@@ -203,8 +203,6 @@ extern int dhd_post_tx_ring_item(dhd_pub_t *dhd, void *PKTBUF, uint8 ifindex);
 extern int dhd_prot_flow_ring_delete(dhd_pub_t *dhd, flow_ring_node_t *flow_ring_node);
 extern int dhd_prot_flow_ring_flush(dhd_pub_t *dhd, flow_ring_node_t *flow_ring_node);
 extern int dhd_prot_ringupd_dump(dhd_pub_t *dhd, struct bcmstrbuf *b);
-extern uint32 dhd_prot_get_ctrl_cpln_ring_ptr(dhd_pub_t *dhd,
-	uint16 *drd, uint16 *dwr, uint16 *rd, uint16 *wr);
 extern bool dhd_prot_is_ctrl_cpln_wr_ahead(dhd_pub_t *dhd, uint16 dma_idx_rd, uint16 dma_idx_wr);
 extern bool dhd_prot_is_wait_for_isr(dhd_pub_t *dhd);
 extern uint32 dhd_prot_metadata_dbg_set(dhd_pub_t *dhd, bool val);

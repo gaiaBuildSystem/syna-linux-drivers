@@ -4057,7 +4057,11 @@ dhd_dpc_tasklet_dispatcher_work(struct work_struct * work)
 
 	DHD_INFO(("%s:\n", __FUNCTION__));
 
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+	tasklet_hi_schedule(&dhd->tasklet);
+#else
 	tasklet_schedule(&dhd->tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 }
 
 void
@@ -5014,7 +5018,11 @@ dhd_dpc(ulong data)
 		DHD_LB_STATS_INCR(dhd->dhd_dpc_cnt);
 #endif /* DHD_LB_STATS && PCIE_FULL_DONGLE */
 		if (dhd_bus_dpc(dhd->pub.bus)) {
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+			tasklet_hi_schedule(&dhd->tasklet);
+#else
 			tasklet_schedule(&dhd->tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 			dhd_plat_report_bh_sched(dhd->pub.plat_info, 1);
 		} else {
 			dhd_plat_report_bh_sched(dhd->pub.plat_info, 0);
@@ -5043,7 +5051,11 @@ dhd_sched_dpc(dhd_pub_t *dhdp)
 		}
 		return;
 	} else {
+#ifdef DHD_PCIE_USE_TASK_HI_SCHED
+		tasklet_hi_schedule(&dhd->tasklet);
+#else
 		tasklet_schedule(&dhd->tasklet);
+#endif /* DHD_PCIE_USE_TASK_HI_SCHED */
 	}
 }
 #endif /* BCMDBUS */

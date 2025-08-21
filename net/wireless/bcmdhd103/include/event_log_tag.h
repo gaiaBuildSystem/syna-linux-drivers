@@ -690,8 +690,11 @@
 #define EVENT_LOG_TAG_WL_UHR_ERROR		504
 
 #define EVENT_LOG_TAG_WL_MLO_SS_MGMT		505
+
+#define EVENT_LOG_TAG_MSCH_DEBUG_STATE		506
+
 /* EVENT_LOG_TAG_MAX	= Set to the same value of last tag, not last tag + 1 */
-#define EVENT_LOG_TAG_MAX			505
+#define EVENT_LOG_TAG_MAX			506
 
 typedef enum wl_el_set_type_def {
 	EVENT_LOG_SET_TYPE_DEFAULT = 0, /* flush the log buffer when it is full - Default option */

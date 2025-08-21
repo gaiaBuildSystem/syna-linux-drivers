@@ -5758,7 +5758,7 @@ typedef struct phy_periodic_log_cmn_v255 {
 	uint16	ltecx_t4_inhibit_dur;	/* Accumulated tx blanking duration */
 	uint16	ltecx_t4_current;	/* 1 blanking, 0 no blanking */
 	uint16	ltecx_t4_timeout;	/* Timeout value for wlan to resume transmission */
-	uint16	ltecx_t4_none_zero_cnt;	/* Total number of blanking requests */
+	uint16	ltecx_t4_msg12_cnt;	/* Times inhibit was requested */
 	uint16	ltecx_t4_timeout_cnt;	/* Accumulated number of events that wlan resume
 					* transmission due to timeout timer expires. This time
 					* out event usually happens when the celluar does not

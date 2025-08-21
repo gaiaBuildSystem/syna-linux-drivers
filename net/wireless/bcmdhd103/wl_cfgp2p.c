@@ -1945,12 +1945,13 @@ wl_cfgp2p_tx_action_frame(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	while (TRUE) {
 		s32 start_wait_time = get_jiffies_64();
 		timeout = wait_event_interruptible_timeout(cfg->netif_change_event,
-				!cfg->af_sent_channel, msecs_to_jiffies(dwell_time));
+			!cfg->af_sent_channel, msecs_to_jiffies(dwell_time));
 		if (timeout == -ERESTARTSYS) {
-			WL_ERR(("waitqueue was interrupted by a signal\n"));
 			dwell_time -= jiffies_to_msecs(get_jiffies_64() - start_wait_time);
+			WL_DBG_MEM(("waitqueue was interrupted by a signal,"
+					"remaining dwell time %u\n", dwell_time));
 			if (dwell_time <= 0) {
-				WL_ERR(("Timed out. dwell_time:%d, timeout:%d\n",
+				WL_ERR(("Timed out. dwell_time:%u, timeout:%d\n",
 						dwell_time, timeout));
 				goto exit;
 			}
@@ -3096,6 +3097,9 @@ wl_cfgp2p_del_p2p_disc_if(struct wireless_dev *wdev, struct bcm_cfg80211 *cfg)
 
 	cfg->p2p_wdev = NULL;
 
+	if (cfg->vif_count) {
+		cfg->vif_count--;
+	}
 	CFGP2P_ERR(("P2P interface unregistered\n"));
 
 	return 0;
@@ -3238,8 +3242,9 @@ wl_cfgp2p_if_add(struct bcm_cfg80211 *cfg, wl_iftype_t wl_iftype,
 			(cfg->if_event_info.valid)),
 			msecs_to_jiffies(time_to_wait));
 		if (timeout == -ERESTARTSYS) {
-			WL_ERR(("waitqueue was interrupted by a signal\n"));
 			time_to_wait -= jiffies_to_msecs(get_jiffies_64() - start_wait_time);
+			WL_DBG_MEM(("waitqueue was interrupted by a signal, "
+				"remaining dwell time %ld\n", time_to_wait));
 			if (time_to_wait <= 0) {
 				WL_ERR(("Timed out. time_to_wait:%ld, timeout:%ld\n",
 					time_to_wait, timeout));
@@ -3393,6 +3398,9 @@ wl_cfgp2p_if_del(struct wiphy *wiphy, struct wireless_dev *wdev)
 		if (timeout > 0 && !wl_get_p2p_status(cfg, IF_DELETING) &&
 			cfg->if_event_info.valid) {
 			WL_ERR(("P2P IFDEL operation done\n"));
+			if (cfg->vif_count) {
+				cfg->vif_count--;
+			}
 			err = BCME_OK;
 		} else {
 			WL_ERR(("IFDEL didn't complete properly\n"));

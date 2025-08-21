@@ -56,6 +56,7 @@ extern "C" {
 #define WL_RATESET_SZ_VHT_MCS_P		12	/* 10 VHT rates + 2 proprietary rates */
 #define WL_RATESET_SZ_HE_MCS		12	/* 12 HE rates (mcs 0-11) */
 #define WL_RATESET_SZ_EHT_MCS		16u	/* 14 EHT rates (mcs 0-15) */
+#define WL_RATESET_SZ_UHR_MCS		20u	/* Std UHR MCS 0-15, 17, 19, 20 & 23 */
 
 /* Designates support of RU996_2 rates */
 #define WL_RU996_2
@@ -1775,6 +1776,8 @@ typedef enum clm_ru_rates {
 #define WLC_MAX_HE_MCS		11u	/**< Std HE MCS 0-11 */
 #define WLC_MAX_EHT_MCS		15u	/**< Std EHT MCS 0-15 */
 #define WLC_MAX_EHT_MCS_NSS_2	13u	/**< Std EHT MCS 0-13 for nss >= 2 */
+#define WLC_MAX_UHR_MCS		19u	/**< Std UHR MCS 0-15, 17, 19, 20 & 23 */
+#define WLC_MAX_UHR_MCS_NSS_2	17u	/**< Std UHR MCS 0-13, 17, 19, 20 & 23 for nss >= 2 */
 
 #define VHT_MCS_9		(9u)	/**< VHT MCS index 9 */
 #define VHT_MCS_8		(8u)	/**< VHT MCS index 8 */
@@ -1797,14 +1800,17 @@ uint wf_mcs_to_rate(uint mcs, uint nss, uint bw, int sgi) BCMCONSTFN;
 uint wf_he_mcs_to_rate(uint mcs, uint nss, uint bw, uint gi, bool dcm) BCMCONSTFN;
 uint wf_eht_mcs_to_rate(uint mcs, uint nss, uint bw, uint gi) BCMCONSTFN;
 
-#define wf_mcs_to_Ndbps wf_mcs_to_ndbps
 uint wf_mcs_to_ndbps(uint mcs, uint nss, uint bw) BCMCONSTFN;
-#define wf_he_mcs_to_Ndbps wf_he_mcs_to_ndbps
 uint wf_he_mcs_to_ndbps(uint mcs, uint nss, uint bw, bool dcm) BCMCONSTFN;
 uint32 wf_he_mcs_ru_to_ndbps(uint8 mcs, uint8 nss, bool dcm, uint8 ru_index) BCMCONSTFN;
 uint wf_eht_mcs_to_ndbps(uint mcs, uint nss, uint bw) BCMCONSTFN;
 uint wf_eht_ru_to_ndbps(uint mcs, uint nss, uint8 ru_idx) BCMCONSTFN;
 
+#ifdef WL11BN
+uint wf_uhr_mcs_to_rate(uint mcs, uint nss, uint bw, uint gi) BCMCONSTFN;
+uint wf_uhr_mcs_to_ndbps(uint mcs, uint nss, uint bw) BCMCONSTFN;
+uint wf_uhr_ru_to_ndbps(uint mcs, uint nss, uint8 ru_idx) BCMCONSTFN;
+#endif /* WL11BN */
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

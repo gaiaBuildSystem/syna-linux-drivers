@@ -98,9 +98,8 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 #define PKTDBG_TRACE(osh, pkt, bit)	BCM_REFERENCE(osh)
 #endif
 
-#ifndef BCM_UPTIME_PROFILE
+/* DEPRECATED! */
 #define OSL_GETCYCLES_PROF(x)
-#endif
 
 /* --------------------------------------------------------------------------
 ** Register manipulation macros.

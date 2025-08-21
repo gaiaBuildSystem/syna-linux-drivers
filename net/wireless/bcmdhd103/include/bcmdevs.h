@@ -153,6 +153,8 @@
 #define BCM43992_D11BE_ID	0x4453		/* 43992 802.11be dualband device */
 #define BCM43109_D11BN_ID	0x4454		/* 43109 802.11bn dualband device */
 #define BCM43101_D11BN_ID	0x4455		/* 43101 802.11bn dualband device */
+#define BCM43110_D11BN_ID	0x4456		/* 43110 802.11bn dualband device */
+#define BCM43102_D11BN_ID	0x4457		/* 43102 802.11bn dualband device */
 
 #define BCM43756E_D11AX6E_ID	0x44a3		/* 43756E 802.11ax 6E device */
 #define BCM43756E_D11AC_ID	0x44a4		/* 43756E 802.11ac dualband device */

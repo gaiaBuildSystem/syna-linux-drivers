@@ -2241,6 +2241,10 @@ typedef struct dhd_pub {
 #ifdef DHD_VALIDATE_PKT_ADDRESS
 	uint badaddr_pkt_cnt;
 #endif /* DHD_VALIDATE_PKT_ADDRESS */
+	uint16 ctrlcpl_sysmem_rd;
+	uint16 ctrlcpl_sysmem_wr;
+	uint16 ctrlcpl_dmaidx_rd;
+	uint16 ctrlcpl_dmaidx_wr;
 	uint32 armpc;
 	uint32 arm_assert_phy_addr;
 	uint64 rx_hc_rts_cts_noucast;
@@ -2251,6 +2255,7 @@ typedef struct dhd_pub {
 	bool si_wd;
 #endif /* DHD_SI_WD_RESET */
 	uint32 curr_rxcpl;
+	bool low_latency;
 } dhd_pub_t;
 
 #if defined(__linux__)
@@ -2957,6 +2962,7 @@ void dhd_os_logdump_lock(dhd_pub_t *pub);
 void dhd_os_logdump_unlock(dhd_pub_t *pub);
 extern int dhd_os_proto_block(dhd_pub_t *pub);
 extern int dhd_os_proto_unblock(dhd_pub_t *pub);
+extern bool dhd_os_proto_is_blocked(dhd_pub_t *pub);
 extern int dhd_os_ioctl_resp_wait(dhd_pub_t *pub, uint *condition);
 extern int dhd_os_ioctl_resp_wake(dhd_pub_t *pub);
 extern unsigned int dhd_os_get_ioctl_resp_timeout(void);

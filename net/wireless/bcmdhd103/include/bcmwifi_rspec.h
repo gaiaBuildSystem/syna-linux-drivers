@@ -286,6 +286,11 @@ typedef uint32 ratespec_bw_t;
 #define RSPEC_GET_UHR_MCS(rspec)	wf_uhr_rspec_get_mcs(rspec)
 #define RSPEC_SET_UHR_MCS(rspec, mcs)	(rspec = wf_uhr_rspec_set_mcs(rspec, mcs))
 
+/* Macro to get MCS/NSS for encoding >= 2 i.e VHT, HE, EHT and UHR */
+#define RSPEC_GET_VHTEXT_MCS(rspec)	(RSPEC_ISUHR(rspec) ? RSPEC_GET_UHR_MCS(rspec) : \
+						((rspec) & WL_RSPEC_MCS_MASK))
+#define RSPEC_GET_VHTEXT_NSS(rspec)	(((rspec) & WL_RSPEC_NSS_MASK) >> WL_RSPEC_NSS_SHIFT)
+
 /* ======== RSPEC_BW field ======== */
 
 #define WL_RSPEC_BW_UNSPECIFIED	0x00000000u	/* 0 */
@@ -367,18 +372,16 @@ typedef uint32 ratespec_bw_t;
 
 #if defined(WL11BN)
 #define RSPEC_ISUHR(rspec)	(((rspec) & WL_RSPEC_ENCODING_MASK) == WL_RSPEC_ENCODE_UHR)
-#else /* WL11BE */
+#else /* WL11BN */
 #define RSPEC_ISUHR(rspec)	0
 #endif /* WL11BN */
 
 /* fast check if rate field is NSS+MCS format (starting from VHT ratespec) */
-/* UHR_TBD: Audit these usages */
-#define RSPEC_ISVHTEXT(rspec)	((((rspec) & WL_RSPEC_ENCODING_MASK) >= WL_RSPEC_ENCODE_VHT) && \
-				!RSPEC_ISUHR(rspec))
+#define RSPEC_ISVHTEXT(rspec)	(((rspec) & WL_RSPEC_ENCODING_MASK) >= WL_RSPEC_ENCODE_VHT)
 /* fast check if rate field is NSS+MCS format (starting from HE ratespec) */
-#define RSPEC_ISHEEXT(rspec)	((((rspec) & WL_RSPEC_ENCODING_MASK) >= WL_RSPEC_ENCODE_HE) && \
-				!RSPEC_ISUHR(rspec))
-
+#define RSPEC_ISHEEXT(rspec)	(((rspec) & WL_RSPEC_ENCODING_MASK) >= WL_RSPEC_ENCODE_HE)
+/* fast check if rate field is NSS+MCS format (starting from EHT ratespec) */
+#define RSPEC_ISEHTEXT(rspec)	(((rspec) & WL_RSPEC_ENCODING_MASK) >= WL_RSPEC_ENCODE_EHT)
 /**
  * ================================
  * Handy macros to create rate spec

@@ -190,6 +190,8 @@ typedef struct {
 
 #define PCIE_SHARED3_FW_DARDB15_TRAP	0x00000020u /* FW trap on Host writes to DB15(0xA5C) */
 
+#define PCIE_SHARED3_8021X_FLOWRING	0x00000040u /* supports separate 8021x flowring */
+
 #define PCIE_SHARED_D2H_MAGIC		0xFEDCBA09
 #define PCIE_SHARED_H2D_MAGIC		0x12345678
 

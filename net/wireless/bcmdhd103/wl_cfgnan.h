@@ -328,6 +328,7 @@ typedef struct nan_svc_info {
 	uint8 tx_match_filter[MAX_MATCH_FILTER_LEN];        /* TX match filter */
 	uint8 tx_match_filter_len;
 	uint8 svc_range_status; /* For managing any svc range status flags */
+	uint8 csia_cap;		/* SVC cipher suite info attribute capablity */
 } nan_svc_info_t;
 
 /* NAN Peer DP state */
@@ -544,6 +545,8 @@ typedef struct nan_discover_cmd_data {
 	nan_str_data_t local_nik;	/* Local NIK of device */
 	uint32	  comeback_delay;	/* Bootstrapping comaback delay */
 	uint32	  bootstrapping_id;
+	uint8	  gtk_csid;
+	uint8	  csia_cap;
 } nan_discover_cmd_data_t;
 
 typedef struct nan_datapath_cmd_data {
@@ -570,6 +573,8 @@ typedef struct nan_datapath_cmd_data {
 	uint8 duration;
 	char ndp_iface[IFNAMSIZ+1];
 	nan_str_data_t scid;        /* security context information */
+	uint8 gtk_csid;
+	uint8 csia_cap;
 } nan_datapath_cmd_data_t;
 
 typedef struct nan_pairing_bs_cmd_data {
@@ -696,6 +701,9 @@ typedef struct nan_event_data {
 	uint8	enable_pairing_cache;
 	uint8	pairing_setup_supported;
 	uint8	nan_akm;		/* Pairing AKM - SAE/PASN */
+	uint8	csia_cap;		/* Cipher sec info attribute capability */
+	uint8	gtk_required;		/* flag to let if GTK is required for a service */
+	uint8	peer_gtk_csid;		/* Peer GTK CSID */
 	uint16  pairing_id;
 	uint32  bootstrapping_id;
 	uint32  peer_bs_methods;
@@ -830,6 +838,7 @@ typedef struct {
 	int8 publish_rssi;
 	uint8 peer_cipher_suite;
 	uint8 security;
+	uint8 csia_cap;
 	nan_str_data_t svc_info;        /* service info */
 	nan_str_data_t vend_info;       /* vendor info */
 	nan_str_data_t sde_svc_info;	/* extended service information */
@@ -883,6 +892,9 @@ typedef struct nan_bootstrapping_entry
 	uint16	txs_token;	    /* Waiting for TXS of Tx-fup sent */
 	uint8	state;		    /* State of Bootstrapping exchange */
 	uint8	status;		    /* Status of Bootstrapping exchange */
+	uint8	lcl_csia;	    /* Local svc Cipher sec info attribute capability */
+	uint8	peer_csia;	    /* Peer svc Cipher sec info attribute capability */
+	uint8	setup_bip;	    /* flag to send IGTK/BIGTK KDEs in FUP post pairing */
 } nan_bootstrapping_entry_t;
 
 /* Google mobile platforms have 2 processors which can request NAN
@@ -1222,7 +1234,9 @@ typedef enum {
 	NAN_ATTRIBUTE_ENAB_PAIRING_SETUP                = 246,
 	NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION         = 247,
 	NAN_ATTRIBUTE_KEY_DATA_PASSPHRASE		= 248,
-	NAN_ATTRIBUTE_MAX				= 249
+	NAN_ATTRIBUTE_GTK_CSID				= 249,
+	NAN_ATTRIBUTE_CSIA_CAPABILITIES			= 250,
+	NAN_ATTRIBUTE_MAX				= 251
 } NAN_ATTRIBUTE;
 
 enum geofence_suspend_reason {
