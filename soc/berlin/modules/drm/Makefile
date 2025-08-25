@@ -10,7 +10,8 @@ HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/avio/vpp \
                -I$(srctree)/drivers/synaptics/soc/berlin/modules/vpp/include \
                -I$(srctree)/drivers/synaptics/soc/berlin/modules/vpp_mem/include \
                -I$(srctree)/drivers/synaptics/soc/berlin/modules/msgQ/ \
-               -I$(srctree)/drivers/synaptics/include/
+               -I$(srctree)/drivers/synaptics/include/ \
+               -I$(DRM_ABS_PATH)
 
 
 
