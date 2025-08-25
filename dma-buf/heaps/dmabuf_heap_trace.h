@@ -56,6 +56,8 @@ TRACE_EVENT(sys_cust_free,
 
 /* This part must be outside protection */
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ../../drivers/synaptics/dma-buf/heaps
+#undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_FILE dmabuf_heap_trace
+
 #include <trace/define_trace.h>

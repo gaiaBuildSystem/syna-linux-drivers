@@ -9,3 +9,4 @@ INC_PATH = -I$(srctree)/drivers/synaptics/include/
 
 ccflags-y += -Werror
 ccflags-y += $(INC_PATH)
+ccflags-y += -I$(src)
