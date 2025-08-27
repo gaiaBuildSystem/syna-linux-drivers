@@ -113,7 +113,9 @@ void vpu_srv_prepare_to_run(struct syna_vpu_srv *node,
 	last_session = node->last_session;
 	spin_unlock_irqrestore(&node->srv_spinlock, flags);
 
-	if (last_session && (last_session != session))
+	if (last_session == session)
+		return;
+	else if (last_session)
 		vpu->fw_ops->fw_inst_swap(last_session, session);
 	else
 		vpu->fw_ops->fw_inst_swap(NULL, session);
