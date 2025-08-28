@@ -74,6 +74,7 @@ syna_drm-y += drm_syna_crtc.o
 syna_drm-y += drm_syna_debugfs.o
 syna_drm-y += drm_syna_drv.o
 syna_drm-y += drm_syna_gem.o
+syna_drm-y += drm_syna_fbdev.o
 syna_drm-y += drm_syna_plane.o
 syna_drm-y += drm_syna_modeset.o
 syna_drm-y += syna_vpp.o

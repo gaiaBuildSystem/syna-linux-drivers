@@ -11,6 +11,8 @@
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/capability.h>
+#include <linux/mm.h>
+#include <asm/pgtable.h>
 #include <drm/drm_mm.h>
 #include <drm/drm_prime.h>
 #include <linux/version.h>
@@ -33,9 +35,6 @@ static int syna_gem_prime_vmap(struct drm_gem_object *obj, struct iosys_map *map
 		DRM_ERROR("%s %d  syna obj->kernel_vir_addr is NULL!!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
-
-	DRM_DEBUG_PRIME("Mapping to virtual address : %p/%llx\n",
-		syna_obj->kernel_vir_addr, (long long int)syna_obj->kernel_vir_addr);
 
 	iosys_map_set_vaddr(map, syna_obj->kernel_vir_addr);
 
@@ -82,7 +81,6 @@ void syna_gem_deinit(struct drm_device *dev)
 {
 	struct syna_drm_private *dev_priv = dev->dev_private;
 
-	DRM_DEBUG_PRIME("%s\n", __FUNCTION__);
 
 	if (dev_priv->mem_list != 0) {
 		VPP_MEM_DeInitMemory(dev_priv->mem_list);
@@ -96,7 +94,7 @@ static void syna_gem_free_buf(struct drm_gem_object *obj, struct syna_gem_object
 
 	if (syna_obj->shm_handle.handle) {
 		syna_vpp_reset_buffers(syna_obj);
-		VPP_MEM_FreeMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA, &syna_obj->shm_handle);
+		VPP_MEM_FreeMemory(dev_priv->mem_list, VPP_MEM_TYPE_NS_NC, &syna_obj->shm_handle);
 	} else if (syna_obj->sgt) {
 		DRM_DMABUF_UNMAP(syna_obj)
 		dma_buf_end_cpu_access(syna_obj->dma_buf, DMA_BIDIRECTIONAL);
@@ -147,7 +145,6 @@ struct sg_table *syna_gem_prime_get_sg_table(struct drm_gem_object *obj)
 		return ERR_PTR(-EINVAL);
 	}
 	if (syna_obj->sgt) {
-		DRM_DEBUG_PRIME("passing the imported sgt for syna_gem_prime_get_sg_table\n");
 		sgt = syna_obj->sgt;
 	} else {
 		if (syna_obj->phyaddr == 0)
@@ -190,8 +187,6 @@ struct drm_gem_object *syna_gem_prime_import_sg_table(struct drm_device *dev,
 		phyaddr = sg_phys(sg);
 		size += sg->length;
 		pageCount++;
-		DRM_DEBUG_PRIME("importing sg table: page:%d phyaddr:0x%lx size:%d\n",
-			         pageCount, phyaddr, sg->length);
 	}
 
 	syna_obj = kzalloc(sizeof(*syna_obj), GFP_KERNEL);
@@ -260,13 +255,10 @@ static int syna_gem_alloc_buf(struct drm_device *dev, struct syna_gem_object *sy
 	syna_obj->phyaddr = (phys_addr_t)syna_obj->shm_handle.p_addr;
 	syna_obj->kernel_vir_addr = syna_obj->shm_handle.k_addr;
 
-	DRM_DEBUG_PRIME("Alloc memory for (%d) %lx\n", current->pid,
-			syna_obj->phyaddr);
-
 	return 0;
 }
 
-static struct drm_gem_object *syna_gem_create_object(struct drm_device *drm,
+struct drm_gem_object *syna_gem_create_object(struct drm_device *drm,
 					      unsigned int size,
 					      bool alloc_kmap)
 {
@@ -358,8 +350,22 @@ int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 		return -EINVAL;
 	}
 
+	/* Set appropriate page protection for write-combine memory */
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+
+	/* Set VM flags for framebuffer access */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+	vm_flags_set(vma, VM_IO | VM_DONTEXPAND | VM_DONTDUMP);
+#else
+	vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
+#endif
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+	vm_flags_clear(vma, VM_PFNMAP);
+#else
 	vma->vm_flags &= ~VM_PFNMAP;
+#endif
 #endif
 
 	if (syna_obj->sgt) {
@@ -383,15 +389,10 @@ int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 					DRM_ERROR("%s:%d Map fail\n", __func__, __LINE__);
 					return -EAGAIN;
 				}
-				DRM_DEBUG_PRIME("mapping addr 0x%lx (%ld bytes) at virtual 0x%lx\n",
-						(phyaddr >> PAGE_SHIFT)+(vm_pgoff-page_offset),
-						map_size, vm_start);
 
 				vm_start += map_size;
 				vm_pgoff += map_size/PAGE_SIZE;
 				if (vm_start >= vma->vm_end) {
-					DRM_DEBUG_PRIME("%ld bytes mapped to 0x%lx\n",
-							size, vma->vm_start);
 					break;
 				}
 			}
@@ -410,10 +411,6 @@ int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 		}
 	}
 
-	DRM_DEBUG_PRIME("%s %d PID(%d)  Map %lx to %lx\n", __func__,
-			__LINE__, current->pid, syna_obj->phyaddr,
-			vma->vm_start);
-
 	return ret;
 }
 
@@ -421,10 +418,13 @@ int syna_gem_mmap_buf(struct drm_gem_object *obj, struct vm_area_struct *vma)
 {
 	int ret;
 
+	DRM_ERROR("%s: obj->size=%zu, vma size=%lu, vma->vm_pgoff=%lu\n",
+			__func__, obj->size, vma->vm_end - vma->vm_start, vma->vm_pgoff);
+
 	ret = drm_gem_mmap_obj(obj, obj->size, vma);
 	if (ret) {
-		DRM_ERROR("%s:%d drm_gem_mmap_obj fail!!\n",
-			  __func__, __LINE__);
+		DRM_ERROR("%s:%d drm_gem_mmap_obj fail!! ret=%d\n",
+			  __func__, __LINE__, ret);
 		return ret;
 	}
 
@@ -451,8 +451,7 @@ int syna_gem_dumb_map_offset(struct drm_file *file,
 		goto exit_obj_unref;
 
 	*offset = drm_vma_node_offset_addr(&obj->vma_node);
-	DRM_DEBUG_PRIME("%s (PID:%d) map handle(%d) to %llx\n", __func__,
-		 current->pid, handle, *offset);
+
 exit_obj_unref:
 	DRM_GEM_OBJECT_PUT(obj);
 exit_unlock:

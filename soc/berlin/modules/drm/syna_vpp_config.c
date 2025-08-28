@@ -31,8 +31,6 @@ static int syna_encoder_parse_dsi_dt(struct syna_drm_private *dev_priv, vpp_conf
 	if (!dsi_node) {
 		DRM_ERROR("DSI node not found \n");
 		return -ENODEV;
-	} else {
-		DRM_DEBUG_DRIVER("DSI node found\n");
 	}
 
 	pMipiConfig->vpp_resinfo_shm_handle.size = VPP_SHM_4K_ALIGN_ROUNDUP(sizeof(VPP_MIPI_CONFIG_PARAMS));

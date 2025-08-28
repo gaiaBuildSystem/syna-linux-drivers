@@ -49,6 +49,11 @@ static int syna_dsi_connector_helper_get_modes(struct drm_connector *connector)
 {
 	int num_modes;
 
+	if (!connector) {
+		DRM_ERROR("Connector is NULL\n");
+		return 0;
+	}
+
 	num_modes = syna_dsi_add_extra_modes(connector);
 
 	drm_mode_sort(&connector->probed_modes);
@@ -62,9 +67,28 @@ static int syna_dsi_connector_helper_get_modes(struct drm_connector *connector)
 static int syna_dsi_connector_helper_mode_valid(struct drm_connector *connector,
 						struct drm_display_mode *mode)
 {
-	struct syna_drm_private *dev_priv = connector->dev->dev_private;
-	VPP_MIPI_CONFIG_PARAMS *pvpp_mipi_param = dev_priv->vpp_config_param.mipi_resinfo_params;
-	RESOLUTION_INFO *pres_info_params = &pvpp_mipi_param->infoparams.resInfo;
+	struct syna_drm_private *dev_priv;
+	VPP_MIPI_CONFIG_PARAMS *pvpp_mipi_param;
+	RESOLUTION_INFO *pres_info_params;
+
+	if (!connector || !mode) {
+		DRM_ERROR("Connector or mode is NULL\n");
+		return MODE_ERROR;
+	}
+
+	dev_priv = connector->dev->dev_private;
+	if (!dev_priv) {
+		DRM_ERROR("Device private data is NULL\n");
+		return MODE_ERROR;
+	}
+
+	pvpp_mipi_param = dev_priv->vpp_config_param.mipi_resinfo_params;
+	if (!pvpp_mipi_param) {
+		DRM_DEBUG_DRIVER("MIPI config params not available\n");
+		return MODE_ERROR;
+	}
+
+	pres_info_params = &pvpp_mipi_param->infoparams.resInfo;
 
 	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
 		return MODE_NO_INTERLACE;
@@ -134,6 +158,9 @@ struct drm_connector *syna_dsi_connector_create(struct drm_device *dev)
 	connector->interlace_allowed = false;
 	connector->doublescan_allowed = false;
 	connector->display_info.subpixel_order = SubPixelHorizontalRGB;
+
+	/* Set DSI as disconnected by default to prefer HDMI for fbdev */
+	connector->status = connector_status_disconnected;
 
 	DRM_DEBUG_DRIVER("[CONNECTOR:%d:%s]\n", connector->base.id,
 			 connector->name);

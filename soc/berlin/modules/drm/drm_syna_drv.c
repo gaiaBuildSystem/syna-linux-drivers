@@ -29,6 +29,7 @@
 
 #include "drm_syna_drv.h"
 #include "drm_syna_gem.h"
+#include "drm_syna_fbdev.h"
 #include "syna_drm.h"
 #include "syna_vpp.h"
 #include "drm_syna_port.h"
@@ -82,7 +83,6 @@ static int vblank_thread(void *parameter)
 {
 	SYNA_VBLANK_THREAD_PARAM_T *vblankParam = parameter;
 
-	DRM_DEBUG_VBL("%s %d\n", __func__, __LINE__);
 
 	while (!kthread_should_stop()) {
 		syna_vpp_wait_vsync(vblankParam->crtc_no);
@@ -124,11 +124,24 @@ static int syna_early_load(struct drm_device *dev)
 	syna_panel_lcdc_init(pdev);
 	syna_panel_dsi_init(pdev);
 
-	/* Initialise the Device specific init*/
+	/* Check if VPP dependencies are ready before initializing */
+	if (!VPP_Is_Recovery_Mode()) {
+		DRM_INFO("VPP not in recovery mode yet, deferring probe\n");
+		err = -EPROBE_DEFER;
+		goto err_gem_cleanup;
+	}	/* Initialise the Device specific init*/
 	err = syna_vpp_dev_init(dev);
 	if (err) {
-		DRM_ERROR("Syna Device initialise Fail (err=%d)\n",
-			  err);
+		/* If VPP initialization fails, it might be because dependencies
+		 * (clocks, power domains, trusted apps) are not ready yet.
+		 * Return -EPROBE_DEFER to let kernel retry later.
+		 */
+		if (err == -ENODEV || err == -ENOENT || err == -ENXIO) {
+			DRM_INFO("VPP dependencies not ready, deferring probe\n");
+			err = -EPROBE_DEFER;
+		} else {
+			DRM_ERROR("Syna Device initialise Fail (err=%d)\n", err);
+		}
 		goto err_gem_cleanup;
 	}
 
@@ -232,6 +245,14 @@ static int syna_gem_object_create_ioctl(struct drm_device *dev,
 	return syna_gem_object_create_ioctl_priv(dev, data, file);
 }
 
+/* DRM callback for creating GEM objects - used by fbdev helpers */
+static struct drm_gem_object *syna_drm_gem_create_object_callback(struct drm_device *dev,
+								   size_t size)
+{
+	/* Use our VPP-based GEM object creation for fbdev emulation */
+	return syna_gem_create_object(dev, size, false);
+}
+
 static const struct drm_ioctl_desc syna_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(SYNA_GEM_CREATE, syna_gem_object_create_ioctl,
 			  DRM_AUTH | DRM_RENDER_ALLOW),
@@ -250,8 +271,11 @@ static int syna_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	int ret;
 
 	ret = drm_gem_mmap(filp, vma);
-	if (ret)
+	if (ret) {
+		printk(KERN_ERR "syna_gem_mmap: drm_gem_mmap failed with ret=%d for PID %d\n",
+			ret, current->pid);
 		return ret;
+	}
 	/*
 	 * Set vm_pgoff (used as a fake buffer offset by DRM) to 0 and map the
 	 * whole buffer from the start.
@@ -260,7 +284,9 @@ static int syna_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	obj = vma->vm_private_data;
 
-	return syna_drm_gem_object_mmap(obj, vma);
+	ret = syna_drm_gem_object_mmap(obj, vma);
+
+	return ret;
 }
 
 static const struct file_operations syna_driver_fops = {
@@ -286,6 +312,7 @@ static struct drm_driver syna_drm_driver = {
 	.debugfs_init = syna_debugfs_init,
 #endif
 	SYNA_DRM_DRIVER_GEM_FREE_OBJ_INTERFACES()
+	.gem_create_object = syna_drm_gem_create_object_callback,
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
 	.gem_prime_import_sg_table = syna_gem_prime_import_sg_table,
@@ -349,9 +376,23 @@ static int syna_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_drm_dev_late_unload;
 
+	/* Finish driver modeset initialization before doing fbdev initial config.
+	 * Some fb-helper operations perform an initial atomic commit that expects
+	 * driver planes/crtcs to be ready. Run late modeset init first, then
+	 * initialize fbdev helpers so their initial_config runs with valid state.
+	 */
 	ret = syna_late_load(ddev);
 	if (ret)
 		goto err_drm_dev_unregister;
+
+	/* Setup fbdev emulation using custom implementation for VPP memory
+	 * The fbdev helper will automatically prefer connected displays in connector order:
+	 * HDMI (0) will be preferred over DSI (1) when both are available
+	 */
+	ret = syna_fbdev_init(ddev);
+	if (ret) {
+		/* Continue without fbdev emulation */
+	}
 
 	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_suspend.attr);
 	if(ret)
@@ -396,10 +437,8 @@ static int syna_drm_suspend(struct device *dev)
 {
 	struct drm_device *ddev;
 
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	ddev = platform_get_drvdata(to_platform_device(dev));
-	drm_fb_helper_set_suspend_unlocked(ddev->fb_helper, 1);
 	drm_mode_config_helper_suspend(ddev);
 	return 0;
 }
@@ -408,11 +447,9 @@ static int syna_drm_resume(struct device *dev)
 {
 	struct drm_device *ddev;
 
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	ddev = platform_get_drvdata(to_platform_device(dev));
 	drm_mode_config_helper_resume(ddev);
-	drm_fb_helper_set_suspend_unlocked(ddev->fb_helper, 0);
 	return 0;
 }
 
@@ -447,7 +484,6 @@ static int __init syna_init(void)
 
 static void __exit syna_exit(void)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	platform_driver_unregister(&syna_platform_driver);
 }
