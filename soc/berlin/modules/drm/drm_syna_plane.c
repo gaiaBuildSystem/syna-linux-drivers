@@ -126,14 +126,6 @@ static void syna_plane_helper_atomic_update(struct drm_plane *plane,
 		MV_VPP_UpdatePlaneInfo(syna_plane->plane_id, &pinfo);
 	}
 
-	DRM_DEBUG_ATOMIC
-		("%s:%d %d %d %d %d -> %d %d %d %d  rotation=%d\n",
-		 __func__, __LINE__, plane_state->src_x,
-		 plane_state->src_y, plane_state->src_w, plane_state->src_h,
-		 plane_state->crtc_x, plane_state->crtc_y,
-		 plane_state->crtc_w, plane_state->crtc_h,
-		 plane_state->rotation);
-
 	syna_plane_set_surface(plane_state->crtc, plane, fb,
 				   plane_state->src_x, plane_state->src_y);
 }
@@ -260,13 +252,7 @@ struct drm_plane *syna_plane_create(struct drm_device *dev, int crtc_index,
 		goto err_plane_free;
 
 	drm_plane_helper_add(plane, &syna_plane_helper_funcs);
-	DRM_DEBUG_ATOMIC("%s %d\n", __func__, __LINE__);
 
-	DRM_DEBUG_DRIVER("[PLANE] type:  %d\n", plane->type);
-	DRM_DEBUG_DRIVER("[PLANE] index: %d\n", plane->index);
-	DRM_DEBUG_DRIVER("[PLANE] name:  %s\n", plane->name);
-	DRM_DEBUG_DRIVER("num_total_plane %d\n",
-			 dev->mode_config.num_total_plane);
 
 	return plane;
 
