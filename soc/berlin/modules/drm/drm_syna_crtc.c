@@ -53,7 +53,6 @@ static bool syna_clocks_set(struct drm_crtc *crtc,
 				  adjusted_mode->vdisplay);
 	syna_vpp_set_updates_enabled(crtc->dev->dev, syna_crtc->syna_reg, true);
 
-	DRM_DEBUG_DRIVER("syna clock set to %dMhz\n", clock_in_mhz);
 
 	return res;
 }
@@ -264,7 +263,6 @@ static void syna_crtc_destroy(struct drm_crtc *crtc)
 	dev_priv = dev->dev_private;
 	syna_crtc = to_syna_crtc(crtc);
 
-	DRM_DEBUG_DRIVER("[CRTC:%d]\n", crtc->base.id);
 
 	drm_crtc_cleanup(crtc);
 
@@ -347,7 +345,6 @@ struct drm_crtc *syna_crtc_create(struct drm_device *dev, uint32_t number,
 
 	drm_crtc_helper_add(&syna_crtc->base, &syna_crtc_helper_funcs);
 
-	DRM_DEBUG_DRIVER("[CRTC:%d]\n", syna_crtc->base.base.id);
 
 	return &syna_crtc->base;
 

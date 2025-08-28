@@ -16,6 +16,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
+#include <drm/drm_fbdev_dma.h>
 #include <drm/drm_mm.h>
 #include <drm/drm_plane.h>
 #include "syna_vpp.h"
@@ -23,6 +24,9 @@
 #include "syna_drm_priv.h"
 #include "vpp_config.h"
 #include "vpp_fb.h"
+#include "vpp_api.h"
+
+struct syna_fbdev;
 
 struct syna_gem_context;
 enum syna_crtc_flip_status;

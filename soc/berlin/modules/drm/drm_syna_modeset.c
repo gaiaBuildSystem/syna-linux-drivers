@@ -18,6 +18,7 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_gem_framebuffer_helper.h>
+#include <drm/drm_fbdev_dma.h>
 #include <drm/drm_atomic_helper.h>
 #include "syna_vpp.h"
 
@@ -96,7 +97,6 @@ static struct drm_framebuffer *syna_fb_create(struct drm_device *dev,
 	if (IS_ERR(fb))
 		goto out;
 
-	DRM_DEBUG_DRIVER("[FB:%d]\n", fb->base.id);
 
 out:
 	return fb;
@@ -168,7 +168,6 @@ int syna_modeset_early_init(struct syna_drm_private *dev_priv)
 	//Enable zpos to be normalized
 	dev->mode_config.normalize_zpos = true;
 
-	DRM_DEBUG_DRIVER("initialised\n");
 
 	return 0;
 
@@ -198,5 +197,4 @@ void syna_modeset_late_cleanup(struct syna_drm_private *dev_priv)
 	drm_mode_config_cleanup(dev_priv->dev);
 	syna_vpp_remove_debugfs_entry(dev_priv);
 
-	DRM_DEBUG_DRIVER("cleaned up\n");
 }

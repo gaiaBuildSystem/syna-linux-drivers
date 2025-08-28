@@ -31,8 +31,6 @@ static int syna_encoder_parse_dsi_dt(struct syna_drm_private *dev_priv, vpp_conf
 	if (!dsi_node) {
 		DRM_ERROR("DSI node not found \n");
 		return -ENODEV;
-	} else {
-		DRM_DEBUG_DRIVER("DSI node found\n");
 	}
 
 	dev_priv->vpp_config_param.mipidsi_enable = of_device_is_available(dsi_node) ? true : false;

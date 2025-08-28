@@ -332,7 +332,6 @@ static void syna_vpp_init(struct drm_device *dev)
 	VBUF_INFO *vbufinfo;
 	VPP_MEM *shm_handle;
 
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 #ifndef CONFIG_SYNA_DRM_DISABLE_ROTATION
 	device_rotate = DEFAULT_DEVICE_ROTATION;
@@ -342,7 +341,6 @@ static void syna_vpp_init(struct drm_device *dev)
 
 	for (plane = 0; plane < MAX_NUM_PLANES; plane++) {
 		for (i = 0; i < MAX_VBUF_INFO; i++) {
-			DRM_DEBUG_DRIVER("Init %d\n", i);
 			vbufinfo = &vpp_disp_desc_array[plane][i];
 			shm_handle = &vpp_disp_info_shm_handle[plane][i];
 
@@ -357,9 +355,6 @@ static void syna_vpp_init(struct drm_device *dev)
 			vbufinfo->hShm_vbuf = shm_handle;
 			vbufinfo->pVppVbufInfo_virt = shm_handle->k_addr;
 			vbufinfo->pVppVbufInfo_phy = (phys_addr_t)shm_handle->p_addr;
-
-			DRM_DEBUG_DRIVER("Init vpp_disp_info_phys_addr[%d][%d]=%lx\n",
-					 plane, i, (phys_addr_t)shm_handle->p_addr);
 		}
 	}
 
@@ -367,7 +362,6 @@ static void syna_vpp_init(struct drm_device *dev)
 	for (plane = 0; plane < MAX_PLANE_NUM; plane++) {
 		in_use_device_rotate[plane] = -1;
 		for (i = 0; i < MAX_ROTATE_BUFFER; i++) {
-			DRM_DEBUG_DRIVER("Init %d\n", i);
 			vpp_rotate_buffer_shm_handle[plane][i].size = SYNA_WIDTH_MAX * SYNA_HEIGHT_MAX * 4;
 			ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
 						&vpp_rotate_buffer_shm_handle[plane][i], 0);
@@ -379,10 +373,6 @@ static void syna_vpp_init(struct drm_device *dev)
 				(phys_addr_t)vpp_rotate_buffer_shm_handle[plane][i].k_addr;
 			rotate_buffer_phy_addr[plane][i] =
 				(phys_addr_t)vpp_rotate_buffer_shm_handle[plane][i].p_addr;
-
-			DRM_DEBUG_DRIVER
-				("Init vpp_disp_info_phys_addr[%d][%d]=%lx\n",
-				 plane, i, rotate_buffer_phy_addr[plane][i]);
 		}
 	}
 #endif
@@ -390,10 +380,6 @@ static void syna_vpp_init(struct drm_device *dev)
 	for (i = 0; i < VPP_BUILD_IN_FRAME_TYPE_MAX; i++) {
 		uint32_t frame_type;
 		const VPP_BUILD_IN_FRAME_INFO *bframe_info = &vpp_buildin_frame_info[i];
-
-		DRM_DEBUG_DRIVER("Init Buildin frame type - %d, wxhxb - %dx%dx%d\n",
-				i, bframe_info->frame_wid, bframe_info->frame_hgt,
-				bframe_info->bpp);
 
 		vpp_buildin_buffer_shm_handle[i].size = bframe_info->frame_wid *
 				bframe_info->frame_hgt * bframe_info->bpp;
@@ -415,10 +401,6 @@ static void syna_vpp_init(struct drm_device *dev)
 			bframe_info->pattern_wid, bframe_info->pattern_hgt,
 			bframe_info->frame_wid, bframe_info->frame_hgt,
 			bframe_info->color1, bframe_info->color2);
-
-		DRM_DEBUG_DRIVER
-			("Init Buildin frame vpp_disp_info_phys_addr[%d]=%lx\n",
-			 i,  buildin_buffer_phy_addr[i]);
 	}
 }
 
@@ -474,7 +456,6 @@ bool syna_vpp_clocks_set(struct device *dev,
 			 void __iomem *syna_reg, u32 clock_in_mhz,
 			 u32 hdisplay, u32 vdisplay)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	return true;
 }
@@ -482,21 +463,18 @@ bool syna_vpp_clocks_set(struct device *dev,
 void syna_vpp_set_updates_enabled(struct device *dev, void __iomem *syna_reg,
 				  bool enable)
 {
-	DRM_DEBUG_DRIVER("Set updates: %s\n", enable ? "enable" : "disable");
 	/* nothing to do here */
 }
 
 void syna_vpp_set_syncgen_enabled(struct device *dev, void __iomem *syna_reg,
 				  bool enable)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 	dev_info(dev, "Set syncgen: %s\n", enable ? "enable" : "disable");
 }
 
 void syna_vpp_set_powerdwn_enabled(struct device *dev, void __iomem *syna_reg,
 				   bool enable)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	dev_info(dev, "Set powerdwn: %s\n", enable ? "enable" : "disable");
 }
@@ -504,7 +482,6 @@ void syna_vpp_set_powerdwn_enabled(struct device *dev, void __iomem *syna_reg,
 void syna_vpp_set_vblank_enabled(struct device *dev, void __iomem *syna_reg,
 				 bool enable)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	dev_info(dev, "Set vblank: %s\n", enable ? "enable" : "disable");
 }
@@ -518,7 +495,6 @@ bool syna_vpp_check_and_clear_vblank(struct device *dev,
 void syna_vpp_set_plane_enabled(struct device *dev, void __iomem *syna_reg,
 				u32 plane, bool enable)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	dev_info(dev, "Set plane %u: %s\n",
 		 plane, enable ? "enable" : "disable");
@@ -527,7 +503,6 @@ void syna_vpp_set_plane_enabled(struct device *dev, void __iomem *syna_reg,
 void syna_vpp_reset_buffers(struct syna_gem_object *syna_obj)
 {
 	int i;
-	DRM_DEBUG_DRIVER("Reset buffers\n");
 
 	//No action, if buffer address is not valid
 	if (!syna_obj->phyaddr)
@@ -537,8 +512,6 @@ void syna_vpp_reset_buffers(struct syna_gem_object *syna_obj)
 		if (last_addr[i] == syna_obj->phyaddr) {
 			syna_push_buildin_frame(i);
 			last_addr[i] = (phys_addr_t)NULL;
-			DRM_DEBUG_DRIVER("plane-%d, buffer released/reset-%lx\n", i,
-								syna_obj->phyaddr);
 			break;
 		}
 	}
@@ -646,10 +619,6 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 	stride = pitch;
 	format = syna_drm_fb_format(fb);
 
-	DRM_DEBUG_DRIVER
-		("Set surface: size=%dx%d stride=%d format=%d address=0x%llx\n",
-		 width, height, stride, format, (u64)syna_obj);
-
 	if (!init_vbuf_info) {
 		init_vbuf_info = 1;
 		if (!VPP_Is_Recovery_Mode())
@@ -660,38 +629,26 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 	case DRM_FORMAT_ARGB8888:
 		VPP_Format = SRCFMT_ARGB32;
 		order = ORDER_BGRA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_ARGB8888\n",
-				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_ABGR8888:
 		VPP_Format = SRCFMT_ARGB32;
 		order = ORDER_RGBA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_ABGR8888\n",
-				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_XRGB8888:
 		VPP_Format = SRCFMT_XRGB32;
 		order = ORDER_BGRA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XRGB8888\n",
-				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_XBGR8888:
 		VPP_Format = SRCFMT_XRGB32;
 		order = ORDER_RGBA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XBGR8888\n",
-				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_RGB565:
 		VPP_Format = SRCFMT_RGB565;
 		order = ORDER_RGBA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XBGR8888\n",
-				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_BGR565:
 		VPP_Format = SRCFMT_RGB565;
 		order = ORDER_BGRA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XBGR8888\n",
-				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
@@ -699,12 +656,8 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 		VPP_Format = SRCFMT_YUV420SP;
 		if (format == DRM_FORMAT_NV12) {
 			order = ORDER_UYVY;
-			DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_NV12\n",
-				 __func__, __LINE__);
 		} else {
 			order = ORDER_VYUY;
-			DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_NV21\n",
-				 __func__, __LINE__);
 		}
 		break;
 	case DRM_FORMAT_UYVY:
@@ -714,24 +667,14 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 		VPP_video_format = 1;
 		VPP_Format = SRCFMT_YUV422;
 		order = ORDER_UYVY;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_UYVY\n",
-				 __func__, __LINE__);
 		if (format == DRM_FORMAT_UYVY) {
 			order = ORDER_UYVY;
-			DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_UYVY\n",
-				 __func__, __LINE__);
 		} else if (format == DRM_FORMAT_VYUY) {
 			order = ORDER_VYUY;
-			DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_VYUY\n",
-				 __func__, __LINE__);
 		} else if (format == DRM_FORMAT_YUYV) {
 			order = ORDER_YUYV;
-			DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_YUYV\n",
-				 __func__, __LINE__);
 		} else if (format == DRM_FORMAT_YVYU) {
 			order = ORDER_YVYU;
-			DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_YVYU\n",
-				 __func__, __LINE__);
 		}
 		break;
 	default:
@@ -741,9 +684,6 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 		break;
 	}
 
-	DRM_DEBUG_DRIVER("Display frame: planeID=%d x=%x y=%d w=%d, h=%d, phyaddr=%lx\n",
-		 plane, posx, posy, width, height, syna_obj->phyaddr);
-
 	if (plane >= MAX_NUM_PLANES) {
 		DRM_ERROR("Push frame nn wrong plane\n");
 		return;
@@ -751,8 +691,6 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 
 	if (last_addr[plane] != syna_obj->phyaddr) {
 		last_addr[plane] = syna_obj->phyaddr;
-	} else {
-		DRM_DEBUG_DRIVER("Push the same frame to plane-%d\n", plane);
 	}
 
 	/*Have rotate, get a convert target buffer */
@@ -827,8 +765,6 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 		syna_vpp_convert_frame_info(curr_vpp_vbuf, SRCFMT_ARGB32,
 				   0, 0, width, height, (ARCH_PTR_TYPE)disp_phyaddr, disp_phyaddr_uv);
 		curr_vpp_vbuf->m_order = ORDER_ARGB;
-		DRM_DEBUG_DRIVER
-			("Hack for PIP: Always use SRCFMT_ARGB32+ORDER_ARGB\n");
 	} else
 #endif
 	{
@@ -856,9 +792,6 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 
 #ifndef CONFIG_SYNA_DRM_DISABLE_ROTATION
 	if (in_use_device_rotate[plane] != device_rotate) {
-		DRM_DEBUG_DRIVER
-			("[DRM] device rotate is change!! pre:%d update:%ld\n",
-			 in_use_device_rotate[plane], device_rotate);
 		in_use_device_rotate[plane] = device_rotate;
 	}
 #endif
@@ -947,7 +880,6 @@ void syna_vpp_mode_set(struct device *dev, void __iomem *syna_reg,
 			   u32 vbps, u32 vt, u32 vas,
 			   u32 vtbs, u32 vfps, u32 vbbs, bool nhsync, bool nvsync)
 {
-	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
 
 	dev_info(dev, "Set mode: %dx%d\n", h_display, v_display);
 	dev_info(dev, " ht: %d hbps %d has %d hlbs %d hfps %d hrbs %d\n",
