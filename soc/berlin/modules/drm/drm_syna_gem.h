@@ -77,4 +77,8 @@ void syna_gem_deinit(struct drm_device *dev);
 int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 			     struct vm_area_struct *vma);
 
+struct drm_gem_object *syna_gem_create_object(struct drm_device *dev,
+					       unsigned int size,
+					       bool alloc_kmap);
+
 #endif /* !defined(__DRM_SYNA_GEM_H__) */
