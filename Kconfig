@@ -71,6 +71,8 @@ source "drivers/synaptics/watchdog/Kconfig"
 
 source "drivers/synaptics/mailbox/Kconfig"
 
+source "drivers/synaptics/rpmsg/Kconfig"
+
 source "drivers/synaptics/hrx-v4l2/Kconfig"
 
 endmenu
