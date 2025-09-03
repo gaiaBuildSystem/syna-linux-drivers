@@ -15,6 +15,8 @@
 #include <linux/stat.h>
 #include <linux/sysfs.h>
 #include <linux/platform_device.h>
+#include <linux/rcupdate.h>
+#include <linux/workqueue.h>
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_drv.h>
@@ -37,6 +39,11 @@
 
 #define MAX_THEAD_NAME_CHAR 16
 
+typedef struct syna_fbcon_start_work_t {
+	struct drm_device *dev;
+	struct work_struct drm_work;
+	struct rcu_head rcu;
+} SYNA_FBCON_START_WORK;
 
 typedef struct syna_vblank_thread_param_t {
 	struct drm_device *dev;
@@ -46,6 +53,7 @@ typedef struct syna_vblank_thread_param_t {
 static bool display_enable = true;
 static struct task_struct *thread[MAX_CRTC];
 static SYNA_VBLANK_THREAD_PARAM_T vblank_thread_param[MAX_CRTC];
+static SYNA_FBCON_START_WORK *fbcon_start_work;
 
 /* - This variable decides FBCON init time
  * - 1: FBCON init is delayed to VBlank thread, until drm-client starts on bootup
@@ -79,8 +87,10 @@ static void syna_irq_handler(void *data)
 	struct syna_drm_private *dev_priv = dev->dev_private;
 	static int is_fastlogo_status_cleared;
 
-	if (!dev_priv->is_fbconsole_enabled)
-		syna_fbcon_enable(dev);
+	if (!dev_priv->is_fbconsole_enabled && fbcon_start_work != NULL) {
+		dev_priv->is_fbconsole_enabled = 1;
+		schedule_work(&fbcon_start_work->drm_work);
+	}
 
 	if (!is_fastlogo_status_cleared) {
 		is_fastlogo_status_cleared = 1;
@@ -319,14 +329,24 @@ static ssize_t suspend_set_state(struct device *dev,
 	return count;
 }
 
+static void syna_rcu_fbcon_cleanup(struct rcu_head *rcu)
+{
+	DRM_DEBUG_DRIVER("RCU callback executed: freeing memory\n");
+	kfree(fbcon_start_work);
+}
+
 /* Work Queue to avoid the Timeout warning or Deadlock
  * while Fbconsole is enabled
   */
-static void fbcon_work(struct work_struct *work)
+static void syna_fbcon_start_work(struct work_struct *work)
 {
-	struct syna_drm_private *ddev = container_of(work, struct syna_drm_private, drm_work);
+	SYNA_FBCON_START_WORK *fbcon_start_work_temp =
+		container_of(work, SYNA_FBCON_START_WORK, drm_work);
 
-	drm_fbdev_ttm_setup(ddev->dev, 32);
+	SYNA_DRM_FBDEV_SETUP(fbcon_start_work_temp->dev, 32);
+
+	// Schedule RCU-safe cleanup
+	call_rcu(&fbcon_start_work_temp->rcu, syna_rcu_fbcon_cleanup);
 }
 
 static DEVICE_ATTR(suspend, (S_IRUGO | S_IWGRP | S_IWUSR), NULL, suspend_set_state);
@@ -335,7 +355,7 @@ static int syna_probe(struct platform_device *pdev)
 {
 	struct drm_device *ddev;
 	int ret;
-	struct syna_drm_private *dev_priv;
+	SYNA_FBCON_START_WORK *fbcon_start_work_temp;
 
 	ddev = drm_dev_alloc(&syna_drm_driver, &pdev->dev);
 
@@ -362,15 +382,21 @@ static int syna_probe(struct platform_device *pdev)
 		DRM_ERROR("Sysfs suspend entry not created %d",ret);
 
 	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
-		IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE))
+			IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE)) {
+		if (!is_fb_delayed_start)
 			SYNA_DRM_FBDEV_SETUP(ddev, 32);
+		else {
+			fbcon_start_work_temp =
+				kmalloc(sizeof(SYNA_FBCON_START_WORK), GFP_KERNEL);
 
-	dev_priv = ddev->dev_private;
+			if (!fbcon_start_work_temp)
+				goto err_drm_dev_unregister;
 
-	INIT_WORK(&dev_priv->drm_work, fbcon_work);
-
-	if (!is_fb_delayed_start)
-		syna_fbcon_enable(ddev);
+			fbcon_start_work_temp->dev = ddev;
+			INIT_WORK(&fbcon_start_work_temp->drm_work, syna_fbcon_start_work);
+			fbcon_start_work = fbcon_start_work_temp;
+		}
+	}
 
 	return 0;
 
@@ -400,17 +426,6 @@ static RET_TYPE syna_remove(struct platform_device *pdev)
 
 static void syna_shutdown(struct platform_device *pdev)
 {
-}
-
-void syna_fbcon_enable(struct drm_device *ddev)
-{
-	struct syna_drm_private *dev_priv = ddev->dev_private;
-
-	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
-			IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE)) {
-		dev_priv->is_fbconsole_enabled = 1;
-		schedule_work(&dev_priv->drm_work);
-	}
 }
 
 static const struct of_device_id drm_match[] = {
