@@ -56,6 +56,7 @@ struct syna_drm_private {
 
 	void *pMipiDsiInfo;
 	bool is_fbconsole_enabled;
+	struct work_struct drm_work;
 };
 
 struct syna_plane {

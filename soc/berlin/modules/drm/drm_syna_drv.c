@@ -47,6 +47,13 @@ static bool display_enable = true;
 static struct task_struct *thread[MAX_CRTC];
 static SYNA_VBLANK_THREAD_PARAM_T vblank_thread_param[MAX_CRTC];
 
+/* - This variable decides FBCON init time
+ * - 1: FBCON init is delayed to VBlank thread, until drm-client starts on bootup
+ * - 0: FBCON init from probe, where drm-client not starts on bootup
+ */
+static bool is_fb_delayed_start = 1;
+module_param(is_fb_delayed_start, bool, 0444);
+
 module_param(display_enable, bool, 0444);
 MODULE_PARM_DESC(display_enable, "Enable all displays (default: Y)");
 
@@ -70,6 +77,15 @@ static void syna_irq_handler(void *data)
 	SYNA_VBLANK_THREAD_PARAM_T *vblankParam = data;
 	struct drm_device *dev = vblankParam->dev;
 	struct syna_drm_private *dev_priv = dev->dev_private;
+	static int is_fastlogo_status_cleared;
+
+	if (!dev_priv->is_fbconsole_enabled)
+		syna_fbcon_enable(dev);
+
+	if (!is_fastlogo_status_cleared) {
+		is_fastlogo_status_cleared = 1;
+		avio_set_fastlogo_status(0);
+	}
 
 	if (dev_priv->crtc[vblankParam->crtc_no])
 		syna_crtc_irq_handler(dev_priv->crtc[vblankParam->crtc_no]);
@@ -303,13 +319,23 @@ static ssize_t suspend_set_state(struct device *dev,
 	return count;
 }
 
+/* Work Queue to avoid the Timeout warning or Deadlock
+ * while Fbconsole is enabled
+  */
+static void fbcon_work(struct work_struct *work)
+{
+	struct syna_drm_private *ddev = container_of(work, struct syna_drm_private, drm_work);
+
+	drm_fbdev_ttm_setup(ddev->dev, 32);
+}
+
 static DEVICE_ATTR(suspend, (S_IRUGO | S_IWGRP | S_IWUSR), NULL, suspend_set_state);
 
 static int syna_probe(struct platform_device *pdev)
 {
 	struct drm_device *ddev;
 	int ret;
-	avio_fastlogo_info display_info;
+	struct syna_drm_private *dev_priv;
 
 	ddev = drm_dev_alloc(&syna_drm_driver, &pdev->dev);
 
@@ -335,10 +361,15 @@ static int syna_probe(struct platform_device *pdev)
 	if(ret)
 		DRM_ERROR("Sysfs suspend entry not created %d",ret);
 
-	display_info = avio_get_fastlogo_status();
+	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
+		IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE))
+			SYNA_DRM_FBDEV_SETUP(ddev, 32);
 
-	/* Enable FB based on the fastlogo displayed status */
-	if (!display_info.u.status)
+	dev_priv = ddev->dev_private;
+
+	INIT_WORK(&dev_priv->drm_work, fbcon_work);
+
+	if (!is_fb_delayed_start)
 		syna_fbcon_enable(ddev);
 
 	return 0;
@@ -378,7 +409,7 @@ void syna_fbcon_enable(struct drm_device *ddev)
 	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
 			IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE)) {
 		dev_priv->is_fbconsole_enabled = 1;
-		SYNA_DRM_FBDEV_SETUP(ddev, 32);
+		schedule_work(&dev_priv->drm_work);
 	}
 }
 
