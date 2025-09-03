@@ -24,6 +24,30 @@
 #include "dsih_api.h"
 #include "includes.h"
 
+static void syna_vpp_convert_mipi_resinfo_to_lcdc(VPP_MIPI_CONFIG_PARAMS *pMipiRescfg,
+			SYNA_LCDC_CONFIG *plcdccfg)
+{
+	memset(plcdccfg, 0, sizeof(SYNA_LCDC_CONFIG));
+	plcdccfg->xres = pMipiRescfg->infoparams.resInfo.active_width;
+	plcdccfg->right_margin = pMipiRescfg->infoparams.resInfo.hfrontporch;
+	plcdccfg->hsync_len = pMipiRescfg->infoparams.resInfo.hsyncwidth;
+	plcdccfg->left_margin = pMipiRescfg->infoparams.resInfo.hbackporch;
+	plcdccfg->yres = pMipiRescfg->infoparams.resInfo.active_height;
+	plcdccfg->lower_margin = pMipiRescfg->infoparams.resInfo.vfrontporch;
+	plcdccfg->vsync_len = pMipiRescfg->infoparams.resInfo.vsyncwidth;
+	plcdccfg->upper_margin = pMipiRescfg->infoparams.resInfo.vbackporch;
+	plcdccfg->pixclock = pMipiRescfg->infoparams.resInfo.freq;
+
+	if (pMipiRescfg->initparams.color_coding == COLOR_CODE_24BIT)
+		plcdccfg->bits_per_pixel = 24;
+	else if (pMipiRescfg->initparams.color_coding >= COLOR_CODE_16BIT_CONFIG1 &&
+			pMipiRescfg->initparams.color_coding <= COLOR_CODE_16BIT_CONFIG3)
+		plcdccfg->bits_per_pixel = 16;
+	else if (pMipiRescfg->initparams.color_coding >= COLOR_CODE_18BIT_CONFIG1 &&
+			pMipiRescfg->initparams.color_coding <= COLOR_CODE_18BIT_CONFIG2)
+		plcdccfg->bits_per_pixel = 18;
+}
+
 static const ENUM_PLANE_ID syna_primary_plane_id[MAX_CRTC] = {
 	PLANE_GFX0,
 	PLANE_GFX1,
@@ -46,10 +70,49 @@ void syna_vpp_dev_init_priv(struct drm_device *dev)
 	/* Buildin frame not required for ASXX - Single Plane/Single CRTC system */
 }
 
-void syna_read_config_priv(vpp_config_params *p_vpp_config_param)
+void syna_read_config_priv(struct syna_drm_private *dev_priv)
 {
-	p_vpp_config_param->active_planes = (1 << PLANE_GFX0);
-	p_vpp_config_param->active_planes |= (1 << PLANE_GFX1);
+	struct drm_device *dev = dev_priv->dev;
+	vpp_config_params *p_vpp_config_param = &dev_priv->vpp_config_param;
+	SYNA_LCDC_CONFIG *lcdcConfig = NULL;
+	struct device_node *lcdc_node;
+	int mode, rgbswap;
+
+	lcdc_node = of_find_compatible_node(NULL, NULL, "syna,drm-lcdc");
+
+	if (lcdc_node) {
+		lcdcConfig = devm_kmalloc(dev->dev, sizeof(SYNA_LCDC_CONFIG), GFP_KERNEL);
+		if (lcdcConfig) {
+			of_property_read_u32(lcdc_node, "ACTIVE_WIDTH", &lcdcConfig->xres);
+			of_property_read_u32(lcdc_node, "HFP", &lcdcConfig->right_margin);
+			of_property_read_u32(lcdc_node, "HSYNCWIDTH", &lcdcConfig->hsync_len);
+			of_property_read_u32(lcdc_node, "HBP", &lcdcConfig->left_margin);
+			of_property_read_u32(lcdc_node, "ACTIVE_HEIGHT", &lcdcConfig->yres);
+			of_property_read_u32(lcdc_node, "VFP", &lcdcConfig->lower_margin);
+			of_property_read_u32(lcdc_node, "VSYNCWIDTH", &lcdcConfig->vsync_len);
+			of_property_read_u32(lcdc_node, "VBP", &lcdcConfig->upper_margin);
+			of_property_read_u32(lcdc_node, "FREQ", &lcdcConfig->pixclock);
+			of_property_read_u32(lcdc_node, "bits_per_pixel", &lcdcConfig->bits_per_pixel);
+			of_property_read_u32(lcdc_node, "busformat", &mode);
+			of_property_read_u32(lcdc_node, "rgbswap", &rgbswap);
+
+			lcdcConfig->mode = mode;
+			lcdcConfig->rgb_swap = rgbswap;
+			p_vpp_config_param->active_planes = (1 << PLANE_GFX0);
+		}
+	}
+	p_vpp_config_param->lcdc_config_params = lcdcConfig;
+
+	if (p_vpp_config_param->mipi_resinfo_params) {
+		p_vpp_config_param->mipi_lcdc_config_params = devm_kmalloc(dev->dev,
+							sizeof(SYNA_LCDC_CONFIG), GFP_KERNEL);
+
+		if (p_vpp_config_param->mipi_lcdc_config_params) {
+			syna_vpp_convert_mipi_resinfo_to_lcdc(p_vpp_config_param->mipi_resinfo_params,
+				p_vpp_config_param->mipi_lcdc_config_params);
+			p_vpp_config_param->active_planes |= (1 << PLANE_GFX1);
+		}
+	}
 }
 
 int syna_modeset_createEntries(struct syna_drm_private *dev_priv)
@@ -136,20 +199,21 @@ int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t
 	struct display_timing dptimings;
 
 	dev_priv->panel[crtc_ndx] = ((crtc_ndx == 0) ?\
-		of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-lcdc")):\
-		of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-dsi")));
+			of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-lcdc")):\
+			of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-dsi")));
 
 	if (!fl_info || IS_ERR(dev_priv->panel[crtc_ndx]))
 		return -1;
 
-	dev_priv->panel[crtc_ndx] = ((crtc_ndx == 0) ?\
-			of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-lcdc")):\
-			of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-dsi")));
-
-	if (dev_priv->panel[crtc_ndx]->funcs && dev_priv->panel[crtc_ndx]->funcs->get_timings)
-			dev_priv->panel[crtc_ndx]->funcs->get_timings(dev_priv->panel[crtc_ndx],
+	if (dev_priv->panel[crtc_ndx]->funcs && dev_priv->panel[crtc_ndx]->funcs->get_timings) {
+		dev_priv->panel[crtc_ndx]->funcs->get_timings(dev_priv->panel[crtc_ndx],
 			1,
 			&dptimings);
 
-	return 0;
+		fl_info->width = dptimings.hactive.typ;
+		fl_info->height = dptimings.vactive.typ;
+		return 0;
+	} else {
+		return -1;
+	}
 }

@@ -33,6 +33,8 @@ vpp-objs += source/vpp.o       \
 ifeq ($(SYNA_VPP_TYPE), vsxxx)
 vpp-objs += source/$(SYNA_VPP_TYPE)/vpp_api_priv.o
 vpp-objs += source/$(SYNA_VPP_TYPE)/vpp_res_info.o
+else ifeq ($(SYNA_VPP_TYPE), asxxx)
+vpp-objs += source/$(SYNA_VPP_TYPE)/vpp_api_priv.o
 endif
 
 ###############################################################################
@@ -72,7 +74,7 @@ endif
 ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA) $(CONFIG_AVIO_KLAMATH)), )
 FIRMWARE_INC_DIR_LOCAL=  $(BERLIN_INC)/avio/fw_inc/$(SOC_FOLDER)/
 HEADER_PATH  += -I$(PWD)include/configs/$(CHIP_FOLDER)/
-HEADER_PATH  += -I$(BERLIN_INC)/lcdc/include/
+HEADER_PATH  += -I$(BERLIN_INC)/avio/lcdc/include/
 HEADER_PATH  += -I$(BERLIN_INC)/bcmbuf/include/
 AVIO_INC_PATH += -I$(BERLIN_INC)/avio/vpp/ca/include/asxxx
 endif

@@ -39,12 +39,6 @@
 
 #define MAX_THEAD_NAME_CHAR 16
 
-typedef struct syna_fbcon_start_work_t {
-	struct drm_device *dev;
-	struct work_struct drm_work;
-	struct rcu_head rcu;
-} SYNA_FBCON_START_WORK;
-
 typedef struct syna_vblank_thread_param_t {
 	struct drm_device *dev;
 	int    crtc_no;
@@ -53,7 +47,6 @@ typedef struct syna_vblank_thread_param_t {
 static bool display_enable = true;
 static struct task_struct *thread[MAX_CRTC];
 static SYNA_VBLANK_THREAD_PARAM_T vblank_thread_param[MAX_CRTC];
-static SYNA_FBCON_START_WORK *fbcon_start_work;
 
 /* - This variable decides FBCON init time
  * - 1: FBCON init is delayed to VBlank thread, until drm-client starts on bootup
@@ -85,16 +78,13 @@ static void syna_irq_handler(void *data)
 	SYNA_VBLANK_THREAD_PARAM_T *vblankParam = data;
 	struct drm_device *dev = vblankParam->dev;
 	struct syna_drm_private *dev_priv = dev->dev_private;
-	static int is_fastlogo_status_cleared;
 
-	if (!dev_priv->is_fbconsole_enabled && fbcon_start_work != NULL) {
-		dev_priv->is_fbconsole_enabled = 1;
-		schedule_work(&fbcon_start_work->drm_work);
-	}
-
-	if (!is_fastlogo_status_cleared) {
-		is_fastlogo_status_cleared = 1;
-		avio_set_fastlogo_status(0);
+	/* Allow isr_processing (fbcon,logo, etc.) callback
+	 * for only one CPCB in dual CPCB system also.
+	 */
+	if (vblankParam->crtc_no == CPCB_1) {
+		if (!dev_priv->syna_vpp_isr_process)
+			dev_priv->syna_vpp_isr_process(dev);
 	}
 
 	if (dev_priv->crtc[vblankParam->crtc_no])
@@ -332,33 +322,13 @@ static ssize_t suspend_set_state(struct device *dev,
 	return count;
 }
 
-static void syna_rcu_fbcon_cleanup(struct rcu_head *rcu)
-{
-	DRM_DEBUG_DRIVER("RCU callback executed: freeing memory\n");
-	kfree(fbcon_start_work);
-}
-
-/* Work Queue to avoid the Timeout warning or Deadlock
- * while Fbconsole is enabled
-  */
-static void syna_fbcon_start_work(struct work_struct *work)
-{
-	SYNA_FBCON_START_WORK *fbcon_start_work_temp =
-		container_of(work, SYNA_FBCON_START_WORK, drm_work);
-
-	SYNA_DRM_FBDEV_SETUP(fbcon_start_work_temp->dev, 32);
-
-	// Schedule RCU-safe cleanup
-	call_rcu(&fbcon_start_work_temp->rcu, syna_rcu_fbcon_cleanup);
-}
-
 static DEVICE_ATTR(suspend, (S_IRUGO | S_IWGRP | S_IWUSR), NULL, suspend_set_state);
 
 static int syna_probe(struct platform_device *pdev)
 {
 	struct drm_device *ddev;
 	int ret;
-	SYNA_FBCON_START_WORK *fbcon_start_work_temp;
+	struct syna_drm_private *dev_priv;
 
 	ddev = drm_dev_alloc(&syna_drm_driver, &pdev->dev);
 
@@ -389,15 +359,8 @@ static int syna_probe(struct platform_device *pdev)
 		if (!is_fb_delayed_start)
 			SYNA_DRM_FBDEV_SETUP(ddev, 32);
 		else {
-			fbcon_start_work_temp =
-				kmalloc(sizeof(SYNA_FBCON_START_WORK), GFP_KERNEL);
-
-			if (!fbcon_start_work_temp)
-				goto err_drm_dev_unregister;
-
-			fbcon_start_work_temp->dev = ddev;
-			INIT_WORK(&fbcon_start_work_temp->drm_work, syna_fbcon_start_work);
-			fbcon_start_work = fbcon_start_work_temp;
+			dev_priv = ddev->dev_private;
+			dev_priv->is_fb_delayed_start = is_fb_delayed_start;
 		}
 	}
 
@@ -442,6 +405,11 @@ static int syna_drm_suspend(struct device *dev)
 	struct drm_device *ddev;
 
 	DRM_DEBUG_DRIVER("%s:%d\n", __func__, __LINE__);
+
+	/* Force reset fastlogo status ---
+	 * need clean/full configuration during resume
+	 */
+	avio_set_fastlogo_status(0);
 
 	ddev = platform_get_drvdata(to_platform_device(dev));
 	drm_fb_helper_set_suspend_unlocked(ddev->fb_helper, 1);

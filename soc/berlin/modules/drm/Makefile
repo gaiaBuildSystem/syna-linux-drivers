@@ -73,6 +73,8 @@ else
 HEADER_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/drm/port/ion
 endif
 
+HEADER_PATH += -I$(AVIO_ABS_PATH)/lcdc/include
+
 HEADER_PATH += -I$(SYNA_DRM_TYPE)
 ccflags-y += $(HEADER_PATH)
 ccflags-y += -Werror

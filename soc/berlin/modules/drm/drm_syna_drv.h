@@ -56,9 +56,13 @@ struct syna_drm_private {
 
 	void *pMipiDsiInfo;
 	bool is_fbconsole_enabled;
+	bool is_fb_delayed_start;
+	void *fbcon_start_work;
+	void (*syna_vpp_isr_process)(struct drm_device *dev);
 
 	VPP_MEM *vpp_fastlogo_buf_handle[MAX_CRTC];
 	VPP_MEM *vpp_fl_descr_handle[MAX_CRTC];
+	bool is_fl_frame_freed[MAX_CRTC];
 };
 
 struct syna_plane {
@@ -125,7 +129,7 @@ int syna_modeset_late_init(struct syna_drm_private *dev_priv);
 void syna_modeset_early_cleanup(struct syna_drm_private *dev_priv);
 void syna_modeset_late_cleanup(struct syna_drm_private *dev_priv);
 int syna_modeset_createEntries(struct syna_drm_private *dev_priv);
-void syna_read_config_priv(vpp_config_params *p_vpp_config_param);
+void syna_read_config_priv(struct syna_drm_private *dev_priv);
 int syna_is_scaling_allowed(struct syna_drm_private *dev_priv,
 				ENUM_PLANE_ID plane_id, ENUM_CPCB_ID cpcb_id);
 void __weak syna_vpp_add_debugfs_entry(struct syna_drm_private *dev_priv);

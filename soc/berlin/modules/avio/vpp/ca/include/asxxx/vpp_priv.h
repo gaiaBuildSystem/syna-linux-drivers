@@ -8,6 +8,9 @@
  */
 #ifndef __VPP_PRIV_MYNA
 #define  __VPP_PRIV_MYNA
+
+#include "syna_lcdc_dev.h"
+
 typedef enum {
 	FIRST_VOUT     = 0,
 	VOUT_HDMI      = 0,
@@ -25,6 +28,16 @@ typedef enum {
 
 	MAX_NUM_PLANES
 } ENUM_PLANE_ID;
+
+/* definition of VPP CPCB video outputs(for Berlin) */
+typedef enum {
+	CPCB_INVALID	= -1,
+	FIRST_CPCB	= 0,
+	CPCB_1		= 0,
+	CPCB_2		= 1,
+
+	MAX_NUM_CPCBS
+} ENUM_CPCB_ID;
 
 typedef enum {
 	FIRST_VOUT_CONNECTOR   = 0,

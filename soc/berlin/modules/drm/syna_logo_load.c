@@ -65,13 +65,20 @@ int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
 	char plogopath[32];
 	avio_fastlogo_info display_info;
 	fastlogo_info_t *fl_info;
+	int logo_partition;
+	struct syna_drm_private *dev_priv = dev->dev_private;
 
 	display_info = avio_get_fastlogo_status();
 
-	sprintf(plogopath, "%s%d", FASTLOGO_FILE, display_info.u.partition);
+	if (display_info.u.status)
+		logo_partition = display_info.u.partition;
+	else
+		logo_partition = dev_priv->vpp_config_param.logo_parition;
+
+	sprintf(plogopath, "%s%d", FASTLOGO_FILE, logo_partition);
 	filep = filp_open(plogopath, O_RDWR, 0);
 	if (IS_ERR(filep)) {
-		printk("Failed to open eMMC Error=%ld \n", PTR_ERR(filep));
+		printk("Failed to open eMMC part %d Error=%ld \n", logo_partition, PTR_ERR(filep));
 		return -1;
 	}
 

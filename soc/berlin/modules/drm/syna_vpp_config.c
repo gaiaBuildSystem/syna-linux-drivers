@@ -204,13 +204,16 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 	if (of_property_read_u32(np, "disp2-type", &dev_priv->vpp_config_param.disp2_out_type))
 		dev_priv->vpp_config_param.disp2_out_type = VOUT_DSI;
 
+	if (of_property_read_u32(np, "logo_parition", &dev_priv->vpp_config_param.logo_parition))
+		dev_priv->vpp_config_param.logo_parition = VPP_DEFAULT_FL_PARTITION;
+
 	dev_priv->vpp_config_param.frame_rate = 60;
 	dev_priv->vpp_config_param.enable_frame_buf_copy = 0;
 	dev_priv->vpp_config_param.fb_count = 3;
 	dev_priv->vpp_config_param.callback = NULL;
 	dev_priv->vpp_config_param.data = NULL;
 
-	syna_read_config_priv(&dev_priv->vpp_config_param);
+	syna_read_config_priv(dev_priv);
 	ret = syna_encoder_parse_dsi_dt(dev_priv, (vpp_config_params*) &dev_priv->vpp_config_param);
 
 	if (ret) {

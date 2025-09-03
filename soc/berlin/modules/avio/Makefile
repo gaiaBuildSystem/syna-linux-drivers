@@ -138,6 +138,7 @@ ccflags-y += $(LCDC_INC_PATH)
 AVIO_INC_PATH  += -I$(AVIO_ABS_PATH)/lcdc/include/
 AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/vpp/common/include
 AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/vpp/ca/include/asxxx
+AVIO_INC_PATH += -I$(AVIO_ABS_PATH)/lcdc/include
 
 AVIO_VPP_API_OBJS += vpp/ca/source/hal_vpp_ntz.o
 AVIO_VPP_API_OBJS += vpp/common/source/bcmbuf.o

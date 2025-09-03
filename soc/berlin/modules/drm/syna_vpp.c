@@ -42,6 +42,12 @@ static phys_addr_t rotate_buffer_phy_addr[MAX_PLANE_NUM][MAX_ROTATE_BUFFER];
 static int last_rot_frame[MAX_PLANE_NUM+1];
 #endif
 
+typedef struct syna_fl_cleanup_work_t {
+	struct drm_device *dev;
+	struct delayed_work delay_work;
+	int crtcId;
+} SYNA_FL_CLEANUP_WORK;
+
 typedef struct __VPP_BUILD_IN_FRAME_INFO__ {
 	uint32_t format_type;               //ARGB/YUV
 	uint32_t pattern_wid, pattern_hgt;  //checker bar pattern size
@@ -102,7 +108,14 @@ VPP_MEM vpp_resinfo_shm_handle;
 VPP_MEM vpp_cmdinfo_shm_handle;
 
 static phys_addr_t last_addr[MAX_NUM_PLANES];
-static int frame_count[MAX_NUM_PLANES];
+static VBUF_INFO logo_vbuf_info[MAX_CRTC];
+static SYNA_FL_CLEANUP_WORK syna_vpp_fl_clean_work[MAX_CRTC];
+static void (*syna_vpp_post_process_cb)(struct drm_device *dev, int crtcID, int planeID);
+
+void __weak syna_vpp_pop_fl_frame(int crtcID, int planeID)
+{
+	return;
+}
 
 void syna_vpp_wait_vsync(int Id)
 {
@@ -538,7 +551,59 @@ void syna_vpp_reset_planes(struct device *dev, void __iomem *syna_reg)
 	syna_vpp_set_plane_enabled(dev, syna_reg, 0, false);
 }
 
-void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
+void syna_vpp_isr_process(struct drm_device *dev)
+{
+	struct syna_drm_private *dev_priv = dev->dev_private;
+	SYNA_FBCON_START_WORK *fbcon_start_work = dev_priv->fbcon_start_work;
+
+	if (!dev_priv->is_fbconsole_enabled && fbcon_start_work != NULL) {
+		dev_priv->is_fbconsole_enabled = 1;
+		schedule_work(&fbcon_start_work->drm_work);
+
+		//Remove/disable isr process after fbcon is configured late
+		dev_priv->syna_vpp_isr_process = NULL;
+	}
+}
+
+static void syna_vpp_post_process_init_cb(struct drm_device *dev, int crtcID, int plane)
+{
+	struct syna_drm_private *dev_priv = dev->dev_private;
+	SYNA_FBCON_START_WORK *fbcon_start_work_temp;
+	int i, fl_freed_count;
+
+	/* Handle fbconsole delayed start initialization */
+	if (dev_priv->is_fb_delayed_start && !dev_priv->is_fbconsole_enabled) {
+		fbcon_start_work_temp =
+			kmalloc(sizeof(SYNA_FBCON_START_WORK), GFP_KERNEL);
+
+		if (!fbcon_start_work_temp)
+			DRM_ERROR("FBConsole Failed Alloc mem\n");
+		else {
+			dev_priv->syna_vpp_isr_process = syna_vpp_isr_process;
+			fbcon_start_work_temp->dev = dev;
+			INIT_WORK(&fbcon_start_work_temp->drm_work, syna_fbcon_start_work);
+			dev_priv->fbcon_start_work = fbcon_start_work_temp;
+		}
+	}
+
+	/* Free the fastlogo Frame buffer After ~6VBI for 60fps */
+	if (!dev_priv->is_fl_frame_freed[crtcID])
+		syna_vpp_fl_clear(dev, crtcID, plane);
+
+	if (!dev_priv->syna_vpp_isr_process) {
+		for (i = 0, fl_freed_count =0; i < MAX_CRTC; i++) {
+			if (dev_priv->is_fl_frame_freed[i])
+				syna_vpp_fl_clear(dev, i, plane);
+			else
+				fl_freed_count++;
+
+			if (fl_freed_count == MAX_CRTC)
+				syna_vpp_post_process_cb = NULL;
+		}
+	}
+}
+
+void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna_reg,
 			  u32 plane, struct drm_framebuffer *fb,
 			  u32 posx, u32 posy)
 {
@@ -804,9 +869,8 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 
 	vbuf_info_num[plane] = (vbuf_info_num[plane] + 1) % MAX_VBUF_INFO;
 
-	/* Free the fastlogo Frame buffer After Three-Frame */
-	if (++frame_count[plane] == VPP_MAX_FRAME_TO_RELEASE_LOGO)
-		syna_vpp_free_fastlogo_frame(dev, plane);
+	if (syna_vpp_post_process_cb)
+		syna_vpp_post_process_cb(dev, crtcID, plane);
 }
 
 void syna_vpp_push_buildin_null_frame(u32 plane)
@@ -873,6 +937,7 @@ int syna_vpp_dev_init(struct drm_device *dev)
 				syna_vpp_dev_init_priv(dev);
 		}
 	}
+	syna_vpp_post_process_cb = syna_vpp_post_process_init_cb;
 
 	return ret;
 }
@@ -898,13 +963,32 @@ void syna_vpp_load_config(int devID, void *pconfig)
 	wrap_MV_VPP_LoadConfigTable(VOUT_DEVICE, devID, pconfig);
 }
 
+static void syna_vpp_free_fl_frame(struct work_struct *work)
+{
+	struct delayed_work *dwork = container_of(work, struct delayed_work, work);
+	SYNA_FL_CLEANUP_WORK *fswork = container_of(dwork, SYNA_FL_CLEANUP_WORK, delay_work);
+	struct syna_drm_private *dev_priv = fswork->dev->dev_private;
+	int crtcID = fswork->crtcId;
+	VPP_MEM_LIST *vpp_mem_list = dev_priv->mem_list;
+
+	if (dev_priv->vpp_fl_descr_handle[crtcID]) {
+		VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
+			dev_priv->vpp_fl_descr_handle[crtcID]);
+		dev_priv->vpp_fl_descr_handle[crtcID] = NULL;
+	}
+
+	if (dev_priv->vpp_fastlogo_buf_handle[crtcID]) {
+		VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
+			dev_priv->vpp_fastlogo_buf_handle[crtcID]);
+		dev_priv->vpp_fastlogo_buf_handle[crtcID] = NULL;
+	}
+}
+
 void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 {
 	struct syna_drm_private *dev_priv = dev->dev_private;
 	VPP_MEM_LIST *vpp_mem_list = dev_priv->mem_list;
-	int ret;
-	int i;
-	VBUF_INFO vbuf_info[MAX_CRTC];
+	int ret, i;
 	fastlogo_info_t fl_info;
 
 	for (i = 0; i < MAX_CRTC; i++) {
@@ -912,8 +996,9 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 			dev_priv->vpp_fastlogo_buf_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
 			dev_priv->vpp_fl_descr_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
 
-			if (dev_priv->vpp_fastlogo_buf_handle[i] && dev_priv->vpp_fastlogo_buf_handle[i]) {
-				dev_priv->vpp_fastlogo_buf_handle[i]->size = fl_info.width * fl_info.height * 3;
+			if (dev_priv->vpp_fastlogo_buf_handle[i] && dev_priv->vpp_fl_descr_handle[i]) {
+				memset(dev_priv->vpp_fastlogo_buf_handle[i], 0, sizeof(VPP_MEM));
+				dev_priv->vpp_fastlogo_buf_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(fl_info.width * fl_info.height * LOGO_BYTES_PER_PIXEL);
 				ret = VPP_MEM_AllocateMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
 					dev_priv->vpp_fastlogo_buf_handle[i], 0);
 				if (ret) {
@@ -922,11 +1007,13 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 								fl_info.height);
 					goto err_memory_cleanup;
 				}
+
 				syna_vpp_read_logo_from_emmc_device(dev,
 									fl_info.width,
 									fl_info.height,
 									dev_priv->vpp_fastlogo_buf_handle[i]->k_addr);
 
+				memset(dev_priv->vpp_fl_descr_handle[i], 0, sizeof(VPP_MEM));
 				dev_priv->vpp_fl_descr_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(sizeof(VPP_VBUF));
 				ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
 						dev_priv->vpp_fl_descr_handle[i], 0);
@@ -935,44 +1022,67 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 					goto err_memory_cleanup;
 				}
 
-				vbuf_info[i].hShm_vbuf = (void *) &dev_priv->vpp_fl_descr_handle[i];
-				vbuf_info[i].pVppVbufInfo_virt = dev_priv->vpp_fl_descr_handle[i]->k_addr;
-				vbuf_info[i].pVppVbufInfo_phy = (phys_addr_t)dev_priv->vpp_fl_descr_handle[i]->p_addr;
-				syna_vpp_convert_frame_info(vbuf_info[i].pVppVbufInfo_virt,
-							SRCFMT_RGB888, 0, 0,
+				dev_priv->vpp_fl_descr_handle[i]->teeShm = NULL;
+				logo_vbuf_info[i].hShm_vbuf = (void *) dev_priv->vpp_fl_descr_handle[i];
+				logo_vbuf_info[i].pVppVbufInfo_virt = dev_priv->vpp_fl_descr_handle[i]->k_addr;
+				logo_vbuf_info[i].pVppVbufInfo_phy = dev_priv->vpp_fl_descr_handle[i]->p_addr;
+				syna_vpp_convert_frame_info(logo_vbuf_info[i].pVppVbufInfo_virt,
+							LOGO_SRC_FMT, 0, 0,
 							fl_info.width,
 							fl_info.height,
-							(ARCH_PTR_TYPE)dev_priv->vpp_fastlogo_buf_handle[i]->p_addr,
+							(ARCH_PTR_TYPE) dev_priv->vpp_fastlogo_buf_handle[i]->p_addr,
 							(phys_addr_t)0);
 
-				MV_VPP_DisplayFrame(i, 0, &vbuf_info[i]);
+				MV_VPP_DisplayFrame(i, IS_LOGO_VIDEO_FMT, &logo_vbuf_info[i]);
+				syna_vpp_fl_clean_work[i].dev = dev;
+				INIT_DELAYED_WORK(&syna_vpp_fl_clean_work[i].delay_work, syna_vpp_free_fl_frame);
 			}
 		}
 	}
 
+	return;
+
 err_memory_cleanup:
 	for (i = 0; i  < MAX_CRTC; i++)
-		syna_vpp_free_fastlogo_frame(dev, i);
+		syna_vpp_fl_clear(dev, i, i);
 }
 
-void syna_vpp_free_fastlogo_frame(struct drm_device *dev, int planeID)
+void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID)
 {
 	struct syna_drm_private *dev_priv = dev->dev_private;
-	VPP_MEM_LIST *vpp_mem_list = dev_priv->mem_list;
 
-	if (planeID > MAX_CRTC)
-		return;
+	/* In Multi plane system, if first frame received on non-logo plane,
+	 * Then pop/recycle the FL frame from logo plane
+	 */
+	syna_vpp_pop_fl_frame(planeID, crtcID);
 
-	if (dev_priv->vpp_fl_descr_handle[planeID]) {
-		VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
-			dev_priv->vpp_fl_descr_handle[planeID]);
-		dev_priv->vpp_fl_descr_handle[planeID] = NULL;
-	}
+	dev_priv->is_fl_frame_freed[crtcID] = 1;
+	syna_vpp_fl_clean_work[crtcID].crtcId = crtcID;
 
-	if (dev_priv->vpp_fastlogo_buf_handle[planeID]) {
-		VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
-			dev_priv->vpp_fastlogo_buf_handle[planeID]);
+	schedule_delayed_work(&syna_vpp_fl_clean_work[crtcID].delay_work,
+		msecs_to_jiffies(VPP_FRAME_FREE_DELAY_MS));
+}
 
-		dev_priv->vpp_fastlogo_buf_handle[planeID] = NULL;
-	}
+static void syna_rcu_fbcon_cleanup(struct rcu_head *rcu)
+{
+	SYNA_FBCON_START_WORK *fbcon_start_work_temp =
+		container_of(rcu, SYNA_FBCON_START_WORK, rcu);
+	struct syna_drm_private *dev_priv = fbcon_start_work_temp->dev->dev_private;
+
+	DRM_DEBUG_DRIVER("RCU callback executed: freeing memory\n");
+	kfree(dev_priv->fbcon_start_work);
+}
+
+/* Work Queue to avoid the Timeout warning or Deadlock
+ * while Fbconsole is enabled
+  */
+void syna_fbcon_start_work(struct work_struct *work)
+{
+	SYNA_FBCON_START_WORK *fbcon_start_work_temp =
+		container_of(work, SYNA_FBCON_START_WORK, drm_work);
+
+	SYNA_DRM_FBDEV_SETUP(fbcon_start_work_temp->dev, 32);
+
+	// Schedule RCU-safe cleanup
+	call_rcu(&fbcon_start_work_temp->rcu, syna_rcu_fbcon_cleanup);
 }

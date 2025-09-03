@@ -9,6 +9,7 @@
 #include "hal_vpp_ntz.h"
 #include "vpp_defines.h"
 #include "syna_lcdc_dev.h"
+#include "syna_lcdc_drv.h"
 
 int NTZ_MV_VPPOBJ_GetResolutionDescription(int ResId, VPP_RESOLUTION_DESCRIPTION *pResDesc)
 {

@@ -7,6 +7,7 @@
 #include "lcdc_cfg_prv.h"
 #include "hal_dhub.h"
 #include "bcmbuf.h"
+#include "syna_lcdc_drv.h"
 
 #include "linux/slab.h"
 #include "asm/io.h"

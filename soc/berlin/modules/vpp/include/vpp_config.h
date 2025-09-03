@@ -18,11 +18,14 @@ typedef struct vpp_config_params {
 	int disp2_res_id;
 	int disp2_out_type;
 	int display_mode;
+	int logo_parition;
 	u32 fb_count;
 	int active_planes;
 	int enable_frame_buf_copy;
 	CallbackHandler callback;
 	void *data;
+	void *lcdc_config_params;
+	void *mipi_lcdc_config_params;
 	void *mipi_config_params;
 	void *mipi_resinfo_params;
 	VPP_MEM vpp_dsi_info_shm_handle;

@@ -50,6 +50,7 @@ static void syna_plane_set_surface(struct drm_crtc *crtc, struct drm_plane *plan
 	}
 
 	syna_vpp_set_surface(plane->dev,
+				 syna_crtc->number,
 				 syna_crtc->syna_reg,
 				 syna_plane->plane_id,
 				 fb,

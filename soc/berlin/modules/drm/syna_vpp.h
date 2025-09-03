@@ -11,6 +11,8 @@
 
 #include <linux/device.h>
 #include <linux/types.h>
+#include <linux/workqueue.h>
+
 #include <drm/drm_framebuffer.h>
 #include "uapi/bm.h"
 #include "berlin_meta.h"
@@ -29,6 +31,13 @@ extern long device_rotate;
 
 #define SYNA_WIDTH_MIN  50
 #define SYNA_HEIGHT_MIN 50
+#define VPP_FRAME_FREE_DELAY_MS 100
+
+typedef struct syna_fbcon_start_work_t {
+	struct drm_device *dev;
+	struct work_struct drm_work;
+	struct rcu_head rcu;
+} SYNA_FBCON_START_WORK;
 
 void syna_vpp_set_res_limit(struct drm_device *dev, u32 hdisplay, u32 vdisplay);
 
@@ -56,7 +65,7 @@ void syna_vpp_set_plane_enabled(struct device *dev, void __iomem *syna_reg,
 
 void syna_vpp_reset_planes(struct device *dev, void __iomem *syna_reg);
 
-void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
+void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna_reg,
 			  u32 plane, struct drm_framebuffer *fb,
 			  u32 posx, u32 posy);
 
@@ -83,5 +92,8 @@ int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
 						int width,
 						int height,
 						void* plogobuf);
-void syna_vpp_free_fastlogo_frame(struct drm_device *dev, int planeID);
+void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID);
+void syna_vpp_pop_fl_frame(int crtcID, int planeID);
+void syna_fbcon_start_work(struct work_struct *work);
+void syna_vpp_isr_process(struct drm_device *dev);
 #endif /* __SYNA_VPP_H__ */

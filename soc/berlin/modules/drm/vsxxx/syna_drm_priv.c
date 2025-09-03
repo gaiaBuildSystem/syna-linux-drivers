@@ -73,8 +73,10 @@ void syna_vpp_dev_init_priv(struct drm_device *dev)
 	msleep(frame_rate_ms * SYNA_VPP_MAX_HW_SETUP_VBI_INTR);
 }
 
-void syna_read_config_priv(vpp_config_params *p_vpp_config_param)
+void syna_read_config_priv(struct syna_drm_private *dev_priv)
 {
+	vpp_config_params *p_vpp_config_param = &dev_priv->vpp_config_param;
+
 	p_vpp_config_param->active_planes = (1 << PLANE_GFX1);
 	p_vpp_config_param->active_planes |= (1 << PLANE_MAIN);
 #ifdef USE_DOLPHIN
@@ -286,7 +288,24 @@ void syna_push_buildin_frame(u32 plane)
 
 int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t *fl_info)
 {
-	return -1;
+	MV_VPP_GetOutResolutionSize(crtc_ndx, &fl_info->width, &fl_info->height);
+
+	if (!fl_info->width || !fl_info->height)
+		return -1;
+
+	return 0;
+}
+
+void syna_vpp_pop_fl_frame(int crtcID, int planeID)
+{
+	/* All single modes(PRI/SEC) & Dual modes (PIP/GFX0/GFX1)
+	 *  - CPCB0 will have multiple plane
+	 *  - logo on MAIN plane need to be replaced with build-in frame
+	 */
+	if (crtcID == FIRST_CPCB && planeID != PLANE_MAIN)
+		syna_vpp_push_buildin_null_frame(PLANE_MAIN);
+
+	return;
 }
 
 MODULE_IMPORT_NS(SYNA_BM);
