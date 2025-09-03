@@ -24,6 +24,7 @@
 #include <drm/drm_probe_helper.h>
 
 #include "syna_bridge.h"
+#include "avio_core.h"
 
 #define EDID_SEG_SIZE	256
 #define EDID_LEN	32
@@ -480,6 +481,7 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 {
 	int bridge_i2c_bus;
 	int ret;
+	avio_fastlogo_info display_info;
 
 	lt9611_dev = devm_kmalloc(&pdev->dev, sizeof(struct device), GFP_KERNEL);
 	if (!lt9611_dev) {
@@ -535,22 +537,31 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 		goto EXIT_STAGE_I2C_INIT;
 	}
 
+	display_info = avio_get_fastlogo_status();
+
 	lt9611->enable_gpio = devm_fwnode_gpiod_get(&pdev->dev,
 					of_fwnode_handle(lt9611_dev->of_node),
-					"enable", GPIOD_OUT_HIGH, "lt9611-enable");
+					"enable", GPIOD_ASIS, "lt9611-enable");
 	if (PTR_ERR(lt9611->enable_gpio) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
+	else
+		gpiod_direction_output(lt9611->enable_gpio, 1);
 
 	lt9611->reset_gpio = devm_fwnode_gpiod_get(&pdev->dev,
 						of_fwnode_handle(lt9611_dev->of_node),
 						"reset",
-						GPIOD_OUT_LOW, "lt9611-reset");
+						GPIOD_ASIS, "lt9611-reset");
 	if (PTR_ERR(lt9611->reset_gpio) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
+	else
+		gpiod_direction_output(lt9611->reset_gpio, 0);
 
-	if(lt9611_init(lt9611)) {
-		ret = -EFAULT;
-		goto EXIT_STAGE_I2C_INIT;
+	if (!display_info.u.status)
+	{
+		if(lt9611_init(lt9611)) {
+			ret = -EFAULT;
+			goto EXIT_STAGE_I2C_INIT;
+		}
 	}
 
 	psyna_bridge_funcs->modeset = lt9611_bridge_modeset;
