@@ -20,7 +20,7 @@ typedef struct vpp_config_params {
 	int display_mode;
 	int logo_parition;
 	u32 fb_count;
-	int active_planes;
+	int active_planes, open_planes;
 	int enable_frame_buf_copy;
 	CallbackHandler callback;
 	void *data;

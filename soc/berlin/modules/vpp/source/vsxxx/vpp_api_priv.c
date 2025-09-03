@@ -365,6 +365,10 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 
 		MV_VPP_InitDispWinSize(planeID, disp_width, disp_height, fb_attr);
 
+		if (!((1 << planeID) & vpp_config_param.open_planes)) {
+			continue;
+		}
+
 		res = wrap_MV_VPPOBJ_OpenDispWindow(planeID, &disp_win, &fb_attr);
 		if (res != MV_VPP_OK) {
 			pr_err("%s:%d OpenDispWindow(%d) FAILED, error: 0x%x\n", __func__,

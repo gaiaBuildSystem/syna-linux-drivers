@@ -12,6 +12,8 @@
 #include <drm/drm_atomic_helper.h>
 #include "syna_vpp.h"
 #include "vpp_api.h"
+#include "avio_common.h"
+#include "avio_core.h"
 
 #define SYNA_VPP_MAX_HW_SETUP_VBI_INTR  2
 
@@ -76,11 +78,20 @@ void syna_vpp_dev_init_priv(struct drm_device *dev)
 void syna_read_config_priv(struct syna_drm_private *dev_priv)
 {
 	vpp_config_params *p_vpp_config_param = &dev_priv->vpp_config_param;
+	avio_fastlogo_info display_info = avio_get_fastlogo_status();
 
 	p_vpp_config_param->active_planes = (1 << PLANE_GFX1);
 	p_vpp_config_param->active_planes |= (1 << PLANE_MAIN);
+
+	if (!display_info.u.status) {
+		p_vpp_config_param->open_planes = (1 << PLANE_GFX1);
+		p_vpp_config_param->open_planes |= (1 << PLANE_MAIN);
+	} else {
+		p_vpp_config_param->open_planes = 0;
+	}
 #ifdef USE_DOLPHIN
 	p_vpp_config_param->active_planes |= (1 << PLANE_PIP);
+	p_vpp_config_param->open_planes |= (1 << PLANE_PIP);
 #endif
 }
 
