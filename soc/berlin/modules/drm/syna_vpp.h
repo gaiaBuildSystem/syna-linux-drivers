@@ -21,6 +21,7 @@
 #include "avio_type.h"
 #include "vpp_vbuf.h"
 #include "hal_vpp_wrap.h"
+#include "syna_fl_info.h"
 
 #ifndef CONFIG_SYNA_DRM_DISABLE_ROTATION
 extern long device_rotate;
@@ -91,6 +92,7 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev);
 int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
 						int width,
 						int height,
+						VPP_WIN *vpp_res_info,
 						void* plogobuf);
 void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID);
 void syna_vpp_pop_fl_frame(int crtcID, int planeID);

@@ -988,6 +988,7 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 	VPP_MEM_LIST *vpp_mem_list = dev_priv->mem_list;
 	int ret, i;
 	fastlogo_info_t fl_info;
+	VPP_WIN vpp_res_info;
 
 	for (i = 0; i < MAX_CRTC; i++) {
 		if (!syna_vpp_get_disp_info(dev, i, &fl_info)) {
@@ -1006,34 +1007,36 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 					goto err_memory_cleanup;
 				}
 
-				syna_vpp_read_logo_from_emmc_device(dev,
+				if (!syna_vpp_read_logo_from_emmc_device(dev,
 									fl_info.width,
 									fl_info.height,
-									dev_priv->vpp_fastlogo_buf_handle[i]->k_addr);
+									&vpp_res_info,
+									dev_priv->vpp_fastlogo_buf_handle[i]->k_addr)) {
 
-				memset(dev_priv->vpp_fl_descr_handle[i], 0, sizeof(VPP_MEM));
-				dev_priv->vpp_fl_descr_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(sizeof(VPP_VBUF));
-				ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
-						dev_priv->vpp_fl_descr_handle[i], 0);
-				if (ret) {
-					pr_err("Failed to Alloc mem\n");
-					goto err_memory_cleanup;
+					memset(dev_priv->vpp_fl_descr_handle[i], 0, sizeof(VPP_MEM));
+					dev_priv->vpp_fl_descr_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(sizeof(VPP_VBUF));
+					ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
+							dev_priv->vpp_fl_descr_handle[i], 0);
+					if (ret) {
+						pr_err("Failed to Alloc mem\n");
+						goto err_memory_cleanup;
+					}
+
+					dev_priv->vpp_fl_descr_handle[i]->teeShm = NULL;
+					logo_vbuf_info[i].hShm_vbuf = (void *) dev_priv->vpp_fl_descr_handle[i];
+					logo_vbuf_info[i].pVppVbufInfo_virt = dev_priv->vpp_fl_descr_handle[i]->k_addr;
+					logo_vbuf_info[i].pVppVbufInfo_phy = dev_priv->vpp_fl_descr_handle[i]->p_addr;
+					syna_vpp_convert_frame_info(logo_vbuf_info[i].pVppVbufInfo_virt,
+								LOGO_SRC_FMT, 0, 0,
+								vpp_res_info.width,
+								vpp_res_info.height,
+								(ARCH_PTR_TYPE) dev_priv->vpp_fastlogo_buf_handle[i]->p_addr,
+								(phys_addr_t)0);
+
+					MV_VPP_DisplayFrame(i, IS_LOGO_VIDEO_FMT, &logo_vbuf_info[i]);
+					syna_vpp_fl_clean_work[i].dev = dev;
+					INIT_DELAYED_WORK(&syna_vpp_fl_clean_work[i].delay_work, syna_vpp_free_fl_frame);
 				}
-
-				dev_priv->vpp_fl_descr_handle[i]->teeShm = NULL;
-				logo_vbuf_info[i].hShm_vbuf = (void *) dev_priv->vpp_fl_descr_handle[i];
-				logo_vbuf_info[i].pVppVbufInfo_virt = dev_priv->vpp_fl_descr_handle[i]->k_addr;
-				logo_vbuf_info[i].pVppVbufInfo_phy = dev_priv->vpp_fl_descr_handle[i]->p_addr;
-				syna_vpp_convert_frame_info(logo_vbuf_info[i].pVppVbufInfo_virt,
-							LOGO_SRC_FMT, 0, 0,
-							fl_info.width,
-							fl_info.height,
-							(ARCH_PTR_TYPE) dev_priv->vpp_fastlogo_buf_handle[i]->p_addr,
-							(phys_addr_t)0);
-
-				MV_VPP_DisplayFrame(i, IS_LOGO_VIDEO_FMT, &logo_vbuf_info[i]);
-				syna_vpp_fl_clean_work[i].dev = dev;
-				INIT_DELAYED_WORK(&syna_vpp_fl_clean_work[i].delay_work, syna_vpp_free_fl_frame);
 			}
 		}
 	}

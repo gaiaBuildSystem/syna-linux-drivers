@@ -57,6 +57,7 @@ static fastlogo_info_t* check_validate_logo(int width,
 int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
 						int width,
 						int height,
+						VPP_WIN *vpp_res_info,
 						void* plogobuf)
 {
 	ssize_t bytes_read;
@@ -92,6 +93,8 @@ int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
 	/* Provide the resolution info */
 	fl_info = check_validate_logo(width, height, plogobuf, !VPP_SUPPORT_SCALAR);
 	if (fl_info) {
+		vpp_res_info->width = fl_info->width;
+		vpp_res_info->height = fl_info->height;
 		pos = FASTLOGO_PREPEND_GENX_HEADER + fl_info->offset;
 		bytes_read = kernel_read(filep, plogobuf, (fl_info->stride * fl_info->height),
 							&pos);
