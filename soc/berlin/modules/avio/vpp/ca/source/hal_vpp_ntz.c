@@ -37,6 +37,10 @@ int NTZ_MV_VPPOBJ_SetStillPicture(int planeID, void *pnew, void **pold)
 			pvbufinfo->m_srcfmt = SYNA_LCDC_PIXFMT_ARGB32;
 		break;
 
+		case SRCFMT_RGB888:
+			pvbufinfo->m_srcfmt = SYNA_LCDC_PIXFMT_RGB888;
+		break;
+
 		default:
 			pr_err("unsupported Format %d\n",pvbufinfo->m_srcfmt);
 		break;

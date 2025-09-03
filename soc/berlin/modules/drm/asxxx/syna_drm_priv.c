@@ -13,6 +13,11 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_atomic_helper.h>
 #include "syna_vpp.h"
+#include "vpp_mem.h"
+#include "vpp_api.h"
+
+#include <drm/drm_panel.h>
+#include <video/display_timing.h>
 
 #include "dsih_displays.h"
 #include "dsih_core.h"
@@ -123,4 +128,28 @@ int syna_dsi_panel_send_cmd (unsigned int cmdsize, unsigned char *pcmd)
 void syna_push_buildin_frame(u32 plane)
 {
 	syna_vpp_push_buildin_null_frame(plane);
+}
+
+int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t *fl_info)
+{
+	struct syna_drm_private *dev_priv = dev->dev_private;
+	struct display_timing dptimings;
+
+	dev_priv->panel[crtc_ndx] = ((crtc_ndx == 0) ?\
+		of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-lcdc")):\
+		of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-dsi")));
+
+	if (!fl_info || IS_ERR(dev_priv->panel[crtc_ndx]))
+		return -1;
+
+	dev_priv->panel[crtc_ndx] = ((crtc_ndx == 0) ?\
+			of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-lcdc")):\
+			of_drm_find_panel(of_find_compatible_node(NULL, NULL, "syna,drm-dsi")));
+
+	if (dev_priv->panel[crtc_ndx]->funcs && dev_priv->panel[crtc_ndx]->funcs->get_timings)
+			dev_priv->panel[crtc_ndx]->funcs->get_timings(dev_priv->panel[crtc_ndx],
+			1,
+			&dptimings);
+
+	return 0;
 }

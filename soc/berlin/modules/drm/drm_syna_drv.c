@@ -210,6 +210,9 @@ static int syna_late_load(struct drm_device *dev)
 		DRM_ERROR("%s %d syna dev is NULL!!\n", __func__, __LINE__);
 		return -1;
 	}
+
+	syna_vpp_push_fastlogo_frame(dev);
+
 	err = syna_modeset_late_init(dev_priv);
 	if (err) {
 		DRM_ERROR("late modeset initialisation failed (err=%d)\n", err);

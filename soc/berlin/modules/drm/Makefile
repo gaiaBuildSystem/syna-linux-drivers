@@ -87,6 +87,8 @@ syna_drm-y += drm_syna_modeset.o
 syna_drm-y += syna_vpp.o
 syna_drm-y += syna_vpp_config.o
 
+syna_drm-y += syna_logo_load.o
+
 ifeq ($(SYNA_DRM_TYPE), asxxx)
 syna_drm-y += $(SYNA_DRM_TYPE)/drm_syna_lcdc.o
 syna_drm-y += $(SYNA_DRM_TYPE)/drm_syna_encoder.o

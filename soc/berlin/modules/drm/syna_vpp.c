@@ -31,6 +31,7 @@
  * Note : MAX_NUM_PLANES is defined in vpp_defines.h
  */
 #define MAX_PLANE_NUM 2
+#define  VPP_MAX_FRAME_TO_RELEASE_LOGO 3
 
 #ifndef CONFIG_SYNA_DRM_DISABLE_ROTATION
 long device_rotate;
@@ -101,6 +102,7 @@ VPP_MEM vpp_resinfo_shm_handle;
 VPP_MEM vpp_cmdinfo_shm_handle;
 
 static phys_addr_t last_addr[MAX_NUM_PLANES];
+static int frame_count[MAX_NUM_PLANES];
 
 void syna_vpp_wait_vsync(int Id)
 {
@@ -158,7 +160,7 @@ static VOID convert_mtr_info(MTR_BUFF_DESC *mtr_desc, UINT32 *mtr_cfg)
 	mtr_desc->m_MmuCfgVm_mode 	= (mtr_cfg[3] >> 2) & 0x7;
 }
 
-static VOID convert_frame_info(VPP_VBUF *pVppBuf, UINT32 srcfmt, INT32 x,
+static void syna_vpp_convert_frame_info(VPP_VBUF *pVppBuf, UINT32 srcfmt, INT32 x,
 				   INT32 y, INT32 width, INT32 height,
 				   ARCH_PTR_TYPE m_pbuf_start, UINT32 m_pbuf_start_uv)
 {
@@ -184,6 +186,12 @@ static VOID convert_frame_info(VPP_VBUF *pVppBuf, UINT32 srcfmt, INT32 x,
 		pVppBuf->m_bits_per_pixel = 8;
 	} else if (srcfmt == SRCFMT_RGB565) {
 		pVppBuf->m_bytes_per_pixel = 2;
+		pVppBuf->m_buf_stride = width * pVppBuf->m_bytes_per_pixel;
+		pVppBuf->m_buf_size = height * pVppBuf->m_buf_stride;
+		//Indicate the bitdepth of the frame, if 8bit, is 8, if 10bit, is 10
+		pVppBuf->m_bits_per_pixel = pVppBuf->m_bytes_per_pixel * 8;
+	}  else if (srcfmt == SRCFMT_RGB888) {
+		pVppBuf->m_bytes_per_pixel = 3;
 		pVppBuf->m_buf_stride = width * pVppBuf->m_bytes_per_pixel;
 		pVppBuf->m_buf_size = height * pVppBuf->m_buf_stride;
 		//Indicate the bitdepth of the frame, if 8bit, is 8, if 10bit, is 10
@@ -750,9 +758,10 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 
 	curr_disp_desc = &vpp_disp_desc_array[plane][vbuf_info_num[plane]];
 	curr_vpp_vbuf = curr_disp_desc->pVppVbufInfo_virt;
+
 #ifdef SYNA_VPP_FORCE_PIP_FORMAT_ORDER
 	if (plane == PLANE_PIP) {
-		convert_frame_info(curr_vpp_vbuf, SRCFMT_ARGB32,
+		syna_vpp_convert_frame_info(curr_vpp_vbuf, SRCFMT_ARGB32,
 				   0, 0, width, height, (ARCH_PTR_TYPE)disp_phyaddr, disp_phyaddr_uv);
 		curr_vpp_vbuf->m_order = ORDER_ARGB;
 		DRM_DEBUG_DRIVER
@@ -760,7 +769,7 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 	} else
 #endif
 	{
-		convert_frame_info(curr_vpp_vbuf, VPP_Format, 0, 0,
+		syna_vpp_convert_frame_info(curr_vpp_vbuf, VPP_Format, 0, 0,
 				   width, height, (ARCH_PTR_TYPE)disp_phyaddr, disp_phyaddr_uv);
 		curr_vpp_vbuf->m_order = order;
 		if (VPP_mmu_enabled) {
@@ -794,6 +803,10 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 	MV_VPP_DisplayFrame(plane, VPP_video_format, (void *)curr_disp_desc);
 
 	vbuf_info_num[plane] = (vbuf_info_num[plane] + 1) % MAX_VBUF_INFO;
+
+	/* Free the fastlogo Frame buffer After Three-Frame */
+	if (++frame_count[plane] == VPP_MAX_FRAME_TO_RELEASE_LOGO)
+		syna_vpp_free_fastlogo_frame(dev, plane);
 }
 
 void syna_vpp_push_buildin_null_frame(u32 plane)
@@ -813,7 +826,7 @@ void syna_vpp_push_buildin_null_frame(u32 plane)
 
 	curr_disp_desc = &vpp_disp_desc_array[plane][vbuf_info_num[plane]];
 	curr_vpp_vbuf = curr_disp_desc->pVppVbufInfo_virt;
-	convert_frame_info(curr_vpp_vbuf,
+	syna_vpp_convert_frame_info(curr_vpp_vbuf,
 				   bframe_info->format_type, 0, 0,
 				   width, height, (ARCH_PTR_TYPE)disp_phyaddr, (phys_addr_t)0);
 
@@ -837,7 +850,7 @@ void syna_vpp_push_buildin_frame(u32 plane)
 
 	curr_disp_desc = &vpp_disp_desc_array[plane][vbuf_info_num[plane]];
 	curr_vpp_vbuf = curr_disp_desc->pVppVbufInfo_virt;
-	convert_frame_info(curr_vpp_vbuf,
+	syna_vpp_convert_frame_info(curr_vpp_vbuf,
 				   bframe_info->format_type, 0, 0,
 				   width, height, (ARCH_PTR_TYPE)disp_phyaddr, (phys_addr_t)0);
 
@@ -883,4 +896,83 @@ void syna_vpp_mode_set(struct device *dev, void __iomem *syna_reg,
 void syna_vpp_load_config(int devID, void *pconfig)
 {
 	wrap_MV_VPP_LoadConfigTable(VOUT_DEVICE, devID, pconfig);
+}
+
+void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
+{
+	struct syna_drm_private *dev_priv = dev->dev_private;
+	VPP_MEM_LIST *vpp_mem_list = dev_priv->mem_list;
+	int ret;
+	int i;
+	VBUF_INFO vbuf_info[MAX_CRTC];
+	fastlogo_info_t fl_info;
+
+	for (i = 0; i < MAX_CRTC; i++) {
+		if (!syna_vpp_get_disp_info(dev, i, &fl_info)) {
+			dev_priv->vpp_fastlogo_buf_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
+			dev_priv->vpp_fl_descr_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
+
+			if (dev_priv->vpp_fastlogo_buf_handle[i] && dev_priv->vpp_fastlogo_buf_handle[i]) {
+				dev_priv->vpp_fastlogo_buf_handle[i]->size = fl_info.width * fl_info.height * 3;
+				ret = VPP_MEM_AllocateMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
+					dev_priv->vpp_fastlogo_buf_handle[i], 0);
+				if (ret) {
+					pr_err("Failed to Alloc mem P[%d]W[%d]H[%d]\n", i,
+								fl_info.width,
+								fl_info.height);
+					goto err_memory_cleanup;
+				}
+				syna_vpp_read_logo_from_emmc_device(dev,
+									fl_info.width,
+									fl_info.height,
+									dev_priv->vpp_fastlogo_buf_handle[i]->k_addr);
+
+				dev_priv->vpp_fl_descr_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(sizeof(VPP_VBUF));
+				ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
+						dev_priv->vpp_fl_descr_handle[i], 0);
+				if (ret) {
+					pr_err("Failed to Alloc mem\n");
+					goto err_memory_cleanup;
+				}
+
+				vbuf_info[i].hShm_vbuf = (void *) &dev_priv->vpp_fl_descr_handle[i];
+				vbuf_info[i].pVppVbufInfo_virt = dev_priv->vpp_fl_descr_handle[i]->k_addr;
+				vbuf_info[i].pVppVbufInfo_phy = (phys_addr_t)dev_priv->vpp_fl_descr_handle[i]->p_addr;
+				syna_vpp_convert_frame_info(vbuf_info[i].pVppVbufInfo_virt,
+							SRCFMT_RGB888, 0, 0,
+							fl_info.width,
+							fl_info.height,
+							(ARCH_PTR_TYPE)dev_priv->vpp_fastlogo_buf_handle[i]->p_addr,
+							(phys_addr_t)0);
+
+				MV_VPP_DisplayFrame(i, 0, &vbuf_info[i]);
+			}
+		}
+	}
+
+err_memory_cleanup:
+	for (i = 0; i  < MAX_CRTC; i++)
+		syna_vpp_free_fastlogo_frame(dev, i);
+}
+
+void syna_vpp_free_fastlogo_frame(struct drm_device *dev, int planeID)
+{
+	struct syna_drm_private *dev_priv = dev->dev_private;
+	VPP_MEM_LIST *vpp_mem_list = dev_priv->mem_list;
+
+	if (planeID > MAX_CRTC)
+		return;
+
+	if (dev_priv->vpp_fl_descr_handle[planeID]) {
+		VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
+			dev_priv->vpp_fl_descr_handle[planeID]);
+		dev_priv->vpp_fl_descr_handle[planeID] = NULL;
+	}
+
+	if (dev_priv->vpp_fastlogo_buf_handle[planeID]) {
+		VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
+			dev_priv->vpp_fastlogo_buf_handle[planeID]);
+
+		dev_priv->vpp_fastlogo_buf_handle[planeID] = NULL;
+	}
 }

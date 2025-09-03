@@ -56,6 +56,9 @@ struct syna_drm_private {
 
 	void *pMipiDsiInfo;
 	bool is_fbconsole_enabled;
+
+	VPP_MEM *vpp_fastlogo_buf_handle[MAX_CRTC];
+	VPP_MEM *vpp_fl_descr_handle[MAX_CRTC];
 };
 
 struct syna_plane {

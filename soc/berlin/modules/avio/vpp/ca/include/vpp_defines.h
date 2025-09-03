@@ -101,7 +101,7 @@ typedef enum {
 	SRCFMT_ARGB4444 = 3, /* only valid for gfx planes */
 	SRCFMT_RGB565   = 4, /* only valid for gfx planes */
 	SRCFMT_ARGB1555 = 5, /* only valid for gfx planes */
-	SRCFMT_LUT8	 = 6, /* only valid for gfx planes */
+	SRCFMT_LUT8     = 6, /* only valid for gfx planes */
 	SRCFMT_AYUV32   = 7, /* only valid for PG planes */
 	SRCFMT_YUV420   = 8, /* Only for VPP 4K Bypass path */
 	SRCFMT_YUV420SP = 9,
@@ -121,6 +121,8 @@ typedef enum {
 	SRCFMT_YUV422SP_DWA = 23,
 	SRCFMT_YUV420SP_DWA = 24,
 	SRCFMT_ARBG2101010 =  25,
+	SRCFMT_ARGB8332 =   26,
+	SRCFMT_RGB888 = 27,
 	SRCFMT_MAX
 } ENUM_SRC_FMT;
 

@@ -27,10 +27,10 @@ typedef struct _AVIO_CTX_ {
 
 typedef struct fastlogo_info_t {
 	u32 status : 1;   // Successfully displayed logo or not
-	u32 partition : 1; //logo from partition A/B
+	u32 partition : 5; //logo from partition A/B
 	u32 cpcb0ResId : 8;     //CpCb0 resolution -- may be additional bits for depth/format
 	u32 cpcb1ResId : 8;     //CpCb1 resolution
-	u32 reserved : 14;
+	u32 reserved : 9;
 } FASTLOGO_INFO;
 
 typedef union  avio_fastlogo_info_u {

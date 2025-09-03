@@ -78,4 +78,10 @@ void syna_vpp_dev_init_priv(struct drm_device *dev);
 int syna_vpp_get_bm_details(struct dma_buf *dma_buf,
 		       struct bm_pt_param *pt_param,
 		       struct berlin_meta **bm_meta);
+void syna_vpp_push_fastlogo_frame(struct drm_device *dev);
+int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
+						int width,
+						int height,
+						void* plogobuf);
+void syna_vpp_free_fastlogo_frame(struct drm_device *dev, int planeID);
 #endif /* __SYNA_VPP_H__ */

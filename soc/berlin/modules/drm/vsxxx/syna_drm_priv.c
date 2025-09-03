@@ -284,4 +284,9 @@ void syna_push_buildin_frame(u32 plane)
 		syna_vpp_push_buildin_null_frame(plane);
 }
 
+int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t *fl_info)
+{
+	return -1;
+}
+
 MODULE_IMPORT_NS(SYNA_BM);
