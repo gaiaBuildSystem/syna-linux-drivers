@@ -89,7 +89,6 @@ int dsi_host_shutdown(int shutdown)
 
 		mipi_dphy_shutdown(&mipi_dev->phy, 0);
 		mipi_dsi_init(&mipi_init_dev);
-		dsi_platform_init(mipi_dev, 0, VIDEO_MODE, 4);
 	}
 
 	return 0;

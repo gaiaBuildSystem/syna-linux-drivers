@@ -53,6 +53,8 @@ struct syna_drm_private {
 	/* properties: */
 	struct syna_drm_plane_properties plane_prop[MAX_NUM_PLANES];
 	bool modeset_enabled;
+
+	void *pMipiDsiInfo;
 };
 
 struct syna_plane {
