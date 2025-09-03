@@ -83,7 +83,7 @@ static void syna_irq_handler(void *data)
 	 * for only one CPCB in dual CPCB system also.
 	 */
 	if (vblankParam->crtc_no == CPCB_1) {
-		if (!dev_priv->syna_vpp_isr_process)
+		if (dev_priv->syna_vpp_isr_process)
 			dev_priv->syna_vpp_isr_process(dev);
 	}
 

@@ -593,8 +593,6 @@ static void syna_vpp_post_process_init_cb(struct drm_device *dev, int crtcID, in
 	if (!dev_priv->syna_vpp_isr_process) {
 		for (i = 0, fl_freed_count =0; i < MAX_CRTC; i++) {
 			if (dev_priv->is_fl_frame_freed[i])
-				syna_vpp_fl_clear(dev, i, plane);
-			else
 				fl_freed_count++;
 
 			if (fl_freed_count == MAX_CRTC)
@@ -1054,7 +1052,7 @@ void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID)
 	/* In Multi plane system, if first frame received on non-logo plane,
 	 * Then pop/recycle the FL frame from logo plane
 	 */
-	syna_vpp_pop_fl_frame(planeID, crtcID);
+	syna_vpp_pop_fl_frame(crtcID, planeID);
 
 	dev_priv->is_fl_frame_freed[crtcID] = 1;
 	syna_vpp_fl_clean_work[crtcID].crtcId = crtcID;
