@@ -310,9 +310,9 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 	if (np) {
 		dsi_panel->backlight = of_find_backlight_by_node(np);
 		of_node_put(np);
-		if (!dsi_panel->backlight) {
-			put_device(&dsi_panel->backlight->dev);
-			return -EPROBE_DEFER;
+		if (IS_ERR(dsi_panel->backlight)) {
+			if (PTR_ERR(dsi_panel->backlight) == -EPROBE_DEFER)
+				return -EPROBE_DEFER;
 		}
 	} else {
 		pr_info("No external Backlight Device\n");
