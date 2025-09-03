@@ -63,6 +63,9 @@
 #define AVIO_GET_AVIO_CTX() \
 	(AVIO_CTX *)avio_sub_module_get_ctx(AVIO_MODULE_TYPE_AVIO)
 
+static int fastlogo_status;
+module_param(fastlogo_status, int, 0444);
+
 /***********************************************************************
  * Module Variable
  */
@@ -125,8 +128,8 @@ int avio_module_mipirst_set_gpio_val(int val)
 {
 	AVIO_CTX *hAvioCtx = AVIO_GET_AVIO_CTX();
 
-	if (hAvioCtx->mipirst)
-		gpiod_set_value_cansleep(hAvioCtx->mipirst, val);
+	if (!IS_ERR(hAvioCtx->mipirst))
+		gpiod_direction_output(hAvioCtx->mipirst, val);
 
 	return S_OK;
 }
@@ -506,6 +509,25 @@ int avio_module_avio_probe(struct platform_device *pdev)
 	return err;
 }
 
+avio_fastlogo_info avio_get_fastlogo_status(void)
+{
+	avio_fastlogo_info disp_info;
+
+	disp_info.fl_disp_info = fastlogo_status;
+
+	return disp_info;
+}
+
+void avio_set_fastlogo_status(int status)
+{
+	avio_fastlogo_info display_info;
+
+	display_info.fl_disp_info = fastlogo_status;
+	display_info.u.status = status ? 1 : 0;
+
+	fastlogo_status = display_info.fl_disp_info;
+}
+
 static struct dev_pm_ops avio_pmops = {
 	SET_LATE_SYSTEM_SLEEP_PM_OPS(avio_suspend,
 		avio_resume)
@@ -530,3 +552,6 @@ late_initcall(avio_init)
 MODULE_AUTHOR("synaptics");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("AVIO module driver");
+
+EXPORT_SYMBOL(avio_get_fastlogo_status);
+EXPORT_SYMBOL(avio_set_fastlogo_status);

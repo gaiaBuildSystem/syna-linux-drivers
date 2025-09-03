@@ -161,6 +161,7 @@ struct syna_lcdc_dev {
 	unsigned char u8Gamma[33]; //GAMMA Table
 
 	VPP_MEM_LIST   *vpp_mem_list;
+	int is_first_frame;
 };
 
 extern HDL_dhub2d VPP_dhubHandle;

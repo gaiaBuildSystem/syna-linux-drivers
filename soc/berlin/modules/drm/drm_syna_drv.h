@@ -55,6 +55,7 @@ struct syna_drm_private {
 	bool modeset_enabled;
 
 	void *pMipiDsiInfo;
+	bool is_fbconsole_enabled;
 };
 
 struct syna_plane {
@@ -128,4 +129,6 @@ void __weak syna_vpp_add_debugfs_entry(struct syna_drm_private *dev_priv);
 void __weak syna_vpp_remove_debugfs_entry(struct syna_drm_private *dev_priv);
 void __weak syna_hdmi_add_debugfs_entry(struct syna_drm_private *dev_priv);
 void __weak syna_hdmi_remove_debugfs_entry(struct syna_drm_private *dev_priv);
+
+void syna_fbcon_enable(struct drm_device *ddev);
 #endif /* !defined(__DRM_SYNA_DRV_H__) */

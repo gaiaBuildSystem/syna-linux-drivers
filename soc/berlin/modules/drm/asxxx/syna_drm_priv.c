@@ -38,8 +38,7 @@ VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id)
 
 void syna_vpp_dev_init_priv(struct drm_device *dev)
 {
-	syna_vpp_push_buildin_frame(PLANE_GFX0);
-	syna_vpp_push_buildin_frame(PLANE_GFX1);
+	/* Buildin frame not required for ASXX - Single Plane/Single CRTC system */
 }
 
 void syna_read_config_priv(vpp_config_params *p_vpp_config_param)

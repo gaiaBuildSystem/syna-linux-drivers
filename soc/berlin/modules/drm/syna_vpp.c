@@ -13,6 +13,7 @@
 #include <linux/gpio/consumer.h>
 
 #include <linux/delay.h>
+#include "avio_core.h"
 #include "drm_syna_gem.h"
 #include "vpp_api.h"
 #include "syna_vpp.h"
@@ -539,6 +540,7 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 	uint32_t fb_cpp, fb_cpp_uv;
 	uint32_t width, height, stride, format;
 	phys_addr_t disp_phyaddr, disp_phyaddr_uv;
+	struct syna_drm_private *dev_priv = dev->dev_private;
 
 	int VPP_Format = 0;
 	int order = ORDER_BGRA;
@@ -556,6 +558,7 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 	VPP_VBUF *curr_vpp_vbuf;
 	VBUF_INFO *curr_disp_desc;
 	int ret;
+	static u32 frame_count;
 
 	syna_obj = (struct syna_gem_object *)(syna_fb->obj[0]);
 	pitch = fb->pitches[0];
@@ -790,6 +793,15 @@ void syna_vpp_set_surface(struct drm_device *dev, void __iomem *syna_reg,
 		in_use_device_rotate[plane] = device_rotate;
 	}
 #endif
+
+	if (frame_count == 0) {
+		if (!dev_priv->is_fbconsole_enabled)
+			syna_fbcon_enable(dev);
+
+		/* Clear the fastlogo status, so that suspend/resume will go for re-initilaisation */
+		avio_set_fastlogo_status(0);
+		frame_count++;
+	}
 
 	MV_VPP_DisplayFrame(plane, VPP_video_format, (void *)curr_disp_desc);
 

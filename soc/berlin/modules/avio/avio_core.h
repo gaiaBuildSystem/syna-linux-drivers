@@ -25,6 +25,19 @@ typedef struct _AVIO_CTX_ {
 	struct semaphore resume_sem;
 } AVIO_CTX;
 
+typedef struct fastlogo_info_t {
+	u32 status : 1;   // Successfully displayed logo or not
+	u32 partition : 1; //logo from partition A/B
+	u32 cpcb0ResId : 8;     //CpCb0 resolution -- may be additional bits for depth/format
+	u32 cpcb1ResId : 8;     //CpCb1 resolution
+	u32 reserved : 14;
+} FASTLOGO_INFO;
+
+typedef union  avio_fastlogo_info_u {
+	u32 fl_disp_info;
+	struct fastlogo_info_t u;
+} avio_fastlogo_info;
+
 struct avio_device_t {
 	unsigned char *dev_name;
 	struct cdev cdev;
@@ -43,5 +56,7 @@ struct avio_device_t {
 };
 
 int avio_module_avio_probe(struct platform_device *pdev);
+avio_fastlogo_info avio_get_fastlogo_status(void);
+void avio_set_fastlogo_status(int status);
 
 #endif //_AVIO_DRIVER_H_

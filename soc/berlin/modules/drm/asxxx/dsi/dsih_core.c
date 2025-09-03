@@ -29,6 +29,7 @@ uint16_t mipi_dsi_init_param(struct mipi_dsi_dev *dev)
 	dsih_dpi_video_t *video = &dev->dpi_video;
 	dsih_cmd_mode_video_t *edpi_video = &dev->cmd_mode_video;
 	uint16_t ret;
+	avio_fastlogo_info display_info;
 
 	mipi_dbg_print(MIPI_INFO,"%s:DSI initialization\n", FUNC_NAME);
 #ifdef GEN_3
@@ -48,22 +49,25 @@ uint16_t mipi_dsi_init_param(struct mipi_dsi_dev *dev)
 	dev->color_mode_polarity = 1;
 	dev->shut_down_polarity = 1;
 
-	mipi_dsih_presp_timeout_low_power_write(dev, 0);
-	mipi_dsih_presp_timeout_low_power_read(dev, 0);
-	mipi_dsih_presp_timeout_high_speed_write(dev, 0);
-	mipi_dsih_presp_timeout_high_speed_read(dev, 0);
-	mipi_dsih_presp_timeout_bta(dev, 8);
+	display_info = avio_get_fastlogo_status();
 
-	/*
-	 * Open instance first
-	 * - to make sure addresses and other
-	 * attributes are correct
-	 */
-	ret = mipi_dsih_open(dev, COLOR_CODE_24BIT);
+	if (!display_info.u.status) {
+		mipi_dsih_presp_timeout_low_power_write(dev, 0);
+		mipi_dsih_presp_timeout_low_power_read(dev, 0);
+		mipi_dsih_presp_timeout_high_speed_write(dev, 0);
+		mipi_dsih_presp_timeout_high_speed_read(dev, 0);
+		mipi_dsih_presp_timeout_bta(dev, 8);
 
-	if (ret != TRUE)
-		return ret;
+		/*
+		* Open instance first
+		* - to make sure addresses and other
+		* attributes are correct
+		*/
+		ret = mipi_dsih_open(dev, COLOR_CODE_24BIT);
 
+		if (ret != TRUE)
+			return ret;
+	}
 	/* initialise DPI video params */
 	video->no_of_lanes = 1;
 	video->non_continuous_clock = 0;
@@ -178,7 +182,6 @@ int mipi_dsi_init(struct mipi_dsi_dev *dev)
 
 	//INIT
 	mipi_dsi_init_param(dev);
-
 	dev->phy.is_g118 = TRUE;
 
 	  /* Un-mask interrupts */

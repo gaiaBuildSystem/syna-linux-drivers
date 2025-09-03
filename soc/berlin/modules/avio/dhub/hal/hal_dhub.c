@@ -640,6 +640,58 @@ void *dhub_hbo(void *hdl	/*      Handle to HDL_dhub */
 }
 
 /******************************************************************************
+*	Function: dhub_channel_cfg_init
+*	Description: initialise a dHub channel.
+*	Return:	UNSG32		Number of (adr,pair) added to cfgQ, or (when cfgQ==NULL)
+*				0 if either cmdQ or dataQ in HBO is still busy
+*******************************************************************************/
+UNSG32 dhub_channel_cfg_init(void *hdl,	/*Handle to HDL_dhub */
+			SIGN32 id,	/*Channel ID in $dHubReg */
+			UNSG32 baseCmd,	/*Channel FIFO base address (byte address) for cmdQ */
+			UNSG32 baseData,	/*Channel FIFO base address (byte address) for dataQ */
+			SIGN32 depthCmd,	/*Channel FIFO depth for cmdQ, in 64b word */
+			SIGN32 depthData,	/*Channel FIFO depth for dataQ, in 64b word */
+			SIGN32 MTU,	/*See 'dHubChannel.CFG.MTU' */
+			SIGN32 QoS,	/*See 'dHubChannel.CFG.QoS' */
+			SIGN32 selfLoop,	/*See 'dHubChannel.CFG.selfLoop' */
+			SIGN32 enable,	/*0 to disable, 1 to enable */
+			T64b cfgQ[]	/*Pass NULL to directly init dHub, or
+					   Pass non-zero to receive programming sequence
+					   in (adr,data) pairs
+					 */
+	)
+{
+	HDL_dhub *dhub = (HDL_dhub *) hdl;
+
+	switch (MTU) {
+	case dHubChannel_CFG_MTU_8byte:
+		dhub->MTUb[id] = 3;
+		break;
+	case dHubChannel_CFG_MTU_32byte:
+		dhub->MTUb[id] = 5;
+		break;
+	case dHubChannel_CFG_MTU_128byte:
+		dhub->MTUb[id] = 7;
+		break;
+	case dHubChannel_CFG_MTU_64byte :
+		dhub->MTUb[id] = 6;
+		break;
+	case dHubChannel_CFG_MTU_256byte:
+		dhub->MTUb[id] = 8;
+		break;
+	case dHubChannel_CFG_MTU_1024byte:
+		dhub->MTUb[id] = 10;
+		break;
+	case dHubChannel_CFG_MTU_4096byte:
+		dhub->MTUb[id] = 12;
+		break;
+	}
+
+	return 0;
+	/**	ENDOFFUNCTION: dhub_channel_cfg **/
+}
+
+/******************************************************************************
 *	Function: dhub_channel_cfg
 *	Description: Configurate a dHub channel.
 *	Return:	UNSG32		Number of (adr,pair) added to cfgQ, or (when cfgQ==NULL)

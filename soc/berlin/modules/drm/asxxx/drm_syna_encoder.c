@@ -62,12 +62,17 @@ static const char *compatible_name[] = {
 
 static void syna_dsi_host_config(MIPI_DSIH_INFO *pMipiDsiInfo)
 {
+	avio_fastlogo_info display_info;
+
 	if (!pMipiDsiInfo->is_dsi_host_configured) {
 		pMipiDsiInfo->is_dsi_host_configured = 1;
 		dsi_host_shutdown(0);
 	}
 
-	dsi_platform_init(pMipiDsiInfo->dsi_dev, 0, VIDEO_MODE, pMipiDsiInfo->synaDsiInfo.lanes);
+	display_info = avio_get_fastlogo_status();
+
+	if (!display_info.u.status)
+		dsi_platform_init(pMipiDsiInfo->dsi_dev, 0, VIDEO_MODE, pMipiDsiInfo->synaDsiInfo.lanes);
 }
 
 static void syna_update_dsi_info(MIPI_DSIH_INFO *pMipiDsiInfo)
@@ -158,6 +163,7 @@ syna_encoder_helper_mode_set(struct drm_encoder *encoder,
 	struct drm_display_info *disp_info = &dev_priv->connector[crtc_index]->display_info;
 	MIPI_DSIH_INFO *pMipiDsiInfo = dev_priv->pMipiDsiInfo;
 	struct mipi_dsi_dev *dsi_dev = pMipiDsiInfo ? pMipiDsiInfo->dsi_dev : NULL;
+	avio_fastlogo_info display_info;
 
 	if (disp_info->num_bus_formats) {
 		lcdcConfig.mode = *disp_info->bus_formats;
@@ -176,6 +182,8 @@ syna_encoder_helper_mode_set(struct drm_encoder *encoder,
 	lcdcConfig.yres = mode->vdisplay;
 	lcdcConfig.upper_margin = mode->vtotal - mode->vsync_end; //BP
 	lcdcConfig.pixclock = mode->clock ;
+
+	display_info = avio_get_fastlogo_status();
 
 	if (crtc_index) {
 		if (dsi_dev)
@@ -196,32 +204,27 @@ syna_encoder_helper_mode_set(struct drm_encoder *encoder,
 			/* Configure DSI host */
 			syna_dsi_host_config(pMipiDsiInfo);
 		}
-
-		VPP_Clock_Set_Rate_Ext(PIXEL_CLOCK_RATE(lcdcConfig.pixclock));
+		if (!display_info.u.status)
+			VPP_Clock_Set_Rate_Ext(PIXEL_CLOCK_RATE(lcdcConfig.pixclock));
 	} else {
 		lcdcConfig.rgb_swap = lcdc_rgb_swap;
-		VPP_Clock_Set_Rate(PIXEL_CLOCK_RATE(lcdcConfig.pixclock));
+		if (!display_info.u.status)
+			VPP_Clock_Set_Rate(PIXEL_CLOCK_RATE(lcdcConfig.pixclock));
 	}
+
+	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index])
+		drm_panel_prepare(dev_priv->panel[crtc_index]);
 
 	syna_vpp_load_config(crtc_index, &lcdcConfig);
 }
 
-static void syna_encoder_destroy(struct drm_encoder *encoder)
+static void syna_encoder_helper_enable(struct drm_encoder *encoder)
 {
+	int crtc_index = (encoder->encoder_type == DRM_MODE_ENCODER_DSI) ? 1 : 0;
 	struct syna_drm_private *dev_priv = encoder->dev->dev_private;
-	MIPI_DSIH_INFO *pMipiDsiInfo = dev_priv->pMipiDsiInfo;
 
-	if (encoder == NULL) {
-		DRM_ERROR("%s: encoder is NULL!!\n", __func__);
-		return;
-	}
-	DRM_DEBUG_DRIVER("[ENCODER:%d:%s]\n", encoder->base.id, encoder->name);
-
-	drm_encoder_cleanup(encoder);
-
-	kfree(pMipiDsiInfo->dsi_dev);
-	kfree(pMipiDsiInfo);
-	kfree(encoder);
+	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index])
+		drm_panel_enable(dev_priv->panel[crtc_index]);
 }
 
 static void syna_encoder_helper_disable(struct drm_encoder *encoder)
@@ -242,18 +245,22 @@ static void syna_encoder_helper_disable(struct drm_encoder *encoder)
 	}
 }
 
-static void syna_encoder_helper_enable(struct drm_encoder *encoder)
+static void syna_encoder_destroy(struct drm_encoder *encoder)
 {
-	int crtc_index = (encoder->encoder_type == DRM_MODE_ENCODER_DSI) ? 1 : 0;
 	struct syna_drm_private *dev_priv = encoder->dev->dev_private;
+	MIPI_DSIH_INFO *pMipiDsiInfo = dev_priv->pMipiDsiInfo;
 
-	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index]) {
-		if(encoder->encoder_type == DRM_MODE_ENCODER_DSI)
-			dsi_host_shutdown(0);
-
-		drm_panel_prepare(dev_priv->panel[crtc_index]);
-		drm_panel_enable(dev_priv->panel[crtc_index]);
+	if (encoder == NULL) {
+		DRM_ERROR("%s: encoder is NULL!!\n", __func__);
+		return;
 	}
+	DRM_DEBUG_DRIVER("[ENCODER:%d:%s]\n", encoder->base.id, encoder->name);
+
+	drm_encoder_cleanup(encoder);
+
+	kfree(pMipiDsiInfo->dsi_dev);
+	kfree(pMipiDsiInfo);
+	kfree(encoder);
 }
 
 static const struct drm_encoder_helper_funcs syna_encoder_helper_funcs = {

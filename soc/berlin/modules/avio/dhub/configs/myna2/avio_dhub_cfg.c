@@ -104,24 +104,42 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 {
 	static atomic_t dhub_init_done = ATOMIC_INIT(0);
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
+	avio_fastlogo_info display_info;
 
 	//Allow DHUB initialization only once
 	if (atomic_cmpxchg(&dhub_init_done, 0, 1))
 		return 0;
 
-	/*Disable Autopush before initialization of VPP DHUB*/
-	wrap_DhubEnableAutoPush(false, true, hDhubCtx->fastlogo_framerate);
+	display_info = avio_get_fastlogo_status();
 
-	DhubInitialization(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
+	if (display_info.u.status) {
+		DhubInitHandle(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
 				CPUINDEX, hDhubCtx->vpp_dhub_base,
 				hDhubCtx->vpp_sram_base, &VPP_dhubHandle,
 				LCDC_config, VPP_NUM_OF_CHANNELS,
 				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
 
-	DhubInitialization(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
+		DhubInitHandle(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
 				hDhubCtx->ag_sram_base,
 				&AG_dhubHandle, AG_config, AG_NUM_OF_CHANNELS,
 				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
+
+	}
+	else {
+		/*Disable Autopush before initialization of VPP DHUB*/
+		wrap_DhubEnableAutoPush(false, true, hDhubCtx->fastlogo_framerate);
+
+		DhubInitialization(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
+				CPUINDEX, hDhubCtx->vpp_dhub_base,
+				hDhubCtx->vpp_sram_base, &VPP_dhubHandle,
+				LCDC_config, VPP_NUM_OF_CHANNELS,
+				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
+
+		DhubInitialization(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
+				hDhubCtx->ag_sram_base,
+				&AG_dhubHandle, AG_config, AG_NUM_OF_CHANNELS,
+				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
+	}
 
 	return 0;
 }

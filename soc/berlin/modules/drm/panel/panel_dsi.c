@@ -29,6 +29,7 @@
 #include "panel/panel.h"
 #include "bridge/syna_bridge.h"
 #include "avio_common.h"
+#include "avio_core.h"
 
 typedef struct panel_timing_info_t {
 	unsigned int hact;
@@ -109,6 +110,8 @@ static int syna_panel_dsi_disable(struct drm_panel *panel)
 static int syna_panel_dsi_prepare(struct drm_panel *panel)
 {
 	int err;
+	avio_fastlogo_info display_info;
+
 	if (synaPanelInfo.supply) {
 		if (!regulator_is_enabled(synaPanelInfo.supply)) {
 			err = regulator_enable(synaPanelInfo.supply);
@@ -119,9 +122,13 @@ static int syna_panel_dsi_prepare(struct drm_panel *panel)
 		}
 	}
 
+	display_info = avio_get_fastlogo_status();
+
 	/* Release MIPI from Reset */
 	avio_module_mipirst_set_gpio_val(0);
-	syna_dsi_panel_send_cmd(synaPanelInfo.cmdsize, synaPanelInfo.cmd);
+	if (!display_info.u.status)
+		syna_dsi_panel_send_cmd(synaPanelInfo.cmdsize, synaPanelInfo.cmd);
+
 	syna_bridge_modeset(&synaPanelTimings);
 
 	if (synaPanelInfo.sub_panel)
@@ -274,15 +281,14 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 
 	err = avio_module_mipirst_get_gpio_handle(&pdev->dev,
 									of_fwnode_handle(mipi_dev->of_node),
-									GPIOD_OUT_HIGH);
-	if (!err && err != -EPROBE_DEFER) {
-		pr_err("MIPI Rst GPIO not found \n");
-	}
+									GPIOD_ASIS);
+	if (err == -EPROBE_DEFER)
+		return err;
 
 	synaPanelInfo.mipibl = devm_fwnode_gpiod_get_index(&pdev->dev,
 				of_fwnode_handle(mipi_dev->of_node),
 				"mipibl", 0,
-				GPIOD_OUT_HIGH, "mipibl");
+				GPIOD_ASIS, "mipibl");
 
 	if (IS_ERR(synaPanelInfo.mipibl)) {
 		/* Ignore the error other than probe defer */
@@ -295,7 +301,7 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 	of_node_put(mipi_dev->of_node);
 
 	avio_module_mipirst_set_gpio_val(0);
-	gpiod_set_value_cansleep(synaPanelInfo.mipibl, 1);
+	gpiod_direction_output(synaPanelInfo.mipibl, 1);
 
 	drm_panel_init(dsi_panel, mipi_dev, &syna_panel_dsi_funcs,
 					DRM_MODE_CONNECTOR_DSI);

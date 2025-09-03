@@ -386,30 +386,48 @@ int syna_lcdc_pushframe(int lcdcID, void *pnew)
 	if (frmq_push(&(syna_lcdc[lcdcID]->inputq), pnew) == 0)
 		return (SYNA_LCDC_EFRAMEQFULL);
 
-	syna_lcdc[lcdcID]->en_intr_handler = 1;
+	if (!syna_lcdc[lcdcID]->en_intr_handler)
+	{
+		syna_lcdc[lcdcID]->is_first_frame = 1;
+		syna_lcdc[lcdcID]->en_intr_handler = 1;
+	}
 
 	return SYNA_LCDC_OK;
 }
 
 void syna_lcdc_hw_config(int lcdcID, SYNA_LCDC_PANEL *panelcfg)
 {
+	avio_fastlogo_info display_info;
+	int use_vbi;
+
 	if (!syna_lcdc[lcdcID]->isTGConfig) {
 		memcpy(syna_lcdc[lcdcID]->panel, panelcfg, sizeof(SYNA_LCDC_PANEL));
 
+		display_info = avio_get_fastlogo_status();
+
 		syna_lcdc[lcdcID]->dhubID = (int)(long long)&VPP_dhubHandle;
-		syna_lcdc_wrap_vpll_pwron(lcdcID, 1);
-		syna_lcdc_wrap_vpll_enable(lcdcID, 1);
-		syna_lcdc_wrap_lcdcclk_enable(lcdcID, 1);
+		if (!display_info.u.status) {
+			syna_lcdc_wrap_vpll_pwron(lcdcID, 1);
+			syna_lcdc_wrap_vpll_enable(lcdcID, 1);
+			syna_lcdc_wrap_lcdcclk_enable(lcdcID, 1);
+		}
+
 		// FIX ME: Caller Should Differentiate CPU type or RGB i/f
 		syna_lcdc[lcdcID]->panel->intf_type = SYNA_LCDC_TYPE_DPI_RGB;
 		syna_lcdc[lcdcID]->isTGConfig = 1;
 		syna_lcdc[lcdcID]->bcm_enable = 1;
 		syna_lcdc[lcdcID]->bcm_autopush_en = 1;
 
-		syna_bcmbuf_flip(syna_lcdc[lcdcID]);
-		syna_lcdc_set_hw_init(syna_lcdc[lcdcID]);
-		syna_lcdc_config_tg(syna_lcdc[lcdcID]);
-		syna_bcmbuf_submit(syna_lcdc[lcdcID], 0); //use VBI
+		use_vbi = display_info.u.status ? 1 : 0;
+		if (!display_info.u.status) {
+			syna_bcmbuf_flip(syna_lcdc[lcdcID]);
+			syna_lcdc_set_hw_init(syna_lcdc[lcdcID]);
+			syna_lcdc_config_tg(syna_lcdc[lcdcID]);
+			syna_bcmbuf_submit(syna_lcdc[lcdcID], use_vbi); //use VBI
+		} else {
+			GA_REG_WORD32_WRITE(syna_lcdc[lcdcID]->core_addr + LCDC_REG_INTER, INT_FRAME_DONE);
+		}
+
 		syna_lcdc_semaintr_enable(syna_lcdc[lcdcID]->intrID, 1);
 	}
 }
@@ -427,8 +445,9 @@ void syna_lcdc_irq(int intrMask)
 			stat = syna_lcdc_readl(dev, LCDC_REG_INTSR);
 			GA_REG_WORD32_WRITE(dev->core_addr + LCDC_REG_INTSR, stat);
 
-			if (stat & INT_FRAME_DONE) {
+			if (stat & INT_FRAME_DONE || dev->is_first_frame) {
 				if (dev->en_intr_handler) {
+					dev->is_first_frame = 0;
 					syna_bcmbuf_flip(dev);
 					syna_lcdc_dlr_handler(dev);
 					syna_lcdc_hw_param_update(dev); //TO handle input change
@@ -460,20 +479,24 @@ static int syna_lcdc_dev_init(void)
 	int i;
 	SYNA_LCDC_PANEL *syna_panel_config;
 	unsigned int addr;
+	avio_fastlogo_info display_info;
 
 	addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_VPLL0_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
 
-	/*FIXME: configure based on resolution configuration*/
-	GA_REG_WORD32_WRITE(addr, 0x820);
+	display_info = avio_get_fastlogo_status();
+	if (!display_info.u.status) {
+		/*FIXME: configure based on resolution configuration*/
+		GA_REG_WORD32_WRITE(addr, 0x820);
 
-	addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_VPLL1_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
-	GA_REG_WORD32_WRITE(addr, 0x820);
+		addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_VPLL1_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
+		GA_REG_WORD32_WRITE(addr, 0x820);
 
-	addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_LCDC2_CTRL;
-	GA_REG_WORD32_WRITE(addr, 0x39);
+		addr = SYNA_MEMMAP_AVIO_GBL_BASE + RA_avioGbl_LCDC2_CTRL;
+		GA_REG_WORD32_WRITE(addr, 0x39);
 
-	syna_lcdc_wrap_clkgating_disable();
-	syna_lcdc_wrap_interrupt_enable();
+		syna_lcdc_wrap_clkgating_disable();
+		syna_lcdc_wrap_interrupt_enable();
+	}
 
 	for (i = 0; i < SYNA_LCDC_MAX; i++) {
 		syna_panel_config = (SYNA_LCDC_PANEL *) kmalloc(sizeof(struct syna_lcdc_dev), GFP_KERNEL);

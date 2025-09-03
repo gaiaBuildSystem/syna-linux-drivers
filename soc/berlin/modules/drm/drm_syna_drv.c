@@ -29,6 +29,7 @@
 #include "syna_vpp.h"
 #include "drm_syna_port.h"
 #include "panel/panel.h"
+#include "avio_core.h"
 
 #define DRIVER_NAME "synaptics"
 #define DRIVER_DESC "Synaptics DRM Display Driver"
@@ -328,6 +329,7 @@ static int syna_probe(struct platform_device *pdev)
 {
 	struct drm_device *ddev;
 	int ret;
+	avio_fastlogo_info display_info;
 
 	ddev = drm_dev_alloc(&syna_drm_driver, &pdev->dev);
 
@@ -353,9 +355,11 @@ static int syna_probe(struct platform_device *pdev)
 	if(ret)
 		DRM_ERROR("Sysfs suspend entry not created %d",ret);
 
-	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
-		IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE))
-			SYNA_DRM_FBDEV_SETUP(ddev, 32);
+	display_info = avio_get_fastlogo_status();
+
+	/* Enable FB based on the fastlogo displayed status */
+	if (!display_info.u.status)
+		syna_fbcon_enable(ddev);
 
 	return 0;
 
@@ -387,6 +391,17 @@ static void syna_shutdown(struct platform_device *pdev)
 {
 }
 
+void syna_fbcon_enable(struct drm_device *ddev)
+{
+	struct syna_drm_private *dev_priv = ddev->dev_private;
+
+	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
+			IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE)) {
+		dev_priv->is_fbconsole_enabled = 1;
+		SYNA_DRM_FBDEV_SETUP(ddev, 32);
+	}
+}
+
 static const struct of_device_id drm_match[] = {
 	{.compatible = "syna,berlin-drm",},
 	{},
@@ -401,6 +416,7 @@ static int syna_drm_suspend(struct device *dev)
 	ddev = platform_get_drvdata(to_platform_device(dev));
 	drm_fb_helper_set_suspend_unlocked(ddev->fb_helper, 1);
 	drm_mode_config_helper_suspend(ddev);
+
 	return 0;
 }
 

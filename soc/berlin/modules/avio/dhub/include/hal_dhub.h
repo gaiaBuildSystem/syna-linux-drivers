@@ -481,6 +481,28 @@ UNSG32 dhub_channel_cfg(void *hdl,	/*!Handle to HDL_dhub ! */
 	);
 
 /********************************************************************************************
+*	Function: dhub_channel_cfg_init
+*	Description: Configurate a dHub channel.
+*	Return:		UNSG32		Number of (adr,pair) added to cfgQ, or (when cfgQ==NULL)
+*					0 if either cmdQ or dataQ in HBO is still busy
+*********************************************************************************************/
+UNSG32 dhub_channel_cfg_init(void *hdl,	/*!Handle to HDL_dhub ! */
+			SIGN32 id,	/*!Channel ID in $dHubReg ! */
+			UNSG32 baseCmd,	/*!Channel FIFO base address (byte address) for cmdQ ! */
+			UNSG32 baseData,	/*!Channel FIFO base address (byte address) for dataQ ! */
+			SIGN32 depthCmd,	/*!Channel FIFO depth for cmdQ, in 64b word ! */
+			SIGN32 depthData,	/*!Channel FIFO depth for dataQ, in 64b word ! */
+			SIGN32 mtu,	/*!See 'dHubChannel.CFG.MTU', 0/1/2 for 8/32/128 bytes ! */
+			SIGN32 QoS,	/*!See 'dHubChannel.CFG.QoS' ! */
+			SIGN32 selfLoop,	/*!See 'dHubChannel.CFG.selfLoop' ! */
+			SIGN32 enable,	/*!0 to disable, 1 to enable ! */
+			T64b cfgQ[]	/*!Pass NULL to directly init dHub, or
+					   Pass non-zero to receive programming sequence
+					   in (adr,data) pairs
+					   ! */
+	);
+
+/********************************************************************************************
 *	Function: dhub_channel_enable
 *	Description: dHub channel enable/disable.
 *	Return:	UNSG32			Number of (adr,pair) added to cfgQ
