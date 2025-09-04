@@ -80,8 +80,29 @@ void __weak MV_VPP_UpdatePlane_Zorder(int cpcb_id, ENUM_PLANE_ID plane_id)
 	return;
 }
 
-void MV_VPP_UpdatePlane_Refwin(ENUM_PLANE_ID plane_id, bool isFromISR)
+bool IS_VPP_SRCWIN_VALID(VPP_WIN *pSrcWin)
 {
+	if ((pSrcWin->width > VPP_WIN_MIN_INPUT_WIDTH) &&
+		(pSrcWin->height > VPP_WIN_MIN_INPUT_HEIGHT))
+			return true;
+
+	return false;
+}
+
+bool IS_VPP_DSTWIN_VALID(VPP_WIN *pDstWin)
+{
+	if ((pDstWin->width > VPP_WIN_MIN_OUTPUT_WIDTH) &&
+		(pDstWin->height > VPP_WIN_MIN_OUTPUT_HEIGHT) &&
+		(pDstWin->x < VPP_WIN_MAX_OUTPUT_X) &&
+		(pDstWin->y < VPP_WIN_MAX_OUTPUT_Y))
+			return true;
+
+	return false;
+}
+
+int MV_VPP_UpdatePlane_Refwin(ENUM_PLANE_ID plane_id, bool isFromISR)
+{
+	int ret = MV_VPP_OK;
 	VPP_WIN fb_win;
 	vpp_plane_info *c_pinfo = &g_vpp_curr_plane_info[plane_id];
 
@@ -100,14 +121,19 @@ void MV_VPP_UpdatePlane_Refwin(ENUM_PLANE_ID plane_id, bool isFromISR)
 	pr_debug("Change Refwin: plane-%d/%d, (%d,%d,%d,%d)\n", plane_id, isFromISR,
 				fb_win.x, fb_win.y,	fb_win.width, fb_win.height);
 
-	if (isFromISR)
-		wrap_MV_VPPOBJ_SetRefWindowFromISR(plane_id, &fb_win);
-	else
-		wrap_MV_VPPOBJ_SetRefWindow(plane_id, &fb_win);
+	if (IS_VPP_SRCWIN_VALID(&fb_win)) {
+		if (isFromISR)
+			ret = wrap_MV_VPPOBJ_SetRefWindowFromISR(plane_id, &fb_win);
+		else
+			ret = wrap_MV_VPPOBJ_SetRefWindow(plane_id, &fb_win);
+	}
+
+	return ret;
 }
 
-void MV_VPP_UpdatePlane_Dispwin(ENUM_PLANE_ID plane_id, bool isFromISR)
+int MV_VPP_UpdatePlane_Dispwin(ENUM_PLANE_ID plane_id, bool isFromISR)
 {
+	int ret = MV_VPP_OK;
 	vpp_plane_info *c_pinfo = &g_vpp_curr_plane_info[plane_id];
 	pr_debug("Change Dispwin: plane-%d/%d, (%d,%d,%d,%d), (%d,%d,%d)\n",
 				plane_id, isFromISR,
@@ -116,25 +142,46 @@ void MV_VPP_UpdatePlane_Dispwin(ENUM_PLANE_ID plane_id, bool isFromISR)
 				c_pinfo->win_attr.bgcolor, c_pinfo->win_attr.alpha,
 				c_pinfo->win_attr.globalAlphaFlag);
 
-	wrap_MV_VPPOBJ_ChangeDispWindow(plane_id,
-		&c_pinfo->disp_win, &c_pinfo->win_attr, isFromISR);
+	if (IS_VPP_DSTWIN_VALID(&c_pinfo->disp_win)) {
+		ret = wrap_MV_VPPOBJ_ChangeDispWindow(plane_id,
+			&c_pinfo->disp_win, &c_pinfo->win_attr, isFromISR);
+	}
+
+	return ret;
 }
 
-void MV_VPP_UpdatePlaneInfoFromISR(void)
+int MV_VPP_UpdatePlaneInfoFromISR(void)
 {
 	ENUM_PLANE_ID plane_id;
+	int ret = MV_VPP_OK;
 
 	for (plane_id = FIRST_PLANE; plane_id < MAX_NUM_PLANES; plane_id++) {
 		vpp_plane_info *c_pinfo = &g_vpp_curr_plane_info[plane_id];
 		if (IS_VPP_PLANE_INFO_CFLAG_SET(c_pinfo->change_flag, REFWIN)) {
+			if ( (ret = MV_VPP_UpdatePlane_Refwin(plane_id, 1)) ==
+					 VPP_TA_E_SWSTATEWRONG) {
+				pr_debug("%s:%d: MV_VPP_UpdatePlane_Refwin FAILED(%d) :"
+				"(%d,%d,%d,%d)\n", __func__, __LINE__, plane_id,
+				c_pinfo->ref_win.x, c_pinfo->ref_win.y,
+				c_pinfo->ref_win.width, c_pinfo->ref_win.height);
+				break;
+			}
 			VPP_PLANE_INFO_CFLAG_CLEAR(c_pinfo->change_flag, REFWIN);
-			MV_VPP_UpdatePlane_Refwin(plane_id, 1);
 		}
 		if (IS_VPP_PLANE_INFO_CFLAG_SET(c_pinfo->change_flag, DISPWIN)) {
+			if ( (ret = MV_VPP_UpdatePlane_Dispwin(plane_id, 1)) ==
+					VPP_TA_E_SWSTATEWRONG) {
+				pr_debug("%s:%d: MV_VPP_UpdatePlane_Dispwin FAILED(%d) :"
+				"(%d,%d,%d,%d)\n", __func__, __LINE__, plane_id,
+				c_pinfo->disp_win.x, c_pinfo->disp_win.y,
+				c_pinfo->disp_win.width, c_pinfo->disp_win.height);
+				break;
+			}
 			VPP_PLANE_INFO_CFLAG_CLEAR(c_pinfo->change_flag, DISPWIN);
-			MV_VPP_UpdatePlane_Dispwin(plane_id, 1);
 		}
 	}
+
+	return ret;
 }
 
 void MV_VPP_GetPlaneInfo(ENUM_PLANE_ID plane_id, vpp_plane_info *p_pinfo)

@@ -34,6 +34,13 @@
 #define HDMI_MAX_RES_ENABLED_60_30  61
 #define HDMI_MAX_RES_ENABLED_50_25  59
 
+#define VPP_WIN_MIN_INPUT_WIDTH 	24
+#define VPP_WIN_MIN_INPUT_HEIGHT	24
+#define VPP_WIN_MIN_OUTPUT_WIDTH	24
+#define VPP_WIN_MIN_OUTPUT_HEIGHT	24
+#define VPP_WIN_MAX_OUTPUT_X	3840
+#define VPP_WIN_MAX_OUTPUT_Y	2160
+
 /*Enable the macro when planes other than GFX is used for display with fastlogo.ta*/
 //#define VPP_ENABLE_USE_SET_STILL_PICTURE
 
@@ -72,11 +79,13 @@ typedef struct vpp_plane_info_t{
 	unsigned int cpcb_id;
 } vpp_plane_info;
 
+bool IS_VPP_SRCWIN_VALID(VPP_WIN *pSrcWin);
+bool IS_VPP_DSTWIN_VALID(VPP_WIN *pDstWin);
 void MV_VPP_GetPlaneInfo(ENUM_PLANE_ID plane_id, vpp_plane_info *p_pinfo);
 void MV_VPP_UpdatePlane_Mute(ENUM_PLANE_ID plane_id);
 void MV_VPP_UpdatePlane_Zorder(int cpcb_id, ENUM_PLANE_ID plane_id);
 void MV_VPP_UpdatePlaneInfo(ENUM_PLANE_ID plane_id, vpp_plane_info *p_pinfo);
-void MV_VPP_UpdatePlaneInfoFromISR(void);
+int MV_VPP_UpdatePlaneInfoFromISR(void);
 void MV_VPP_InitDispWinSize(ENUM_PLANE_ID plane_id, int width, int height,
 	        VPP_WIN_ATTR win_attr);
 int MV_VPP_make_frame_data(unsigned int iVideo, unsigned int *pStartAddr,
@@ -101,6 +110,6 @@ void vpp_force_enable_recovery(bool enable);
 int is_ampless_boot(void);
 int MV_VPP_GetDispOutParams(int cpcbId, VPP_DISP_OUT_PARAMS* pDisplayOutParams);
 int MV_VPP_GetResInfo(int res_index, RESOLUTION_INFO *p_res_info);
-void MV_VPP_UpdatePlane_Refwin(ENUM_PLANE_ID plane_id, bool isFromISR);
-void MV_VPP_UpdatePlane_Dispwin(ENUM_PLANE_ID plane_id, bool isFromISR);
+int MV_VPP_UpdatePlane_Refwin(ENUM_PLANE_ID plane_id, bool isFromISR);
+int MV_VPP_UpdatePlane_Dispwin(ENUM_PLANE_ID plane_id, bool isFromISR);
 #endif //_VPP_API_H_

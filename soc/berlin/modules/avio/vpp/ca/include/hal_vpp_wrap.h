@@ -9,6 +9,7 @@
 #include "ctypes.h"
 #include "hal_vpp.h"
 #include "vpp_config.h"
+#include "vpp_defines.h"
 
 /*structure define*/
 

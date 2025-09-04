@@ -3,6 +3,7 @@
 
 #define _VPP_ISR_C_
 #include <linux/kthread.h>
+#include "drv_msg.h"
 #include "vpp_isr.h"
 #include "vpp_api.h"
 #include "avio_io.h"
@@ -109,8 +110,12 @@ static void VPP_DisplayPreISRService(void)
 	VBUF_INFO *pFrameInfo;
 	VPP_VBUF *pVppVbufDesc;
 
-	//Apply or Update plane-info : refwin/dispwin/etc.
-	MV_VPP_UpdatePlaneInfoFromISR();
+	/*
+	 * Apply or Update plane-info : refwin/dispwin/etc.
+	 * Avoid/Skip until any previous update is pending to be processed
+	 */
+	if (MV_VPP_UpdatePlaneInfoFromISR() == VPP_TA_E_SWSTATEWRONG)
+		return;
 
 	do {
 		rc = AMPMsgQ_ReadTry(&hVPPInputFrameQ, &hDisplayFrameMsg);

@@ -18,56 +18,6 @@
 extern "C" {
 #endif
 
-#ifndef E_VPP_BASE
-#ifndef E_SUC
-#define E_SUC			(0x00000000)
-#endif
-#ifndef E_ERR
-#define E_ERR			(0x80000000)
-#endif
-
-#define E_VPP_BASE		(0x0200 << 16)   //VPP base
-
-//defines   --
-#define S_VPP(code) (E_SUC | E_VPP_BASE | ((code) & 0xFFFF))
-#define E_VPP(code) (E_ERR | E_VPP_BASE | ((code) & 0xFFFF))
-
-#define S_VPP_OK            (S_OK)
-
-/* error code */
-#define VPP_E_NODEV         E_VPP(1)
-#define VPP_E_BADPARAM      E_VPP(2)
-#define VPP_E_BADCALL       E_VPP(3)
-#define VPP_E_UNSUPPORT     E_VPP(4)
-#define VPP_E_IOFAIL        E_VPP(5)
-#define VPP_E_UNCONFIG      E_VPP(6)
-#define VPP_E_CMDQFULL      E_VPP(7)
-#define VPP_E_FRAMEQFULL    E_VPP(8)
-#define VPP_E_BCMBUFFULL    E_VPP(9)
-#define VPP_E_NOMEM         E_VPP(10)
-#define VPP_EVBIBUFFULL     E_VPP(11)
-#define VPP_EHARDWAREBUSY   E_VPP(12)
-#define VPP_ENOSINKCNCTED   E_VPP(13)
-#define VPP_ENOHDCPENABLED  E_VPP(14)
-
-// error code definitions
-#define MV_VPP_OK          S_VPP_OK
-#define MV_VPP_ENODEV      VPP_E_NODEV
-#define MV_VPP_EBADPARAM   VPP_E_BADPARAM
-#define MV_VPP_EBADCALL    VPP_E_BADCALL
-#define MV_VPP_EUNSUPPORT  VPP_E_UNSUPPORT
-#define MV_VPP_EIOFAIL     VPP_E_IOFAIL
-#define MV_VPP_EUNCONFIG   VPP_E_UNCONFIG
-#define MV_VPP_ECMDQFULL   VPP_E_CMDQFULL
-#define MV_VPP_EFRAMEQFULL VPP_E_FRAMEQFULL
-#define MV_VPP_EBCMBUFFULL VPP_E_BCMBUFFULL
-#define MV_VPP_ENOMEM      VPP_E_NOMEM
-#define MV_VPP_EVBIBUFFULL VPP_EVBIBUFFULL
-#define MV_VPP_EHARDWAREBUSY VPP_EHARDWAREBUSY
-#define MV_VPP_ENOSINKCNCTED  VPP_ENOSINKCNCTED
-#define MV_VPP_ENOHDCPENABLED VPP_ENOHDCPENABLED
-#endif
-
 #define MV_DISP_SUCCESS		(0)
 #define MV_DISP_E_RES_CFG	(1)
 #define MV_DISP_E_CREATE	(2)
