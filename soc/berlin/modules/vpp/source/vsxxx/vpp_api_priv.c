@@ -12,6 +12,7 @@
 #include "hal_dhub_wrap.h"
 #include "hal_vpp_wrap.h"
 #include "avio_sub_module.h"
+#include "vpp_boot_config.h"
 
 static VPP_MEM vpp_shm_handle;
 static VPP_MEM_LIST *vpp_heap_shm_list;
@@ -405,6 +406,21 @@ int wrap_VPP_Init_Recovery(VPP_MEM_LIST *shm_list,
 			int is_ampless_boot, vpp_config_params vpp_config_param)
 {
 	int res = 0;
+
+	avio_fastlogo_info display_info;
+
+	/* Read Fastlogo resID from bootloader/uboot */
+	display_info = avio_get_fastlogo_status();
+
+	if (display_info.u.status) {
+		/* Update VPP config with boot file resolution */
+		vpp_config_param.disp1_res_id = display_info.u.cpcb0ResId;
+		/* Need to update from TA  */
+		pr_info("VPP Init: Using boot Res ID %d from Uboot \n", display_info.u.cpcb0ResId);
+	} else {
+		/* Try to read previous resolution from file */
+		MV_VPP_ReadBootConfig(&vpp_config_param);
+	}
 
 	if (wrap_MV_VPP_iSTeeEnabled()) {
 		if (is_ampless_boot)

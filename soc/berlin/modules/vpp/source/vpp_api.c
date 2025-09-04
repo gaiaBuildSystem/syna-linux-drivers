@@ -7,6 +7,7 @@
 #include "hal_vpp_wrap.h"
 #include "avio_sub_module.h"
 #include "vpp_res_info.h"
+#include "vpp_boot_config.h"
 
 #include "linux/delay.h"
 
@@ -340,11 +341,27 @@ int MV_VPP_SetDisplayResolution(ENUM_CPCB_ID cpcbID,
 	int pixel_clock;
 	int status = -1;
 	int wait_count = VPP_CPCBTG_RESET_WAIT_TIME_MS / VPP_CPCBTG_RESET_LOOP_DELAY_MS;
+	vpp_config_params boot_config;
 
 	if (curr_disp_res_params[cpcbID].uiResId != dispParams.uiResId ||
 			curr_disp_res_params[cpcbID].uiDisplayMode != dispParams.uiDisplayMode ||
 			curr_disp_res_params[cpcbID].uiBitDepth != dispParams.uiBitDepth ||
 			curr_disp_res_params[cpcbID].uiColorFmt != dispParams.uiColorFmt) {
+
+		/* Update boot configuration file with new resolution */
+		if (cpcbID == CPCB_1) {
+			memset(&boot_config, 0, sizeof(boot_config));
+			boot_config.disp1_res_id = dispParams.uiResId;
+			boot_config.display_mode = dispParams.uiDisplayMode;
+			boot_config.disp1_bit_depth = dispParams.uiBitDepth;
+			boot_config.disp1_colorformat = dispParams.uiColorFmt;
+
+			res = MV_VPP_WriteBootConfig(&boot_config);
+			if (res != 0) {
+				pr_warn("%s:%d: Failed to update boot config file: %d\n",
+					__func__, __LINE__, res);
+			}
+		}
 
 		if (IsCpcbResolutionSet[cpcbID]) {
 			/* First : put CPCB TG to reset before setting new timing */
