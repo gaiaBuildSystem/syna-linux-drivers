@@ -213,6 +213,9 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 	if (of_property_read_u32(np, "hw_partition", &dev_priv->vpp_config_param.hw_partition))
 		dev_priv->vpp_config_param.hw_partition = VPP_DEFAULT_FL_HW_PARTITION;
 
+	if (of_property_read_u32(np, "logo_from_kernel", &dev_priv->vpp_config_param.logo_enable))
+		dev_priv->vpp_config_param.logo_enable = VPP_DEFAULT_FL_LOGO_ENABLE;
+
 	dev_priv->vpp_config_param.frame_rate = 60;
 	dev_priv->vpp_config_param.enable_frame_buf_copy = 0;
 	dev_priv->vpp_config_param.fb_count = 3;

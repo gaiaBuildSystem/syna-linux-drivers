@@ -982,6 +982,11 @@ static void syna_vpp_free_fl_frame(struct work_struct *work)
 	}
 }
 
+void __weak syna_push_builtin_frames(void)
+{
+	return;
+}
+
 void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 {
 	struct syna_drm_private *dev_priv = dev->dev_private;
@@ -989,6 +994,14 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 	int ret, i;
 	fastlogo_info_t fl_info;
 	VPP_WIN vpp_res_info;
+
+	if (!dev_priv->vpp_config_param.logo_enable) {
+		for (i = 0; i < MAX_CRTC; i++)
+                        dev_priv->is_fl_frame_freed[i] = 1;
+
+                syna_push_builtin_frames();
+                return;
+	}
 
 	for (i = 0; i < MAX_CRTC; i++) {
 		if (!syna_vpp_get_disp_info(dev, i, &fl_info)) {

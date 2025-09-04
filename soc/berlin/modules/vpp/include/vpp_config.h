@@ -21,6 +21,8 @@ typedef struct vpp_config_params {
 	int sw_partition;
 	int devnum;
 	int hw_partition;
+	// 0:buildin, 1:fastlogo
+	u32 logo_enable;
 	u32 fb_count;
 	int active_planes, open_planes;
 	int enable_frame_buf_copy;

@@ -51,6 +51,16 @@ VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id)
 			VPP_BUILD_IN_FRAME_TYPE_GFX);
 }
 
+void syna_push_builtin_frames(void)
+{
+        syna_vpp_push_buildin_frame(PLANE_GFX1);
+	syna_vpp_push_buildin_null_frame(PLANE_MAIN);
+#ifdef USE_DOLPHIN
+	syna_vpp_push_buildin_null_frame(PLANE_PIP);
+#endif
+
+}
+
 void syna_vpp_dev_init_priv(struct drm_device *dev)
 {
 	VPP_DISP_OUT_PARAMS dispParams;
@@ -61,12 +71,7 @@ void syna_vpp_dev_init_priv(struct drm_device *dev)
 	if (display_info.u.status)
 		return;
 
-	syna_vpp_push_buildin_frame(PLANE_GFX1);
-	syna_vpp_push_buildin_null_frame(PLANE_MAIN);
-#ifdef USE_DOLPHIN
-	//TBD: Is proper frame needed for CPCB2 case?
-	syna_vpp_push_buildin_null_frame(PLANE_PIP);
-#endif
+	syna_push_builtin_frames();
 
 	//Wait for driver/HW setup delay
 	MV_VPP_GetDispOutParams(CPCB_1, &dispParams);

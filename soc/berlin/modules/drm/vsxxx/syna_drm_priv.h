@@ -42,6 +42,7 @@ typedef enum __VPP_BUILD_IN_FRAME_TYPE__ {
 			}
 
 void syna_push_buildin_frame(u32 plane);
+void syna_push_builtin_frames(void);
 VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id);
 struct drm_encoder *syna_tmds_encoder_create(struct drm_device *dev,
 					ENUM_VOUT_CONNECTOR vout_id, ENUM_CPCB_ID cpcb_id);

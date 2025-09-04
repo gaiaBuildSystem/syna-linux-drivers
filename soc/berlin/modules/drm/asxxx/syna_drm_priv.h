@@ -39,6 +39,7 @@ struct drm_encoder *syna_encoder_create(struct drm_device *dev,
 					ENUM_VOUT_CONNECTOR vout_id, ENUM_CPCB_ID cpcb_id,
 					int possible_crtc_mask);
 void syna_push_buildin_frame(u32 plane);
+void syna_push_builtin_frames(void);
 int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t *fl_info);
 
 #endif /* !defined(__SYNA_DRM_PRIV_H__) */
