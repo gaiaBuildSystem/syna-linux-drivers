@@ -204,8 +204,14 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 	if (of_property_read_u32(np, "disp2-type", &dev_priv->vpp_config_param.disp2_out_type))
 		dev_priv->vpp_config_param.disp2_out_type = VOUT_DSI;
 
-	if (of_property_read_u32(np, "logo_parition", &dev_priv->vpp_config_param.logo_parition))
-		dev_priv->vpp_config_param.logo_parition = VPP_DEFAULT_FL_PARTITION;
+	if (of_property_read_u32(np, "sw_partition", &dev_priv->vpp_config_param.sw_partition))
+		dev_priv->vpp_config_param.sw_partition = VPP_DEFAULT_FL_SW_PARTITION;
+
+	if (of_property_read_u32(np, "devnum", &dev_priv->vpp_config_param.devnum))
+		dev_priv->vpp_config_param.devnum = VPP_DEFAULT_FL_DEVNUM;
+
+	if (of_property_read_u32(np, "hw_partition", &dev_priv->vpp_config_param.hw_partition))
+		dev_priv->vpp_config_param.hw_partition = VPP_DEFAULT_FL_HW_PARTITION;
 
 	dev_priv->vpp_config_param.frame_rate = 60;
 	dev_priv->vpp_config_param.enable_frame_buf_copy = 0;

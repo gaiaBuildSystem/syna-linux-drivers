@@ -66,20 +66,42 @@ int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
 	char plogopath[32];
 	avio_fastlogo_info display_info;
 	fastlogo_info_t *fl_info;
-	int logo_partition;
+	int sw_partition;
+	int devnum;
+	int hw_partition;
 	struct syna_drm_private *dev_priv = dev->dev_private;
 
 	display_info = avio_get_fastlogo_status();
 
-	if (display_info.u.status)
-		logo_partition = display_info.u.partition;
-	else
-		logo_partition = dev_priv->vpp_config_param.logo_parition;
+	if (display_info.u.status) {
+		/* Use enhanced FASTLOGO_INFO from U-Boot */
+		sw_partition = display_info.u.sw_partition;
+		devnum = display_info.u.devnum;
+		hw_partition = display_info.u.hw_partition;
+		pr_info("FastLogo: Using U-Boot info - device=%d, partition=%d, type=%d\n",
+			devnum, sw_partition, hw_partition);
+	} else {
+		/* Fallback to default configuration */
+		sw_partition = dev_priv->vpp_config_param.sw_partition;
+		devnum = dev_priv->vpp_config_param.devnum;
+		hw_partition = dev_priv->vpp_config_param.hw_partition;
+		pr_info("FastLogo: Using fallback config - device=%d, partition=%d\n",
+			devnum, sw_partition);
+	}
 
-	sprintf(plogopath, "%s%d", FASTLOGO_FILE, logo_partition);
+	/* Construct device path using device number from U-Boot */
+	if (hw_partition > 4 && hw_partition <= 7)
+		/* GPP partition format: /dev/mmcblk<devnum>gp<parttype>p<partition> */
+		sprintf(plogopath, "/dev/mmcblk%dgp%dp%d", devnum, (hw_partition - 3), sw_partition);
+	else
+		/* Standard partition format: /dev/mmcblk<devnum>p<partition> */
+		sprintf(plogopath, "/dev/mmcblk%dp%d", devnum, sw_partition);
+
+	pr_info("FastLogo: Using partition path: %s\n", plogopath);
+
 	filep = filp_open(plogopath, O_RDWR, 0);
 	if (IS_ERR(filep)) {
-		printk("Failed to open eMMC part %d Error=%ld \n", logo_partition, PTR_ERR(filep));
+		printk("Failed to open eMMC part %d Error=%ld \n", sw_partition, PTR_ERR(filep));
 		return -1;
 	}
 

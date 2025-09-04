@@ -18,7 +18,9 @@ typedef struct vpp_config_params {
 	int disp2_res_id;
 	int disp2_out_type;
 	int display_mode;
-	int logo_parition;
+	int sw_partition;
+	int devnum;
+	int hw_partition;
 	u32 fb_count;
 	int active_planes, open_planes;
 	int enable_frame_buf_copy;

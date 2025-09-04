@@ -26,11 +26,13 @@ typedef struct _AVIO_CTX_ {
 } AVIO_CTX;
 
 typedef struct bootloader_info_t  {
-	u32 status : 1;   // Successfully displayed logo or not
-	u32 partition : 5; //logo from partition A/B
-	u32 cpcb0ResId : 8;     //CpCb0 resolution -- may be additional bits for depth/format
-	u32 cpcb1ResId : 8;     //CpCb1 resolution
-	u32 reserved : 10;
+	u32 status : 1;     // Successfully displayed logo or not
+	u32 devnum : 1;     // Device number (0 or 1)
+	u32 hw_partition : 3;   // Partition type (0=DEFAULT, 4=GP1, 5=GP2 etc)
+	u32 sw_partition : 5;  // Partition identifier (partition number)
+	u32 cpcb0ResId : 8; // CpCb0 resolution -- may be additional bits for depth/format
+	u32 cpcb1ResId : 8; // CpCb1 resolution
+	u32 reserved : 6;   // Reserved for future use
 } BOOTLOADER_INFO;
 
 typedef union  avio_fastlogo_info_u {
