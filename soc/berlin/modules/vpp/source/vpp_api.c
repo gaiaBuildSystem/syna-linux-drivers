@@ -363,6 +363,13 @@ int MV_VPP_SetDisplayResolution(ENUM_CPCB_ID cpcbID,
 			}
 		}
 
+		memcpy(&curr_disp_res_params[cpcbID], &dispParams, sizeof(VPP_DISP_OUT_PARAMS));
+
+		if (!bApply) {
+			IsCpcbResolutionSet[cpcbID] = 1;
+			return MV_VPP_OK;
+		}
+
 		if (IsCpcbResolutionSet[cpcbID]) {
 			/* First : put CPCB TG to reset before setting new timing */
 			res = wrap_MV_VPPOBJ_GetBlockStatus(VPP_BLOCK_CPCB_TG, cpcbID, &status);
@@ -394,29 +401,27 @@ int MV_VPP_SetDisplayResolution(ENUM_CPCB_ID cpcbID,
 				return MV_VPP_EIOFAIL;
 			}
 		}
-		memcpy(&curr_disp_res_params[cpcbID], &dispParams, sizeof(VPP_DISP_OUT_PARAMS));
 
-		if (bApply) {
-			IsCpcbResolutionSet[cpcbID] = 1;
-			//SetDisplayWindow applied to all planes by SetFormat
-			wrap_MV_VPPOBJ_GetCPCBOutputPixelClock(dispParams.uiResId, &pixel_clock);
+		IsCpcbResolutionSet[cpcbID] = 1;
 
-			if ((MAX_NUM_CPCBS == 1) || \
-				((cpcbID == CPCB_1) &&\
-				(!IS_MIPI_ONLY_MODE(dispParams.uiDisplayMode))))
-					res = VPP_Clock_Set_Rate(pixel_clock*1000);
-			else
-				res = VPP_Clock_Set_Rate_Ext(pixel_clock*1000);
+		//SetDisplayWindow applied to all planes by SetFormat
+		wrap_MV_VPPOBJ_GetCPCBOutputPixelClock(dispParams.uiResId, &pixel_clock);
 
-			res = wrap_MV_VPPOBJ_SetFormat(cpcbID, &dispParams);
-			if (res != MV_VPP_OK) {
-				pr_err("%s:%d: wrap_MV_VPPOBJ_SetFormat FAILED, error: 0x%x\n",
-					__func__, __LINE__, res);
-			} else {
-				pr_info("%s %d> resiD %d cpcbID %d pixel clock %d\n",
-					__FUNCTION__, __LINE__, dispParams.uiResId,
-					cpcbID, pixel_clock);
-			}
+		if ((MAX_NUM_CPCBS == 1) || \
+			((cpcbID == CPCB_1) &&\
+			(!IS_MIPI_ONLY_MODE(dispParams.uiDisplayMode))))
+				res = VPP_Clock_Set_Rate(pixel_clock*1000);
+		else
+			res = VPP_Clock_Set_Rate_Ext(pixel_clock*1000);
+
+		res = wrap_MV_VPPOBJ_SetFormat(cpcbID, &dispParams);
+		if (res != MV_VPP_OK) {
+			pr_err("%s:%d: wrap_MV_VPPOBJ_SetFormat FAILED, error: 0x%x\n",
+				__func__, __LINE__, res);
+		} else {
+			pr_info("%s %d> resiD %d cpcbID %d pixel clock %d\n",
+				__FUNCTION__, __LINE__, dispParams.uiResId,
+				cpcbID, pixel_clock);
 		}
 	}
 

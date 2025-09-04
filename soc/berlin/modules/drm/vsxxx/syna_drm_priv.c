@@ -56,6 +56,10 @@ void syna_vpp_dev_init_priv(struct drm_device *dev)
 	VPP_DISP_OUT_PARAMS dispParams;
 	RESOLUTION_INFO res_info;
 	int frame_rate, frame_rate_ms;
+	avio_fastlogo_info display_info = avio_get_fastlogo_status();
+
+	if (display_info.u.status)
+		return;
 
 	syna_vpp_push_buildin_frame(PLANE_GFX1);
 	syna_vpp_push_buildin_null_frame(PLANE_MAIN);

@@ -93,27 +93,37 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 	DHUB_HAL_FOPS fops;
 	unsigned int channel_init_mask;
+	avio_fastlogo_info display_info;
 
 	//Allow DHUB initialization only once
 	if (atomic_cmpxchg(&dhub_init_done, 0, 1))
 		return 0;
+
+	display_info = avio_get_fastlogo_status();
 
 	/* initialize dhub */
 	if (hDhubCtx->isTeeEnabled)
 		DhubInitialize();
 
 	/*Disable Autopush before initialization of VPP DHUB*/
-	wrap_DhubEnableAutoPush(false, true, hDhubCtx->fastlogo_framerate);
+	if (!display_info.u.status)
+		wrap_DhubEnableAutoPush(false, true, hDhubCtx->fastlogo_framerate);
 
 
-	channel_init_mask = (1 << VPP_NUM_OF_CHANNELS) - 1;
+	channel_init_mask = display_info.u.status ? 0 : (1 << VPP_NUM_OF_CHANNELS) - 1 ;
 	wrap_DhubInitialization(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
 				CPUINDEX, hDhubCtx->vpp_dhub_base,
 				hDhubCtx->vpp_sram_base, &VPP_dhubHandle,
 				VPP_config, VPP_NUM_OF_CHANNELS,
 				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0, channel_init_mask);
 
+	/* Avoid initializing BCM channel when logo is displayed from bootloader
+	 * TBD : Root cause need for AGDHUB re-initialization, when AGDHUB
+	 * is already initialized in bootloader
+	*/
 	channel_init_mask = (1 << AG_NUM_OF_CHANNELS) - 1;
+	if (display_info.u.status)
+		channel_init_mask &= ~(1 << avioDhubChMap_aio64b_BCM_R);
 
 	DhubInitialization(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT,
 				CPUINDEX, hDhubCtx->ag_dhub_base,

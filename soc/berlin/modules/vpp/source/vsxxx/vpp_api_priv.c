@@ -230,23 +230,8 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	VPP_DISP_OUT_PARAMS dispParams;
 	int feature_cfg[MAX_NUM_FEATURE_CFG];
 	VPP_HDMI_SINK_CAPS sinkCaps;
-
-	//Allocate memory for TA heap memory manager
-	vpp_shm_handle.size = SHM_SHARE_SZ;
-	res = VPP_MEM_AllocateMemory(vpp_shm_list, VPP_MEM_TYPE_DMA,
-				&vpp_shm_handle, GFP_KERNEL | __GFP_NOWARN);
-	if (res != VPP_MEM_ERROR_TYPE_OK) {
-		pr_info("VPP internal memory allocation: Not enough memory!!!!!!!!\n");
-		return -ENOMEM;
-	}
-	vpp_heap_shm_list = vpp_shm_list;
-
-	//Initialize VPP TA
-	vpp_init_parm.dev = vpp_shm_list->dev;
-	vpp_init_parm.iHDMIEnable = 1;  //Set zero to disable flushcache in VPP TA
-	vpp_init_parm.iVdacEnable = 0;
-	vpp_init_parm.uiShmSize = SHM_SHARE_SZ;
-	vpp_init_parm.uiShmPA = (uintptr_t)vpp_shm_handle.p_addr;
+	int res_apply_flag = 1;
+	avio_fastlogo_info display_info = avio_get_fastlogo_status();
 
 	dispParams.uiResId = (vpp_config_param.disp1_res_id == -1 ?
 						 DEFAULT_CPCB_1_RESOLUTION_ID : vpp_config_param.disp1_res_id);
@@ -261,71 +246,125 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	else
 		wrap_MV_VPP_HDMITX_5v_set(0);
 
-	res = wrap_MV_VPP_Init(&vpp_init_parm);
-	if (res != MV_VPP_OK) {
-		pr_err("wrap_MV_VPP_Init FAILED E[%d]\n", res);
-		goto EXIT;
-	}
+	if (!display_info.u.status) {
+		//Allocate memory for TA heap memory manager
+		vpp_shm_handle.size = SHM_SHARE_SZ;
+		res = VPP_MEM_AllocateMemory(vpp_shm_list, VPP_MEM_TYPE_DMA,
+					&vpp_shm_handle, GFP_KERNEL | __GFP_NOWARN);
+		if (res != VPP_MEM_ERROR_TYPE_OK) {
+			pr_info("VPP internal memory allocation: Not enough memory!!!!!!!!\n");
+			return -ENOMEM;
+		}
+		vpp_heap_shm_list = vpp_shm_list;
 
-	res = wrap_MV_VPPOBJ_Create(0, 0);
-	if (res != MV_VPP_OK) {
-		pr_err("wrap_MV_VPPOBJ_Create FAILED E[%d]\n", res);
-		res = MV_DISP_E_CREATE;
-		goto EXIT;
-	}
+		//Initialize VPP TA
+		vpp_init_parm.dev = vpp_shm_list->dev;
+		vpp_init_parm.iHDMIEnable = 1;  //Set zero to disable flushcache in VPP TA
+		vpp_init_parm.iVdacEnable = 0;
+		vpp_init_parm.uiShmSize = SHM_SHARE_SZ;
+		vpp_init_parm.uiShmPA = (uintptr_t)vpp_shm_handle.p_addr;
 
-	res = wrap_MV_VPPOBJ_Reset();
-	if (res != MV_VPP_OK) {
-		pr_err("wrap_MV_VPPOBJ_Reset FAILED, error: 0x%x\n", res);
-		res = MV_DISP_E_RST;
-		goto EXIT_DESTROY;
-	}
+		res = wrap_MV_VPP_Init(&vpp_init_parm);
+		if (res != MV_VPP_OK) {
+			pr_err("wrap_MV_VPP_Init FAILED E[%d]\n", res);
+			goto EXIT;
+		}
+
+		res = wrap_MV_VPPOBJ_Create(0, 0);
+		if (res != MV_VPP_OK) {
+			pr_err("wrap_MV_VPPOBJ_Create FAILED E[%d]\n", res);
+			res = MV_DISP_E_CREATE;
+			goto EXIT;
+		}
+
+		res = wrap_MV_VPPOBJ_Reset();
+		if (res != MV_VPP_OK) {
+			pr_err("wrap_MV_VPPOBJ_Reset FAILED, error: 0x%x\n", res);
+			res = MV_DISP_E_RST;
+			goto EXIT_DESTROY;
+		}
 
 #ifdef USE_DOLPHIN
-	if (dispParams.uiDisplayMode == VPP_VOUT_DUAL_MODE_PIP)
-		m_dv_config[CHAN_PIP] = CPCB_2;
+		if (dispParams.uiDisplayMode == VPP_VOUT_DUAL_MODE_PIP)
+			m_dv_config[CHAN_PIP] = CPCB_2;
 #endif
 
-	MV_VPP_InitZorder(m_zorder_config);
-	res = wrap_MV_VPPOBJ_Config(m_vinport_config, m_dv_config, m_zorder_config,
-						m_voutport_config, feature_cfg);
-	if (res != MV_VPP_OK) {
-		pr_err("wrap_MV_VPPOBJ_Config FAILED, error: 0x%x\n", res);
-		res = MV_DISP_E_CFG;
-		goto EXIT_DESTROY;
-	}
-
-	if (vpp_config_param.mipi_config_params)
-		wrap_MV_VPP_LoadConfigTable(VOUT_DSI, 0, vpp_config_param.mipi_config_params);
-
-	wrap_MV_VPPOBJ_SetDispOutParams(&dispParams, CPCB_1);
-
-	if (dispParams.uiDisplayMode != VPP_VOUT_SINGLE_MODE_SEC) {
-		res = wrap_MV_VPPOBJ_GetHDMISinkFeatureMap(&sinkCaps);
-		if (res == MV_VPP_OK) {
-			// Keep bootup mode matching fixedModeSetting configuration
-			if (sinkCaps & ((1<<VPP_HDMI_SINKCAP_BITMASK_FULL4K)|(1<<VPP_HDMI_SINKCAP_BITMASK_4K30))) {
-				dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-					HDMI_MAX_RES_ENABLED_50_25:HDMI_MAX_RES_ENABLED_60_30;
-			} else if (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_FHD)) {
-				dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-					RES_1080P50:RES_1080P60;
-			} else {
-				dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-					RES_720P50:RES_720P60;
-			}
-			/*Set the resolution as set in dts if Sink supports it
-			else set maximium resolution supported by sink*/
-			dispParams.uiResId = vpp_config_param.disp1_res_id <= dispParams.uiResId ?
-				vpp_config_param.disp1_res_id : dispParams.uiResId;
+		MV_VPP_InitZorder(m_zorder_config);
+		res = wrap_MV_VPPOBJ_Config(m_vinport_config, m_dv_config, m_zorder_config,
+							m_voutport_config, feature_cfg);
+		if (res != MV_VPP_OK) {
+			pr_err("wrap_MV_VPPOBJ_Config FAILED, error: 0x%x\n", res);
+			res = MV_DISP_E_CFG;
+			goto EXIT_DESTROY;
 		}
-		pr_info("hdmi bootup to resId:%d colorfmt:%d bidepth:%d sinkcaps:%d dts-resId:%d\n",
-			dispParams.uiResId,dispParams.uiColorFmt,dispParams.uiBitDepth,
-			(res)?-1:sinkCaps, vpp_config_param.disp1_res_id);
+
+		if (vpp_config_param.mipi_config_params)
+			wrap_MV_VPP_LoadConfigTable(VOUT_DSI, 0, vpp_config_param.mipi_config_params);
+
+		wrap_MV_VPPOBJ_SetDispOutParams(&dispParams, CPCB_1);
+
+		if (dispParams.uiDisplayMode != VPP_VOUT_SINGLE_MODE_SEC) {
+			res = wrap_MV_VPPOBJ_GetHDMISinkFeatureMap(&sinkCaps);
+			if (res == MV_VPP_OK) {
+				// Keep bootup mode matching fixedModeSetting configuration
+				if (sinkCaps & ((1<<VPP_HDMI_SINKCAP_BITMASK_FULL4K)|(1<<VPP_HDMI_SINKCAP_BITMASK_4K30))) {
+					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
+						HDMI_MAX_RES_ENABLED_50_25:HDMI_MAX_RES_ENABLED_60_30;
+				} else if (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_FHD)) {
+					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
+						RES_1080P50:RES_1080P60;
+				} else {
+					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
+						RES_720P50:RES_720P60;
+				}
+				/*Set the resolution as set in dts if Sink supports it
+				else set maximium resolution supported by sink*/
+				dispParams.uiResId = vpp_config_param.disp1_res_id <= dispParams.uiResId ?
+					vpp_config_param.disp1_res_id : dispParams.uiResId;
+			}
+			pr_info("hdmi bootup to resId:%d colorfmt:%d bidepth:%d sinkcaps:%d dts-resId:%d\n",
+				dispParams.uiResId,dispParams.uiColorFmt,dispParams.uiBitDepth,
+				(res)?-1:sinkCaps, vpp_config_param.disp1_res_id);
+		}
+
+	} else {
+		VPP_DISP_OUT_PARAMS pdispParams[MAX_NUM_CPCBS];
+		unsigned int vppInitParam[2];
+		int ret;
+
+		//Disable Dhub hardware initialization
+		vppInitParam[0] = 0;
+		//Allow interrupt initialization for this instance
+		vppInitParam[1] = 1;
+		ret = wrap_MV_VPP_InitVPPS(TA_UUID_FASTLOGO, vppInitParam);
+		if (ret) {
+			pr_err("%s:%d InitVPPS FAILED, error: 0x%x\n",
+					__func__, __LINE__, ret);
+			return ret;
+		}
+
+		//Retrieve resolution details from TA and initialize disp params
+		ret = wrap_MV_VPPOBJ_GetDispOutParams(pdispParams,
+				MAX_NUM_CPCBS * sizeof(VPP_DISP_OUT_PARAMS));
+		if (!ret) {
+			pr_info("%s:%d: resid from bootloader : %d -> %d\n", __func__,
+					__LINE__, dispParams.uiResId, pdispParams[CPCB_1].uiResId);
+			dispParams.uiResId = pdispParams[CPCB_1].uiResId;
+			dispParams.uiDisplayMode = pdispParams[CPCB_1].uiDisplayMode;
+			dispParams.uiBitDepth = pdispParams[CPCB_1].uiBitDepth;
+			dispParams.uiColorFmt = pdispParams[CPCB_1].uiColorFmt;
+		}
+
+		//Don't apply, Continue with TA resolution
+		res_apply_flag = 0;
+
+		//Update the zorder
+		MV_VPP_InitZorder(m_zorder_config);
+		MV_VPP_UpdatePlane_Zorder(0,0);
 	}
 
 	//Set the display resolution
-	res = MV_VPP_SetDisplayResolution(CPCB_1, dispParams, 1);
+	res = MV_VPP_SetDisplayResolution(CPCB_1, dispParams, res_apply_flag);
 	if (res != MV_VPP_OK) {
 		pr_err("%s:%d: MV_VPP_SetDisplayResolution FAILED, error: 0x%x\n",
 				__func__, __LINE__, res);
@@ -341,7 +380,7 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 		dispParams.uiColorFmt = OUTPUT_COLOR_FMT_RGB888;
 		dispParams.iPixelRepeat = 1;
 		wrap_MV_VPPOBJ_SetDispOutParams(&dispParams, CPCB_2);
-		res = MV_VPP_SetDisplayResolution(CPCB_2, dispParams, 1);
+		res = MV_VPP_SetDisplayResolution(CPCB_2, dispParams, res_apply_flag);
 		if (res != MV_VPP_OK) {
 			pr_err("%s:%d: MV_VPP_SetDisplayResolution FAILED, error: 0x%x\n",
 					__func__, __LINE__, res);
@@ -415,7 +454,6 @@ int wrap_VPP_Init_Recovery(VPP_MEM_LIST *shm_list,
 	if (display_info.u.status) {
 		/* Update VPP config with boot file resolution */
 		vpp_config_param.disp1_res_id = display_info.u.cpcb0ResId;
-		/* Need to update from TA  */
 		pr_info("VPP Init: Using boot Res ID %d from Uboot \n", display_info.u.cpcb0ResId);
 	} else {
 		/* Try to read previous resolution from file */

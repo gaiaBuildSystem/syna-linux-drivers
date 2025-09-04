@@ -18,6 +18,8 @@
 #include "vpp_cmd.h"
 #include "vpp_api.h"
 #include "syna_hdmi_config.h"
+#include "avio_common.h"
+#include "avio_core.h"
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
 struct drm_edid {
@@ -297,8 +299,17 @@ static int syna_configure_def_res(void)
 	int retVal;
 	VPP_DISP_OUT_PARAMS dispParams;
 	int len = strlen(max_supported_mode);
+	int applyFlag = 1;
+	int bl_resId;
+	avio_fastlogo_info display_info = avio_get_fastlogo_status();
 
-	MV_VPP_GetDispOutParams(CPCB_1, &dispParams);
+	retVal = MV_VPP_GetDispOutParams(CPCB_1, &dispParams);
+	if (retVal == MV_VPP_OK) {
+		bl_resId = dispParams.uiResId;
+	} else {
+		DRM_ERROR("MV_VPP_GetDispOutParams FAIL with %d\n", retVal);
+		return retVal;
+	}
 
 	/*configure the default resolution set on HDMI connection*/
 	retVal = wrap_MV_VPPOBJ_GetHDMISinkFeatureMap(&sinkCaps);
@@ -330,8 +341,11 @@ static int syna_configure_def_res(void)
 				dispParams.uiResId,dispParams.uiColorFmt,dispParams.uiBitDepth,
 				(retVal)?-1:sinkCaps);
 
+		if (display_info.u.status && bl_resId == dispParams.uiResId)
+			applyFlag = 0;
+
 		//Set the display resolution
-		retVal = MV_VPP_SetDisplayResolution(CPCB_1, dispParams, 1);
+		retVal = MV_VPP_SetDisplayResolution(CPCB_1, dispParams, applyFlag);
 		if (retVal != MV_VPP_OK)
 			DRM_DEBUG_DRIVER("%s:%d: MV_VPP_SetDisplayResolution FAILED, error: 0x%x\n",
 					__func__, __LINE__, retVal);
