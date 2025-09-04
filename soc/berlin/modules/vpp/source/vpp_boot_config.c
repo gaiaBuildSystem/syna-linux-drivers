@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/blkdev.h>
 
 /* Boot configuration file definitions */
 #define VPP_BOOT_CONFIG_FILE	"/boot/res.txt"
@@ -212,6 +213,17 @@ int MV_VPP_WriteBootConfig(vpp_config_params *config)
 		filp_close(fp, NULL);
 		kfree(buf);
 		return (ret < 0) ? ret : -EIO;
+	}
+
+	/* Sync block device to ensure persistence */
+	vfs_fsync(fp, 0);
+	if (fp->f_inode && fp->f_inode->i_sb && fp->f_inode->i_sb->s_bdev) {
+		sync_blockdev(fp->f_inode->i_sb->s_bdev);
+		pr_info("VPP boot config: Block device sync completed for %s\n",
+			VPP_BOOT_CONFIG_FILE);
+	} else {
+		pr_info("VPP boot config: Unable to sync block device for %s\n",
+			VPP_BOOT_CONFIG_FILE);
 	}
 
 	/* Close file */
