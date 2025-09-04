@@ -29,7 +29,7 @@ void wrap_DhubInitialization(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 				 UNSG32 dHubBaseAddr,
 				 UNSG32 hboSramAddr, HDL_dhub2d *pdhubHandle,
 				 DHUB_channel_config *dhub_config, SIGN32 numOfChans,
-				 UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr)
+				 UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr, UNSG32 channelInitMask)
 {
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
 
@@ -40,11 +40,11 @@ void wrap_DhubInitialization(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 		else
 			DhubInitialization(dHubId, dHubType, cpuId, dHubBaseAddr, hboSramAddr,
 						pdhubHandle, dhub_config, numOfChans,
-						bcmDhubType, bcmBaseAddr, bcmDummyRegAddr);
+						bcmDhubType, bcmBaseAddr, bcmDummyRegAddr, channelInitMask);
 	} else {
 		DhubInitialization(dHubId, dHubType, cpuId, dHubBaseAddr, hboSramAddr, pdhubHandle,
 					dhub_config, numOfChans,
-					bcmDhubType, bcmBaseAddr, bcmDummyRegAddr);
+					bcmDhubType, bcmBaseAddr, bcmDummyRegAddr, channelInitMask);
 	}
 }
 

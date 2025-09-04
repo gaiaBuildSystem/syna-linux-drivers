@@ -474,10 +474,11 @@ UNSG32 dhub_channel_cfg(void *hdl,	/*!Handle to HDL_dhub ! */
 			SIGN32 QoS,	/*!See 'dHubChannel.CFG.QoS' ! */
 			SIGN32 selfLoop,	/*!See 'dHubChannel.CFG.selfLoop' ! */
 			SIGN32 enable,	/*!0 to disable, 1 to enable ! */
-			T64b cfgQ[]	/*!Pass NULL to directly init dHub, or
+			T64b cfgQ[],	/*!Pass NULL to directly init dHub, or
 					   Pass non-zero to receive programming sequence
 					   in (adr,data) pairs
 					   ! */
+			UNSG32 chanInit /* 1 - H/W init Channel, 0 - S/W init channel */
 	);
 
 /********************************************************************************************

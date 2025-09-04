@@ -105,6 +105,7 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 	static atomic_t dhub_init_done = ATOMIC_INIT(0);
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 	avio_fastlogo_info display_info;
+	unsigned int channel_init_mask;
 
 	//Allow DHUB initialization only once
 	if (atomic_cmpxchg(&dhub_init_done, 0, 1))
@@ -112,34 +113,30 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 
 	display_info = avio_get_fastlogo_status();
 
-	if (display_info.u.status) {
-		DhubInitHandle(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
-				CPUINDEX, hDhubCtx->vpp_dhub_base,
-				hDhubCtx->vpp_sram_base, &VPP_dhubHandle,
-				LCDC_config, VPP_NUM_OF_CHANNELS,
-				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
-
-		DhubInitHandle(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
-				hDhubCtx->ag_sram_base,
-				&AG_dhubHandle, AG_config, AG_NUM_OF_CHANNELS,
-				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
-
-	}
-	else {
-		/*Disable Autopush before initialization of VPP DHUB*/
+	/* Disable Autopush before initialization of VPP DHUB */
+	if (!display_info.u.status)
 		wrap_DhubEnableAutoPush(false, true, hDhubCtx->fastlogo_framerate);
 
-		DhubInitialization(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
-				CPUINDEX, hDhubCtx->vpp_dhub_base,
-				hDhubCtx->vpp_sram_base, &VPP_dhubHandle,
-				LCDC_config, VPP_NUM_OF_CHANNELS,
-				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
+	channel_init_mask = display_info.u.status ? 0 : (1 << VPP_NUM_OF_CHANNELS) - 1 ;
 
-		DhubInitialization(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
-				hDhubCtx->ag_sram_base,
-				&AG_dhubHandle, AG_config, AG_NUM_OF_CHANNELS,
-				DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0);
-	}
+	DhubInitialization(DHUB_ID_VPP_DHUB, DHUB_TYPE_128BIT,
+			CPUINDEX, hDhubCtx->vpp_dhub_base,
+			hDhubCtx->vpp_sram_base, &VPP_dhubHandle,
+			LCDC_config, VPP_NUM_OF_CHANNELS,
+			DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0, channel_init_mask);
+
+	/* Avoid initializing BCM channel when logo is displayed from bootloader
+	 * TBD : Root cause need for AGDHUB re-initialization, when AGDHUB
+	 * is already initialized in bootloader
+	*/
+	channel_init_mask = (1 << AG_NUM_OF_CHANNELS) - 1;
+	if (display_info.u.status)
+		channel_init_mask &= ~(1 << avioDhubChMap_aio64b_BCM_R);
+
+	DhubInitialization(DHUB_ID_AG_DHUB, DHUB_TYPE_64BIT, CPUINDEX, hDhubCtx->ag_dhub_base,
+			hDhubCtx->ag_sram_base,
+			&AG_dhubHandle, AG_config, AG_NUM_OF_CHANNELS,
+			DHUB_TYPE_64BIT, hDhubCtx->vpp_bcm_base, 0, channel_init_mask);
 
 	return 0;
 }

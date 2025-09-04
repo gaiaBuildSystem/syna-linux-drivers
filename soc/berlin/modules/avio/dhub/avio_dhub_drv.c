@@ -331,69 +331,6 @@ void Dhub_IntrRegisterHandler(DHUB_ID dhub_id, UNSG32 intr_num,
 }
 
 /*******************************************************************************
- *	Function: DhubInitialization for software initialisation
- *	Description: Initialize DHUB .
- *	Parameter : cpuId ------------- cpu ID
- *			 dHubBaseAddr -------------  dHub Base address.
- *			 hboSramAddr ----- Sram Address for HBO.
- *			 pdhubHandle ----- pointer to 2D dhubHandle
- *			 dhub_config ----- configuration of AG
- *			 numOfChans	 ----- number of channels
-
- *	Return:		void
- ******************************************************************************/
-void DhubInitHandle(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
-		UNSG32 dHubBaseAddr, UNSG32 hboSramAddr, HDL_dhub2d *pdhubHandle,
-		DHUB_channel_config *dhub_config, SIGN32 numOfChans,
-		UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr)
-{
-	SIGN32 cmdDiv = 8;
-	DHUB_CTX *hDhubCtx =
-		(DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
-	DHUB_HAL_FOPS fops;
-	SIGN32 i;
-	SIGN32 chanId;
-
-	Dhub_GetHalFops(0, &fops);
-	Dhub_AddConfigInfo(hDhubCtx, dHubId, dHubType,
-						dHubBaseAddr, hboSramAddr, pdhubHandle,
-						dhub_config, numOfChans,
-						bcmDhubType, bcmBaseAddr, bcmDummyRegAddr, &fops);
-
-	cmdDiv = getDhubCMDDiv(dHubType);
-	if (!cmdDiv)
-		return;
-
-	//Initialize HDL_dhub with a $dHub BIU instance.
-	dhub2d_hdl(hboSramAddr,	/*!	 Base address of dHub.HBO SRAM ! */
-		   dHubBaseAddr,	/*!	 Base address of a BIU instance of $dHub ! */
-		   pdhubHandle	/*!	 Handle to HDL_dhub2d ! */
-		);
-
-	for (i = 0; i < numOfChans; i++) {
-		//Configurate a dHub channel
-		//note that in this function, it also configured right HBO channels(cmdQ and dataQ) and semaphores
-		chanId = dhub_config[i].chanId;
-		AVIO_DHUB_INITCHANNELAXQOS(pdhubHandle, dhub_config, chanId, i, 0);
-		dhub_channel_cfg_init(&pdhubHandle->dhub,	/*!	 Handle to HDL_dhub ! */
-			 chanId,	/*!	 Channel ID in $dHubReg ! */
-			 dhub_config[i].chanCmdBase,	//UNSG32 baseCmd,	 /*Channel FIFO base address (byte address) for cmdQ !*/
-			 dhub_config[i].chanDataBase,	//UNSG32 baseData,	 /*!Channel FIFO base address (byte address) for dataQ !*/
-			 dhub_config[i].chanCmdSize / cmdDiv,	//SIGN32	depthCmd,	/*!	 Channel FIFO depth for cmdQ, in 64b word !*/
-			 dhub_config[i].chanDataSize / cmdDiv,	//SIGN32	depthData,	/*!	 Channel FIFO depth for dataQ, in 64b word !*/
-			 dhub_config[i].chanMtuSize,	/*!	 See 'dHubChannel.CFG.MTU', 0/1/2 for 8/32/128 bytes ! */
-			 dhub_config[i].chanQos,	/*!	 See 'dHubChannel.CFG.QoS' ! */
-			 dhub_config[i].chanSelfLoop,	/*!	 See 'dHubChannel.CFG.selfLoop' ! */
-			 dhub_config[i].chanEnable,	/*!	 0 to disable, 1 to enable ! */
-			 0	/*!	 Pass NULL to directly init dHub, or
-				 *	   Pass non-zero to receive programming sequence
-				 *	   in (adr,data) pairs
-				 *	   ! */
-		);
-	}
-}
-
-/*******************************************************************************
  *	Function: DhubInitialization
  *	Description: Initialize DHUB .
  *	Parameter : cpuId ------------- cpu ID
@@ -407,7 +344,7 @@ void DhubInitHandle(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 void DhubInitialization(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 		UNSG32 dHubBaseAddr, UNSG32 hboSramAddr, HDL_dhub2d *pdhubHandle,
 		DHUB_channel_config *dhub_config, SIGN32 numOfChans,
-		UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr)
+		UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr, UNSG32 channelInitMask)
 {
 	HDL_semaphore *pSemHandle;
 	SIGN32 i;
@@ -416,6 +353,7 @@ void DhubInitialization(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 	DHUB_CTX *hDhubCtx =
 		(DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
 	DHUB_HAL_FOPS fops;
+	UNSG32 chanInit;
 
 	Dhub_GetHalFops(0, &fops);
 	Dhub_AddConfigInfo(hDhubCtx, dHubId, dHubType,
@@ -442,24 +380,28 @@ void DhubInitialization(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 		//note that in this function, it also configured right HBO channels(cmdQ and dataQ) and semaphores
 		chanId = dhub_config[i].chanId;
 		AVIO_DHUB_INITCHANNELAXQOS(pdhubHandle, dhub_config, chanId, i, 0);
+		chanInit = (channelInitMask & (1 << chanId)) ? 1 : 0;
 		dhub_channel_cfg(&pdhubHandle->dhub,	/*!	 Handle to HDL_dhub ! */
-			 chanId,	/*!	 Channel ID in $dHubReg ! */
-			 dhub_config[i].chanCmdBase,	//UNSG32 baseCmd,	 /*Channel FIFO base address (byte address) for cmdQ !*/
-			 dhub_config[i].chanDataBase,	//UNSG32 baseData,	 /*!Channel FIFO base address (byte address) for dataQ !*/
-			 dhub_config[i].chanCmdSize / cmdDiv,	//SIGN32	depthCmd,	/*!	 Channel FIFO depth for cmdQ, in 64b word !*/
-			 dhub_config[i].chanDataSize / cmdDiv,	//SIGN32	depthData,	/*!	 Channel FIFO depth for dataQ, in 64b word !*/
-			 dhub_config[i].chanMtuSize,	/*!	 See 'dHubChannel.CFG.MTU', 0/1/2 for 8/32/128 bytes ! */
-			 dhub_config[i].chanQos,	/*!	 See 'dHubChannel.CFG.QoS' ! */
-			 dhub_config[i].chanSelfLoop,	/*!	 See 'dHubChannel.CFG.selfLoop' ! */
-			 dhub_config[i].chanEnable,	/*!	 0 to disable, 1 to enable ! */
-			 0	/*!	 Pass NULL to directly init dHub, or
-				 *	   Pass non-zero to receive programming sequence
-				 *	   in (adr,data) pairs
-				 *	   ! */
+			chanId,	/*!	 Channel ID in $dHubReg ! */
+			dhub_config[i].chanCmdBase,	//UNSG32 baseCmd,	 /*Channel FIFO base address (byte address) for cmdQ !*/
+			dhub_config[i].chanDataBase,	//UNSG32 baseData,	 /*!Channel FIFO base address (byte address) for dataQ !*/
+			dhub_config[i].chanCmdSize / cmdDiv,	//SIGN32	depthCmd,	/*!	 Channel FIFO depth for cmdQ, in 64b word !*/
+			dhub_config[i].chanDataSize / cmdDiv,	//SIGN32	depthData,	/*!	 Channel FIFO depth for dataQ, in 64b word !*/
+			dhub_config[i].chanMtuSize,	/*!	 See 'dHubChannel.CFG.MTU', 0/1/2 for 8/32/128 bytes ! */
+			dhub_config[i].chanQos,	/*!	 See 'dHubChannel.CFG.QoS' ! */
+			dhub_config[i].chanSelfLoop,	/*!	 See 'dHubChannel.CFG.selfLoop' ! */
+			dhub_config[i].chanEnable,	/*!	 0 to disable, 1 to enable ! */
+			0,	/*!	 Pass NULL to directly init dHub, or
+				*	   Pass non-zero to receive programming sequence
+				*	   in (adr,data) pairs
+				*	   ! */
+			chanInit
 		);
+
 		// setup interrupt for channel chanId
 		//configure the semaphore depth to be 1
-		semaphore_cfg(pSemHandle, chanId, 1, 0);
+		if (chanInit)
+			semaphore_cfg(pSemHandle, chanId, 1, 0);
 	}
 }
 

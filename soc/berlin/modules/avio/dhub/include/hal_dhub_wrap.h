@@ -29,7 +29,7 @@ void wrap_DhubInitialization(DHUB_ID dHubId, DHUB_TYPE dHubType, SIGN32 cpuId,
 				UNSG32 hboSramAddr,
 				HDL_dhub2d * pdhubHandle,
 				DHUB_channel_config * dhub_config, SIGN32 numOfChans,
-				UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr);
+				UNSG32 bcmDhubType, UNSG32 bcmBaseAddr, UNSG32 bcmDummyRegAddr, UNSG32 channelInitMask);
 
 void wrap_DhubChannelClear(void *hdl, SIGN32 id, T64b cfgQ[]);
 
