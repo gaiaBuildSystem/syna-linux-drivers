@@ -1049,6 +1049,8 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 					MV_VPP_DisplayFrame(i, IS_LOGO_VIDEO_FMT, &logo_vbuf_info[i]);
 					syna_vpp_fl_clean_work[i].dev = dev;
 					INIT_DELAYED_WORK(&syna_vpp_fl_clean_work[i].delay_work, syna_vpp_free_fl_frame);
+				} else {
+					syna_push_buildin_frame(i);
 				}
 			}
 		}
