@@ -246,7 +246,7 @@ static int InvokeCommandHelper(int session_index, u32 *session_id,
 	return result;
 }
 
-int VPP_CA_InitVPPS(UINT32 vpp_addr, UINT32 ta_heapHandle)
+int VPP_CA_InitVPPS(UINT32 dhub_init_flag, UINT32 intr_init_flag)
 {
 	int ret;
 	struct tee_param param[4];
@@ -260,10 +260,8 @@ int VPP_CA_InitVPPS(UINT32 vpp_addr, UINT32 ta_heapHandle)
 	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT;
 	param[1].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT;
 
-	param[0].u.value.a = vpp_addr;
-#if defined(VPP_ENABLE_INTERNAL_MEM_MGR)
-	param[0].u.value.b = ta_heapHandle;
-#endif
+	param[0].u.value.a = dhub_init_flag;
+	param[0].u.value.b = intr_init_flag;
 	/* clear result */
 	param[1].u.value.a = 0xdeadbeef;
 

@@ -228,7 +228,7 @@ static TEEC_Result InvokeCommandHelper(int session_index, TEEC_Session *pSession
 	return result;
 }
 
-int VPP_CA_InitVPPS(UINT32 vpp_addr, UINT32 ta_heapHandle)
+int VPP_CA_InitVPPS(UINT32 dhub_init_flag, UINT32 intr_init_flag)
 {
 	int index;
 	TEEC_Session *pSession;
@@ -245,10 +245,9 @@ int VPP_CA_InitVPPS(UINT32 vpp_addr, UINT32 ta_heapHandle)
 			TEEC_NONE);
 
 	operation.params[1].value.a = 0xdeadbeef;
-	operation.params[0].value.a = vpp_addr;
-#if defined(VPP_ENABLE_INTERNAL_MEM_MGR)
-	operation.params[0].value.b = ta_heapHandle;
-#endif
+	operation.params[0].value.a = dhub_init_flag;
+	operation.params[0].value.b = intr_init_flag;
+
 	operation.started = 1;
 	result = InvokeCommandHelper(index, pSession, VPP_INITIATE_VPPS, &operation, NULL);
 	VPP_TEEC_LOGIFERROR(result);

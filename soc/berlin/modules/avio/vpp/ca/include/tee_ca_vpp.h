@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 
-int VPP_CA_InitVPPS(UINT32 vpp_addr, UINT32 ta_heapHandle);
+int VPP_CA_InitVPPS(UINT32 dhub_init_flag, UINT32 intr_init_flag);
 int VPP_CA_GetCPCBOutputResolution(int cpcbID, int *resID);
 int VPP_CA_GetResDescription(void *pOutBuffer, VPP_SHM_ID shmCmdId,
 						unsigned int sOutBufferSize, unsigned int ResId);

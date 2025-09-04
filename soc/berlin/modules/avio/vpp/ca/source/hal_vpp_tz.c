@@ -9,17 +9,17 @@ static int is_vpp_ta;
 int TZ_MV_VPP_InitVPPS(ENUM_TA_UUID_TYPE uuidType, unsigned int *vpp_init_parm)
 {
 	int retVal = 0;
-	unsigned int vpp_addr;
-	unsigned int ta_heapHandle;
+	unsigned int dhub_init_flag;
+	unsigned int intr_init_flag;
 
 	if (vpp_init_parm) {
-		vpp_addr        = vpp_init_parm[0];
-		ta_heapHandle   = vpp_init_parm[1];
+		dhub_init_flag  = vpp_init_parm[0];
+		intr_init_flag  = vpp_init_parm[1];
 
 		//First initialize the VPP TA context/session
 		VPP_CA_Initialize(uuidType, NULL);
 
-		retVal = VPP_CA_InitVPPS(vpp_addr, ta_heapHandle);
+		retVal = VPP_CA_InitVPPS(dhub_init_flag, intr_init_flag);
 
 		is_vpp_ta = (uuidType == TA_UUID_VPP) ? 1 : 0;
 	}
