@@ -95,7 +95,11 @@ void syna_read_config_priv(struct syna_drm_private *dev_priv)
 	}
 #ifdef USE_DOLPHIN
 	p_vpp_config_param->active_planes |= (1 << PLANE_PIP);
-	p_vpp_config_param->open_planes |= (1 << PLANE_PIP);
+
+	//Open PIP during single display mode or context not continued from bootloader
+	if (!display_info.u.status ||
+		(dev_priv->vpp_config_param.display_mode != VPP_VOUT_DUAL_MODE_PIP))
+		p_vpp_config_param->open_planes |= (1 << PLANE_PIP);
 #endif
 }
 
