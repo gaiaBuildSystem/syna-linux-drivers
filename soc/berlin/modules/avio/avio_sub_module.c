@@ -330,7 +330,7 @@ int avio_sub_module_open(void)
 	for (i = 0; i < AVIO_MODULE_TYPE_MAX; i++) {
 		fops = &g_avio_module[i].func;
 
-		if ((i != AVIO_MODULE_TYPE_DHUB) && fops->open) {
+		if (fops->open) {
 			err = (*fops->open)(g_avio_module[i].pCtxData);
 			//If error, close modules opened successfully
 			if (err != 0)

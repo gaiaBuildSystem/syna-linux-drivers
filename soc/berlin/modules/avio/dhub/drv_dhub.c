@@ -89,8 +89,6 @@ static int drv_dhub_config(void *h_dhub_ctx, void *dev)
 {
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 
-	memset(hDhubCtx, 0, sizeof(DHUB_CTX));
-
 	drv_dhub_get_dhub_cfg(hDhubCtx, dev);
 	return 0;
 }
@@ -286,11 +284,20 @@ static int drv_dhub_open(void *h_dhub_ctx)
 	unsigned int vpp_vec_num, vec_num;
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 
-	err = drv_dhub_initialize_dhub(h_dhub_ctx);
-	if (err) {
-		avio_trace("%s: failed: %x\n", __func__, err);
+	if (!hDhubCtx->dhub_open_state)
+		return err;
+
+	if (hDhubCtx->dhub_open_state & 0x1) {
+		err = drv_dhub_initialize_dhub(h_dhub_ctx);
+		if (err) {
+			avio_trace("%s: failed: %x\n", __func__, err);
+			return err;
+		}
+
+		hDhubCtx->dhub_open_state &= ~0x1;
 		return err;
 	}
+
 
 	vpp_vec_num = vec_num = hDhubCtx->irq_num[DHUB_ID_VPP_DHUB];
 	if (((int)vec_num) > 0)
@@ -304,6 +311,7 @@ static int drv_dhub_open(void *h_dhub_ctx)
 		if (unlikely(err < 0))
 			goto free_irq_1;
 	}
+	hDhubCtx->dhub_open_state &= ~0x2;
 
 	return err;
 
@@ -368,6 +376,7 @@ int avio_module_drv_dhub_probe(struct platform_device *pdev)
 	if (!hDhubCtx)
 		return -ENOMEM;
 
+	hDhubCtx->dhub_open_state = 0x03;
 	spin_lock_init(&hDhubCtx->dhub_cfg_spinlock);
 
 	avio_sub_module_register(AVIO_MODULE_TYPE_DHUB,

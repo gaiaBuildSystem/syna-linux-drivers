@@ -519,8 +519,15 @@ int MV_VPP_Init(VPP_MEM_LIST *shm_list, vpp_config_params vpp_config_params)
 
 		res = wrap_VPP_Init_Recovery(shm_list, is_ampless_boot(), vpp_config_params);
 
-		if (!res)
+		if (!res) {
 			VPP_CreateISRTask();
+
+			res = avio_sub_module_dhub_init();
+			if (res) {
+				pr_info("%s: dhub open failed: %x\n", __func__, res);
+				return res;
+			}
+		}
 	} else {
 		pr_info("MV_VPP_Init - Normal - libvpp.ta\n");
 		res = VPP_Init_Normal_vpp_ta(vpp_config_params);
