@@ -138,6 +138,7 @@ HRESULT avio_devices_vpp_post_msg(VPP_CTX *hVppCtx, unsigned int msgId,
 			unsigned int param1, unsigned int param2);
 
 void drv_mipi_reset(void *hVppCtx, int enable);
+void drv_hdmitx_5v_set(void *hVppCtx, int enable);
 
 #endif //_DRV_VPP_H_
 

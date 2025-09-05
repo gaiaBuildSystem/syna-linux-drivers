@@ -39,12 +39,11 @@ static int drv_vpp_read_clk_cfg(VPP_CTX *hVppCtx, struct device_node *np)
 static int drv_vpp_get_hdmi_5V(VPP_CTX *hVppCtx, struct device_node *np)
 {
 	struct device *dev = hVppCtx->dev;
-	enum gpiod_flags bootup_state;
 	int ret = 0;
 
 	bootup_state = hVppCtx->is_bootup_quiescent ? GPIOD_OUT_LOW : GPIOD_OUT_HIGH;
 	hVppCtx->gpio_hdmitx_5v = devm_fwnode_gpiod_get(dev, &np->fwnode, "hdtx5v",
-						 bootup_state, "hdmitx5v");
+						GPIOD_ASIS, "hdmitx5v");
 	if (IS_ERR(hVppCtx->gpio_hdmitx_5v)) {
 		ret = PTR_ERR(hVppCtx->gpio_hdmitx_5v);
 		if (ret != -EPROBE_DEFER) {

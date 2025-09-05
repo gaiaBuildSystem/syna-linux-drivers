@@ -164,6 +164,7 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 	struct platform_device *pdev = to_platform_device(dev->dev);
 	struct device_node *np = pdev->dev.of_node;
 	int ret = 0;
+	struct device_node *hdmitx_node;
 
 	if (of_property_read_u32(np, "frame-size-ndx", &dev_priv->vpp_config_param.frame_size_ndx))
 		dev_priv->vpp_config_param.frame_size_ndx = 0;
@@ -217,6 +218,15 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 			ret = 0;
 		else
 			DRM_ERROR("Failed to Parse DSI DT node %d\n", ret);
+	}
+
+	hdmitx_node = of_get_child_by_name(np, "hdmi_tx");
+	if (hdmitx_node) {
+		if (of_device_is_available(hdmitx_node))
+			dev_priv->vpp_config_param.hdmitx_enable = true;
+		of_node_put(hdmitx_node);
+	} else {
+		DRM_DEBUG_DRIVER("hdmitx node not found\n");
 	}
 
 	return ret;

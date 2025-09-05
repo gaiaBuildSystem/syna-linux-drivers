@@ -1091,3 +1091,12 @@ void drv_mipi_reset(void *h_vpp_ctx, int enable)
 {
 	avio_module_mipirst_set_gpio_val(enable);
 }
+
+void drv_hdmitx_5v_set(void *h_vpp_ctx, int enable)
+{
+	VPP_CTX *hVppCtx = (VPP_CTX*)h_vpp_ctx;
+	int state = hVppCtx->is_bootup_quiescent ? GPIOD_OUT_LOW : enable;
+
+	avio_trace("setting HDMI 5V to %d, quiescent: %d\n", state, hVppCtx->is_bootup_quiescent);
+	gpiod_set_value_cansleep(hVppCtx->gpio_hdmitx_5v, state);
+}

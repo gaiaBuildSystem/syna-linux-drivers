@@ -227,7 +227,7 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	int res = 0;
 	int planeID = PLANE_GFX1;
 	VPP_DISP_OUT_PARAMS dispParams;
-	const int feature_cfg[MAX_NUM_FEATURE_CFG] = {VPP_FEATURE_HDMITX};
+	int feature_cfg[MAX_NUM_FEATURE_CFG];
 	VPP_HDMI_SINK_CAPS sinkCaps;
 
 	//Allocate memory for TA heap memory manager
@@ -254,6 +254,11 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	dispParams.uiBitDepth = vpp_config_param.disp1_bit_depth;
 	dispParams.uiColorFmt = vpp_config_param.disp1_colorformat;
 	dispParams.iPixelRepeat = 1;
+
+	if (vpp_config_param.hdmitx_enable)
+		feature_cfg[0] = VPP_FEATURE_HDMITX;
+	else
+		wrap_MV_VPP_HDMITX_5v_set(0);
 
 	res = wrap_MV_VPP_Init(&vpp_init_parm);
 	if (res != MV_VPP_OK) {

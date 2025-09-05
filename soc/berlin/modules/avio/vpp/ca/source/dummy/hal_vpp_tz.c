@@ -182,6 +182,10 @@ void __weak drv_mipi_reset(void *h_vpp_ctx, int enable)
 {
 }
 
+void __weak drv_hdmitx_5v_set(void *h_vpp_ctx, int enable)
+{
+}
+
 int __weak TZ_MV_VPPOBJ_LoadMipiConfig(VPP_MIPI_LOAD_CONFIG *pConfigParams)
 {
 	return 0;

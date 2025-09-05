@@ -453,6 +453,15 @@ void wrap_MV_VPP_MIPI_Reset(int enable)
 		drv_mipi_reset(hVppCtx, enable);
 }
 
+void wrap_MV_VPP_HDMITX_5v_set(int enable)
+{
+	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
+	void *hVppCtx = (void *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_VPP);
+
+	if (hDhubCtx->isTeeEnabled)
+		drv_hdmitx_5v_set(hVppCtx, enable);
+}
+
 int wrap_MV_VPP_LoadConfigTable(ENUM_VOUT_ID voutid, int Id, void *pConfig)
 {
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
@@ -635,3 +644,4 @@ EXPORT_SYMBOL(wrap_MV_VPP_RegisterWaitForHdmiHpd);
 EXPORT_SYMBOL(wrap_MV_VPP_WaitHdmiConnChange);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetBlockStatus);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetHDMISinkFeatureMap);
+EXPORT_SYMBOL(wrap_MV_VPP_HDMITX_5v_set);

@@ -28,5 +28,6 @@ typedef struct vpp_config_params {
 	VPP_MEM vpp_dsi_info_shm_handle;
 	VPP_MEM vpp_resinfo_shm_handle;
 	VPP_MEM vpp_cmdinfo_shm_handle;
+	bool hdmitx_enable;
 } vpp_config_params;
 #endif
