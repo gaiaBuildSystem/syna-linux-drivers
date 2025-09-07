@@ -76,6 +76,62 @@ static const RESOLUTION_INFO m_resinfo_table[MAX_NUM_RESS] = {
 	/* 64: RES_4Kx2K60    */          {    3840,         2160,         4400,   2250,   176,         88,         296,          8,         10,         72,   TYPE_UHD,  SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 594000,  6000 },
 	/* 65: RES_4Kx2K30_HDMI*/         {    3840,         2160,         4400,   2250,   176,         88,         296,          8,         10,         72,   TYPE_UHD,  SCAN_PROGRESSIVE, FRAME_RATE_30,      0, 297000, 12000 },
 	/* 66: RES_4Kx1K120    */         {    3840,         1080,         4400,   1125,   176,         88,         296,          4,          5,         36,   TYPE_UHD,  SCAN_PROGRESSIVE, FRAME_RATE_120,     0, 594000,  3000 },
+	/* 67: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 68: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 69: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 70: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 71: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 72: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 73: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 74: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 75: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 76: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 77: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 78: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 79: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 80: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 81: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 82: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 83: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 84: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 85: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 86: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 87: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 88: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 89: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 90: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 91: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 92: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 93: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 94: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 95: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 96: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 97: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 98: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 99: Reserved */                {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 100: Reserved */               {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 101: Reserved */               {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 102: Reserved */               {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 103: Reserved */               {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,      1,  6000 },
+	/* 104: RES_CVT_RB_3840_1600P60 */ {    3840,         1600,         4000,   1658,    80,         32,          48,        3,           6,          49,   TYPE_UHD,  SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 399072,  6000 },
+	/* 105: RES_CVT_RB_1920_1600P60 */ {    1920,         1600,         2080,   1658,    80,         32,          48,        3,           6,          49,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 207360,  6000 },
+	/* 106: RES_CVT_RB_3440_1440P60 */ {    3440,         1440,         3600,   1481,    80,         32,          48,        3,           5,          33,   TYPE_UHD,  SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 319750,  6000 },
+	/* 107: RES_CVT_RB_1720_1440P60 */ {    1720,         1440,         1880,   1481,    80,         32,          48,        3,           5,          33,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 167400,  6000 },
+	/* 108: RES_CVT_RB_1920_2160P60 */ {    1920,         2160,         2080,   2222,    80,         32,          48,        3,           5,          54,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 277760,  6000 },
+	/* 109: RES_CVT_RB_1920x1200P60 */ {    1920,         1200,         2080,   1235,    80,         32,          48,        3,           6,          26,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 154000,  6000 },
+	/* 110: RES_CUSTOM_2880x1440P60 */ {    2880,         1440,         3088,   1493,   104,         32,          72,        3,           5,          45,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 277000,  6000 },
+	/* 111: RES_VESA_800x600P60     */ {     800,          600,         1056,    628,    40,         128,         88,        1,           4,          23,   TYPE_SD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,  40000,  6000 },
+	/* 112: RES_VESA_1280x768P60    */ {    1280,          768,         1664,    798,    64,          128,        192,        3,           7,          20,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,  79500,  6000 },
+	/* 113: RES_VESA_1360x768P60    */ {    1360,          768,         1792,    795,   112,          256,         64,        3,           6,          18,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,  85500,  6000 },
+	/* 114: RES_VESA_1024x768P60    */ {    1024,          768,         1344,    806,    24,          136,        160,        3,           6,          29,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,  65000,  6000 },
+	/* 115: RES_CUSTOM_1280x800P60  */ {    1280,          800,         1440,    823,    16,           48,         96,        1,           3,          20,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,  71090,  6000 },
+	/* 116: RES_VESA_1280x1024P60   */ {    1280,         1024,         1688,   1066,    48,          112,        248,        1,           3,          38,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 108000,  6000 },
+	/* 117: RES_VESA_1440X900P60    */ {    1440,          900,         1904,    934,    80,          152,        232,        3,           6,          25,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 106500,  6000 },
+	/* 118: RES_CVT_1400x1050P60    */ {    1400,         1050,         1864,   1089,    88,          144,        232,        3,           4,          32,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 121750,  6000 },
+	/* 119: RES_VESA_1680x1050P60   */ {    1680,         1050,         2240,   1089,   104,          176,        280,        3,           6,          30,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 146250,  6000 },
+	/* 120: RES_VESA_1600x1200P60   */ {    1600,         1200,         2160,   1250,    64,          192,        304,        1,           3,          46,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 162000,  6000 },
+	/* 121: RES_CUSTOM_1366X768P60  */ {    1366,          768,         1792,    798,    70,          143,        213,        3,           3,          24,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0,  85500,  6000 },
+	/* 122: RES_CVT_RB_2560X1440P60 */ {    2560,         1440,         2720,   1481,    80,          32,          48,        3,           5,          33,   TYPE_HD,   SCAN_PROGRESSIVE, FRAME_RATE_60,      0, 241500,  6000 },
 	/* RES_RESET   */ {       0,            0,            1,      1,     0,          0,           0,        0,           0,           0,         0,                0, 0,    0 }
 };
 
@@ -101,7 +157,7 @@ int syna_get_res_index(int active_width, int active_height, int scan, int freq, 
 		return -1;
 	}
 
-	for (i = 0; i < RES_MAX_4Kx2K; i++) {
+	for (i = 0; i < MAX_NUM_RESS; i++) {
 		if ((active_width == m_resinfo_table[i].active_width) &&
 				(active_height == m_resinfo_table[i].active_height) &&
 				(scan == m_resinfo_table[i].scan) &&
@@ -111,7 +167,7 @@ int syna_get_res_index(int active_width, int active_height, int scan, int freq, 
 		}
 	}
 
-	if (i == RES_MAX_4Kx2K) {
+	if (i == MAX_NUM_RESS) {
 		return -1;
 	}
 	return i;
@@ -122,7 +178,7 @@ RESOLUTION_INFO* syna_get_res_info(int res_index)
 
 	RESOLUTION_INFO *res_info = (RESOLUTION_INFO*) NULL;
 
-	if (res_index < RES_MAX_4Kx2K)
+	if (res_index < MAX_NUM_RESS)
 		res_info = (RESOLUTION_INFO*) &m_resinfo_table[res_index];
 
 	return res_info;
