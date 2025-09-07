@@ -75,7 +75,8 @@ static int syna_ipc_mbox_startup(struct mbox_chan *chan)
 	int ret, n = channel_number(chan);
 	u32 val;
 
-	ret = request_irq(priv->irq[n], syna_ipc_mbox_irq, 0, "syna-ipc-mbox", chan);
+	ret = request_threaded_irq(priv->irq[n], NULL, syna_ipc_mbox_irq,
+				   IRQF_ONESHOT, "syna-ipc-mbox", chan);
 	if (ret) {
 		dev_err(chan->mbox->dev, "Unable to acquire IRQ %d\n", priv->irq[n]);
 		return ret;
