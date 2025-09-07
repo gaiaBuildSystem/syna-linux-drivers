@@ -226,6 +226,11 @@ static int syna_hdmi_connector_helper_mode_valid(struct drm_connector *connector
 	int res_id = MV_VPP_GetResIndex(mode->hdisplay, mode->vdisplay,
 			mode->flags & DRM_MODE_FLAG_INTERLACE, mode->clock,
 			drm_mode_vrefresh(mode));
+
+	DRM_INFO("syna_hdmi mode_valid: hdisplay=%u, vdisplay=%u, flags=0x%x, clock=%u kHz, vrefresh=%u Hz -> res_id=%d\n",
+					 mode->hdisplay, mode->vdisplay, mode->flags,
+					 mode->clock, drm_mode_vrefresh(mode), res_id);
+
 	if (res_id < 0)
 		return MODE_NOMODE;
 
