@@ -3880,6 +3880,30 @@ int hrx_isr_state_update(struct syna_hrx_v4l2_dev *hrx_dev, CC_MSG_t msg)
 	return 0;
 }
 
+static void syna_hrx_v4l2_runtime_pm_enable(struct device *dev)
+{
+	pm_runtime_set_autosuspend_delay(dev, 2000);
+	pm_runtime_use_autosuspend(dev);
+	HRX_LOG(HRX_DRV_INFO, "syna_hrx_v4l2: Runtime PM enabled with autosuspend after 2s.\n");
+
+	pm_runtime_enable(dev);
+	pm_runtime_forbid(dev);
+
+	return;
+}
+
+static void syna_hrx_v4l2_runtime_pm_disable(struct device *dev)
+{
+	pm_runtime_allow(dev);
+	pm_runtime_disable(dev);
+
+	pm_runtime_set_autosuspend_delay(dev, -1);
+	pm_runtime_dont_use_autosuspend(dev);
+	HRX_LOG(HRX_DRV_INFO, "syna_hrx_v4l2: Runtime PM disabled.\n");
+
+	return;
+}
+
 static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 {
 	struct syna_hrx_v4l2_dev *hrx_dev;
@@ -3985,6 +4009,8 @@ static int syna_hrx_v4l2_probe(struct platform_device *pdev)
 	if (ret != 0)
 		goto EXIT6;
 
+	syna_hrx_v4l2_runtime_pm_enable(dev);
+
 	return 0;
 EXIT6:
 	VPP_MEM_DeInitMemory(hrx_dev->aip_mem_list);
@@ -4029,24 +4055,165 @@ static RET syna_hrx_v4l2_remove(struct platform_device *pdev)
 	hrx_debug_remove();
 
 	hrx_sig_stat_remove();
+	syna_hrx_v4l2_runtime_pm_disable(hrx_dev->dev);
 
 	mutex_destroy(&hrx_dev->vip_mutex);
 	RETURN;
 }
 
-#ifdef CONFIG_PM_SLEEP
+static void hrx_set_sram_power(struct syna_hrx_v4l2_dev *hrx_dev, unsigned int val)
+{
+	hrx_reg_write(hrx_dev, val, RA_HDMI_RX_WRAP_videostramer_SRAMPWR);
+	hrx_reg_write(hrx_dev, val, RA_HDMI_RX_WRAP_audiofifo_SRAMPWR);
+	hrx_reg_write(hrx_dev, val, RA_HDMI_RX_WRAP_packetfifo_SRAMPWR);
+	hrx_reg_write(hrx_dev, val, RA_HDMI_RX_WRAP_repeatermem_SRAMPWR);
+	hrx_reg_write(hrx_dev, val, RA_HDMI_RX_WRAP_PHYSRAM_SRAMPWR);
+}
+
+static void hrx_disable_irq(struct syna_hrx_v4l2_dev *hrx_dev)
+{
+	/* disable all enabled interrupt */
+	disable_irq_nosync(hrx_dev->otg_intr);
+	disable_irq_nosync(hrx_dev->hdmirx_intr);
+	disable_irq_nosync(hrx_dev->ytg_intr);
+	disable_irq_nosync(hrx_dev->uvtg_intr);
+	disable_irq_nosync(hrx_dev->itg_intr);
+	disable_irq_nosync(hrx_dev->mic3_intr);
+}
+
+static void hrx_enable_irq(struct syna_hrx_v4l2_dev *hrx_dev)
+{
+	if(hrx_dev->hrx_suspend) {
+		enable_irq(hrx_dev->otg_intr);
+		enable_irq(hrx_dev->hdmirx_intr);
+		enable_irq(hrx_dev->ytg_intr);
+		enable_irq(hrx_dev->uvtg_intr);
+		enable_irq(hrx_dev->itg_intr);
+		enable_irq(hrx_dev->mic3_intr);
+	}
+
+}
+
+static void hrx_power_shut_down(struct syna_hrx_v4l2_dev *hrx_dev)
+{
+	unsigned int reg_addr, reg_val;
+
+	hrx_set_sram_power(hrx_dev, 7);
+	hrx_reg_write(hrx_dev, 0x102, HDMI_PHY_CONFIG);
+	hrx_reg_write(hrx_dev, 0x0, HDMI_EARCTX_PHY_CONFIG);
+
+	reg_addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + \
+	RA_avioGbl_HDMI_CLK_EN;
+	reg_val = glb_reg_read(reg_addr);
+	reg_val &= ~(MSK32avioGbl_HDMI_CLK_EN_HdmiRx);
+	glb_reg_write(reg_addr, reg_val);
+	hrx_toggle_hpd(hrx_dev, 0);
+}
+
+static void hrx_power_restore(struct syna_hrx_v4l2_dev *hrx_dev)
+{
+	unsigned int reg_addr, reg_val;
+
+	reg_addr = MEMMAP_AVIO_REG_BASE + AVIO_MEMMAP_AVIO_GBL_BASE + \
+	RA_avioGbl_HDMI_CLK_EN;
+	reg_val = glb_reg_read(reg_addr);
+	reg_val |= MSK32avioGbl_HDMI_CLK_EN_HdmiRx;
+	glb_reg_write(reg_addr, reg_val);
+
+	hrx_set_sram_power(hrx_dev, 0);
+
+	hrx_reg_write(hrx_dev, 0x8C00, HDMI_PHY_CONFIG);
+	hrx_reg_write(hrx_dev, 0x3, HDMI_EARCTX_PHY_CONFIG);
+	hrx_toggle_hpd(hrx_dev, 1);
+}
+
 static int syna_hrx_v4l2_suspend(struct device *dev)
 {
+	struct syna_hrx_v4l2_dev *hrx_dev;
+
+	hrx_dev = (struct syna_hrx_v4l2_dev *)dev_get_drvdata(dev);
+
+	if (unlikely(!hrx_dev)) {
+		HRX_LOG(HRX_DRV_ERROR, "hrx is NULL\n");
+		return -EINVAL;
+	}
+	hrx_disable_irq(hrx_dev);
+	hrx_dev->hrx_suspend = true;
 	return 0;
 }
 
 static int syna_hrx_v4l2_resume(struct device *dev)
 {
+	struct syna_hrx_v4l2_dev *hrx_dev;
+
+	hrx_dev = (struct syna_hrx_v4l2_dev *)dev_get_drvdata(dev);
+
+	if (unlikely(!hrx_dev)) {
+		HRX_LOG(HRX_DRV_ERROR, "hrx is NULL\n");
+		return -EINVAL;
+	}
+
+	hrx_enable_irq(hrx_dev);
+	hrx_dev->hrx_suspend = false;
+	hrx_reset(hrx_dev);
+
+	if (hrx_is_5v_connected(hrx_dev))
+		hrx_dev->HrxState = HRX_STATE_UNSTABLE;
+
+	hrx_disable_all_ints(hrx_dev);
+	hrx_isr_enable(hrx_dev);
+	hrx_enable_vital_ints(hrx_dev);
 	return 0;
 }
-static SIMPLE_DEV_PM_OPS(syna_hrx_v4l2_pmops, syna_hrx_v4l2_suspend,
-						syna_hrx_v4l2_resume);
- #endif
+
+static int syna_hrx_v4l2_runtime_suspend(struct device *dev)
+{
+	int ret;
+	struct syna_hrx_v4l2_dev *hrx_dev;
+
+	hrx_dev = (struct syna_hrx_v4l2_dev *)dev_get_drvdata(dev);
+	HRX_LOG(HRX_DRV_INFO, "syna_hrx_v4l2: Suspending device \n");
+
+	ret = syna_hrx_v4l2_suspend(dev);
+	hrx_power_shut_down(hrx_dev);
+
+	return ret;
+}
+
+static int syna_hrx_v4l2_runtime_resume(struct device *dev)
+{
+	int ret;
+	struct syna_hrx_v4l2_dev *hrx_dev;
+
+	hrx_dev = (struct syna_hrx_v4l2_dev *)dev_get_drvdata(dev);
+	HRX_LOG(HRX_DRV_INFO, "syna_hrx_v4l2: Resuming device \n");
+
+	hrx_power_restore(hrx_dev);
+	ret = syna_hrx_v4l2_resume(dev);
+
+	return ret;
+}
+
+static int syna_hrx_v4l2_runtime_idle(struct device *dev)
+{
+	// Mark the device as busy to avoid an immediate suspend
+	HRX_LOG(HRX_DRV_ERROR, "syna_hrx_v4l2: Idle \n");
+
+	pm_runtime_mark_last_busy(dev);
+
+	// Call autosuspend to allow the PM core to put the device to sleep
+	// after the autosuspend delay has passed.
+	pm_runtime_autosuspend(dev);
+	return 0;
+}
+
+
+static const struct dev_pm_ops syna_hrx_v4l2_pmops = {
+
+	SET_RUNTIME_PM_OPS(syna_hrx_v4l2_runtime_suspend,
+		syna_hrx_v4l2_runtime_resume,
+		syna_hrx_v4l2_runtime_idle)
+};
 
 static const struct of_device_id hrx_match[] = {
 	{
@@ -4063,9 +4230,7 @@ struct platform_driver syna_hrx_v4l2_drv = {
 		.name   = "syna-hrx-v4l2",
 		.owner  = THIS_MODULE,
 		.of_match_table = of_match_ptr(hrx_match),
- #ifdef CONFIG_PM_SLEEP
 		.pm = &syna_hrx_v4l2_pmops,
- #endif
 	},
 };
 

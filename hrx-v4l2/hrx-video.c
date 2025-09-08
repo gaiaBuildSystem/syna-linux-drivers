@@ -366,6 +366,8 @@ static int hrx_driver_open(struct file *filp)
 	int ret = 0;
 	struct syna_hrx_v4l2_dev *hrx_dev = video_drvdata(filp);
 
+	pm_runtime_get_sync(hrx_dev->dev);
+
 	HRX_LOG(HRX_DRV_DEBUG, "Open\n");
 	init_waitqueue_head(&hrx_dev->vblank_wq);
 	ret = v4l2_fh_open(filp);
@@ -398,6 +400,8 @@ static int hrx_driver_release(struct file *filp)
 	}
 
 	ret = vb2_fop_release(filp);
+
+	pm_runtime_put_autosuspend(hrx_dev->dev);
 	mutex_destroy(&hrx_dev->mutex);
 	return ret;
 }

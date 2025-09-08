@@ -19,6 +19,9 @@
 #include <media/v4l2-device.h>
 #include <media/videobuf2-core.h>
 #include <uapi/linux/sched/types.h>
+#include <linux/pm_runtime.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
 
 #include "avio.h"
 #include "avioDhub.h"
@@ -815,6 +818,7 @@ struct syna_hrx_v4l2_dev {
 	int null_data_count;
 	bool trig_scl_reset;
 	int frame_drop_count;
+	bool hrx_suspend;
 
 };
 
@@ -840,7 +844,7 @@ static inline int
 syna_hrx_is_vip_stable(struct syna_hrx_v4l2_dev *hrx_dev)
 {
 	return ((hrx_dev->hdmi_state == HDMI_STATE_POWER_ON) &&
-					(hrx_dev->hrx_v4l2_state == HRX_V4L2_STREAMING_ON) && (hrx_dev->HrxState == HRX_STATE_ALL_STABLE));
+					(hrx_dev->hrx_v4l2_state == HRX_V4L2_STREAMING_ON) && (hrx_dev->HrxState == HRX_STATE_ALL_STABLE) && (hrx_dev->hrx_suspend == false));
 }
 
 #define HRX_ISR_MSGQ_SIZE						128

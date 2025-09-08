@@ -379,6 +379,16 @@
 	HDMI_PKT_0_INT_STATUS_ACR_N | \
 	HDMI_PKT_0_INT_STATUS_ACR_CTS)
 
+
+#define HDMI_EARCTX_PHY_CONFIG			0x0100
+#define RA_HDMI_RX_WRAP_videostramer_SRAMPWR	0x0030
+#define RA_HDMI_RX_WRAP_audiofifo_SRAMPWR	0x0034
+#define RA_HDMI_RX_WRAP_packetfifo_SRAMPWR	0x0038
+#define RA_HDMI_RX_WRAP_repeatermem_SRAMPWR	0x003C
+#define RA_HDMI_RX_WRAP_PHYSRAM_SRAMPWR	0x0040
+#define RA_avioGbl_HDMI_CLK_EN			0x410C
+#define MSK32avioGbl_HDMI_CLK_EN_HdmiRx	0x00000004
+
 enum {
 /* --- id_mainunit --- */
 	/* CORE_ID field values */
