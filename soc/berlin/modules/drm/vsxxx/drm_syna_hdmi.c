@@ -190,8 +190,7 @@ static int syna_hdmi_connector_helper_get_modes(struct drm_connector *connector)
 			}
 
 			if ((pref_mode_user == NULL) && !strcmp(mode->name, preferred_mode_name)) {
-				if ((drm_mode_vrefresh(mode) == 60) &&
-					!(mode->flags & DRM_MODE_FLAG_INTERLACE)) {
+				if (!(mode->flags & DRM_MODE_FLAG_INTERLACE)) {
 					pref_mode_user = mode;
 				}
 			}
