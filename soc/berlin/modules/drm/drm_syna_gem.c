@@ -51,6 +51,7 @@ static const struct drm_gem_object_funcs syna_gem_object_funcs = {
 	.free = syna_gem_object_free_priv,
 	SYNA_DRM_DRIVER_GEM_VM_OPS_GEM_OBJ_INTERFAES()
 	.get_sg_table = syna_gem_prime_get_sg_table,
+	.mmap = syna_drm_gem_object_mmap,
 	.vmap = syna_gem_prime_vmap,
 	.vunmap	= syna_gem_prime_vunmap,
 };
@@ -415,20 +416,6 @@ int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 			vma->vm_start);
 
 	return ret;
-}
-
-int syna_gem_mmap_buf(struct drm_gem_object *obj, struct vm_area_struct *vma)
-{
-	int ret;
-
-	ret = drm_gem_mmap_obj(obj, obj->size, vma);
-	if (ret) {
-		DRM_ERROR("%s:%d drm_gem_mmap_obj fail!!\n",
-			  __func__, __LINE__);
-		return ret;
-	}
-
-	return syna_drm_gem_object_mmap(obj, vma);
 }
 
 int syna_gem_dumb_map_offset(struct drm_file *file,

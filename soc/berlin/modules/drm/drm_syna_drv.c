@@ -240,32 +240,12 @@ static const struct drm_ioctl_desc syna_ioctls[] = {
 			  DRM_AUTH),
 };
 
-/* drm driver mmap file operations */
-static int syna_gem_mmap(struct file *filp, struct vm_area_struct *vma)
-{
-	struct drm_gem_object *obj;
-	int ret;
-
-	ret = drm_gem_mmap(filp, vma);
-	if (ret)
-		return ret;
-	/*
-	 * Set vm_pgoff (used as a fake buffer offset by DRM) to 0 and map the
-	 * whole buffer from the start.
-	 */
-	vma->vm_pgoff = 0;
-
-	obj = vma->vm_private_data;
-
-	return syna_drm_gem_object_mmap(obj, vma);
-}
-
 static const struct file_operations syna_driver_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
-	.mmap = syna_gem_mmap,
+	.mmap = drm_gem_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
 	.llseek = noop_llseek,
