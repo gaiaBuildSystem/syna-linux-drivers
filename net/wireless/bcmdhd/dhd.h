@@ -1856,6 +1856,9 @@ typedef struct dhd_pub {
 #if defined(DHD_SI_WD_RESET)
 	bool si_wd;
 #endif
+#if defined(DHD_WOWL_IN_SUSPEND) || defined(DHD_WOWL_IN_SUSPEND_SDIO)
+	bool wowl_en;
+#endif /* DHD_WOWL_IN_SUSPEND | DHD_WOWL_IN_SUSPEND_SDIO */
 } dhd_pub_t;
 
 #if defined(__linux__)

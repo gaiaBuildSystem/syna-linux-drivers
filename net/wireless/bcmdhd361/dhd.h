@@ -2218,6 +2218,9 @@ typedef struct dhd_pub {
 #ifdef PROP_TXSTATUS_VSDB
 	int proptx_force;
 #endif /* PROP_TXSTATUS_VSDB */
+#if defined(DHD_WOWL_IN_SUSPEND) || defined(DHD_WOWL_IN_SUSPEND_SDIO)
+	bool wowl_en;
+#endif /* DHD_WOWL_IN_SUSPEND | DHD_WOWL_IN_SUSPEND_SDIO */
 } dhd_pub_t;
 
 #if defined(__linux__)

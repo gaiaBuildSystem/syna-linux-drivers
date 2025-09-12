@@ -1389,6 +1389,10 @@ int dhd_dbus_txdata(dhd_pub_t *dhdp, void *pktbuf);
 static int dhd_wl_host_event(dhd_info_t *dhd, int ifidx, void *pktdata, uint16 pktlen,
 		wl_event_msg_t *event_ptr, void **data_ptr);
 
+#if defined(DHD_WOWL_IN_SUSPEND) || defined(DHD_WOWL_IN_SUSPEND_SDIO)
+void dhd_set_wowl_active(bool value);
+#endif
+
 #if defined(CONFIG_PM_SLEEP)
 static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, void *ignored)
 {
@@ -1402,11 +1406,18 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 	switch (action) {
 	case PM_HIBERNATION_PREPARE:
 	case PM_SUSPEND_PREPARE:
+#ifdef DHD_WOWL_IN_SUSPEND_SDIO
+	dhd_set_wowl_active(TRUE);
+	msleep(1000);
+#endif /* DHD_WOWL_IN_SUSPEND_SDIO */
 		suspend = TRUE;
 		break;
 
 	case PM_POST_HIBERNATION:
 	case PM_POST_SUSPEND:
+#ifdef DHD_WOWL_IN_SUSPEND_SDIO
+	dhd_set_wowl_active(FALSE);
+#endif /* DHD_WOWL_IN_SUSPEND_SDIO */
 		suspend = FALSE;
 		break;
 	}
@@ -2513,6 +2524,75 @@ dhd_packet_filter_add_remove(dhd_pub_t *dhdp, int add_remove, int num)
 	return 0;
 }
 #endif /* PKT_FILTER_SUPPORT */
+
+#if defined(DHD_WOWL_IN_SUSPEND) || defined(DHD_WOWL_IN_SUSPEND_SDIO)
+void dhd_set_wowl_active(bool value)
+{
+	int ret = 0;
+	int wowl_var = 0;
+	dhd_pub_t *dhd = g_dhd_pub;
+
+	if (!dhd || !dhd_support_sta_mode(dhd)) {
+		return;
+	}
+
+	if (value == dhd->wowl_en) {
+		return;
+	}
+
+	if (value) {
+		DHD_ERROR(("%s: force wowl suspend setting \n", __FUNCTION__));
+		wowl_var = 1;
+		ret = dhd_iovar(dhd, 0, "wowl", (char *)&wowl_var,
+				sizeof(wowl_var), NULL, 0, TRUE);
+		if (ret < 0) {
+			DHD_ERROR(("%s wowl failed %d\n", __FUNCTION__, ret));
+			return;
+		}
+		wowl_var = 1;
+		ret = dhd_iovar(dhd, 0, "wowl_activate", (char *)&wowl_var,
+				sizeof(wowl_var), NULL, 0, TRUE);
+		if (ret < 0) {
+			DHD_ERROR(("%s wowl_activate failed %d\n", __FUNCTION__, ret));
+			return;
+		}
+		wowl_var = 1;
+		ret = dhd_iovar(dhd, 0, "hostsleep", (char *)&wowl_var,
+				sizeof(wowl_var), NULL, 0, TRUE);
+		if (ret < 0) {
+			DHD_ERROR(("%s hostlseep failed %d\n", __FUNCTION__, ret));
+			return;
+		}
+	} else {
+		DHD_ERROR(("%s: force wowl resume setting \n", __FUNCTION__));
+		wowl_var = 0;
+		ret = dhd_iovar(dhd, 0, "hostsleep", (char *)&wowl_var,
+				sizeof(wowl_var), NULL, 0, TRUE);
+		if (ret < 0) {
+			DHD_ERROR(("%s hostlseep failed %d\n", __FUNCTION__, ret));
+			return;
+		}
+		wowl_var = 1;
+		ret = dhd_iovar(dhd, 0, "wowl_clear", (char *)&wowl_var,
+				sizeof(wowl_var), NULL, 0, TRUE);
+		if (ret < 0) {
+			DHD_ERROR(("%s wowl_clear failed %d\n", __FUNCTION__, ret));
+			return;
+		}
+		wowl_var = 0;
+		ret = dhd_iovar(dhd, 0, "wowl", (char *)&wowl_var,
+				sizeof(wowl_var), NULL, 0, TRUE);
+		if (ret < 0) {
+			DHD_ERROR(("%s wowl failed %d\n", __FUNCTION__, ret));
+			return;
+		}
+	}
+
+	dhd->wowl_en = value;
+	DHD_ERROR(("%s: current wowl setting = %d \n", __FUNCTION__, dhd->wowl_en));
+	return;
+}
+#endif /* DHD_WOWL_IN_SUSPEND */
 
 int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
@@ -12678,6 +12758,10 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	}
 #endif /* DHD_WLFC_THREAD */
 #endif /* PROP_TXSTATUS */
+
+#if defined(DHD_WOWL_IN_SUSPEND) || defined(DHD_WOWL_IN_SUSPEND_SDIO)
+	dhd->pub.wowl_en = FALSE;
+#endif /* DHD_WOWL_IN_SUSPEND | DHD_WOWL_IN_SUSPEND_SDIO */
 
 	/* Initialize other structure content */
 	/* XXX Some of this goes away, leftover from USB */
