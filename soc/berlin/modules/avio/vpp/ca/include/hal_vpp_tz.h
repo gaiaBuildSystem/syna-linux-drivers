@@ -64,6 +64,7 @@ int TZ_MV_VPPOBJ_GetDispWindow(int planeID, VPP_WIN *win, VPP_WIN_ATTR *attr);
 int TZ_MV_VPPOBJ_GetRefWindow(int planeID, VPP_WIN *win);
 int TZ_MV_VPPOBJ_GetHDMISinkFeatureMap(VPP_HDMI_SINK_CAPS *pSinkFeatureMap);
 void drv_mipi_reset(void *h_vpp_ctx, int enable);
+void drv_hdmitx_5v_set(void *hVppCtx, int enable);
 #ifdef __cplusplus
 }
 #endif
