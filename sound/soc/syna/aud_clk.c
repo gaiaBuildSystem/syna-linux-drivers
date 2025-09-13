@@ -29,10 +29,12 @@ static u32 map_clk_tx_port(enum aud_clk_id clkId)
 		return AIO_ID_I2S2_TX;
 	case I2S_CLK_ID_I2S3:
 		return AIO_ID_I2S3_TX;
+#ifdef AVIO_MYNA2
 	case I2S_CLK_ID_I2S4:
 		return AIO_ID_I2S4_TX;
 	case I2S_CLK_ID_I2S5:
 		return AIO_ID_I2S5_TX;
+#endif //AVIO_MYNA2
 	default:
 		return AIO_ID_I2S_MAX_NUM;
 	}

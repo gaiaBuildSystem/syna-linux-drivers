@@ -438,6 +438,7 @@ static const struct of_device_id berlin_asoc_dt_ids[] = {
 	{ .compatible = "syna,myna-asoc", },
 	{ .compatible = "syna,myna2-asoc", },
 	{ .compatible = "syna,platypus-asoc", },
+	{ .compatible = "syna,klamath-asoc", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, berlin_asoc_dt_ids);
