@@ -631,6 +631,7 @@ static const struct of_device_id berlin_pcm_of_match[] = {
 	{.compatible = "syna,myna-pcm"},
 	{.compatible = "syna,myna2-pcm"},
 	{.compatible = "syna,platypus-pcm"},
+	{.compatible = "syna,klamath-pcm"},
 	{}
 };
 MODULE_DEVICE_TABLE(of, berlin_pcm_of_match);

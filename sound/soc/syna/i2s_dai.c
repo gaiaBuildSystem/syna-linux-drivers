@@ -176,12 +176,14 @@ static enum aud_clk_id map_aio_clkId(u32 i2s_chid)
 	case AIO_ID_I2S3_TX:
 	case AIO_ID_I2S3_RX:
 		return I2S_CLK_ID_I2S3;
+#ifdef AVIO_MYNA2
 	case AIO_ID_I2S4_TX:
 	case AIO_ID_I2S4_RX:
 		return I2S_CLK_ID_I2S4;
 	case AIO_ID_I2S5_TX:
 	case AIO_ID_I2S5_RX:
 		return I2S_CLK_ID_I2S5;
+#endif //AVIO_MYNA2
 	}
 
 	return I2S_CLK_ID_INVALID;
@@ -780,6 +782,7 @@ static int i2s_soc_dai_probe(struct snd_soc_dai *dai)
 		snd_soc_add_dai_controls(dai, syna_i2s3_controls,
 				ARRAY_SIZE(syna_i2s3_controls));
 	break;
+#ifdef AVIO_MYNA2
 	case AIO_ID_I2S4_TX:
 		snd_soc_add_dai_controls(dai, syna_i2s4_controls,
 				ARRAY_SIZE(syna_i2s4_controls));
@@ -788,6 +791,7 @@ static int i2s_soc_dai_probe(struct snd_soc_dai *dai)
 		snd_soc_add_dai_controls(dai, syna_i2s5_controls,
 				ARRAY_SIZE(syna_i2s5_controls));
 	break;
+#endif
 	default:
 		snd_printd("%s error chid %d\n", __func__, i2s_tx->i2s_chid);
 	}
@@ -1035,6 +1039,7 @@ static RET_TYPE syna_i2s_soc_dai_remove(struct platform_device *pdev)
 static const struct of_device_id syna_i2s_dai_dt_ids[] = {
 	{ .compatible = "syna,myna-i2s-soc",  },
 	{ .compatible = "syna,myna2-i2s-soc",  },
+	{ .compatible = "syna,klamath-i2s-soc",  },
 	{}
 };
 MODULE_DEVICE_TABLE(of, syna_i2s_dai_dt_ids);
