@@ -221,7 +221,7 @@ int aio_set_i2s_clk_enable(void *hd, u32 clk_idx, bool enable)
 {
 	struct aio_handle *handle = hd;
 	struct aio_priv *aio = hd_to_aio(hd);
-	T32avioGbl_CTRL0 reg;
+	T32aioGbl_CTRL0 reg;
 
 	dev_dbg(aio->dev, "%s: %s (clk_idx:%d, enable:%d)\n", handle->name, __func__, clk_idx, enable);
 

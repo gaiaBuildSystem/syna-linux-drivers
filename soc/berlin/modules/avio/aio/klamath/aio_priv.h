@@ -15,6 +15,14 @@
 // Default PCM channel map
 #define PCM_DEF_CHL_MAP (0xFF)
 
+// AIO Klamath porting
+#define    RA_avioGbl_APLL0_WRAP   RA_aioGbl_APLL0_WRAP
+#define RA_avioGbl_APLL1_WRAP  RA_aioGbl_APLL1_WRAP
+#define RA_avioGbl_CTRL0   RA_aioGbl_CTRL0
+#define RA_avioGbl_SWPDWN_CTRL RA_aioGbl_SWPDWN_CTRL
+#define RA_avioGbl_AVPLLA_CLK_EN   RA_aioGbl_AVPLLA_CLK_EN
+#define    T32avioGbl_SWPDWN_CTRL  T32aioGbl_SWPDWN_CTRL
+
 // PDM to DHUB write size in bytes while in interleave mode & dummy byte inserted
 #define PDM_DHUB_OCPF_CHUNK_SZ (32)
 
