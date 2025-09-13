@@ -58,6 +58,7 @@ static const struct of_device_id semahub_matches[] = {
 	{ .compatible = "syna,myna-dhub-irq", .data = &default_semahub_ctl },
 	{ .compatible = "syna,myna2-dhub-irq", .data = &default_semahub_ctl },
 	{ .compatible = "syna,platypus-dhub-irq", .data = &default_semahub_ctl },
+	{ .compatible = "syna,klamath-dhub-irq", .data = &default_semahub_ctl },
 	{ }
 };
 
@@ -314,6 +315,7 @@ IRQCHIP_MATCH("syna,berlin-dhub-irq", berlin_dhub_irq_init)
 IRQCHIP_MATCH("syna,myna2-dhub-irq", berlin_dhub_irq_init)
 IRQCHIP_MATCH("syna,platypus-dhub-irq", berlin_dhub_irq_init)
 IRQCHIP_MATCH("syna,dolphin-dhub-irq", berlin_dhub_irq_init)
+IRQCHIP_MATCH("syna,klamath-dhub-irq", berlin_dhub_irq_init)
 IRQCHIP_PLATFORM_DRIVER_END(berlin_dhub_ictl)
 MODULE_DESCRIPTION("Synaptics dhub Interrupt Controller");
 MODULE_LICENSE("GPL v2");
