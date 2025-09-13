@@ -38,6 +38,7 @@ static const struct gateclk_desc sl261x_gates[] = {
 	{ "apbtimersclk",	"apbcoreclk",	21 },
 	{ "apbsyscntclk",	"apbcoreclk",	22 },
 	{ "apbwdtclk",		"apbcoreclk",	23 },
+	{ "apbdmaclk",		"apbcoreclk",	24 },
 };
 
 static int sl261x_gateclk_setup(struct platform_device *pdev)
@@ -47,18 +48,17 @@ static int sl261x_gateclk_setup(struct platform_device *pdev)
 
 static const struct clk_desc sl261x_descs[] = {
 	{ "cpufastrefclk",		0x0, CLK_IS_CRITICAL },
-	{ "memfastrefclk",		0x4 },
+	{ "memfastrefclk",		0x4, CLK_IS_CRITICAL },
 	{ "cfgclk",			0x8, CLK_IS_CRITICAL },
 	{ "sysclk",			0xc, CLK_IS_CRITICAL },
 	{ "perifsysclk",		0x10, CLK_IS_CRITICAL },
 	{ "apbcoreclk",			0x14, CLK_IS_CRITICAL },
 	{ "apbserclk",			0x18, CLK_IS_CRITICAL },
-	{ "atbclk",			0x1c },
-	{ "hpcclk",			0x20 },
+	{ "atbclk",			0x1c, CLK_IS_CRITICAL },
+	{ "hpcclk",			0x20, CLK_IS_CRITICAL },
 	{ "emmcclk",			0x24 },
 	{ "sd0clk",			0x28 },
 	{ "sd1clk",			0x2c },
-	{ "decoderclk",			0x2c },
 	{ "gethrgmiiclk",		0x30 },
 	{ "gethrgmii1clk",		0x34 },
 	{ "ge0_ptp_refclk",		0x38 },
@@ -74,17 +74,17 @@ static const struct clk_desc sl261x_descs[] = {
 	{ "periftest125mg0clk",		0x60 },
 	{ "periftest200mg0clk",		0x64 },
 	{ "periftest200mg1clk",		0x68 },
-	{ "gpuclk",			0x7c },
-	{ "npuclk",			0x80 },
-	{ "aviosysclk",			0x84 },
-	{ "aiosysclk",			0x88 },
-	{ "avio_lcdc2scanclk",		0x8c },
-	{ "avio_ipiclk",		0x90 },
-	{ "avio_pclk",			0x94 },
-	{ "avio_dphyrxtxescclk",	0x98 },
-	{ "aviofpllclk",		0x9c },
-	{ "avio_rx_scanbyteclk",	0xa0 },
-	{ "avio_rx_scantestclk",	0xa4 },
+	{ "gpuclk",			0x6c },
+	{ "npuclk",			0x70 },
+	{ "aviosysclk",			0x74 },
+	{ "aiosysclk",			0x78 },
+	{ "avio_lcdc2scanclk",		0x7c },
+	{ "avio_ipiclk",		0x80 },
+	{ "avio_pclk",			0x84 },
+	{ "avio_dphyrxtxescclk",	0x88 },
+	{ "aviofpllclk",		0x8c },
+	{ "avio_rx_scanbyteclk",	0x90 },
+	{ "avio_rx_scantestclk",	0x94 },
 };
 
 static int sl261x_clk_setup(struct platform_device *pdev)
