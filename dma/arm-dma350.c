@@ -4,6 +4,7 @@
 // Arm DMA-350/DMA-250 driver
 
 #include <linux/bitfield.h>
+#include <linux/clk.h>
 #include <linux/dmaengine.h>
 #include <linux/dmapool.h>
 #include <linux/dma-mapping.h>
@@ -254,6 +255,7 @@ struct d350 {
 	void *cntx_mem;
 	u32 dev_offset;
 	u32 cntx_mem_size;
+	struct clk *clk;
 	struct d350_chan channels[] __counted_by(nchan);
 };
 
@@ -1301,10 +1303,15 @@ static int d350_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct d350 *dmac;
+	struct clk *clk;
 	void __iomem *base;
 	u32 reg, trig_bits = 0;
 	int ret, nchan, dw, aw, r, p;
 	bool coherent, memset;
+
+	clk = devm_clk_get_optional_enabled(dev, NULL);
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
@@ -1328,6 +1335,7 @@ static int d350_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	spin_lock_init(&dmac->lock);
+	dmac->clk = clk;
 	dmac->dma.dev = dev;
 	dmac->nchan = nchan;
 	dmac->base = base;
