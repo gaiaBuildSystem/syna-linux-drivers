@@ -455,6 +455,7 @@ static int hantro_try_fmt_cap(struct syna_vcodec_ctx *ctx,
 			      struct v4l2_pix_format_mplane *pix_mp)
 {
 	int ret;
+	int mb_num;
 
 	pix_mp->field = V4L2_FIELD_NONE;
 	pix_mp->num_planes = 1;
@@ -471,6 +472,13 @@ static int hantro_try_fmt_cap(struct syna_vcodec_ctx *ctx,
 		ret = hantro_try_fmt_ds(ctx, pix_mp);
 		if (ret)
 			return ret;
+	}
+
+	if (ctx->v4l2_ctrls.metadata_mv_enable) {
+		pix_mp->num_planes++;
+		mb_num = MB_WIDTH(1920) * MB_HEIGHT(1088);
+		pix_mp->plane_fmt[pix_mp->num_planes - 1].sizeimage =
+			ALIGN(mb_num * 16, SZ_4K);
 	}
 
 	return 0;
@@ -837,6 +845,7 @@ static int vb2ops_syna_vpu_buf_init(struct vb2_buffer *vb)
 	enum syna_vpu_fw_enc_buf buftype;
 	int ret;
 	int num_planes;
+	int plane_mv = -1;
 
 	idx = vb->index;
 
@@ -866,13 +875,26 @@ static int vb2ops_syna_vpu_buf_init(struct vb2_buffer *vb)
 		vpu_buf->planes[i].size = vb2_plane_size(vb, i);
 	}
 
+	if (!V4L2_TYPE_IS_OUTPUT(vq->type) && vb->num_planes >= 2) {
+		if (ctx->v4l2_ctrls.metadata_mv_enable) {
+			plane_mv = vb->num_planes - 1;
+			memid = syna_vpu_bm_dh_plane_memid(vb, plane_mv);
+
+			vpu_buf->planes[1].type = CONTIGUOUS_MEM;
+			vpu_buf->planes[1].memid = memid;
+			vpu_buf->planes[1].size = vb2_plane_size(vb, plane_mv);
+		}
+	}
+
 	ret = syna_vpu_register_buf(ctx, buftype, idx);
 	if (ret) {
 		vepu_err(vpu, "can't register buffer: 0x%08x\n", ret);
 		return -EINVAL;
 	}
+	if (plane_mv == 1) // no downscale buffer plane
+		return 0;
 
-	if (!V4L2_TYPE_IS_OUTPUT(vq->type) && vb->num_planes == 2) {
+	if (!V4L2_TYPE_IS_OUTPUT(vq->type) && vb->num_planes >= 2) {
 		vpu_buf = ctx->ds_pool;
 		vpu_buf += idx;
 		vpu_buf->buf_type = ENCODER_PICTURE;
@@ -1189,7 +1211,7 @@ static void syna_venc_h1_worker(struct work_struct *work)
 	bool flushing;
 	bool no_free_recon = false;
 	int ret;
-	int i;
+	int i, plane_mv;
 
 	ctx = v4l2_m2m_get_curr_priv(m2m_dev);
 	vpu_srv_prepare_to_run(vpu->srv, ctx);
@@ -1265,6 +1287,19 @@ retry:
 				vb2_set_plane_payload(
 					&dst_buf->vb2_buf, 1,
 					ctx->dst_fmt.plane_fmt[1].sizeimage);
+			}
+		}
+
+		if (ctx->v4l2_ctrls.metadata_mv_enable &&
+		    ctx->dst_fmt.num_planes >= 2) {
+			plane_mv = ctx->dst_fmt.num_planes - 1;
+			if (vpu_buf->bytesused[1]) {
+				vepu_dbg(5, "motion vector %d, 0x%x q%d\n", idx,
+					 vpu_buf->bytesused[1],
+					 dst_buf->sequence);
+				vb2_set_plane_payload(&dst_buf->vb2_buf,
+						      plane_mv,
+						      vpu_buf->bytesused[1]);
 			}
 		}
 

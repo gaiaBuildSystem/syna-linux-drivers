@@ -61,6 +61,7 @@ struct vpu_enc_ctrls {
 	u32 syna_h1_ds_w;
 	u32 syna_h1_ds_h;
 	bool syna_h1_simulcast;
+	bool metadata_mv_enable;
 };
 
 int vpu_enc_ctrls_init(struct v4l2_ctrl_handler *handler);

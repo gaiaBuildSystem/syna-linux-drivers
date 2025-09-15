@@ -14,6 +14,7 @@
 #include "vpu_common.h"
 #include "vpu_enc_ctrls.h"
 #include "vpu_enc_drv.h"
+#include "v4l2_syna_externtion.h"
 
 extern int vepu_debug;
 #define vepu_dbg(level, fmt, arg...)                                           \
@@ -341,6 +342,10 @@ static int vidioc_venc_s_ctrl(struct v4l2_ctrl *ctrl)
 		vepu_dbg(2, "SYNA_V4L2_CID_H1_SIMULCAST val = %d", ctrl->val);
 		venc_ctrls->syna_h1_simulcast = ctrl->val;
 		break;
+	case SYNA_V4L2_CID_VENC_ENABLE_METADATA_MV:
+		vepu_dbg(2, "SYNA_V4L2_CID_VENC_ENABLE_METADATA_MV val = %d", ctrl->val);
+		venc_ctrls->metadata_mv_enable = ctrl->val;
+		break;
 	default:
 		vepu_dbg(2, "unknown ctrl id = %d(%s)\n", ctrl->id,
 			 v4l2_ctrl_get_name(ctrl->id));
@@ -393,11 +398,22 @@ static const struct v4l2_ctrl_config h1_simulcast_cfg = {
 	.def = 0,
 };
 
+static const struct v4l2_ctrl_config h1_metadata_mv_cfg = {
+	.ops = &vpu_enc_ctrl_ops,
+	.id = SYNA_V4L2_CID_VENC_ENABLE_METADATA_MV,
+	.name = "SYNA H1 metadata enable MV",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.min = 0,
+	.max = 1,
+	.step = 1,
+	.def = 0,
+};
+
 int vpu_enc_ctrls_init(struct v4l2_ctrl_handler *handler)
 {
 	const struct v4l2_ctrl_ops *ops = &vpu_enc_ctrl_ops;
 
-	v4l2_ctrl_handler_init(handler, 31);
+	v4l2_ctrl_handler_init(handler, 32);
 
 	v4l2_ctrl_new_std(handler, ops, V4L2_CID_MIN_BUFFERS_FOR_OUTPUT, 1, 1,
 			  1, 1);
@@ -483,6 +499,8 @@ int vpu_enc_ctrls_init(struct v4l2_ctrl_handler *handler)
 	v4l2_ctrl_new_custom(handler, &h1_ds_w_cfg, NULL);
 	v4l2_ctrl_new_custom(handler, &h1_ds_h_cfg, NULL);
 	v4l2_ctrl_new_custom(handler, &h1_simulcast_cfg, NULL);
+
+	v4l2_ctrl_new_custom(handler, &h1_metadata_mv_cfg, NULL);
 
 	if (handler->error)
 		return handler->error;
@@ -628,6 +646,7 @@ static int v4l2_ctrls_to_h1_strm_config(struct vpu_enc_ctrls *enc_ctrls,
 	}
 
 	enc_ctrls->apply_dyna_ctrls = false;
+	config->outputMbInfo = enc_ctrls->metadata_mv_enable;
 
 	return 0;
 }
