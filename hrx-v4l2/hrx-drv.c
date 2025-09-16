@@ -1367,6 +1367,29 @@ static irqreturn_t syna_hrx_isr(int irq, void *arg)
 	return ret;
 }
 
+static int syna_hrx_vpp_intr_handler(int irq, void *arg)
+{
+	int ret;
+	u32 intr_num = ffs(irq) - 1;
+
+	switch (intr_num) {
+	case avioDhubSemMap_vpp128b_vpp_inr9:
+	case avioDhubSemMap_vpp128b_vpp_inr10:
+	{
+		HRX_LOG(HRX_DRV_INFO, "VPP Ints Handling : %u\n", intr_num);
+		ret = IRQ_HANDLED;
+		break;
+	}
+	default:
+	{
+		HRX_LOG(HRX_DRV_ERROR, "Invalid Intr %u\n", intr_num);
+		ret = IRQ_NONE;
+		break;
+	}
+	}
+	return ret;
+}
+
 static bool hrx_is_hdmi_mode(struct syna_hrx_v4l2_dev *hrx_dev)
 {
 	bool IsHDMIMode = FALSE;
@@ -2383,6 +2406,9 @@ static int syna_hrx_interrupt_config(struct platform_device *pdev)
 					  IRQF_SHARED, "ADHUB AIP MIC3", hrx_dev);
 	if (ret)
 		goto err;
+
+	Dhub_IntrRegisterHandler(DHUB_ID_VPP_DHUB, avioDhubSemMap_vpp128b_vpp_inr9, hrx_dev, (DHUB_INTR_HANDLER)syna_hrx_vpp_intr_handler);
+	Dhub_IntrRegisterHandler(DHUB_ID_VPP_DHUB, avioDhubSemMap_vpp128b_vpp_inr10, hrx_dev, (DHUB_INTR_HANDLER)syna_hrx_vpp_intr_handler);
 
 	HRX_LOG(HRX_DRV_INFO, "irqs registered succcessfully\n");
 	return 0;
@@ -3988,6 +4014,9 @@ static RET syna_hrx_v4l2_remove(struct platform_device *pdev)
 	hrx_deinit(hrx_dev);
 	syna_hrx_audio_exit(hrx_dev);
 	syna_hrx_video_finalize(hrx_dev);
+
+	Dhub_IntrRegisterHandler(DHUB_ID_VPP_DHUB, avioDhubSemMap_vpp128b_vpp_inr9, hrx_dev, NULL);
+	Dhub_IntrRegisterHandler(DHUB_ID_VPP_DHUB, avioDhubSemMap_vpp128b_vpp_inr10, hrx_dev, NULL);
 
 	if (hrx_dev->mem_list) {
 		VPP_MEM_DeInitMemory(hrx_dev->mem_list);
