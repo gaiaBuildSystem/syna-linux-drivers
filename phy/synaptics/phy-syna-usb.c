@@ -8,6 +8,7 @@
  * warranty of any kind, whether express or implied.
  */
 
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -19,6 +20,7 @@
 struct phy_syna_usb2_priv {
 	void __iomem		*base;
 	struct reset_control	*rst;
+	struct clk *clk;
 	enum phy_mode mode;
 };
 
@@ -187,6 +189,8 @@ static int phy_sl261x_usb_set_mode(struct phy *phy,
 }
 
 static const struct phy_ops phy_sl261x_usb_ops = {
+	.power_on	= phy_dolphin_usb_power_on,
+	.power_off	= phy_dolphin_usb_power_off,
 	.set_mode	= phy_sl261x_usb_set_mode,
 	.owner		= THIS_MODULE,
 };
@@ -256,6 +260,10 @@ static int phy_syna_usb2_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->rst)) {
 		return PTR_ERR(priv->rst);
 	}
+
+	priv->clk = devm_clk_get_optional_enabled(dev, NULL);
+	if (IS_ERR(priv->clk))
+		return PTR_ERR(priv->clk);
 
 	ops = of_device_get_match_data(dev);
 	phy = devm_phy_create(dev, NULL, ops);
