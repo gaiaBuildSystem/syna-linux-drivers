@@ -76,7 +76,7 @@ static const struct clk_desc sl261x_descs[] = {
 	{ "periftest200mg1clk",		0x68 },
 	{ "gpuclk",			0x6c },
 	{ "npuclk",			0x70 },
-	{ "aviosysclk",			0x74 },
+	{ "aviosysclk",			0x74, CLK_IS_CRITICAL },
 	{ "aiosysclk",			0x78 },
 	{ "avio_lcdc2scanclk",		0x7c },
 	{ "avio_ipiclk",		0x80 },
