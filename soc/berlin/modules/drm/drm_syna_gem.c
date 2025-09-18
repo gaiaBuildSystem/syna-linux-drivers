@@ -401,6 +401,8 @@ int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 	} else {
 		size = vma->vm_end - vma->vm_start;
 
+		vma->vm_pgoff = 0;
+		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 		ret = remap_pfn_range(vma,
 				vma->vm_start,
 				(syna_obj->phyaddr >> PAGE_SHIFT) + vma->vm_pgoff,
