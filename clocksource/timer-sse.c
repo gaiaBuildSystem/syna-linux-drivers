@@ -73,7 +73,9 @@ struct sse_wdt_frame {
 
 struct sse_timer {
 	void __iomem *cntctrl_base;
-	struct clk *clk;
+	struct clk *cntclk;
+	struct clk *tmrclk;
+	struct clk *wdtclk;
 	struct sse_timer_frame *timers;
 	struct sse_wdt_frame *wdts;
 	int timer_num;
@@ -401,7 +403,7 @@ static int sse_timer_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	struct sse_timer *sse;
-	unsigned long rate;
+	u32 rate;
 	int i, j, ret;
 
 	sse = devm_kzalloc(&pdev->dev, sizeof(*sse), GFP_KERNEL);
@@ -416,17 +418,27 @@ static int sse_timer_probe(struct platform_device *pdev)
 		return PTR_ERR(sse->cntctrl_base);
 	}
 
-	sse->clk = devm_clk_get_enabled(&pdev->dev, NULL);
-	if (IS_ERR(sse->clk)) {
-		dev_err(&pdev->dev, "Can't get timer clock\n");
-		return PTR_ERR(sse->clk);
+	sse->cntclk = devm_clk_get_enabled(&pdev->dev, "counter");
+	if (IS_ERR(sse->cntclk)) {
+		dev_err(&pdev->dev, "Can't get counter clock\n");
+		return PTR_ERR(sse->cntclk);
 	}
 
-	rate = clk_get_rate(sse->clk);
-	if (!rate) {
-		dev_err(&pdev->dev, "Couldn't get parent clock rate\n");
-		return -EINVAL;
+	sse->tmrclk = devm_clk_get_enabled(&pdev->dev, "timers");
+	if (IS_ERR(sse->tmrclk)) {
+		dev_err(&pdev->dev, "Can't get timers clock\n");
+		return PTR_ERR(sse->tmrclk);
 	}
+
+	sse->wdtclk = devm_clk_get_enabled(&pdev->dev, "watchdogs");
+	if (IS_ERR(sse->wdtclk)) {
+		dev_err(&pdev->dev, "Can't get watchdogs clock\n");
+		return PTR_ERR(sse->wdtclk);
+	}
+
+	ret = of_property_read_u32(np, "clock-frequency", &rate);
+	if (ret < 0)
+		return ret;
 
 	for_each_available_child_of_node_scoped(np, frame_node) {
 		const __be32 *addr = of_get_address(frame_node, 1, NULL, NULL);
