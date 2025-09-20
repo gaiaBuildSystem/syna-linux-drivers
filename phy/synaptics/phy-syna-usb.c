@@ -161,6 +161,30 @@ static const struct phy_ops phy_dolphin_usb3_ops = {
 #define  PHY_USB_CTRL1_DMPULLDOWN	BIT(28)
 #define  PHY_USB_CTRL1_IDDIG		BIT(29)
 #define SL261X_USB_PHY_CTRL2		0x8
+#define  SL261x_PHY_CTRL2_SIDDQ		BIT(1)
+
+static int phy_sl261x_usb_power_on(struct phy *phy)
+{
+	struct phy_syna_usb2_priv *priv = phy_get_drvdata(phy);
+
+	reset_control_deassert(priv->rst);
+	udelay(100);
+
+	return 0;
+}
+
+static int phy_sl261x_usb_power_off(struct phy *phy)
+{
+	struct phy_syna_usb2_priv *priv = phy_get_drvdata(phy);
+	u32 val;
+
+	/* power down the USB_PHY */
+	val = readl(priv->base + DOLPHIN_USB_PHY_CTRL2);
+	val |= SL261x_PHY_CTRL2_SIDDQ;
+	writel(val, priv->base + DOLPHIN_USB_PHY_CTRL2);
+
+	return 0;
+}
 
 static int phy_sl261x_usb_set_mode(struct phy *phy,
 				   enum phy_mode mode, int submode)
@@ -189,8 +213,8 @@ static int phy_sl261x_usb_set_mode(struct phy *phy,
 }
 
 static const struct phy_ops phy_sl261x_usb_ops = {
-	.power_on	= phy_dolphin_usb_power_on,
-	.power_off	= phy_dolphin_usb_power_off,
+	.power_on	= phy_sl261x_usb_power_on,
+	.power_off	= phy_sl261x_usb_power_off,
 	.set_mode	= phy_sl261x_usb_set_mode,
 	.owner		= THIS_MODULE,
 };
