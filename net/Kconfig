@@ -13,6 +13,8 @@ if SYNAPTICS_NET
 
 source "drivers/synaptics/net/phy/Kconfig"
 
+source "drivers/synaptics/net/mdio/Kconfig"
+
 source "drivers/synaptics/net/wireless/Kconfig"
 
 source "drivers/synaptics/net/dsa/Kconfig"
