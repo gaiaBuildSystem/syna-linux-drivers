@@ -1103,6 +1103,7 @@ struct kbase_device {
 	} irqs[3];
 	u32 nr_irqs;
 
+	struct reset_control *core_rst;  //Syanptics update:add reset control
 	struct clk *clocks[BASE_MAX_NR_CLOCKS_REGULATORS];
 	unsigned int nr_clocks;
 #if IS_ENABLED(CONFIG_REGULATOR)
