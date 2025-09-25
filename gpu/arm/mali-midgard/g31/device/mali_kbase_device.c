@@ -31,6 +31,7 @@
 #include <linux/of_platform.h>
 #include <linux/types.h>
 #include <linux/oom.h>
+#include <linux/reset.h>
 
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
@@ -493,6 +494,14 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	err = kbase_pm_runtime_init(kbdev);
 	if (err)
 		goto platform_device_term;
+
+	/* Synaptics change: update to bring module out of reset */
+	kbdev->core_rst = devm_reset_control_get_optional(kbdev->dev, "core_rst");
+	if (IS_ERR(kbdev->core_rst)) {
+		dev_err(kbdev->dev, "invalid reset entry in dts\n");
+		goto platform_device_term;
+	}
+	reset_control_deassert(kbdev->core_rst);
 
 	/* This spinlock is initialized before doing the first access to GPU
 	 * registers and installing interrupt handlers.
