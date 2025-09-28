@@ -3630,6 +3630,10 @@ dhd_set_mac_addr_handler(void *handle, void *event_info, u8 event)
 	else
 		DHD_ERROR(("%s: _dhd_set_mac_address() failed\n", __FUNCTION__));
 
+#if defined(DHD_SET_MAC_AFTER_DOWN) && defined(GET_CUSTOM_MAC_ENABLE)
+	dhd->drv_set_buf_mac = FALSE;
+#endif /* DHD_SET_MAC_AFTER_DOWN && GET_CUSTOM_MAC_ENABLE */
+
 done:
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 	dhd_net_if_unlock_local(dhd);
@@ -3754,12 +3758,26 @@ dhd_set_mac_address(struct net_device *dev, void *addr)
 
 #ifdef WL_CFG80211
 	/* Check wdev->iftype for the role */
+#if !defined(DHD_SET_MAC_AFTER_DOWN)
 	if (dhd->pub.up && wl_cfg80211_macaddr_sync_reqd(dev)) {
+#else
+	if (wl_cfg80211_macaddr_sync_reqd(dev)) {
+#endif /* DHD_SET_MAC_AFTER_DOWN && GET_CUSTOM_MAC_ENABLE */
 		/* Supplicant and certain user layer applications expect macaddress to be
 		 * set once the context returns. so set it from the same context
 		 */
 		DHD_ERROR(("%s: iftype = %d macaddr = "MACDBG"\n",
 			__FUNCTION__, dev->ieee80211_ptr->iftype, MAC2STRDBG(&dhdif->mac_addr)));
+
+#if defined(DHD_SET_MAC_AFTER_DOWN) && defined(GET_CUSTOM_MAC_ENABLE)
+		if (!dhd->pub.up) {
+			DHD_ERROR(("%s: interface not up buffer mac \n", __FUNCTION__));
+			dhd->drv_set_buf_mac = TRUE;
+			memcpy(dhd->drv_buf_mac, dhdif->mac_addr, ETHER_ADDR_LEN);
+			return ret;
+		}
+#endif /* DHD_SET_MAC_AFTER_DOWN && GET_CUSTOM_MAC_ENABLE */
+
 #ifdef WL_STATIC_IF
 		if (IS_CFG80211_STATIC_IF(cfg, dev) && !(dev->flags & IFF_UP)) {
 			/* In softap case, the macaddress will be applied before interface up
@@ -12499,7 +12517,17 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 
 #ifdef GET_CUSTOM_MAC_ENABLE
 	ret = wifi_platform_get_mac_addr(dhd->info->adapter, ea_addr.octet);
+
+#ifndef DHD_SET_MAC_AFTER_DOWN
 	if (!ret) {
+#else
+	if (!ret || dhd->info->drv_set_buf_mac) {
+		if (dhd->info->drv_set_buf_mac &&
+			!(ETHER_ISNULLADDR(dhd->info->drv_buf_mac))) {
+			memcpy(ea_addr.octet, dhd->info->drv_buf_mac, ETHER_ADDR_LEN);
+		}
+#endif /* DHD_SET_MAC_AFTER_DOWN */
+
 		ret = dhd_iovar(dhd, 0, "cur_etheraddr", (char *)&ea_addr, ETHER_ADDR_LEN, NULL, 0,
 				TRUE);
 		if (ret < 0) {
@@ -13445,7 +13473,17 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 
 #ifdef GET_CUSTOM_MAC_ENABLE
 	ret = wifi_platform_get_mac_addr(dhd->info->adapter, ea_addr.octet);
+
+#ifndef DHD_SET_MAC_AFTER_DOWN
 	if (!ret) {
+#else
+	if (!ret || dhd->info->drv_set_buf_mac) {
+		if (dhd->info->drv_set_buf_mac &&
+			!(ETHER_ISNULLADDR(dhd->info->drv_buf_mac))) {
+			memcpy(ea_addr.octet, dhd->info->drv_buf_mac, ETHER_ADDR_LEN);
+		}
+#endif /* DHD_SET_MAC_AFTER_DOWN */
+
 		ret = dhd_iovar(dhd, 0, "cur_etheraddr", (char *)&ea_addr, ETHER_ADDR_LEN, NULL, 0,
 				TRUE);
 		if (ret < 0) {

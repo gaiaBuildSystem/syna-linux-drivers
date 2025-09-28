@@ -447,6 +447,10 @@ typedef struct dhd_info {
 	pkt_pool_t rx_pkt_pool;
 	tsk_ctl_t rx_pktpool_thread;
 #endif
+#ifdef DHD_SET_MAC_AFTER_DOWN
+	uint8 drv_buf_mac[ETHER_ADDR_LEN];
+	bool  drv_set_buf_mac; /* flag to set MAC address */
+#endif /* DHD_SET_MAC_AFTER_DOWN */
 } dhd_info_t;
 
 /** priv_link is the link between netdev and the dhdif and dhd_info structs. */
