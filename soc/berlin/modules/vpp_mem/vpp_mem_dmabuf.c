@@ -11,6 +11,8 @@
 static struct dma_heap *dmabuf_dma_heap;
 static struct dma_heap *dmabuf_nc_dma_heap;
 
+static char *dma_reserved_heaps[] = { "reserved", "linux,cma" };
+
 void VPP_DMABUF_FreeMemory(VPP_MEM *shm_handle);
 
 static int Dmabuf_GetDmaBufByName(char *heap_name, struct dma_heap **heap)
@@ -85,7 +87,15 @@ static int Dmabuf_AllocateMemory(struct dma_heap *heap, VPP_MEM *heap_shm, struc
 
 static int VPP_DMABUF_InitMem(int index)
 {
-	return Dmabuf_GetDmaBufByName("reserved", &dmabuf_dma_heap);
+	int i;
+	int ret;
+
+	for (i = 0; i < ARRAY_SIZE(dma_reserved_heaps); i++) {
+		ret = Dmabuf_GetDmaBufByName(dma_reserved_heaps[i], &dmabuf_dma_heap);
+		if (ret == VPP_MEM_ERROR_TYPE_OK)
+			break;
+	}
+	return ret;
 }
 
 static int VPP_DMABUF_InitMem_NonCached(int index)
@@ -96,13 +106,19 @@ static int VPP_DMABUF_InitMem_NonCached(int index)
 /* DMABUF MEMORY Public APIs */
 int VPP_DMABUF_IsReady(void)
 {
-	int ret = VPP_MEM_ERROR_TYPE_OK;
+	int ret;
+	int i;
 	struct dma_heap *heap;
 
-	heap = dma_heap_find("reserved");
-	if (heap == NULL)
-		ret = VPP_MEM_ERROR_TYPE_ENOMEM;
-
+	for (i = 0; i < ARRAY_SIZE(dma_reserved_heaps); i++) {
+		heap = dma_heap_find(dma_reserved_heaps[i]);
+		if (heap == NULL) {
+			ret = VPP_MEM_ERROR_TYPE_ENOMEM;
+		} else {
+			ret = VPP_MEM_ERROR_TYPE_OK;
+			break;
+		}
+	}
 	return ret;
 }
 
