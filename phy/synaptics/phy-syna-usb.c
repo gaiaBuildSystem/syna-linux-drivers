@@ -167,6 +167,7 @@ static int phy_sl261x_usb_power_on(struct phy *phy)
 {
 	struct phy_syna_usb2_priv *priv = phy_get_drvdata(phy);
 
+	clk_prepare_enable(priv->clk);
 	reset_control_deassert(priv->rst);
 	udelay(100);
 
@@ -182,6 +183,7 @@ static int phy_sl261x_usb_power_off(struct phy *phy)
 	val = readl(priv->base + DOLPHIN_USB_PHY_CTRL2);
 	val |= SL261x_PHY_CTRL2_SIDDQ;
 	writel(val, priv->base + DOLPHIN_USB_PHY_CTRL2);
+	clk_disable_unprepare(priv->clk);
 
 	return 0;
 }
@@ -285,7 +287,7 @@ static int phy_syna_usb2_probe(struct platform_device *pdev)
 		return PTR_ERR(priv->rst);
 	}
 
-	priv->clk = devm_clk_get_optional_enabled(dev, NULL);
+	priv->clk = devm_clk_get_optional(dev, NULL);
 	if (IS_ERR(priv->clk))
 		return PTR_ERR(priv->clk);
 
