@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+#
+
+menuconfig SYNAPTICS_CRYPTO
+  bool "Synaptics hardware crypto driver support"
+  default y
+  help
+    Synaptics crypto driver support
+
+if SYNAPTICS_CRYPTO
+
+config BERLIN_M2M
+	tristate "Support BERLIN M2M CRYPTO"
+	default n
+	depends on BERLIN_BM
+	help
+	  Enable support for berlin HW CRYPTO
+
+endif

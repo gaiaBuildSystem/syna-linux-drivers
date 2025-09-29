@@ -72,3 +72,5 @@ obj-$(CONFIG_SYNAPTICS_MAILBOX)		+= mailbox/
 obj-$(CONFIG_SYNAPTICS_RPMSG)		+= rpmsg/
 
 obj-$(CONFIG_SYNAPTICS_HRX_V4L2)	+= hrx-v4l2/
+
+obj-$(CONFIG_SYNAPTICS_CRYPTO)	+= crypto/
