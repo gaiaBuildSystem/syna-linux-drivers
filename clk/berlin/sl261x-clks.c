@@ -77,14 +77,14 @@ static const struct clk_desc sl261x_descs[] = {
 	{ "gpuclk",			0x6c },
 	{ "npuclk",			0x70 },
 	{ "aviosysclk",			0x74, CLK_IS_CRITICAL },
-	{ "aiosysclk",			0x78 },
-	{ "avio_lcdc2scanclk",		0x7c },
-	{ "avio_ipiclk",		0x80 },
-	{ "avio_pclk",			0x84 },
-	{ "avio_dphyrxtxescclk",	0x88 },
-	{ "aviofpllclk",		0x8c },
-	{ "avio_rx_scanbyteclk",	0x90 },
-	{ "avio_rx_scantestclk",	0x94 },
+	{ "aiosysclk",			0x78, CLK_IS_CRITICAL },
+	{ "avio_lcdc2scanclk",		0x7c, CLK_IS_CRITICAL },
+	{ "avio_ipiclk",		0x80, CLK_IS_CRITICAL },
+	{ "avio_pclk",			0x84, CLK_IS_CRITICAL },
+	{ "avio_dphyrxtxescclk",	0x88, CLK_IS_CRITICAL },
+	{ "aviofpllclk",		0x8c, CLK_IS_CRITICAL },
+	{ "avio_rx_scanbyteclk",	0x90, CLK_IS_CRITICAL },
+	{ "avio_rx_scantestclk",	0x94, CLK_IS_CRITICAL },
 };
 
 static int sl261x_clk_setup(struct platform_device *pdev)
