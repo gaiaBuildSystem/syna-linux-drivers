@@ -418,7 +418,7 @@ static const struct berlin_desc_group sl261x_soc_pinctrl_groups[] = {
 			0xe8, 10,
 			BERLIN_PINCTRL_FUNCTION(0x0, "gpio"), /* GPIO21 */
 			BERLIN_PINCTRL_FUNCTION(0x1, "spi2"), /* SCLK */
-			BERLIN_PINCTRL_FUNCTION(0x2, "sdio2"), /* CLK */
+			BERLIN_PINCTRL_FUNCTION(0x3, "sdio2"), /* CLK */
 			BERLIN_PINCTRL_FUNCTION(0x5, "clkout")),
 	BERLIN_PINCTRLCONF_GROUP("GPIO22", 0x14, 0x3, 0x1b,
 			0xec, 10,
