@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/mmc/mmc.h>
 #include <linux/module.h>
+#include <linux/mux/consumer.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
@@ -138,6 +139,7 @@ struct dwcmshc_priv {
 	struct clk		*bus_clk;
 	struct reset_control	*rst;
 	struct reset_control	*phy_rst;
+	struct mux_state	*muxs;
 	u8			init_vol;
 	u8			sdclkdl_dc;
 	u8			dc_200m;
@@ -805,6 +807,20 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	pltfm_host = sdhci_priv(host);
 	priv = sdhci_pltfm_priv(pltfm_host);
 
+	if (of_property_read_bool(np, "mux-states")) {
+		struct mux_state *mux_state = devm_mux_state_get(&pdev->dev, NULL);
+
+		if (IS_ERR(mux_state))
+			return PTR_ERR(mux_state);
+
+		err = mux_state_select(mux_state);
+		if (err) {
+			dev_err(&pdev->dev, "Failed to select mux\n");
+			return err;
+		}
+		priv->muxs = mux_state;
+	}
+
 	priv->rst = devm_reset_control_get_optional(&pdev->dev, "host");
 	if (IS_ERR(priv->rst) && PTR_ERR(priv->rst) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
@@ -956,6 +972,9 @@ static int dwcmshc_resume(struct device *dev)
 		if (ret)
 			return ret;
 	}
+
+	if (priv->muxs)
+		mux_state_select(priv->muxs);
 
 	return sdhci_resume_host(host);
 }
