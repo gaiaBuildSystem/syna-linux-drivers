@@ -218,7 +218,7 @@ MODULE_DEVICE_TABLE(of, mdio_demux_dt_ids);
 
 static struct platform_driver mdio_demux_driver = {
 	.probe = mdio_demux_probe,
-	.remove_new = mdio_demux_remove,
+	.remove = mdio_demux_remove,
 	.driver = {
 		.name = "mdio-demux",
 		.of_match_table = mdio_demux_dt_ids,
