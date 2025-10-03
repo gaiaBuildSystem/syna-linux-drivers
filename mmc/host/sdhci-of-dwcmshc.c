@@ -810,26 +810,32 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	if (of_property_read_bool(np, "mux-states")) {
 		struct mux_state *mux_state = devm_mux_state_get(&pdev->dev, NULL);
 
-		if (IS_ERR(mux_state))
-			return PTR_ERR(mux_state);
+		if (IS_ERR(mux_state)) {
+			err = PTR_ERR(mux_state);
+			goto free_pltfm;
+		}
 
 		err = mux_state_select(mux_state);
 		if (err) {
 			dev_err(&pdev->dev, "Failed to select mux\n");
-			return err;
+			goto free_pltfm;
 		}
 		priv->muxs = mux_state;
 	}
 
 	priv->rst = devm_reset_control_get_optional(&pdev->dev, "host");
-	if (IS_ERR(priv->rst) && PTR_ERR(priv->rst) == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
+	if (IS_ERR(priv->rst) && PTR_ERR(priv->rst) == -EPROBE_DEFER) {
+		err = -EPROBE_DEFER;
+		goto deselect_mux;
+	}
 	if (!IS_ERR(priv->rst))
 		reset_control_reset(priv->rst);
 
 	priv->phy_rst = devm_reset_control_get_optional(&pdev->dev, "phy");
-	if (IS_ERR(priv->phy_rst) && PTR_ERR(priv->phy_rst) == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
+	if (IS_ERR(priv->phy_rst) && PTR_ERR(priv->phy_rst) == -EPROBE_DEFER) {
+		err = -EPROBE_DEFER;
+		goto deselect_mux;
+	}
 	if (!IS_ERR(priv->phy_rst))
 		reset_control_assert(priv->phy_rst);
 
@@ -837,11 +843,11 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	if (IS_ERR(pltfm_host->clk)) {
 		err = PTR_ERR(pltfm_host->clk);
 		dev_err(&pdev->dev, "failed to get core clk: %d\n", err);
-		goto free_pltfm;
+		goto deselect_mux;
 	}
 	err = clk_prepare_enable(pltfm_host->clk);
 	if (err)
-		goto free_pltfm;
+		goto deselect_mux;
 
 	priv->bus_clk = devm_clk_get(&pdev->dev, "bus");
 	if (!IS_ERR(priv->bus_clk))
@@ -897,6 +903,9 @@ err_rpm:
 err_clk:
 	clk_disable_unprepare(pltfm_host->clk);
 	clk_disable_unprepare(priv->bus_clk);
+deselect_mux:
+	if (priv->muxs)
+		mux_state_deselect(priv->muxs);;
 free_pltfm:
 	sdhci_pltfm_free(pdev);
 	return err;
