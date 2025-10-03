@@ -939,6 +939,9 @@ static RET dwcmshc_remove(struct platform_device *pdev)
 	clk_disable_unprepare(pltfm_host->clk);
 	clk_disable_unprepare(priv->bus_clk);
 
+	if (priv->muxs)
+		mux_state_deselect(priv->muxs);;
+
 	sdhci_pltfm_free(pdev);
 
 	RETURN;
@@ -962,6 +965,9 @@ static int dwcmshc_suspend(struct device *dev)
 	if (!IS_ERR(priv->bus_clk))
 		clk_disable_unprepare(priv->bus_clk);
 
+	if (priv->muxs)
+		mux_state_deselect(priv->muxs);;
+
 	return ret;
 }
 
@@ -982,8 +988,13 @@ static int dwcmshc_resume(struct device *dev)
 			return ret;
 	}
 
-	if (priv->muxs)
-		mux_state_select(priv->muxs);
+	if (priv->muxs) {
+		ret = mux_state_select(priv->muxs);
+		if (ret) {
+			dev_err(dev, "Failed to select mux during resume\n");
+			return ret;
+		}
+	}
 
 	return sdhci_resume_host(host);
 }
