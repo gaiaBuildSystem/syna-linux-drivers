@@ -210,6 +210,24 @@ static void mdio_demux_remove(struct platform_device *pdev)
 	}
 }
 
+static int mdio_demux_suspend(struct device *dev)
+{
+	struct mdio_demux_priv *priv = dev_get_drvdata(dev);
+	int ret = 0;
+
+	guard(mutex)(&priv->mdio_demux_lock);
+
+	priv->current_port = -1;
+	if (priv->do_deselect) {
+		ret = mux_control_deselect(priv->muxc);
+		priv->do_deselect = false;
+	}
+
+	return ret;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(mdio_demux_pm_ops, mdio_demux_suspend, NULL);
+
 static const struct of_device_id mdio_demux_dt_ids[] = {
 	{ .compatible = "mdio-demux" },
 	{ }
@@ -222,6 +240,7 @@ static struct platform_driver mdio_demux_driver = {
 	.driver = {
 		.name = "mdio-demux",
 		.of_match_table = mdio_demux_dt_ids,
+		.pm = pm_sleep_ptr(&mdio_demux_pm_ops),
 	},
 };
 module_platform_driver(mdio_demux_driver);
