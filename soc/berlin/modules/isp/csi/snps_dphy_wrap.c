@@ -20,19 +20,13 @@ enum ISP_PHY_REGS {
 	RA_ispPhy_PPI_STATUS2 = 0x30,
 };
 
-static void iowrite32t(uint32_t val, void *addr)
-{
-	pr_err("io: %lx: %x\n", (unsigned long)addr, val);
-	iowrite32(val, addr);
-}
-
 void csi2_dphy_setclkfreqrange(struct snps_dphy *dev, int cfgclk)
 {
 	T32GENH_PHYCTRL ctrl;
 
 	ctrl.u32 = ioread32((void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
 	SET32GENH_PHYCTRL_cfgclkfreqrange(ctrl.u32, cfgclk);
-	iowrite32t(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
+	iowrite32(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
 }
 
 void csi2_dphy_sethsfreqrange(struct snps_dphy *dev, int hsfreq)
@@ -41,7 +35,7 @@ void csi2_dphy_sethsfreqrange(struct snps_dphy *dev, int hsfreq)
 
 	ctrl.u32 = ioread32((void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
 	SET32GENH_PHYCTRL_hsfreqrange(ctrl.u32, hsfreq);
-	iowrite32t(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
+	iowrite32(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
 }
 
 void csi2_dphy_basedir(struct snps_dphy *dev, int en)
@@ -50,7 +44,7 @@ void csi2_dphy_basedir(struct snps_dphy *dev, int en)
 
 	ctrl.u32 = ioread32((void *)dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL);
 	SET32DPHYRX_PPI_CTRL_basedir_0(ctrl.u32, en);
-	iowrite32t(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL);
+	iowrite32(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL);
 }
 
 void csi2_dphy_forcerxmode(struct snps_dphy *dev, int rx)
@@ -59,7 +53,7 @@ void csi2_dphy_forcerxmode(struct snps_dphy *dev, int rx)
 
 	ctrl.u32 = ioread32((void *)dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL);
 	SET32DPHYRX_PPI_CTRL_forcerxmode_N(ctrl.u32, rx);
-	iowrite32t(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL);
+	iowrite32(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL);
 }
 
 void csi2_dphy_setphy_cfgclkoff(struct snps_dphy *dev, int off)
@@ -68,7 +62,7 @@ void csi2_dphy_setphy_cfgclkoff(struct snps_dphy *dev, int off)
 
 	ctrl.u32 = ioread32((void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
 	SET32GENH_PHYCTRL_cfg_clk_off(ctrl.u32, off);
-	iowrite32t(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
+	iowrite32(ctrl.u32, (void *)dev->phyctrl_base + RA_ispPhyCtrl_CTRL);
 }
 
 void csi2_dphy_setphy_ppienableclk(struct snps_dphy *dev, int en)
@@ -79,7 +73,7 @@ void csi2_dphy_setphy_ppienableclk(struct snps_dphy *dev, int en)
 	SET_BIT(ctrl, en, 18, 1); /* enableclk */
 	SET_BIT(ctrl, en, 25, 1); /* enable_N_lane0 */
 	SET_BIT(ctrl, en, 26, 1); /* enable_N lane1 */
-	iowrite32t(ctrl, (void *)(dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL));
+	iowrite32(ctrl, (void *)(dev->phyctrl_base + RA_ispPhyCtrl_PPI_CTRL));
 }
 
 void csi2_dphy_stopstate_wait(struct snps_dphy *dev, unsigned int lanes)
@@ -111,5 +105,5 @@ void csi2_dphy_stopstate_wait(struct snps_dphy *dev, unsigned int lanes)
 	if (!timeout)
 		pr_info("state clock data timeout:0x%x\r\n", status.u32[0]);
 
-	pr_info("base: 0x%llx status: 0x%x\r\n", dev->phyate_base, status.u32[0]);
+	pr_debug("base: 0x%llx status: 0x%x\r\n", dev->phyate_base, status.u32[0]);
 }

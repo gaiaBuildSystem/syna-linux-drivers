@@ -244,6 +244,7 @@ struct csi_hw {
 struct mipi_csi_dev {
 	struct v4l2_subdev sd;
 	struct video_device vdev;
+	struct clk **csi_clks;
 
 	struct mutex lock;
 	spinlock_t slock;

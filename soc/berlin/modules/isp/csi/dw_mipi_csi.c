@@ -9,6 +9,7 @@
 
 #include <linux/version.h>
 #include <linux/device.h>
+#include <linux/clk.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-fwnode.h>
 
@@ -16,12 +17,16 @@
 #include "snps_dphy_csi2.h"
 #include "snps_dphy_wrap.h"
 
-#define DW_CSI_IPI_HSA  32
-#define DW_CSI_IPI_HBP  32
-#define DW_CSI_IPI_HSD  32
-#define DW_CSI_IPI_VSA  5
-#define DW_CSI_IPI_VBP  36
-#define DW_CSI_IPI_VFP  4
+#define DW_CSI_IPI_HSA	32
+#define DW_CSI_IPI_HBP	32
+#define DW_CSI_IPI_HSD	32
+#define DW_CSI_IPI_VSA	5
+#define DW_CSI_IPI_VBP	36
+#define DW_CSI_IPI_VFP	4
+
+static const char *csi_clock_list[] = {
+	"avioipiclk",
+};
 
 /**
  * @short Video formats supported by the MIPI CSI-2
@@ -95,12 +100,45 @@ static void dw_mipi_csi_write_part1(struct mipi_csi_dev *dev,
 		unsigned char shift, unsigned char width)
 {
 	u32 mask = (1 << width) - 1;
-	//u32 temp = dw_mipi_csi_read(dev, address);
 	u32 temp = ioread32(dev->base_address + address);
 
 	temp &= ~(mask << shift);
 	temp |= (data & mask) << shift;
 	dw_mipi_csi_write(dev, address, temp);
+}
+
+static int csi_fetch_clocks(struct device *dev, struct clk **csi_clks)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(csi_clock_list); i++) {
+		csi_clks[i] = devm_clk_get(dev, csi_clock_list[i]);
+		if (IS_ERR(csi_clks[i])) {
+			dev_err(dev, "failed to get %s ...!\n", csi_clock_list[i]);
+			return PTR_ERR(csi_clks[i]);
+		}
+	}
+
+	return 0;
+}
+
+static int csi_enable_clocks(struct device *dev, struct clk **csi_clks)
+{
+	int i, ret;
+
+	for (i = 0; i < ARRAY_SIZE(csi_clock_list); i++) {
+		ret = clk_prepare_enable(csi_clks[i]);
+		if (ret < 0) {
+			dev_err(dev, "%s prepare failed..!\n", csi_clock_list[i]);
+			goto prepare_failure;
+		}
+	}
+	return 0;
+prepare_failure:
+	while (--i >= 0)
+		clk_disable_unprepare(csi_clks[i]);
+
+	return ret;
 }
 
 void dw_mipi_csi2_dv_reset_seq(struct mipi_csi_dev *dev)
@@ -357,22 +395,17 @@ void dw_mipi_csi_configure(struct mipi_csi_dev *dev)
 
 static void dw_mipi_csi_fill_timings(struct mipi_csi_dev *dev, u32 width, u32 height)
 {
-	/*FIXME: allow dynamic configuration for timing values*/
 	dev->hw[0].hsa = DW_CSI_IPI_HSA;
 	dev->hw[0].hbp = DW_CSI_IPI_HBP;
 	dev->hw[0].hsd = DW_CSI_IPI_HSD;
 
-	dev->hw[0].vsa = 0;//DW_CSI_IPI_VSA;
-	dev->hw[0].vbp = 0;//DW_CSI_IPI_VBP;
-	dev->hw[0].vfp = 0;//DW_CSI_IPI_VFP;
+	dev->hw[0].vsa = 0;
+	dev->hw[0].vbp = 0;
+	dev->hw[0].vfp = 0;
 
-	//dev->hw[0].htotal = width + dev->hw[0].hsa +
-	//    dev->hw[0].hbp + dev->hw[0].hsd;
 	dev->hw[0].htotal = width;
 	dev->hw[0].hactive = width;
 	dev->hw[0].vactive = height;
-
-	//dev->hw[0].data_type = CSI_2_RAW10;
 }
 
 static void dw_mipi_csi_start(struct mipi_csi_dev *dev)
@@ -419,7 +452,7 @@ static int dw_mipi_csi_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 		}
 	};
 
-	pr_err("%s input w: %d h: %d code: 0x%x which: %d\n", __func__, fmt->format.width,
+	pr_debug("%s input w: %d h: %d code: 0x%x which: %d\n", __func__, fmt->format.width,
 			fmt->format.height, fmt->format.code, fmt->which);
 
 	pad = media_pad_remote_pad_first(&dev->pads[CSI_PAD_SINK]);
@@ -432,7 +465,7 @@ static int dw_mipi_csi_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 			fmt->pad = 0;
 			ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &sensor_fmt);
 			if (ret)
-				pr_err("%s set_fmt failed %d\n", __func__, ret);
+				pr_debug("%s set_fmt failed %d\n", __func__, ret);
 			else
 				pr_err("%s support w: %d h: %d code: 0x%x\n", __func__,
 					sensor_fmt.format.width, sensor_fmt.format.height,
@@ -477,7 +510,7 @@ static int dw_mipi_csi_s_power1(struct v4l2_subdev *sd, int on)
 	struct v4l2_subdev *subdev;
 	int ret;
 
-	pr_err("%s on: %d base: %lx\n", __func__, on, (unsigned long)dev->base_address);
+	pr_debug("%s on: %d base: %lx\n", __func__, on, (unsigned long)dev->base_address);
 
 	pad = media_pad_remote_pad_first(&dev->pads[CSI_PAD_SINK]);
 
@@ -553,6 +586,12 @@ static int dw_mipi_csi_parse_dt(struct platform_device *pdev,
 		return ret;
 	}
 
+	ret = csi_fetch_clocks(&pdev->dev, dev->csi_clks);
+	if (ret) {
+		dev_err(&pdev->dev, "csi clock fetch failed...!\n");
+		return ret;
+	}
+
 	dev->hw[ipi].output_type = IPI_OUT; //Only IPI output supported
 	dev->hw[ipi].ipi_mode = CAMERA_TIMING;
 	dev->hw[ipi].ipi_auto_flush = 1;
@@ -602,9 +641,9 @@ static int csi_subdev_notifier_bound(struct v4l2_async_notifier *notifier,
 		return -ENOLINK;
 	}
 
-	source     = &sd->entity;
+	source	   = &sd->entity;
 	source_pad = link.local_port;
-	sink       = &csi_dev->sd.entity;
+	sink	   = &csi_dev->sd.entity;
 	sink_pad   = link.remote_port;
 	v4l2_fwnode_put_link(&link);
 	pr_err("%s: linking %s source_pad %d flags %ld and %s sink_pad %d flags %ld\n",
@@ -630,7 +669,7 @@ static void csi_subdev_notifier_unbound(struct v4l2_async_notifier *notifier,
 }
 
 static const struct v4l2_async_notifier_operations csi_subdev_notify_ops = {
-	.bound    = csi_subdev_notifier_bound,
+	.bound	  = csi_subdev_notifier_bound,
 	.unbind   = csi_subdev_notifier_unbound,
 };
 
@@ -711,6 +750,7 @@ static int mipi_csi_probe(struct platform_device *pdev)
 	struct resource *res = NULL;
 	struct mipi_csi_dev *mipi_csi;
 	int ret = -ENOMEM;
+	int i = 0;
 
 	dev_info(&pdev->dev, "Installing MIPI CSI-2 module\n");
 
@@ -718,6 +758,13 @@ static int mipi_csi_probe(struct platform_device *pdev)
 	mipi_csi = devm_kzalloc(dev, sizeof(*mipi_csi), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
+
+	mipi_csi->csi_clks = devm_kzalloc(dev,
+		sizeof(struct clk *) * ARRAY_SIZE(csi_clock_list), GFP_KERNEL);
+	if (IS_ERR(mipi_csi->csi_clks)) {
+		dev_err(dev, "failed to allocate memory for csi_clocks...!\n");
+		return PTR_ERR(mipi_csi->csi_clks);
+	}
 
 	mutex_init(&mipi_csi->lock);
 	spin_lock_init(&mipi_csi->slock);
@@ -727,18 +774,26 @@ static int mipi_csi_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	ret = csi_enable_clocks(dev, mipi_csi->csi_clks);
+	if (ret) {
+		dev_err(dev, "CSI clock enable failed...!\n");
+		return ret;
+	}
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	mipi_csi->base_address = devm_ioremap_resource(dev, res);
 
-	if (IS_ERR(mipi_csi->base_address))
-		return PTR_ERR(mipi_csi->base_address);
+	if (IS_ERR(mipi_csi->base_address)) {
+		ret = PTR_ERR(mipi_csi->base_address);
+		goto clk_cleanup;
+	}
 
 	pr_err("CSI Base address: %lx\n", (unsigned long)mipi_csi->base_address);
 	mipi_csi->phy.mipi_base = mipi_csi->base_address;
 	ret = snps_dphy_probe(&mipi_csi->phy, 0); //Initialize DPHY
 	if (ret < 0) {
 		pr_err("DPHY probe failed: %d\n", ret);
-		return ret;
+		goto clk_cleanup;
 	}
 
 	v4l2_subdev_init(&mipi_csi->sd, &dw_mipi_csi_subdev_ops);
@@ -746,7 +801,7 @@ static int mipi_csi_probe(struct platform_device *pdev)
 			CSI_DEVICE_NAME, mipi_csi->index);
 
 	mipi_csi->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	mipi_csi->sd.dev =  &pdev->dev;
+	mipi_csi->sd.dev =	&pdev->dev;
 	mipi_csi->sd.owner = THIS_MODULE;
 	mipi_csi->sd.entity.function = MEDIA_ENT_F_IO_V4L;
 	mipi_csi->sd.entity.obj_type = MEDIA_ENTITY_TYPE_V4L2_SUBDEV;
@@ -792,6 +847,9 @@ notifier_cleanup:
 	csi_subdev_unregister_notifier(mipi_csi);
 entity_cleanup:
 	media_entity_cleanup(&mipi_csi->sd.entity);
+clk_cleanup:
+	for (i = 0; i < ARRAY_SIZE(csi_clock_list); i++)
+		clk_disable_unprepare(mipi_csi->csi_clks[i]);
 
 	return ret;
 }
@@ -799,12 +857,15 @@ entity_cleanup:
 static void mipi_csi_remove(struct platform_device *pdev)
 {
 	struct mipi_csi_dev *mipi_csi = platform_get_drvdata(pdev);
+	int i = 0;
 
 	if (mipi_csi) {
 		/* Unregister subdev and cleanup media entity */
 		v4l2_async_unregister_subdev(&mipi_csi->sd);
 		csi_subdev_unregister_notifier(mipi_csi);
 		media_entity_cleanup(&mipi_csi->sd.entity);
+		for (i = 0; i < ARRAY_SIZE(csi_clock_list); i++)
+			clk_disable_unprepare(mipi_csi->csi_clks[i]);
 	}
 }
 
@@ -825,7 +886,7 @@ MODULE_DEVICE_TABLE(of, dw_mipi_csi_of_match);
  */
 static struct platform_driver __refdata dw_mipi_csi_pdrv = {
 	.remove = mipi_csi_remove,
-	.probe  = mipi_csi_probe,
+	.probe	= mipi_csi_probe,
 	.driver   = {
 		.name  = CSI_DEVICE_NAME,
 		.owner = THIS_MODULE,

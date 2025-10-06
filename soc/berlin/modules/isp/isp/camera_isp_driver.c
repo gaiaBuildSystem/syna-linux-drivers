@@ -17,6 +17,9 @@
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
 #include <linux/moduleparam.h>
+#include <linux/clk.h>
+#include <linux/reset.h>
+#include <linux/delay.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-fh.h>
@@ -35,9 +38,12 @@
 #include "csipipe_pvt.h"
 #include "camera_isp_wb_sysfs.h"
 
+static const char *isp_clock_list[] = {
+	"aviopclk",
+};
 
 /**
- * camera_isp_set_sensor_resolution_and_program - Set resolution to sensor driver and program CSI subdevice
+ * camera_isp_set_sensor_resolution_and_program - Set resolution to sensor driver
  * @isp_dev: ISP device pointer
  * @subdev: CSI subdevice pointer
  * @sd_state: subdevice state
@@ -86,7 +92,8 @@ static int camera_isp_set_sensor_resolution_and_program(struct camera_isp_dev *i
 
 static int camera_isp_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
 {
-	struct camera_isp_dev *isp_dev = container_of(ctrl->handler, struct camera_isp_dev, ctrl_handler);
+	struct camera_isp_dev *isp_dev = container_of(ctrl->handler,
+			struct camera_isp_dev, ctrl_handler);
 	struct isp_ctrl wb_ctrl;
 	int ret = 0;
 
@@ -138,7 +145,8 @@ static int camera_isp_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static int camera_isp_ctrl_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
-	struct camera_isp_dev *isp_dev = container_of(ctrl->handler, struct camera_isp_dev, ctrl_handler);
+	struct camera_isp_dev *isp_dev = container_of(ctrl->handler,
+			struct camera_isp_dev, ctrl_handler);
 	switch (ctrl->id) {
 	case V4L2_CID_USER_WB_ENABLE:
 		ctrl->val = isp_dev->wb_config.wb_en;
@@ -306,7 +314,6 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 	}
 
 	if ((!pad_stream->status && !isp_dev->streaming) || pad_stream->status) {
-		pr_err("calling csi stream\n");
 		// CSI subdev s_power propagation
 		//TODO Sink pad calculation should be neat
 		pad = media_pad_remote_pad_first(&isp_dev->pads[CAMERA_ISP_PAD_SINK]);
@@ -323,8 +330,10 @@ static int camera_isp_ioctl_g_ctrl(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_pad_control *pad_ctrl = (struct camera_pad_control *)arg;
-	if (pad_ctrl && pad_ctrl->control && pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
-		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_WB_ENABLE);
+	if (pad_ctrl && pad_ctrl->control &&
+		pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
+		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
+				V4L2_CID_USER_WB_ENABLE);
 		if (!ctrl) {
 			dev_err(isp_dev->dev, "WB control not found in ISP handler\n");
 			return -EINVAL;
@@ -341,14 +350,17 @@ static int camera_isp_ioctl_s_ctrl(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_pad_control *pad_ctrl = (struct camera_pad_control *)arg;
-	if (pad_ctrl && pad_ctrl->control && pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
-		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_WB_ENABLE);
+	if (pad_ctrl && pad_ctrl->control &&
+		pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
+		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
+				V4L2_CID_USER_WB_ENABLE);
 		if (!ctrl) {
 			dev_err(isp_dev->dev, "WB control not found in ISP handler\n");
 			return -EINVAL;
 		}
 		int ret = v4l2_ctrl_s_ctrl(ctrl, pad_ctrl->control->value);
-		dev_dbg(isp_dev->dev, "ISP S_CTRL: wb_enable=%d, ret=%d\n", pad_ctrl->control->value, ret);
+		dev_dbg(isp_dev->dev, "ISP S_CTRL: wb_enable=%d, ret=%d\n",
+				pad_ctrl->control->value, ret);
 		return ret;
 	} else {
 		dev_err(isp_dev->dev, "Invalid S_CTRL parameters\n");
@@ -508,7 +520,8 @@ static int camera_isp_get_selection(struct v4l2_subdev *sd,
 	}
 
 	dev_dbg(isp_dev->dev, "get_selection pad %d target %d: (%d,%d)/%dx%d\n",
-			sel->pad, sel->target, sel->r.left, sel->r.top, sel->r.width, sel->r.height);
+			sel->pad, sel->target, sel->r.left, sel->r.top,
+			sel->r.width, sel->r.height);
 
 	return 0;
 }
@@ -540,7 +553,7 @@ static int camera_isp_set_selection(struct v4l2_subdev *sd,
 
 	ctx = (CSI_PL_CTX_t *)isp_dev->pipe[sel->pad - 1];
 	if (!ctx) {
-		dev_err(isp_dev->dev, "Pipeline context not available for pad %d\n", sel->pad);
+		dev_err(isp_dev->dev, "Pipeline ctx not available for pad %d\n", sel->pad);
 		return -EINVAL;
 	}
 
@@ -591,10 +604,9 @@ static int camera_isp_set_selection(struct v4l2_subdev *sd,
 	/* Apply crop settings to hardware registers through pipeline reconfiguration */
 	/* The crop parameters are now stored in ctx->crop and will be applied
 	 * during the next CSI_PIPE_Config call when format is set or streaming starts */
-	dev_info(isp_dev->dev, "Crop parameters updated in pipeline context, will be applied on next config\n");
 
-	dev_info(isp_dev->dev, "set_selection pad %d: crop (%d,%d)/%dx%d -> (%d,%d)-(%d,%d) scale=%d oprn=%d\n",
-			 sel->pad, sel->r.left, sel->r.top, sel->r.width, sel->r.height,
+	dev_info(isp_dev->dev, "%s crop (%d,%d)/%dx%d -> (%d,%d)-(%d,%d) scale=%d oprn=%d\n",
+			 __func__, sel->r.left, sel->r.top, sel->r.width, sel->r.height,
 			 ctx->crop.x_st, ctx->crop.y_st, ctx->crop.x_end, ctx->crop.y_end,
 			 ctx->crop.scale, ctx->crop.imgres_oprn);
 
@@ -656,7 +668,7 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 	format->format.width = ALIGN(format->format.width, CAMERA_ISP_WIDTH_ALIGN);
 	format->format.height = ALIGN(format->format.height, CAMERA_ISP_HEIGHT_ALIGN);
 
-	dev_info(isp_dev->dev, "request format pad %d: %dx%d, code 0x%x\n",
+	dev_dbg(isp_dev->dev, "request format pad %d: %dx%d, code 0x%x\n",
 			format->pad, format->format.width, format->format.height,
 			format->format.code);
 
@@ -677,7 +689,7 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 		camera_isp_set_sensor_resolution_and_program(isp_dev, subdev, sd_state,
 				&sd_fmt, format->format.code);
 	}
-	dev_info(isp_dev->dev, "sd format pad %d: %dx%d, code 0x%x\n",
+	dev_dbg(isp_dev->dev, "sd format pad %d: %dx%d, code 0x%x\n",
 			sd_fmt.pad, sd_fmt.format.width, sd_fmt.format.height,
 			sd_fmt.format.code);
 
@@ -810,6 +822,65 @@ static const struct v4l2_subdev_internal_ops camera_isp_internal_ops = {
 	.close = camera_isp_close,
 };
 
+static int camera_isp_register_async_notifier(struct camera_isp_dev *isp_dev)
+{
+	int ret;
+	int pad;
+	struct fwnode_handle *ep, *remote_ep;
+
+	v4l2_async_subdev_nf_init(&isp_dev->notifier, &isp_dev->sd);
+
+	isp_dev->notifier.ops = &camera_isp_notify_ops;
+	if (dev_fwnode(isp_dev->dev) != NULL) {
+		for (pad = 0; pad < CAMERA_ISP_PAD_NR; pad++) {
+
+			if (isp_dev->pads[pad].flags != MEDIA_PAD_FL_SINK)
+				continue;
+
+			ep = fwnode_graph_get_endpoint_by_id(
+					dev_fwnode(isp_dev->dev),
+					pad, 0, FWNODE_GRAPH_ENDPOINT_NEXT);
+			if (!ep) {
+				continue;
+			}
+
+			remote_ep = fwnode_graph_get_remote_endpoint(ep);
+
+			if (!remote_ep) {
+				dev_info(isp_dev->dev, "No remote endpoint, sink pad %d\n", pad);
+				fwnode_handle_put(ep);
+				continue;
+			}
+
+			if (ep && remote_ep) {
+				v4l2_async_nf_add_fwnode_remote(&isp_dev->notifier, ep,
+						struct v4l2_async_connection);
+				dev_dbg(isp_dev->dev, "Registered async notifier\n");
+			} else {
+				dev_err(isp_dev->dev, "Skipping async notifier, sink pad %d\n", pad);
+			}
+
+			fwnode_handle_put(remote_ep);
+			fwnode_handle_put(ep);
+		}
+	}
+	// Register notifier
+	ret = v4l2_async_nf_register(&isp_dev->notifier);
+
+	if (ret) {
+		dev_err(isp_dev->dev, "Async notifier register error\n");
+		v4l2_async_nf_cleanup(&isp_dev->notifier);
+	}
+
+	return ret;
+}
+
+static void camera_isp_unregister_async_notifier(struct camera_isp_dev *isp_dev)
+{
+	v4l2_async_nf_unregister(&isp_dev->notifier);
+	v4l2_async_nf_cleanup(&isp_dev->notifier);
+}
+
 /* Platform driver operations */
 static void parse_wb_config_from_dt(struct device_node *node, WB_CONFIG_t *cfg)
 {
@@ -831,16 +902,52 @@ static void parse_wb_config_from_dt(struct device_node *node, WB_CONFIG_t *cfg)
 	}
 }
 
+static int isp_fetch_clocks(struct device *dev, struct clk **isp_clks)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++) {
+		isp_clks[i] = devm_clk_get(dev, isp_clock_list[i]);
+		if (IS_ERR(isp_clks[i])) {
+			dev_err(dev, "failed to get %s ...!\n", isp_clock_list[i]);
+			return PTR_ERR(isp_clks[i]);
+		}
+	}
+
+	return 0;
+}
+
+static int isp_enable_clocks(struct device *dev, struct clk **isp_clks)
+{
+	int i, ret;
+
+	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++) {
+		ret = clk_prepare_enable(isp_clks[i]);
+		if (ret < 0) {
+			dev_err(dev, "%s prepare failed..!\n", isp_clock_list[i]);
+			goto prepare_failure;
+		}
+	}
+	return 0;
+prepare_failure:
+	while (--i >= 0)
+		clk_disable_unprepare(isp_clks[i]);
+
+	return ret;
+}
+
 static int camera_isp_parse_dt(struct camera_isp_dev *isp_dev,
 							   struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
+	struct resource *res;
+	struct device *dev = &pdev->dev;
 
 	// Parse WB config from DT
 	parse_wb_config_from_dt(node, &isp_dev->wb_config);
 
 	if (!node) {
-		dev_err(&pdev->dev, "No device tree node found\n");
+		dev_err(dev, "No device tree node found\n");
 		return -EINVAL;
 	}
 
@@ -849,51 +956,44 @@ static int camera_isp_parse_dt(struct camera_isp_dev *isp_dev,
 		isp_dev->id = 0;
 
 	/* Fetch IORESOURCE_MEM for core_base_addr */
-	struct resource *res;
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
-		dev_err(&pdev->dev, "No core IORESOURCE_MEM found\n");
+		dev_err(dev, "No core IORESOURCE_MEM found\n");
 		return -ENODEV;
 	}
-	isp_dev->core_base_addr = devm_ioremap_resource(&pdev->dev, res);
+	isp_dev->core_base_addr = devm_ioremap_resource(dev, res);
 	if (IS_ERR(isp_dev->core_base_addr)) {
-		dev_err(&pdev->dev, "Failed to ioremap core resource\n");
+		dev_err(dev, "Failed to ioremap core resource\n");
 		return PTR_ERR(isp_dev->core_base_addr);
 	}
 
 	/* Fetch second IORESOURCE_MEM for dhub_base_addr */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (res) {
-		isp_dev->dhub_base_addr = devm_ioremap_resource(&pdev->dev, res);
+		isp_dev->dhub_base_addr = devm_ioremap_resource(dev, res);
 		if (IS_ERR(isp_dev->dhub_base_addr)) {
-			dev_err(&pdev->dev, "Failed to ioremap dhub resource\n");
+			dev_err(dev, "Failed to ioremap dhub resource\n");
 			return PTR_ERR(isp_dev->dhub_base_addr);
 		}
 	} else {
 		isp_dev->dhub_base_addr = NULL;
 	}
 
-	/* Fetch third IORESOURCE_MEM for chip_ctrl_base_addr */
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
-	if (res) {
-		isp_dev->chip_ctrl_base_addr =
-			devm_ioremap(&pdev->dev, res->start, resource_size(res));
-		if (IS_ERR(isp_dev->chip_ctrl_base_addr)) {
-			dev_err(&pdev->dev, "Failed to ioremap chip_ctrl resource\n");
-			return PTR_ERR(isp_dev->chip_ctrl_base_addr);
-		}
-	} else {
-		isp_dev->chip_ctrl_base_addr = NULL;
-	}
-
 	/* Fetch IRQ */
 	isp_dev->irq_num = platform_get_irq(pdev, 0);
 	if (isp_dev->irq_num < 0) {
-		dev_err(&pdev->dev, "Failed to get IRQ\n");
+		dev_err(dev, "Failed to get IRQ\n");
 		return isp_dev->irq_num;
 	}
 
 	return 0;
+}
+
+static void camera_isp_reset(struct reset_control *rst)
+{
+	reset_control_assert(rst);
+	udelay(1);
+	reset_control_deassert(rst);
 }
 
 static int camera_isp_probe(struct platform_device *pdev)
@@ -901,40 +1001,54 @@ static int camera_isp_probe(struct platform_device *pdev)
 	struct camera_isp_dev *isp_dev;
 	struct v4l2_subdev *sd;
 	struct media_pad *pads;
+	struct reset_control *rst;
 	int ret;
 	int i;
+	struct device *dev = &pdev->dev;
 
-	dev_info(&pdev->dev, "Camera ISP subdevice probe started\n");
+	dev_info(dev, "Camera ISP subdevice probe started\n");
 
-	isp_dev = devm_kzalloc(&pdev->dev, sizeof(*isp_dev), GFP_KERNEL);
+	isp_dev = devm_kzalloc(dev, sizeof(*isp_dev), GFP_KERNEL);
 	if (!isp_dev) {
-		pr_err("%s %d error !!\n", __func__, __LINE__);
+		dev_err(dev, "failed to allocate memory for isp_dev...!\n");
 		return -ENOMEM;
 	}
 
-	isp_dev->dev = &pdev->dev;
+	isp_dev->dev = dev;
 	platform_set_drvdata(pdev, isp_dev);
 
-	/* Initialize mutex */
-	mutex_init(&isp_dev->lock);
-
-	v4l2_ctrl_handler_init(&isp_dev->ctrl_handler, 1);
-	v4l2_ctrl_new_std(&isp_dev->ctrl_handler, &wb_enable_ctrl_ops,
-					 V4L2_CID_USER_WB_ENABLE, 0, 1, 1, isp_dev->wb_config.wb_en);
-	isp_dev->sd.ctrl_handler = &isp_dev->ctrl_handler;
-	if (isp_dev->ctrl_handler.error) {
-		dev_err(&pdev->dev, "Failed to register wb_enable v4l2 control\n");
-		return isp_dev->ctrl_handler.error;
+	isp_dev->isp_clks = devm_kzalloc(dev,
+		sizeof(struct clk *) * ARRAY_SIZE(isp_clock_list), GFP_KERNEL);
+	if (IS_ERR(isp_dev->isp_clks)) {
+		dev_err(dev, "failed to allocate memory for isp_clocks...!\n");
+		return PTR_ERR(isp_dev->isp_clks);
 	}
 
-	ret = camera_isp_create_wb_sysfs(isp_dev);
-	if (ret)
-		dev_warn(&pdev->dev, "Failed to create WB sysfs group\n");
+	rst = devm_reset_control_get_optional(&pdev->dev, "isprst");
+	if (IS_ERR(rst) && PTR_ERR(rst) == -EPROBE_DEFER) {
+		dev_err(dev, "isprst reset failed...!\n");
+		return -EPROBE_DEFER;
+	}
+
+	camera_isp_reset(rst);
+
+	/* Fetch Clk */
+	ret = isp_fetch_clocks(dev, isp_dev->isp_clks);
+	if (ret) {
+		dev_err(dev, "isp clock fetch failed...!\n");
+		return ret;
+	}
 
 	/* Parse device tree */
 	ret = camera_isp_parse_dt(isp_dev, pdev);
 	if (ret)
 		return ret;
+
+	ret = isp_enable_clocks(dev, isp_dev->isp_clks);
+	if (ret) {
+		dev_err(dev, "isp clock enable failed...!\n");
+		return ret;
+	}
 
 	/* Initialize V4L2 subdevice */
 	sd = &isp_dev->sd;
@@ -943,7 +1057,7 @@ static int camera_isp_probe(struct platform_device *pdev)
 	snprintf(sd->name, sizeof(sd->name), "%s.%d", CAMERA_ISP_NAME, isp_dev->id);
 	sd->internal_ops = &camera_isp_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
-	sd->dev =  &pdev->dev;
+	sd->dev =  dev;
 	sd->owner = THIS_MODULE;
 	sd->entity.function = MEDIA_ENT_F_IO_V4L;
 	sd->entity.obj_type = MEDIA_ENTITY_TYPE_V4L2_SUBDEV;
@@ -968,116 +1082,94 @@ static int camera_isp_probe(struct platform_device *pdev)
 
 	ret = media_entity_pads_init(&sd->entity, CAMERA_ISP_PAD_NR, pads);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to initialize media entity pads: %d\n", ret);
-		return ret;
+		dev_err(dev, "Failed to initialize media entity pads: %d\n", ret);
+		goto err_cleanup_clk;
 	}
 
 	sd->entity.function = MEDIA_ENT_F_PROC_VIDEO_ISP;
 	sd->entity.ops = &camera_isp_entity_ops;
 
-	v4l2_async_subdev_nf_init(&isp_dev->notifier, &isp_dev->sd);
-
-	isp_dev->notifier.ops = &camera_isp_notify_ops;
-	if (dev_fwnode(isp_dev->dev) != NULL) {
-		int pad;
-		for (pad = 0; pad < CAMERA_ISP_PAD_NR; pad++) {
-			/* Defensive: Check endpoint pointer before use */
-			if (pads[pad].flags != MEDIA_PAD_FL_SINK)
-				continue;
-			struct fwnode_handle *ep = fwnode_graph_get_endpoint_by_id(dev_fwnode(isp_dev->dev),
-					pad, 0, FWNODE_GRAPH_ENDPOINT_NEXT);
-			if (!ep) {
-				continue;
-			}
-			/* Set sd->fwnode to the first valid endpoint */
-			if (!sd->fwnode)
-				sd->fwnode = dev_fwnode(isp_dev->dev);
-
-			if (!ep) {
-				dev_info(&pdev->dev, "[PROBE] No endpoint found for sink pad %d\n", pad);
-				continue;
-			}
-
-			struct fwnode_handle *remote_ep = fwnode_graph_get_remote_endpoint(ep);
-
-			if (!remote_ep) {
-				dev_info(&pdev->dev, "[PROBE] No remote endpoint found for sink pad %d\n", pad);
-				fwnode_handle_put(ep);
-				continue;
-			}
-
-			if (ep && remote_ep) {
-				v4l2_async_nf_add_fwnode_remote(&isp_dev->notifier, ep,
-						struct v4l2_async_connection);
-				dev_dbg(&pdev->dev, "[PROBE] Registered async notifier for sink pad %d\n", pad);
-			} else {
-				dev_err(&pdev->dev, "[PROBE] Skipping async notifier for sink pad %d due to NULL ep or remote_ep\n", pad);
-			}
-
-			fwnode_handle_put(remote_ep);
-			fwnode_handle_put(ep);
-		}
-	}
-	// Register notifier
-	ret = v4l2_async_nf_register(&isp_dev->notifier);
-
+	ret = camera_isp_register_async_notifier(isp_dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Async notifier register error\n");
-		v4l2_async_nf_cleanup(&isp_dev->notifier);
+		dev_err(dev, "Failed to register async notifier: %d\n", ret);
 		goto err_cleanup_entity;
 	}
 
 	/* Register V4L2 async subdevice */
 	ret = v4l2_async_register_subdev(sd);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to register async subdev: %d\n", ret);
-		v4l2_async_nf_unregister(&isp_dev->notifier);
-		v4l2_async_nf_cleanup(&isp_dev->notifier);
-		goto err_cleanup_entity;
+		dev_err(dev, "Failed to register async subdev: %d\n", ret);
+		goto err_cleanup_notifier;
 	}
 
-	ret = isp_shm_init(&pdev->dev);
+	/* Initialize mutex */
+	mutex_init(&isp_dev->lock);
+
+	v4l2_ctrl_handler_init(&isp_dev->ctrl_handler, 1);
+	v4l2_ctrl_new_std(&isp_dev->ctrl_handler, &wb_enable_ctrl_ops,
+					 V4L2_CID_USER_WB_ENABLE, 0, 1, 1, isp_dev->wb_config.wb_en);
+	isp_dev->sd.ctrl_handler = &isp_dev->ctrl_handler;
+	if (isp_dev->ctrl_handler.error) {
+		dev_err(dev, "Failed to register wb_enable v4l2 control\n");
+		ret = isp_dev->ctrl_handler.error;
+		goto err_cleanup_async;
+	}
+
+	ret = camera_isp_create_wb_sysfs(isp_dev);
+	if (ret)
+		dev_warn(dev, "Failed to create WB sysfs group\n");
+
+
+	ret = isp_shm_init(dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed isp_shm_init: %d\n", ret);
+		dev_err(dev, "Failed isp_shm_init: %d\n", ret);
 		goto err_cleanup_async;
 	}
 
 	ret = CSI_PIPE_Init(isp_dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed CSI_PIPE_Init: %d\n", ret);
+		dev_err(dev, "Failed CSI_PIPE_Init: %d\n", ret);
 		goto err_cleanup_shm;
 	}
 	/* Enable runtime PM */
-	pm_runtime_enable(&pdev->dev);
+	pm_runtime_enable(dev);
 
-	dev_info(&pdev->dev, "Camera ISP subdevice registered successfully\n");
+	dev_info(dev, "Camera ISP subdevice registered successfully\n");
 	return 0;
 
 err_cleanup_shm:
-	isp_shm_deinit(&pdev->dev);
+	isp_shm_deinit(dev);
 err_cleanup_async:
 	v4l2_async_unregister_subdev(sd);
+err_cleanup_notifier:
+	camera_isp_unregister_async_notifier(isp_dev);
 err_cleanup_entity:
 	media_entity_cleanup(&sd->entity);
+err_cleanup_clk:
+	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++)
+		clk_disable_unprepare(isp_dev->isp_clks[i]);
 	return ret;
 }
 
 static void camera_isp_remove(struct platform_device *pdev)
 {
 	struct camera_isp_dev *isp_dev = platform_get_drvdata(pdev);
+	int i;
 
-	if (isp_dev) {
-		camera_isp_remove_wb_sysfs(isp_dev);
-		v4l2_async_nf_unregister(&isp_dev->notifier);
-		v4l2_async_nf_cleanup(&isp_dev->notifier);
-		CSI_PIPE_Exit(isp_dev);
-		isp_shm_deinit(&pdev->dev);
-		v4l2_async_unregister_subdev(&isp_dev->sd);
-		media_entity_cleanup(&isp_dev->sd.entity);
-		pm_runtime_disable(&pdev->dev);
-		mutex_destroy(&isp_dev->lock);
-		dev_info(&pdev->dev, "Camera ISP subdevice removed\n");
-	}
+	if (!isp_dev)
+		return;
+
+	camera_isp_remove_wb_sysfs(isp_dev);
+	camera_isp_unregister_async_notifier(isp_dev);
+	CSI_PIPE_Exit(isp_dev);
+	isp_shm_deinit(&pdev->dev);
+	v4l2_async_unregister_subdev(&isp_dev->sd);
+	media_entity_cleanup(&isp_dev->sd.entity);
+	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++)
+		clk_disable_unprepare(isp_dev->isp_clks[i]);
+	pm_runtime_disable(&pdev->dev);
+	mutex_destroy(&isp_dev->lock);
+	dev_info(&pdev->dev, "Camera ISP subdevice removed\n");
 }
 
 /* Device tree matching */

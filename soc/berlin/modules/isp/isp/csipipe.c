@@ -249,41 +249,41 @@ static void CSI_PIPE_AlignBCM(struct camera_isp_dev *dev, struct BCMBUF *pbcmbuf
 
 static void CSI_PIPE_PrintPipeline(uint32_t module_list)
 {
-	pr_info("================================== Pipe ==================================\n");
+	pr_debug("================================== Pipe ==================================\n");
 	/* Set source */
 	if (IS_MODULE_ENABLED(module_list, MODULE_IIF)) {
-		pr_info(" IIF-->");
+		pr_cont(" IIF-->");
 	} else if (IS_MODULE_ENABLED(module_list, MODULE_IPI0)) {
-		pr_info(" IPI0-->");
+		pr_cont(" IPI0-->");
 	} else if (IS_MODULE_ENABLED(module_list, MODULE_IPI1)) {
-		pr_info(" IPI1-->");
+		pr_cont(" IPI1-->");
 	}
 	/* Set Pipeline */
 	if (IS_MODULE_ENABLED(module_list, MODULE_IMGRES)) {
-		pr_info("IMGRES-->");
+		pr_cont("IMGRES-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_FVF)) {
-		pr_info("FVF-->");
+		pr_cont("FVF-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_WB)) {
-		pr_info("WB-->");
+		pr_cont("WB-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_DEMOSAIC)) {
-		pr_info("DMSC-->");
+		pr_cont("DMSC-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_CSC)) {
-		pr_info("CSC-->");
+		pr_cont("CSC-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_DNS444_422)) {
-		pr_info("DNS444_422-->");
+		pr_cont("DNS444_422-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_DNS422_420)) {
-		pr_info("DNS422_420-->");
+		pr_cont("DNS422_420-->");
 	}
 	if (IS_MODULE_ENABLED(module_list, MODULE_DHUB)) {
-		pr_info("DHUB\n");
+		pr_cont("DHUB\n");
 	}
-	pr_info("==========================================================================\n");
+	pr_debug("==========================================================================\n");
 }
 
 static void CSI_PIPE_ClkControl(CSI_PL_CTX_t *ctx, MODULE_STATUS_t *mod)
@@ -1063,30 +1063,12 @@ int CSI_PIPE_Init(struct camera_isp_dev *isp_dev)
 {
 	int i;
 	int clock;
-	int addr;
 	int reset;
 
-	/* Clock setting */
-	//addr = START_CHIP_CTRL_REG + RA_Gbl_avio_pClk;
-	addr = RA_Gbl_avio_pClk;
-	clock = HAL_ISP_CHIP_CTRL_REG_READ32(isp_dev, addr);
-	SET32clkD8_ENOFF_ctrl_ClkEn(clock, 1);
-	//CAM_HAL_WriteReg(isp_dev, NULL, addr, clock); // 50M
-	HAL_ISP_CHIP_CTRL_REG_WRITE32(isp_dev, addr, clock); // 50M
-
-	addr = RA_Gbl_avio_ipiClk;
-	clock = 0;
-	SET32clkD8_ENOFF_ctrl_ClkEn(clock, 1);
-	SET32clkD8_ENOFF_ctrl_ClkPllSel(clock, 4);
-	SET32clkD8_ENOFF_ctrl_ClkPllSwitch(clock, 1);
-	SET32clkD8_ENOFF_ctrl_ClkSwitch(clock, 1);
-	SET32clkD8_ENOFF_ctrl_ClkSel(clock, 1);
-	HAL_ISP_CHIP_CTRL_REG_WRITE32(isp_dev, addr, clock); // syspll1f/2 = 400M
 	// Disable IIF clock by default
 	clock = HAL_ISP_CORE_REG_READ32(isp_dev, CSIPIPE_OFFSET + RA_CSIPIPE_CTRL);
 	SET_BIT(clock, 0, LSb32CSIPIPE_CTRL_IIF_clken, bCSIPIPE_CTRL_IIF_clken);
 	CAM_HAL_WriteReg(isp_dev, NULL, CSIPIPE_OFFSET + RA_CSIPIPE_CTRL, clock);
-	/* Clock setting - End */
 
 	/* Reset CSIPipe(include IIF) & CSIHost registers */
 	reset = HAL_ISP_CORE_REG_READ32(isp_dev, VIP_GBL_OFFSET + RA_vipGbl_SWRST_CTRL);
@@ -1122,15 +1104,12 @@ int CSI_PIPE_Init(struct camera_isp_dev *isp_dev)
 		isp_dev->pipe[i] = CSI_PIPE_Create(isp_dev, i);
 	}
 
-	//return (CAM_HANDLE)handle;
 	return 0;
 }
 
 void CSI_PIPE_Exit(struct camera_isp_dev *isp_dev)
 {
 	int i;
-	int addr;
-	int clock;
 
 	/* Stop interrupt processing thread */
 	if (isp_dev->intr_thread) {
@@ -1144,25 +1123,7 @@ void CSI_PIPE_Exit(struct camera_isp_dev *isp_dev)
 		}
 	}
 	VIP_IntrHandleExit(isp_dev->intr_handle);
-	csi_dhub_exit(0); //cpuId=0
-
-	/* Clock setting */
-	//addr = START_CHIP_CTRL_REG + RA_Gbl_avio_pClk;
-	addr = RA_Gbl_avio_pClk;
-	clock = HAL_ISP_CHIP_CTRL_REG_READ32(isp_dev, addr);
-	SET32clkD8_ENOFF_ctrl_ClkEn(clock, 0);
-	//CAM_HAL_WriteReg(isp_dev, NULL, addr, clock);
-	HAL_ISP_CHIP_CTRL_REG_WRITE32(isp_dev, addr, clock);
-
-	//addr = START_CHIP_CTRL_REG + RA_Gbl_avio_ipiClk;
-	addr = RA_Gbl_avio_ipiClk;
-	clock = HAL_ISP_CHIP_CTRL_REG_READ32(isp_dev, addr);
-	SET32clkD8_ENOFF_ctrl_ClkEn(clock, 0);
-	HAL_ISP_CHIP_CTRL_REG_WRITE32(isp_dev, addr, clock);
-	/* Clock setting - End */
-
-	//TODO isp_dev should be freed here ?
-	//kfree(inst);
+	csi_dhub_exit(0);
 }
 
 CSIPIPE_HANDLE CSI_PIPE_Create(struct camera_isp_dev *isp_dev, int pipe)
@@ -1320,7 +1281,7 @@ int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code)
 		ctx->crop.imgres_oprn = 0;
 	}
 
-	pr_info("[SCALING] CSI_PIPE_Config: input=%dx%d output=%dx%d "
+	pr_debug("[SCALING] CSI_PIPE_Config: input=%dx%d output=%dx%d "
 		"crop(%d,%d)-(%d,%d) scale=%d oprn=%d\n",
 		ctx->hres, ctx->vres, ctx->op_wt, ctx->op_ht,
 		ctx->crop.x_st, ctx->crop.y_st, ctx->crop.x_end, ctx->crop.y_end,
@@ -1588,7 +1549,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	ctx->c_wr_ip = INVD_INPUT;
 	ipi_out_fmt = CSI_PIPE_GetIPIFormat(ctx->src_fmt);
 
-	pr_info("%s: id: %d ip fmt: 0x%x, op fmt: 0x%x\n", __func__,
+	pr_debug("%s: id: %d ip fmt: 0x%x, op fmt: 0x%x\n", __func__,
 			ctx->id, ipi_out_fmt, ctx->op_fmt);
 	scale = ctx->crop.scale;
 	ctx->op_bpp = 8;

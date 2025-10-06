@@ -1047,7 +1047,7 @@ static int camera_video_vb2_queue_setup(struct vb2_queue *queue,
 	*num_planes = pix_mp->num_planes;
 	for (i = 0; i < *num_planes; i++) {
 		sizes[i] = pix_mp->plane_fmt[i].sizeimage;
-		dev_info(camera_vdev->camera_mdev->dev,
+		dev_dbg(camera_vdev->camera_mdev->dev,
 				"Plane %d: size=%u, bytesperline=%u\n",
 				i, sizes[i], pix_mp->plane_fmt[i].bytesperline);
 	}
@@ -1061,7 +1061,7 @@ static int camera_video_vb2_queue_setup(struct vb2_queue *queue,
 		*num_buffers = MAX_VIDEO_BUFFERS;
 	}
 
-	dev_info(camera_vdev->camera_mdev->dev,
+	dev_dbg(camera_vdev->camera_mdev->dev,
 			"=== QUEUE SETUP SUCCESS: %u buffers, %u planes ===\n",
 			*num_buffers, *num_planes);
 
@@ -1181,7 +1181,7 @@ static int camera_video_vb2_start_streaming(struct vb2_queue *queue,
 		return -ENODEV;
 	}
 
-	dev_info(camera_vdev->camera_mdev->dev,
+	dev_dbg(camera_vdev->camera_mdev->dev,
 			"Video streaming started successfully\n");
 
 	return ret;

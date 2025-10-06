@@ -37,7 +37,6 @@ typedef void* CSIPIPE_HANDLE;
 #define VIP_GBL_OFFSET    0x8000
 #define VIP_BCMQ_OFFSET   0xC000
 
-//#define HAL_ISP_CORE_REG_WRITE32(dev, addr, val)    writel(val, dev->core_base_addr + addr)
 #define HAL_ISP_CORE_REG_WRITE32(dev, addr, val) \
 	do { \
 		writel(val, dev->core_base_addr + addr); \
@@ -46,12 +45,7 @@ typedef void* CSIPIPE_HANDLE;
 	} while (0)
 #define HAL_ISP_CORE_REG_READ32(dev, addr)     readl(dev->core_base_addr + addr)
 
-/* Chip control register access macros */
-#define HAL_ISP_CHIP_CTRL_REG_WRITE32(dev, addr, val)    writel(val, dev->chip_ctrl_base_addr + addr)
-#define HAL_ISP_CHIP_CTRL_REG_READ32(dev, addr)     readl(dev->chip_ctrl_base_addr + addr)
-
 /* mapped address is set in the 'ra' value, hence no need of passing the dhub base address again*/
-//#define HAL_ISP_DHUB_REG_WRITE32(addr, val)    writel(val, (void *)addr)
 #define HAL_ISP_DHUB_REG_WRITE32(addr, val) \
 	do { \
 		writel(val, (void *)addr); \
@@ -67,7 +61,6 @@ typedef void* CSIPIPE_HANDLE;
 	} while (0)
 
 #define CAM_HAL_WriteReg            CAM_BCMBUF_Write
-//#define CAM_HAL_ReadReg(addr)       readl((void __iomem *)(uintptr_t)(addr))
 #define CAM_HAL_ReadReg(dev, addr)       HAL_ISP_CORE_REG_READ32(dev, addr)
 
 #define GET_BIT_MASK(N_BIT)     ( (1<<N_BIT) - 1 )
@@ -108,6 +101,7 @@ struct camera_isp_dev {
 	struct v4l2_subdev sd;
 	struct media_pad pads[CAMERA_ISP_PAD_NR];
 	uint32_t id;
+	struct clk **isp_clks;
 
 	/* Format information for each pad */
 	struct v4l2_mbus_framefmt formats[CAMERA_ISP_PAD_NR];
@@ -120,7 +114,6 @@ struct camera_isp_dev {
 
 	void __iomem *core_base_addr;
 	void __iomem *dhub_base_addr;
-	void __iomem *chip_ctrl_base_addr;
 	CSIPIPE_HANDLE pipe[MAX_PL];
 	WB_CONFIG_t wb_config;
 	void *intr_handle;

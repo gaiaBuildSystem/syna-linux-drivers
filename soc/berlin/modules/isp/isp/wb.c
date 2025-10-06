@@ -25,8 +25,6 @@ static int ConfigureWhiteBalanceModule(void *handle, void *config)
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *) handle;
 	unsigned int base_addr = ctx->pipe_base_addr + RA_HOST2DHUB_WB;
 
-	pr_info("[WB] ConfigureWhiteBalanceModule: pipe_base=0x%x\n", ctx->pipe_base_addr);
-
 	val = CAM_HAL_ReadReg(ctx->dev, base_addr + RA_WB_CTRL);
 	SET_BIT(val, fc_wb_cfg->wb_en, LSb32WB_CTRL_enable, bWB_CTRL_enable);
 	SET_BIT(val, fc_wb_cfg->wb_mode, LSb32WB_CTRL_mode, bWB_CTRL_mode);
@@ -53,7 +51,7 @@ static int EnableWhiteBalanceModule(void* handle, int enable)
 	unsigned int base_addr = ctx->pipe_base_addr + RA_HOST2DHUB_WB;
 	int val;
 
-	pr_info("[WB] EnableWhiteBalanceModule: enable=%d, pipe_base=0x%x\n",
+	pr_debug("[WB] EnableWhiteBalanceModule: enable=%d, pipe_base=0x%x\n",
 		   enable, ctx->pipe_base_addr);
 
 	/* Read current WB control register */
@@ -65,7 +63,7 @@ static int EnableWhiteBalanceModule(void* handle, int enable)
 	/* Write back to register */
 	CAM_HAL_WriteReg(ctx->dev, NULL, base_addr + RA_WB_CTRL, val);
 
-	pr_info("[WB] WB module %s (reg_val=0x%x)\n",
+	pr_debug("[WB] WB module %s (reg_val=0x%x)\n",
 		   enable ? "enabled" : "disabled", val);
 
 	return 0;
