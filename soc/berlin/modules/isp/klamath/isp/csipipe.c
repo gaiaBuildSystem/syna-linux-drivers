@@ -48,11 +48,11 @@
 #define DUMMY_REG_BCM				0x32C /* Test point reg - 0xF745832C */
 #define PIPE1_QUEUE					BCM_SCHED_Q0
 #define PIPE2_QUEUE					BCM_SCHED_Q1
-#define CSI_ALIGN(a, b)				( ( (a + b - 1) / b ) * b)
+#define CSI_ALIGN(a, b)				(((a + b - 1) / b) * b)
 
 
 #define IS_IMGRESTODH_ACTIVE(a)		(a >= 1)
-#define IS_FMT_RAW16(i)				  (i==CAM_PIXFMT_RAW16)
+#define IS_FMT_RAW16(i)				  (i == CAM_PIXFMT_RAW16)
 #define IS_VALID_INPUT(a)			(a != INVD_INPUT)
 
 #define ADD_TO_MODULE_LIST(a, b)	(a |= (1<<b))
@@ -86,15 +86,15 @@
 #endif
 
 #define CLEAR_2DDMA(dhubID, dmaID, bcmbuf) \
-	do{ \
+	do { \
 		dhub2d_channel_clear_seq(dhubID, dmaID); \
 		dhub2d_channel_start_seq(dhubID, dmaID); \
 		dhub2d_channel_clear_seq_bcm(dhubID, dmaID, bcmbuf); \
-	}while(0)
+	} while (0)
 #define CLEAR_2NDDMA(hdl, dmaID) \
-	do{ \
+	do { \
 		dhub2nd_channel_clear_seq(hdl, dmaID); \
-	}while(0)
+	} while (0)
 
 typedef struct MODULE_STATUS_s {
 	uint8_t imgres_en;
@@ -126,26 +126,27 @@ static char intr_name[MAX_INTR][12] = {"ch0", "ch1", "ch2", "ch3",
 static uint32_t CSI_PIPE_GetIPIFormat(uint32_t fmt)
 {
 	uint32_t op_fmt = CAM_PIXFMT_RAW16;
+
 	switch (fmt) {
-		case MEDIA_BUS_FMT_SBGGR8_1X8:
-		case MEDIA_BUS_FMT_SGRBG8_1X8:
-		case MEDIA_BUS_FMT_SRGGB8_1X8:
-		case MEDIA_BUS_FMT_SGRBG10_1X10:
-		case MEDIA_BUS_FMT_SRGGB10_1X10:
-		case MEDIA_BUS_FMT_SBGGR10_1X10:
-		case MEDIA_BUS_FMT_SGBRG10_1X10:
-			op_fmt = CAM_PIXFMT_RAW16;
-			break;
-		case MEDIA_BUS_FMT_RGB565_2X8_LE:
-		case MEDIA_BUS_FMT_RGB565_2X8_BE:
-			op_fmt = CAM_PIXFMT_RGB565;
-			break;
-		case MEDIA_BUS_FMT_RGB888_3X8:
-			op_fmt = CAM_PIXFMT_RGB888;
-			break;
-		default:
-			pr_warn("Unsupported format[0x%x], considering RAW16 out\n", fmt);
-			break;
+	case MEDIA_BUS_FMT_SBGGR8_1X8:
+	case MEDIA_BUS_FMT_SGRBG8_1X8:
+	case MEDIA_BUS_FMT_SRGGB8_1X8:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+		op_fmt = CAM_PIXFMT_RAW16;
+		break;
+	case MEDIA_BUS_FMT_RGB565_2X8_LE:
+	case MEDIA_BUS_FMT_RGB565_2X8_BE:
+		op_fmt = CAM_PIXFMT_RGB565;
+		break;
+	case MEDIA_BUS_FMT_RGB888_3X8:
+		op_fmt = CAM_PIXFMT_RGB888;
+		break;
+	default:
+		pr_warn("Unsupported format[0x%x], considering RAW16 out\n", fmt);
+		break;
 	}
 	return op_fmt;
 }
@@ -153,36 +154,37 @@ static uint32_t CSI_PIPE_GetIPIFormat(uint32_t fmt)
 static uint32_t CSI_PIPE_GetCamFormat(uint32_t fmt)
 {
 	uint32_t op_fmt = CAM_PIXFMT_RAW16;
+
 	switch (fmt) {
-		case MEDIA_BUS_FMT_SBGGR8_1X8:
-		case MEDIA_BUS_FMT_SGRBG8_1X8:
-		case MEDIA_BUS_FMT_SRGGB8_1X8:
-			op_fmt = CAM_PIXFMT_RAW8;
-			break;
-		case MEDIA_BUS_FMT_SGRBG10_1X10:
-		case MEDIA_BUS_FMT_SRGGB10_1X10:
-		case MEDIA_BUS_FMT_SBGGR10_1X10:
-		case MEDIA_BUS_FMT_SGBRG10_1X10:
-			//TODO Use RAW16 here
-			op_fmt = CAM_PIXFMT_RAW8;
-			//op_fmt = CAM_PIXFMT_RAW16;
-			break;
-		case MEDIA_BUS_FMT_RGB565_2X8_LE:
-		case MEDIA_BUS_FMT_RGB565_2X8_BE:
-			op_fmt = CAM_PIXFMT_RGB565;
-			break;
-		case MEDIA_BUS_FMT_RGB888_3X8:
-			op_fmt = CAM_PIXFMT_RGB888;
-			break;
-		case MEDIA_BUS_FMT_YUYV8_1_5X8:
-			op_fmt = CAM_PIXFMT_YUV420SP;
-			break;
-		case MEDIA_BUS_FMT_YUYV8_2X8:
-			op_fmt = CAM_PIXFMT_YUV422SP;
-			break;
-		default:
-			pr_warn("Unsupported format[0x%x], considering RAW16 out\n", fmt);
-			break;
+	case MEDIA_BUS_FMT_SBGGR8_1X8:
+	case MEDIA_BUS_FMT_SGRBG8_1X8:
+	case MEDIA_BUS_FMT_SRGGB8_1X8:
+		op_fmt = CAM_PIXFMT_RAW8;
+		break;
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+		//TODO Use RAW16 here
+		op_fmt = CAM_PIXFMT_RAW8;
+		//op_fmt = CAM_PIXFMT_RAW16;
+		break;
+	case MEDIA_BUS_FMT_RGB565_2X8_LE:
+	case MEDIA_BUS_FMT_RGB565_2X8_BE:
+		op_fmt = CAM_PIXFMT_RGB565;
+		break;
+	case MEDIA_BUS_FMT_RGB888_3X8:
+		op_fmt = CAM_PIXFMT_RGB888;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_1_5X8:
+		op_fmt = CAM_PIXFMT_YUV420SP;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+		op_fmt = CAM_PIXFMT_YUV422SP;
+		break;
+	default:
+		pr_warn("Unsupported format[0x%x], considering RAW16 out\n", fmt);
+		break;
 	}
 	return op_fmt;
 }
@@ -190,34 +192,35 @@ static uint32_t CSI_PIPE_GetCamFormat(uint32_t fmt)
 static int CSI_PIPE_CheckCompatibility(uint32_t ipi_fmt, uint32_t op_fmt)
 {
 	int res = 0;
+
 	switch (ipi_fmt) {
-		case CAM_PIXFMT_RAW8:
-		case CAM_PIXFMT_RAW16:
-			// All output formats are supported
-			break;
-		case CAM_PIXFMT_RGB888:
-		case CAM_PIXFMT_RGB565:
-			if (op_fmt < CAM_PIXFMT_RGB888) { // To send out RGB soft bypass CSC
-				pr_warn("Only Output formats till RGB888 supported\n");
-				res = -1;
-			}
-			break;
-		case CAM_PIXFMT_YUV444:
-			if (op_fmt < CAM_PIXFMT_YUV444) {
-				pr_warn("Only Output formats till YUV444 supported\n");
-				res = -1;
-			}
-			break;
-		case CAM_PIXFMT_YUV420SP:
-			if (op_fmt < CAM_PIXFMT_YUV420SP) {
-				pr_warn("Only Output format YUV420 supported\n");
-				res = -1;
-			}
-			break;
-		default:
-			pr_warn("Unsupported format\n");
+	case CAM_PIXFMT_RAW8:
+	case CAM_PIXFMT_RAW16:
+		// All output formats are supported
+		break;
+	case CAM_PIXFMT_RGB888:
+	case CAM_PIXFMT_RGB565:
+		if (op_fmt < CAM_PIXFMT_RGB888) { // To send out RGB soft bypass CSC
+			pr_warn("Only Output formats till RGB888 supported\n");
 			res = -1;
-			break;
+		}
+		break;
+	case CAM_PIXFMT_YUV444:
+		if (op_fmt < CAM_PIXFMT_YUV444) {
+			pr_warn("Only Output formats till YUV444 supported\n");
+			res = -1;
+		}
+		break;
+	case CAM_PIXFMT_YUV420SP:
+		if (op_fmt < CAM_PIXFMT_YUV420SP) {
+			pr_warn("Only Output format YUV420 supported\n");
+			res = -1;
+		}
+		break;
+	default:
+		pr_warn("Unsupported format\n");
+		res = -1;
+		break;
 	}
 	return res;
 }
@@ -225,9 +228,8 @@ static int CSI_PIPE_CheckCompatibility(uint32_t ipi_fmt, uint32_t op_fmt)
 static uint8_t CSI_PIPE_GetNextIndex(uint8_t index, uint8_t max)
 {
 	index++;
-	if (index >= max) {
+	if (index >= max)
 		return 0; // circular index, reset to 0
-	}
 
 	return index;
 }
@@ -251,44 +253,37 @@ static void CSI_PIPE_PrintPipeline(uint32_t module_list)
 {
 	pr_debug("================================== Pipe ==================================\n");
 	/* Set source */
-	if (IS_MODULE_ENABLED(module_list, MODULE_IIF)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_IIF))
 		pr_cont(" IIF-->");
-	} else if (IS_MODULE_ENABLED(module_list, MODULE_IPI0)) {
+	else if (IS_MODULE_ENABLED(module_list, MODULE_IPI0))
 		pr_cont(" IPI0-->");
-	} else if (IS_MODULE_ENABLED(module_list, MODULE_IPI1)) {
+	else if (IS_MODULE_ENABLED(module_list, MODULE_IPI1))
 		pr_cont(" IPI1-->");
-	}
+
 	/* Set Pipeline */
-	if (IS_MODULE_ENABLED(module_list, MODULE_IMGRES)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_IMGRES))
 		pr_cont("IMGRES-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_FVF)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_FVF))
 		pr_cont("FVF-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_WB)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_WB))
 		pr_cont("WB-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_DEMOSAIC)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_DEMOSAIC))
 		pr_cont("DMSC-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_CSC)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_CSC))
 		pr_cont("CSC-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_DNS444_422)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_DNS444_422))
 		pr_cont("DNS444_422-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_DNS422_420)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_DNS422_420))
 		pr_cont("DNS422_420-->");
-	}
-	if (IS_MODULE_ENABLED(module_list, MODULE_DHUB)) {
+	if (IS_MODULE_ENABLED(module_list, MODULE_DHUB))
 		pr_cont("DHUB\n");
-	}
 	pr_debug("==========================================================================\n");
 }
 
 static void CSI_PIPE_ClkControl(CSI_PL_CTX_t *ctx, MODULE_STATUS_t *mod)
 {
 	uint32_t clk_en;
+
 	clk_en = (mod->imgres_en << LSb32HOST2DHUB_CLKEN_CTRL_imageRes_clken) |
 			 (mod->imgres_byp << LSb32HOST2DHUB_CLKEN_CTRL_imageRes_bypass_clken) |
 			 (mod->crop_en << LSb32HOST2DHUB_CLKEN_CTRL_image_crop_clken) |
@@ -317,11 +312,10 @@ static void CSI_PIPE_write_client_clear(CSI_PL_CTX_t *ctx, uint8_t id, uint8_t i
 	uint32_t base_addr = ctx->pipe_base_addr;
 	struct BCMBUF *p_bcmbuf;
 
-	if (immdt || !ctx->p_curr_bcmq) {
+	if (immdt || !ctx->p_curr_bcmq)
 		p_bcmbuf = NULL;
-	} else {
+	else
 		p_bcmbuf = &ctx->p_curr_bcmq->bcmBuf;
-	}
 
 	val = HAL_ISP_CORE_REG_READ32(ctx->dev, base_addr + RA_HOST2DHUB_CTRL2);
 	if (id == COMP_Y) {
@@ -358,7 +352,7 @@ static void CSI_PIPE_write_client_config(CSI_PL_CTX_t *ctx, uint8_t id, uint8_t 
 	uint32_t width;
 	uint32_t height;
 	uint32_t scale __maybe_unused = ctx->crop.scale;
-	uint32_t base_addr = id ? ctx->pipe_base_addr + RA_HOST2DHUB_WrClient_Y:
+	uint32_t base_addr = id ? ctx->pipe_base_addr + RA_HOST2DHUB_WrClient_Y :
 		ctx->pipe_base_addr + RA_HOST2DHUB_WrClient_C;
 
 	if (ctx->p_curr_bcmq != NULL)
@@ -366,15 +360,13 @@ static void CSI_PIPE_write_client_config(CSI_PL_CTX_t *ctx, uint8_t id, uint8_t 
 
 	width = ctx->yuv420_dir_op ? ctx->op_wt/2 : ctx->op_wt;
 	height = ctx->op_ht;
-	if (sp_en) {
+	if (sp_en)
 		height = height / 2;
-	}
 
-	if ( IS_FMT_RAW16(ctx->op_fmt) && (ctx->src != SRC_INTF_IIF) ) {
+	if (IS_FMT_RAW16(ctx->op_fmt) && (ctx->src != SRC_INTF_IIF))
 		frame_size_px = width * height / 3;
-	} else {
+	else
 		frame_size_px = width * height;
-	}
 	line_length_bits = width * ctx->op_bpp;
 	CAM_HAL_WriteReg(ctx->dev, p_bcmbuf, base_addr + RA_WriteClient_pix,
 						frame_size_px & MSK32WriteClient_pix_tot);
@@ -617,11 +609,10 @@ static void CSI_PIPE_DhubStart(CSI_PL_CTX_t *ctx)
 	uint32_t stride_align = 16;
 	uint32_t bytesperpixel = ctx->op_bpp / BYTE_LEN;
 
-	if (stride_align % bytesperpixel != 0) {
+	if (stride_align % bytesperpixel != 0)
 		stride_align = stride_align * bytesperpixel;
-	}
 
-	width_byte =  ( (ctx->op_wt * ctx->op_bpp) ) / BYTE_LEN;
+	width_byte =  ((ctx->op_wt * ctx->op_bpp)) / BYTE_LEN;
 	stride_len = CSI_ALIGN(width_byte, stride_align);
 
 	if (IS_VALID_INPUT(ctx->y_wr_ip)) {
@@ -652,9 +643,8 @@ static void CSI_PIPE_DhubStart(CSI_PL_CTX_t *ctx)
 		}
 	}
 
-	if (ctx->bcm_enable && (ctx->p_curr_bcmq != NULL)) {
+	if (ctx->bcm_enable && (ctx->p_curr_bcmq != NULL))
 		CAM_CFGQ_To_BCMBUF(&ctx->p_curr_bcmq->dhub_cfgQ, &ctx->p_curr_bcmq->dhub_bcmBuf);
-	}
 }
 
 static void CSI_PIPE_FlushPipe(CSI_PL_CTX_t *ctx)
@@ -708,6 +698,7 @@ static void CSI_PIPE_FVF_Config(CSI_PL_CTX_t *ctx, int en)
 static void CSI_PIPE_Reset(CSI_PL_CTX_t *ctx)
 {
 	uint32_t reset;
+
 	reset = HAL_ISP_CORE_REG_READ32(ctx->dev, VIP_GBL_OFFSET + RA_vipGbl_SWRST_CTRL);
 	// Assert reset
 	if (ctx->id == 0) { //CSIPipe1
@@ -751,9 +742,8 @@ static void CSI_PIPE_StopPipeline(CSIPIPE_HANDLE handle)
 	val = HAL_ISP_CORE_REG_READ32(ctx->dev, base_addr + RA_HOST2DHUB_CTRL6);
 	SET_BIT(val, 0, LSb32HOST2DHUB_CTRL6_image_crop_en, bHOST2DHUB_CTRL6_image_crop_en);
 	CAM_HAL_WriteReg(ctx->dev, NULL, base_addr + RA_HOST2DHUB_CTRL6, val);
-	if (ctx->fvf_en) {
+	if (ctx->fvf_en)
 		CSI_PIPE_FVF_Config(ctx, 0);
-	}
 
 	reset = HAL_ISP_CORE_REG_READ32(ctx->dev, VIP_GBL_OFFSET + RA_vipGbl_SWRST_CTRL);
 	// Assert reset
@@ -846,14 +836,14 @@ static void CSI_PIPE_EOF_Routine(CSI_PL_CTX_t *ctx)
 {
 	/* Ensure we have a current BCM queue when BCM is enabled */
 	if (ctx->bcm_enable) {
-			uint8_t index = CSI_PIPE_GetNextIndex(ctx->curr_bcm_index,
+		uint8_t index = CSI_PIPE_GetNextIndex(ctx->curr_bcm_index,
 				BCM_BUF_RING_NUM);
-			ctx->p_curr_bcmq = &ctx->p_bcmq[index];
-			CAM_BCMBUF_Reset(&ctx->p_curr_bcmq->bcmBuf);
-			CAM_BCMBUF_Reset(&ctx->p_curr_bcmq->dhub_bcmBuf);
-			ctx->p_curr_bcmq->dhub_cfgQ.len = 0;
-			ctx->p_curr_bcmq->final_cfgQ.len = 0;
-			ctx->curr_bcm_index = index;
+		ctx->p_curr_bcmq = &ctx->p_bcmq[index];
+		CAM_BCMBUF_Reset(&ctx->p_curr_bcmq->bcmBuf);
+		CAM_BCMBUF_Reset(&ctx->p_curr_bcmq->dhub_bcmBuf);
+		ctx->p_curr_bcmq->dhub_cfgQ.len = 0;
+		ctx->p_curr_bcmq->final_cfgQ.len = 0;
+		ctx->curr_bcm_index = index;
 	}
 
 	CSI_PIPE_FlushPipe(ctx);
@@ -902,6 +892,7 @@ static void CSI_PIPE_EOF_Routine(CSI_PL_CTX_t *ctx)
 static int CSI_HOST_Irq_Handler(uint32_t intrNum, void *pArgs)
 {
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *) pArgs;
+
 	pr_err("CSIHost Interrupt handler invoked on error IntrNum[%d] Status[0x%x]\n",
 			intrNum, CAM_HAL_ReadReg(START_AVIO_CSIHOST + RA_CSIHOST_IRQSTS));
 	CAM_HAL_WriteReg(ctx->dev, NULL, START_AVIO_CSIHOST + RA_CSIHOST_IRQSTS, 1);
@@ -915,6 +906,7 @@ static int CSI_HOST_Irq_Handler(uint32_t intrNum, void *pArgs)
 static int process_interrupt(void *arg)
 {
 	struct camera_isp_dev *isp_dev = (struct camera_isp_dev *)arg;
+
 	pr_debug("%s: thread start (isp_dev=%p)\n", __func__, isp_dev);
 
 	while (!kthread_should_stop()) {
@@ -1008,9 +1000,8 @@ static int CSI_PIPE_Irq_Handler(uint32_t intrNum, void *pArgs)
 #ifdef DEBUG_INTR
 	static int count = 0;
 
-	if (intrNum == 0 && count++ % 30 == 0) {
+	if (intrNum == 0 && count++ % 30 == 0)
 		pr_err("%s intrNum 0x%x\n", __func__, intrNum);
-	}
 #endif
 	/* Record count per intr for stats */
 	ctx->intr_cnt[intrNum]++;
@@ -1020,6 +1011,7 @@ static int CSI_PIPE_Irq_Handler(uint32_t intrNum, void *pArgs)
 	/* push intrNum into ring buffer */
 	{
 		unsigned int next = (isp_dev->intr_q_tail + 1) % ISP_INTR_Q_SIZE;
+
 		if (next == isp_dev->intr_q_head) {
 			/* overflow, drop and log */
 			pr_err("%s: intr queue overflow, dropping intr=0x%x\n", __func__, intrNum);
@@ -1123,14 +1115,15 @@ void CSI_PIPE_Exit(struct camera_isp_dev *isp_dev)
 CSIPIPE_HANDLE CSI_PIPE_Create(struct camera_isp_dev *isp_dev, int pipe)
 {
 	CSI_PL_CTX_t *ctx;
-	ctx = kzalloc(sizeof(CSI_PL_CTX_t), GFP_KERNEL);
 	struct BCMBUF *pBcmBuf;
 	struct DHUB_CFGQ *pCfgQ;
 	int val;
 	int i;
+
+	ctx = kzalloc(sizeof(CSI_PL_CTX_t), GFP_KERNEL);
 	ctx->parent = isp_dev;
 	ctx->dev = isp_dev;
-	ctx->pipe_base_addr = pipe==0 ? CSIPIPE_OFFSET + RA_CSIPIPE_HOST2DHUB1:
+	ctx->pipe_base_addr = pipe == 0 ? CSIPIPE_OFFSET + RA_CSIPIPE_HOST2DHUB1 :
 		CSIPIPE_OFFSET + RA_CSIPIPE_HOST2DHUB2;
 	ctx->id = pipe;
 #ifdef BCM_ENABLE
@@ -1217,20 +1210,23 @@ void CSI_PIPE_Destroy(CSIPIPE_HANDLE handle)
 void CSI_PIPE_Set_Fmt(CSIPIPE_HANDLE handle, struct v4l2_mbus_framefmt *format)
 {
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)handle;
+
 	ctx->op_fmt = CSI_PIPE_GetCamFormat(format->code);
+
 	ctx->swizzle_ctrl = 0;
 	ctx->op_wt = format->width;
 	ctx->op_ht = format->height;
 }
 
-void CSI_PIPE_Set_Output_Fmt(CSIPIPE_HANDLE handle, uint32_t width, uint32_t height)
+void CSI_PIPE_Set_Input_Fmt(CSIPIPE_HANDLE handle, uint32_t width, uint32_t height)
 {
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)handle;
+
 	ctx->hres = width;
 	ctx->vres = height;
 }
 
-int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code)
+int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code, uint32_t scale_factor)
 {
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)handle;
 
@@ -1248,33 +1244,25 @@ int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code)
 	ctx->capture_frame_interval = 0;
 	ctx->skip_frame_num = 0;
 
-	// Dynamic scaling properties: Calculate from input (hres/vres) and output (op_wt/op_ht)
-	// Input dimensions come from CSI (ctx->hres, ctx->vres)
-	// Output dimensions come from video format request (ctx->op_wt, ctx->op_ht)
+	// Crop parameters: full input frame
 	ctx->crop.x_st = 0;
 	ctx->crop.y_st = 0;
 	ctx->crop.x_end = ctx->hres - 1;
 	ctx->crop.y_end = ctx->vres - 1;
 
-	// Calculate scale factor: input_size / output_size
-	if (ctx->op_wt > 0 && ctx->op_ht > 0) {
-		uint32_t scale_x = ctx->hres / ctx->op_wt;
-		uint32_t scale_y = ctx->vres / ctx->op_ht;
-		uint32_t scale_factor = (scale_x > scale_y) ? scale_x : scale_y;
-
-		if (scale_factor > 1) {
-			// Scaling mode: downscale from input to output
-			ctx->crop.scale = scale_factor;
-		} else {
-			// Normal mode: 1:1 or upscaling (not supported), use cropping mode
-			ctx->crop.scale = 0;
-		}
-		ctx->crop.imgres_oprn = 0;
+	// Use pre-calculated scale factor from resolution selection algorithm
+	if (scale_factor > 1) {
+		// Scaling mode: downscale from input to output
+		ctx->crop.scale = scale_factor;
 	} else {
-		// Fallback: no scaling
+		// Normal mode: 1:1 (no scaling)
 		ctx->crop.scale = 0;
-		ctx->crop.imgres_oprn = 0;
 	}
+	ctx->crop.imgres_oprn = 0;
+	// For binning sacling factor should be power of 2
+	if ((scale_factor != 0) &&
+			((scale_factor & (scale_factor - 1)) == 0))
+		ctx->crop.imgres_oprn = 1;
 
 	pr_debug("[SCALING] CSI_PIPE_Config: input=%dx%d output=%dx%d "
 		"crop(%d,%d)-(%d,%d) scale=%d oprn=%d\n",
@@ -1349,11 +1337,11 @@ static void CSI_PIPE_ImgRes_Config(CSIPIPE_HANDLE handle)
 		RA_IMAGERESWRAP_IMAGERES + RA_IMAGERES_CTRL);
 	ctx->crop.imgres_oprn = (ctx->crop.imgres_oprn < IMGRES_OPRN_MAX) ?
 								ctx->crop.imgres_oprn : IMGRES_OPRN_BINNING;
-	pr_info("ImgRes %s mode Opn \n", ctx->crop.imgres_oprn ?
+	pr_info("ImgRes %s mode Opn\n", ctx->crop.imgres_oprn ?
 			"Scaling" : "Cropping");
-	SET_BIT( val, ctx->crop.imgres_oprn, LSb32IMAGERES_CTRL_imgResOpr,
+	SET_BIT(val, ctx->crop.imgres_oprn, LSb32IMAGERES_CTRL_imgResOpr,
 		bIMAGERES_CTRL_imgResOpr);
-	SET_BIT( val, (scale - 1), LSb32IMAGERES_CTRL_ratio,
+	SET_BIT(val, (scale - 1), LSb32IMAGERES_CTRL_ratio,
 		bIMAGERES_CTRL_ratio);
 	CAM_HAL_WriteReg(ctx->dev, p_bcmbuf, base_addr +
 		RA_IMAGERESWRAP_IMAGERES + RA_IMAGERES_CTRL, val);
@@ -1383,11 +1371,10 @@ static void CSI_PIPE_Demosaic_Config(CSI_PL_CTX_t *ctx)
 	config.width = ctx->op_wt;
 	config.height = ctx->op_ht;
 	config.swizzle_ctrl = ctx->swizzle_ctrl;
-	if (ctx->wb_en) {
+	if (ctx->wb_en)
 		config.input_sel = 0; // whitebalance
-	} else {
+	else
 		config.input_sel = 1; // whitebalance bypassed
-	}
 	ctrl.id = CID_DEMOSAIC_CONFIG;
 	ctrl.cfg = &config;
 	ctrl.handler = ctx;
@@ -1409,11 +1396,10 @@ static void CSI_PIPE_Csc_Config(CSI_PL_CTX_t *ctx, uint32_t input, uint32_t mode
 	ctrl.handler = ctx;
 	ctrl.id = CID_CSC_CONFIG;
 	csc_s_ctrl(&ctrl);
-	if (en) {
+	if (en)
 		ctrl.id = CID_CSC_ENABLE;
-	} else {
+	else
 		ctrl.id = CID_CSC_DISABLE;
-	}
 	csc_s_ctrl(&ctrl);
 }
 
@@ -1548,20 +1534,19 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 			ctx->id, ipi_out_fmt, ctx->op_fmt);
 	scale = ctx->crop.scale;
 	ctx->op_bpp = 8;
-	if (!ctx->op_through_ipi) {
+	if (!ctx->op_through_ipi)
 		mod.imgres_byp = 1;
-	}
 	mod.wb_en = ctx->wb_en;
 	if (IS_IMGRESTODH_ACTIVE(ctx->crop.scale)) {
 		mod.imgres_en = 1;
 		mod.imgres_byp = 0;
 		ctx->op_wt = (ctx->crop.x_end + 1 - ctx->crop.x_st) / scale;
 		ctx->op_ht = (ctx->crop.y_end + 1 - ctx->crop.y_st) / scale;
-	} else if (ctx->crop.x_end && ctx->crop.y_end ) {
+	} else if (ctx->crop.x_end && ctx->crop.y_end) {
 		ctx->op_wt = ctx->crop.x_end + 1 - ctx->crop.x_st;
 		if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
 			(ipi_out_fmt == CAM_PIXFMT_RGB565) ||
-			(ipi_out_fmt == CAM_PIXFMT_YUV444) ) {
+			(ipi_out_fmt == CAM_PIXFMT_YUV444)) {
 			ctx->op_wt = ctx->op_wt * 3;
 			mod.seq_en = 1;
 		}
@@ -1573,8 +1558,8 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	/* When resolution is not multiple of 3 IPI will
 	 * insert padding pixels - handle for RAW
 	 */
-	if ( (ctx->src != SRC_INTF_IIF) && (CAM_PIXFMT_RAW16 == ipi_out_fmt) &&
-		 (ctx->hres % 3 != 0 ) ) {
+	if ((ctx->src != SRC_INTF_IIF) && (CAM_PIXFMT_RAW16 == ipi_out_fmt) &&
+		 (ctx->hres % 3 != 0)) {
 		ctx->hres = CSI_ALIGN(ctx->hres, 3);
 		if (!ctx->crop.x_end) {
 			ctx->crop.x_st = 0;
@@ -1591,181 +1576,175 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 			   ipi_out_fmt, ctx->op_fmt);
 		return;
 	}
-	if ((ctx->hres != ctx->op_wt) || (ctx->vres != ctx->op_ht) || mod.seq_en) {
+	if ((ctx->hres != ctx->op_wt) || (ctx->vres != ctx->op_ht) || mod.seq_en)
 		mod.crop_en = 1;
-	}
 
 	CSI_PIPE_Reset(ctx);
 	switch (ctx->op_fmt) {
-		case CAM_PIXFMT_RAW8:
+	case CAM_PIXFMT_RAW8:
+		ctx->y_wr_ip = 5;
+		ctx->pack_sel = 0;
+		break;
+	case CAM_PIXFMT_RAW16:
+		ctx->y_wr_ip = 6;
+		ctx->pack_sel = 3;
+		ctx->op_bpp = 16;
+		if (ctx->src == SRC_INTF_IIF)
+			ctx->op_bpp = 48;
+
+		ctx->fvf_en = 0;
+		mod.imgres_byp = 0;
+		break;
+	case CAM_PIXFMT_RGB888:
+		if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
+			(ipi_out_fmt == CAM_PIXFMT_RGB565)) {
+			mod.csc_en = 1; // byapss csc
+			ctx->y_wr_ip = 3;
+			ctx->fvf_en = 0;
+		} else {
+			mod.dmsc_en = 1;
+			ctx->y_wr_ip = 4;
+		}
+		ctx->pack_sel = 2;
+		ctx->op_bpp = 24;
+		if (mod.seq_en) {
+			mod.csc_en = 0;
 			ctx->y_wr_ip = 5;
 			ctx->pack_sel = 0;
-			break;
-		case CAM_PIXFMT_RAW16:
-			ctx->y_wr_ip = 6;
-			ctx->pack_sel = 3;
-			ctx->op_bpp = 16;
-			if (ctx->src == SRC_INTF_IIF) {
-				ctx->op_bpp = 48;
-			}
-			ctx->fvf_en = 0;
-			mod.imgres_byp = 0;
-			break;
-		case CAM_PIXFMT_RGB888:
-			if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
-				(ipi_out_fmt == CAM_PIXFMT_RGB565) ) {
-				mod.csc_en = 1; // byapss csc
-				ctx->y_wr_ip = 3;
-				ctx->fvf_en = 0;
-			} else {
-				mod.dmsc_en = 1;
-				ctx->y_wr_ip = 4;
-			}
-			ctx->pack_sel = 2;
-			ctx->op_bpp = 24;
-			if (mod.seq_en) {
-				mod.csc_en = 0;
-				ctx->y_wr_ip = 5;
-				ctx->pack_sel = 0;
-				ctx->op_bpp = 8;
-			}
-			break;
-		case CAM_PIXFMT_RGB565:
-			if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
-				(ipi_out_fmt == CAM_PIXFMT_RGB565) ) {
-				mod.csc_en = 1; //bypass csc
-				ctx->y_wr_ip = 3;
-				ctx->fvf_en = 0;
-			} else {
-				mod.dmsc_en = 1;
-				ctx->y_wr_ip = 4;
-			}
-			ctx->pack_sel = 1; // 16bits
-			ctx->op_bpp = 16;
-			val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
-					RA_HOST2DHUB_CTRL1);
-			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_enable_565_write,
-						bHOST2DHUB_CTRL1_enable_565_write);
-			CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
-				RA_HOST2DHUB_CTRL1, val);
-			break;
-		case CAM_PIXFMT_YUV444:
-			if (ipi_out_fmt < CAM_PIXFMT_RGB888) {
-				mod.dmsc_en = 1;
-			} else {
-				ctx->fvf_en = 0;
-			}
-			mod.csc_en = 1;
-			ctx->pack_sel = 2;
+			ctx->op_bpp = 8;
+		}
+		break;
+	case CAM_PIXFMT_RGB565:
+		if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
+			(ipi_out_fmt == CAM_PIXFMT_RGB565)) {
+			mod.csc_en = 1; //bypass csc
 			ctx->y_wr_ip = 3;
-			ctx->op_bpp = 24;
-			if (mod.seq_en) {
-				mod.csc_en = 0;
-				ctx->y_wr_ip = 5;
-				ctx->pack_sel = 0;
-				ctx->op_bpp = 8;
-			}
-			break;
-		case CAM_PIXFMT_YUV422SP:
-			if (ipi_out_fmt < CAM_PIXFMT_RGB888) {
-				mod.dmsc_en = 1;
-			} else {
-				ctx->fvf_en = 0;
-			}
-			if (ipi_out_fmt < CAM_PIXFMT_YUV444) {
-				mod.csc_en = 1;
-			}
-			if (ctx->op_through_ipi) {
-				val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
-						RA_HOST2DHUB_CTRL1);
-				SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_pix_toggle_en_444to422,
-						bHOST2DHUB_CTRL1_pix_toggle_en_444to422);
-				CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
-						RA_HOST2DHUB_CTRL1, val);
-				ctx->y_wr_ip = 9;
-				ctx->c_wr_ip = 2;
-			} else {
-				mod.dns1_en = 1;
-				ctx->y_wr_ip = 2;
-				ctx->c_wr_ip = 1;
-			}
+			ctx->fvf_en = 0;
+		} else {
+			mod.dmsc_en = 1;
+			ctx->y_wr_ip = 4;
+		}
+		ctx->pack_sel = 1; // 16bits
+		ctx->op_bpp = 16;
+		val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
+				RA_HOST2DHUB_CTRL1);
+		SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_enable_565_write,
+					bHOST2DHUB_CTRL1_enable_565_write);
+		CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
+			RA_HOST2DHUB_CTRL1, val);
+		break;
+	case CAM_PIXFMT_YUV444:
+		if (ipi_out_fmt < CAM_PIXFMT_RGB888)
+			mod.dmsc_en = 1;
+		else
+			ctx->fvf_en = 0;
+
+		mod.csc_en = 1;
+		ctx->pack_sel = 2;
+		ctx->y_wr_ip = 3;
+		ctx->op_bpp = 24;
+		if (mod.seq_en) {
+			mod.csc_en = 0;
+			ctx->y_wr_ip = 5;
 			ctx->pack_sel = 0;
 			ctx->op_bpp = 8;
-			break;
-		case CAM_PIXFMT_YUV422P:
-			if (ipi_out_fmt < CAM_PIXFMT_RGB888) {
-				mod.dmsc_en = 1;
-			} else {
-				ctx->fvf_en = 0;
-			}
-			if (ipi_out_fmt < CAM_PIXFMT_YUV444) {
-				mod.csc_en = 1;
-			}
-			if (ctx->op_through_ipi) {
-				val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
-						RA_HOST2DHUB_CTRL1);
-				SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_pix_toggle_en_444to422,
-						bHOST2DHUB_CTRL1_pix_toggle_en_444to422);
-				CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
-						RA_HOST2DHUB_CTRL1, val);
-				ctx->y_wr_ip = 8;
-				ctx->pack_sel = 1;
-			} else {
-				mod.dns1_en = 1;
-				ctx->pack_sel = 1;
-				ctx->y_wr_ip = 1;
-			}
-			ctx->op_bpp = 16;
-			break;
-		case CAM_PIXFMT_YUV420SP:
-			if (ipi_out_fmt < CAM_PIXFMT_RGB888) {
-				mod.dmsc_en = 1;
-			}
-			if (ipi_out_fmt < CAM_PIXFMT_YUV444) {
-				mod.csc_en = 1;
-			}
-			if (ipi_out_fmt < CAM_PIXFMT_YUV422SP) {
-				mod.dns1_en = 1;
-			}
-			if (ipi_out_fmt == CAM_PIXFMT_YUV420SP) {
-				ctx->pack_sel = 1;
-				ctx->y_wr_ip = 10;
-				ctx->c_wr_ip = 3;
-				ctx->yuv420_dir_op = 1;
-				csc_input = 2;
-				val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
-						RA_HOST2DHUB_CTRL1);
-				SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl2,
-					bHOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl2);
-				SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl3,
-					bHOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl3);
-				SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_init_val_422to420,
-					bHOST2DHUB_CTRL1_init_val_422to420);
-				SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_line_toggle_en_422to420,
-					bHOST2DHUB_CTRL1_line_toggle_en_422to420);
-				SET_BIT(val, 2, LSb32HOST2DHUB_CTRL1_CSC_FIFO_wr_ctrl,
-					bHOST2DHUB_CTRL1_CSC_FIFO_wr_ctrl);
-				CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
+		}
+		break;
+	case CAM_PIXFMT_YUV422SP:
+		if (ipi_out_fmt < CAM_PIXFMT_RGB888)
+			mod.dmsc_en = 1;
+		else
+			ctx->fvf_en = 0;
+
+		if (ipi_out_fmt < CAM_PIXFMT_YUV444)
+			mod.csc_en = 1;
+
+		if (ctx->op_through_ipi) {
+			val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
+					RA_HOST2DHUB_CTRL1);
+			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_pix_toggle_en_444to422,
+					bHOST2DHUB_CTRL1_pix_toggle_en_444to422);
+			CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
 					RA_HOST2DHUB_CTRL1, val);
-			} else {
-				mod.dns2_en = 1;
-				ctx->pack_sel = 0;
-				ctx->y_wr_ip = 0;
-				ctx->c_wr_ip = 0;
-			}
-			ctx->op_bpp = 8;
-			sp420_en = 1;
-			break;
-		default:
-			pr_err("Output format[%d] not supported\n", ctx->op_fmt);
-			return;
+			ctx->y_wr_ip = 9;
+			ctx->c_wr_ip = 2;
+		} else {
+			mod.dns1_en = 1;
+			ctx->y_wr_ip = 2;
+			ctx->c_wr_ip = 1;
+		}
+		ctx->pack_sel = 0;
+		ctx->op_bpp = 8;
+		break;
+	case CAM_PIXFMT_YUV422P:
+		if (ipi_out_fmt < CAM_PIXFMT_RGB888)
+			mod.dmsc_en = 1;
+		else
+			ctx->fvf_en = 0;
+
+		if (ipi_out_fmt < CAM_PIXFMT_YUV444)
+			mod.csc_en = 1;
+		if (ctx->op_through_ipi) {
+			val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
+					RA_HOST2DHUB_CTRL1);
+			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_pix_toggle_en_444to422,
+					bHOST2DHUB_CTRL1_pix_toggle_en_444to422);
+			CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
+					RA_HOST2DHUB_CTRL1, val);
+			ctx->y_wr_ip = 8;
+			ctx->pack_sel = 1;
+		} else {
+			mod.dns1_en = 1;
+			ctx->pack_sel = 1;
+			ctx->y_wr_ip = 1;
+		}
+		ctx->op_bpp = 16;
+		break;
+	case CAM_PIXFMT_YUV420SP:
+		if (ipi_out_fmt < CAM_PIXFMT_RGB888)
+			mod.dmsc_en = 1;
+		if (ipi_out_fmt < CAM_PIXFMT_YUV444)
+			mod.csc_en = 1;
+		if (ipi_out_fmt < CAM_PIXFMT_YUV422SP)
+			mod.dns1_en = 1;
+		if (ipi_out_fmt == CAM_PIXFMT_YUV420SP) {
+			ctx->pack_sel = 1;
+			ctx->y_wr_ip = 10;
+			ctx->c_wr_ip = 3;
+			ctx->yuv420_dir_op = 1;
+			csc_input = 2;
+			val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
+					RA_HOST2DHUB_CTRL1);
+			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl2,
+				bHOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl2);
+			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl3,
+				bHOST2DHUB_CTRL1_ipi_420_dirw_mux_ctrl_lvl3);
+			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_init_val_422to420,
+				bHOST2DHUB_CTRL1_init_val_422to420);
+			SET_BIT(val, 1, LSb32HOST2DHUB_CTRL1_line_toggle_en_422to420,
+				bHOST2DHUB_CTRL1_line_toggle_en_422to420);
+			SET_BIT(val, 2, LSb32HOST2DHUB_CTRL1_CSC_FIFO_wr_ctrl,
+				bHOST2DHUB_CTRL1_CSC_FIFO_wr_ctrl);
+			CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr +
+				RA_HOST2DHUB_CTRL1, val);
+		} else {
+			mod.dns2_en = 1;
+			ctx->pack_sel = 0;
+			ctx->y_wr_ip = 0;
+			ctx->c_wr_ip = 0;
+		}
+		ctx->op_bpp = 8;
+		sp420_en = 1;
+		break;
+	default:
+		pr_err("Output format[%d] not supported\n", ctx->op_fmt);
+		return;
 		break;
 	}
 
 	mod.fvf_en = ctx->fvf_en;
-	if (IS_VALID_INPUT(ctx->c_wr_ip)) {
+	if (IS_VALID_INPUT(ctx->c_wr_ip))
 		mod.wr_c_en = 1;
-	}
 	CSI_PIPE_RegisterIrq(ctx, ctx->id);
 	CSI_PIPE_ClkControl(ctx, &mod);
 
@@ -1784,6 +1763,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 
 	if (ctx->src == SRC_INTF_IPI0) {
 		int bit_pos = LSb32CSIPIPE_CTRL_HC0_ipi_halt_source + ctx->id;
+
 		val = HAL_ISP_CORE_REG_READ32(ctx->dev, CSIPIPE_OFFSET +
 				RA_CSIPIPE_CTRL);
 		SET_BIT(val, 1, bit_pos, 1);
@@ -1791,6 +1771,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 				RA_CSIPIPE_CTRL, val);
 	} else if (ctx->src == SRC_INTF_IPI1) {
 		int bit_pos = LSb32CSIPIPE_CTRL_HC1_ipi_halt_source + ctx->id;
+
 		val = HAL_ISP_CORE_REG_READ32(ctx->dev, CSIPIPE_OFFSET + RA_CSIPIPE_CTRL);
 		SET_BIT(val, 1, bit_pos, 1);
 		CAM_HAL_WriteReg(ctx->dev, NULL, CSIPIPE_OFFSET +
@@ -1852,7 +1833,8 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr + RA_HOST2DHUB_IMAGERESWRAP +
 			RA_IMAGERESWRAP_CTRL, val);
 	if (capture_mode == SINGLE_CAPTURE_SW || capture_mode == SINGLE_CAPTURE_HW) {
-		int sw_mode = capture_mode == SINGLE_CAPTURE_SW ? 1: 0;
+		int sw_mode = capture_mode == SINGLE_CAPTURE_SW ? 1 : 0;
+
 		SET_BIT(val, sw_mode, LSb32IMAGERESWRAP_CTRL_capture_sw,
 			bIMAGERESWRAP_CTRL_capture_sw);
 		SET_BIT(val, 0, LSb32IMAGERESWRAP_CTRL_n_eof, bIMAGERESWRAP_CTRL_n_eof);
@@ -1861,7 +1843,8 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 		CAM_HAL_WriteReg(ctx->dev, NULL, ctx->pipe_base_addr + RA_HOST2DHUB_IMAGERESWRAP +
 			RA_IMAGERESWRAP_CTRL, val);
 	} else if (capture_mode == NTH_CAPTURE_SW || capture_mode == NTH_CAPTURE_HW) {
-		int sw_mode = capture_mode == NTH_CAPTURE_SW ? 1: 0;
+		int sw_mode = capture_mode == NTH_CAPTURE_SW ? 1 : 0;
+
 		SET_BIT(val, 0, LSb32IMAGERESWRAP_CTRL_one_shot_capture_on,
 			bIMAGERESWRAP_CTRL_one_shot_capture_on);
 		SET_BIT(val, sw_mode, LSb32IMAGERESWRAP_CTRL_capture_sw,
@@ -1904,9 +1887,10 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 
 	if (!mod.imgres_en) {
 		int wt, ht;
+
 		if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
 			(ipi_out_fmt == CAM_PIXFMT_RGB565) ||
-			(ipi_out_fmt == CAM_PIXFMT_YUV444) ) {
+			(ipi_out_fmt == CAM_PIXFMT_YUV444)) {
 			wt = ctx->hres * 3;
 		} else {
 			wt = ctx->hres;
@@ -1923,20 +1907,21 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 
 		if ((ctx->hres != ctx->op_wt) || (ctx->vres != ctx->op_ht) || mod.seq_en) {
 			int crp_x_st, crp_x_end;
-			seq_crop= HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
+
+			seq_crop = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
 						RA_HOST2DHUB_CTRL6);
 			SET_BIT(seq_crop, 1, LSb32HOST2DHUB_CTRL6_image_crop_en,
 				bHOST2DHUB_CTRL6_image_crop_en);
 			if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
 				(ipi_out_fmt == CAM_PIXFMT_RGB565) ||
-				(ipi_out_fmt == CAM_PIXFMT_YUV444) ) {
+				(ipi_out_fmt == CAM_PIXFMT_YUV444)) {
 				/* x_end should be the last position of pixel, hence end pixel
 				 * value should be multiplied by 3 then reduce 1 to find position
 				 * of pixel. Since x_end input is already reduced by 1, need to add
 				 * 1, then multiply and reduce 1
 				 */
-				crp_x_st = ( ctx->crop.x_st * 3 );
-				crp_x_end = ( (ctx->crop.x_end + 1) * 3) - 1;
+				crp_x_st = (ctx->crop.x_st * 3);
+				crp_x_end = ((ctx->crop.x_end + 1) * 3) - 1;
 			} else {
 				crp_x_st = ctx->crop.x_st;
 				crp_x_end = ctx->crop.x_end;
@@ -2014,7 +1999,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 		CSI_PIPE_Csc_Config(ctx, csc_input, mode, 1);
 		ADD_TO_MODULE_LIST(module_list, MODULE_CSC);
 	} else {
-		if ( (ipi_out_fmt == CAM_PIXFMT_YUV444) && (ctx->op_through_ipi) ) {
+		if ((ipi_out_fmt == CAM_PIXFMT_YUV444) && (ctx->op_through_ipi)) {
 			val = HAL_ISP_CORE_REG_READ32(ctx->dev, ctx->pipe_base_addr +
 				RA_HOST2DHUB_CTRL1);
 			SET_BIT(val, 0, LSb32HOST2DHUB_CTRL1_CSC_IPI_swap_ctrl,
@@ -2046,6 +2031,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 		ADD_TO_MODULE_LIST(module_list, MODULE_IMGRES);
 	}
 	int dma_id;
+
 	if (IS_VALID_INPUT(ctx->y_wr_ip)) {
 		dma_id = (ctx->id == 0) ? avioDhubChMap_vip128b_IPI0Y_W :
 					avioDhubChMap_vip128b_IPI1Y_W;
@@ -2120,6 +2106,7 @@ void CSI_PIPE_Mute(CSIPIPE_HANDLE handle, int mute)
 {
 	int val;
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)handle;
+
 	val = HAL_ISP_CORE_REG_READ32(ctx->dev, CSIPIPE_OFFSET +
 			RA_CSIPIPE_VIDEO_MUTE);
 	if (ctx->src == SRC_INTF_IIF) { // IIF
@@ -2161,14 +2148,13 @@ void CSI_PIPE_Status(CSIPIPE_HANDLE handle)
 {
 	int i;
 	struct isp_ctrl ctrl;
-
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)handle;
+
 	pr_info("Frame Count = %d\n", ctx->frame_cnt);
 	pr_info("CSIPipe[%d] Interrupt Status:\n", ctx->id);
-	for (i=0; i < MAX_INTR; i++) {
-		if (ctx->intr_cnt[i]) {
+	for (i = 0; i < MAX_INTR; i++) {
+		if (ctx->intr_cnt[i])
 			pr_info("%s ID[%d] Count = %d\n", intr_name[i], i, ctx->intr_cnt[i]);
-		}
 	}
 	/* Print FVF Status */
 	ctrl.id = CID_FVF_G_STATUS;

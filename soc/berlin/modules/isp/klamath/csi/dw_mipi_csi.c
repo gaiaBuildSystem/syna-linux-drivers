@@ -418,7 +418,7 @@ static int dw_mipi_csi_enum_mbus_code(struct v4l2_subdev *sd,
 		struct v4l2_subdev_state *state,
 		struct v4l2_subdev_mbus_code_enum *code)
 {
-	if (code->index >= sizeof(dw_mipi_csi_formats))
+	if (code->index >= ARRAY_SIZE(dw_mipi_csi_formats))
 		return -EINVAL;
 
 	code->code = dw_mipi_csi_formats[code->index].code;
@@ -503,6 +503,54 @@ static int dw_mipi_csi_get_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int dw_mipi_csi_enum_frame_size(struct v4l2_subdev *sd,
+		struct v4l2_subdev_state *state,
+		struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct mipi_csi_dev *dev = v4l2_get_subdevdata(sd);
+	struct media_pad *sensor_pad;
+	struct v4l2_subdev *sensor_subdev;
+	struct v4l2_subdev_frame_size_enum sensor_fse;
+	int ret;
+
+	/* Find sensor subdevice connected to CSI sink pad */
+	sensor_pad = media_pad_remote_pad_first(&dev->pads[CSI_PAD_SINK]);
+	if (!sensor_pad) {
+		pr_err("%s: No sensor connected to CSI sink pad\n", __func__);
+		return -ENODEV;
+	}
+
+	if (!is_media_entity_v4l2_subdev(sensor_pad->entity)) {
+		pr_err("%s: Connected entity is not a V4L2 subdev\n", __func__);
+		return -ENODEV;
+	}
+
+	sensor_subdev = media_entity_to_v4l2_subdev(sensor_pad->entity);
+	if (!sensor_subdev) {
+		pr_err("%s: Invalid sensor subdevice\n", __func__);
+		return -ENODEV;
+	}
+
+	/* Forward frame size enumeration to sensor */
+	sensor_fse = *fse;
+	/* Sensor source pad */
+	sensor_fse.pad = 0;
+
+	ret = v4l2_subdev_call(sensor_subdev, pad, enum_frame_size, state, &sensor_fse);
+	if (ret) {
+		pr_debug("%s: Sensor enum_frame_size failed: %d\n", __func__, ret);
+		return ret;
+	}
+
+	/* Copy sensor results back to CSI */
+	fse->min_width = sensor_fse.min_width;
+	fse->max_width = sensor_fse.max_width;
+	fse->min_height = sensor_fse.min_height;
+	fse->max_height = sensor_fse.max_height;
+
+	return 0;
+}
+
 static int dw_mipi_csi_s_power1(struct v4l2_subdev *sd, int on)
 {
 	struct mipi_csi_dev *dev = v4l2_get_subdevdata(sd);
@@ -557,6 +605,7 @@ static const struct v4l2_subdev_core_ops dw_mipi_csi_core_ops = {
 
 static const struct v4l2_subdev_pad_ops dw_mipi_csi_pad_ops = {
 	.enum_mbus_code = dw_mipi_csi_enum_mbus_code,
+	.enum_frame_size = dw_mipi_csi_enum_frame_size,
 	.get_fmt = dw_mipi_csi_get_fmt,
 	.set_fmt = dw_mipi_csi_set_fmt,
 };

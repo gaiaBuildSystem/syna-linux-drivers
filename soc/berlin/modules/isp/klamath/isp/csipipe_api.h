@@ -80,8 +80,8 @@ CSIPIPE_HANDLE CSI_PIPE_Create(struct camera_isp_dev *isp_dev, int pipe);
 void CSI_PIPE_Destroy(CSIPIPE_HANDLE);
 
 void CSI_PIPE_Set_Fmt(CSIPIPE_HANDLE handle, struct v4l2_mbus_framefmt *format);
-void CSI_PIPE_Set_Output_Fmt(CSIPIPE_HANDLE handle, uint32_t width, uint32_t height);
-int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code);
+void CSI_PIPE_Set_Input_Fmt(CSIPIPE_HANDLE handle, uint32_t width, uint32_t height);
+int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code, uint32_t scale_factor);
 void CSI_PIPE_Start(CSIPIPE_HANDLE handle);
 void CSI_PIPE_Stop(CSIPIPE_HANDLE handle);
 void CSI_PIPE_Mute(CSIPIPE_HANDLE handle, int mute);

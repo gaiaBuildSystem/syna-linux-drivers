@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
-* Copyright (C) 2021 - 2023 Synaptics Incorporated
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*/
+ * Copyright (C) 2021 - 2023 Synaptics Incorporated
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
 #ifndef __CAMERA_ISP_DRIVER_H__
 #define __CAMERA_ISP_DRIVER_H__
@@ -27,7 +27,7 @@
 #define MAX_PL 2
 #define BCM_ENABLE
 
-typedef void* CSIPIPE_HANDLE;
+typedef void *CSIPIPE_HANDLE;
 
 /* Interrupt queue between ISR and process thread */
 #define ISP_INTR_Q_SIZE 64
@@ -70,7 +70,7 @@ typedef void* CSIPIPE_HANDLE;
 #define CAM_HAL_WriteReg            CAM_BCMBUF_Write
 #define CAM_HAL_ReadReg(dev, addr)       HAL_ISP_CORE_REG_READ32(dev, addr)
 
-#define GET_BIT_MASK(N_BIT)     ( (1<<N_BIT) - 1 )
+#define GET_BIT_MASK(N_BIT)     ((1<<N_BIT) - 1)
 #define SET_BIT(VARIABLE, VALUE, BIT_POS, N_BIT) \
 	(VARIABLE = (VARIABLE & (~(GET_BIT_MASK(N_BIT) << BIT_POS))) | \
 		((VALUE & GET_BIT_MASK(N_BIT)) << BIT_POS))
@@ -91,10 +91,10 @@ typedef void* CSIPIPE_HANDLE;
 
 /* ISP pad definitions */
 enum camera_isp_pad_id {
-    CAMERA_ISP_PAD_SINK = 0,            /* Input from sensor */
-    CAMERA_ISP_PAD_SOURCE_PATH0,        /* Path 0 output to video device 0 */
-    CAMERA_ISP_PAD_SOURCE_PATH1,        /* Path 1 output to video device 1 */
-    CAMERA_ISP_PAD_NR,
+	CAMERA_ISP_PAD_SINK = 0,            /* Input from sensor */
+	CAMERA_ISP_PAD_SOURCE_PATH0,        /* Path 0 output to video device 0 */
+	CAMERA_ISP_PAD_SOURCE_PATH1,        /* Path 1 output to video device 1 */
+	CAMERA_ISP_PAD_NR,
 };
 
 /* Media bus format structure */
@@ -138,6 +138,18 @@ struct camera_isp_dev {
 	unsigned int intr_q_head;
 	unsigned int intr_q_tail;
 	unsigned int intr_q[ISP_INTR_Q_SIZE];
+
+	/* Cached sensor modes */
+	struct sensor_mode *cached_modes;
+	int num_cached_modes;
+	u32 cached_format_code;
+
+	/* Scaling information from resolution selection */
+	u32 scale_factor;
+
+	/* DT caps for sensor modes (0 disables the cap) */
+	u32 max_sensor_width;
+	u32 max_sensor_height;
 };
 
 /* IOCTL definitions */

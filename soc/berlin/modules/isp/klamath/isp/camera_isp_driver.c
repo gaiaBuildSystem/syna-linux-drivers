@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2023 Synaptics Incorporated
  *
@@ -29,6 +29,8 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-ctrls.h>
+#include <media/v4l2-subdev.h>
+#include <linux/limits.h>
 
 #include "camera_isp_driver.h"
 #include <media/v4l2-ctrls.h>
@@ -38,56 +40,250 @@
 #include "csipipe_pvt.h"
 #include "camera_isp_wb_sysfs.h"
 
+
+#define MAX_SENSOR_MODES 7
+#define MAX_SENSOR_WIDTH 1920
+#define MAX_SENSOR_HEIGHT 1080
+
 static const char *isp_clock_list[] = {
 	"aviopclk",
 };
 
+/* Sensor mode structure */
+struct sensor_mode {
+	u32 width;
+	u32 height;
+	u32 code;
+};
+
+/* Selection method enumeration */
+enum selection_method {
+	ISP_SCALABLE = 1,   /* integral downscale is possible from a larger sensor mode */
+	EXACT_MATCH = 2,    /* found matching sensor mode; no scaling needed */
+	NEAREST_MATCH = 3   /* fallback when exact/scale not available; choose closest sensor mode */
+};
+
+/* Helper: Enumerate all sensor modes */
+static int enumerate_sensor_modes(struct camera_isp_dev *isp_dev,
+			struct v4l2_subdev *subdev,
+			struct v4l2_subdev_state *sd_state,
+			struct sensor_mode *modes,
+			int *num_modes)
+{
+	struct v4l2_subdev_frame_size_enum fse = {0};
+	struct v4l2_subdev_mbus_code_enum code_enum = {0};
+	int ret, i, mode_count;
+
+	/* Get media bus code */
+	code_enum.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	code_enum.pad = 0;
+	code_enum.index = 0;
+
+	ret = v4l2_subdev_call(subdev, pad, enum_mbus_code, sd_state, &code_enum);
+	if (ret)
+		return ret;
+
+	/* Enumerate frame sizes */
+	fse.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	fse.pad = 0;
+	fse.code = code_enum.code;
+
+	mode_count = 0;
+	for (i = 0; i < MAX_SENSOR_MODES; i++) {
+		fse.index = i;
+		ret = v4l2_subdev_call(subdev, pad, enum_frame_size, sd_state, &fse);
+		if (ret)
+			break;
+
+		if (fse.max_width > MAX_SENSOR_WIDTH || fse.max_height > MAX_SENSOR_HEIGHT)
+			continue;
+
+		if ((isp_dev->max_sensor_width && fse.max_width > isp_dev->max_sensor_width) ||
+		    (isp_dev->max_sensor_height && fse.max_height > isp_dev->max_sensor_height))
+			continue;
+
+		modes[mode_count].width = fse.max_width;
+		modes[mode_count].height = fse.max_height;
+		modes[mode_count].code = fse.code;
+		mode_count++;
+	}
+
+	*num_modes = mode_count;
+
+	return (*num_modes > 0) ? 0 : -ENODEV;
+}
+
+/* METHOD 2- Check for exact match */
+static int find_exact_match(struct camera_isp_dev *isp_dev,
+			struct sensor_mode *modes, int num_modes,
+			u32 requested_width, u32 requested_height)
+{
+	int i;
+
+	for (i = 0; i < num_modes; i++) {
+		if (modes[i].width == requested_width && modes[i].height == requested_height)
+			return i;
+	}
+	return -1;
+}
+
+/* METHOD 1 - Find ISP scalable mode */
+static int find_scalable_mode(struct camera_isp_dev *isp_dev,
+			struct sensor_mode *modes, int num_modes,
+			u32 requested_width, u32 requested_height,
+			u32 *out_scale_factor)
+{
+	int best_mode = -1;
+	u32 best_scale_factor = UINT_MAX;
+	u32 scale_x, scale_y;
+	int i;
+
+	for (i = 0; i < num_modes; i++) {
+		/* Only consider modes larger than requested */
+		if (modes[i].width < requested_width || modes[i].height < requested_height)
+			continue;
+
+		scale_x = modes[i].width / requested_width;
+		scale_y = modes[i].height / requested_height;
+
+		/* Check for perfect integral scaling */
+		if (scale_x == scale_y &&
+			(modes[i].width % requested_width) == 0 &&
+			(modes[i].height % requested_height) == 0) {
+
+			if (scale_x < best_scale_factor) {
+				best_scale_factor = scale_x;
+				best_mode = i;
+			}
+		}
+	}
+
+	if (best_mode >= 0)
+		*out_scale_factor = best_scale_factor;
+
+	return best_mode;
+}
+
 /**
- * camera_isp_set_sensor_resolution_and_program - Set resolution to sensor driver
+ * camera_isp_select_optimal_sensor_mode - Select optimal sensor mode
+ * @out_method: Returns which method was used for selection
+ */
+static int camera_isp_select_optimal_sensor_mode(struct camera_isp_dev *isp_dev,
+			struct v4l2_subdev *subdev,
+			struct v4l2_subdev_state *sd_state,
+			u32 requested_width,
+			u32 requested_height,
+			struct v4l2_subdev_format *selected_fmt,
+			enum selection_method *out_method)
+{
+	struct sensor_mode *modes;
+	int num_modes = 0;
+	int selected_mode = -1;
+	u32 scale_factor = 0;
+	enum selection_method method = NEAREST_MATCH;
+	int ret;
+
+	/* Use cached modes if available */
+	if (isp_dev->cached_modes && isp_dev->num_cached_modes > 0) {
+		modes = isp_dev->cached_modes;
+		num_modes = isp_dev->num_cached_modes;
+	} else {
+		/* First time: enumerate and cache sensor modes */
+		isp_dev->cached_modes = devm_kzalloc(isp_dev->dev,
+			MAX_SENSOR_MODES * sizeof(struct sensor_mode), GFP_KERNEL);
+		if (!isp_dev->cached_modes)
+			return -ENOMEM;
+
+		ret = enumerate_sensor_modes(isp_dev, subdev, sd_state,
+			isp_dev->cached_modes, &isp_dev->num_cached_modes);
+		if (ret)
+			return ret;
+
+		modes = isp_dev->cached_modes;
+		num_modes = isp_dev->num_cached_modes;
+	}
+
+	/* METHOD 1: ISP scalable */
+	selected_mode = find_scalable_mode(isp_dev, modes, num_modes,
+			requested_width, requested_height, &scale_factor);
+	if (selected_mode >= 0) {
+		method = ISP_SCALABLE;
+		isp_dev->scale_factor = scale_factor;
+		goto mode_selected;
+	}
+
+	/* METHOD 2: Exact match */
+	selected_mode = find_exact_match(isp_dev, modes, num_modes,
+			requested_width, requested_height);
+	if (selected_mode >= 0) {
+		method = EXACT_MATCH;
+		isp_dev->scale_factor = 1; /* No scaling for exact match */
+		goto mode_selected;
+	}
+
+mode_selected:
+	if (selected_mode < 0)
+		return -EINVAL;
+
+	/* Configure and apply selected format */
+	selected_fmt->which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	selected_fmt->pad = 0;
+	selected_fmt->format.width = modes[selected_mode].width;
+	selected_fmt->format.height = modes[selected_mode].height;
+	selected_fmt->format.code = modes[selected_mode].code;
+	selected_fmt->format.field = V4L2_FIELD_NONE;
+	selected_fmt->format.colorspace = V4L2_COLORSPACE_SRGB;
+
+	/* Return which method was selected */
+	if (out_method)
+		*out_method = method;
+
+	return 0;
+}
+
+/**
+ * camera_isp_get_sensor_resolution_and_program - Get resolution from sensor and program CSI
  * @isp_dev: ISP device pointer
  * @subdev: CSI subdevice pointer
  * @sd_state: subdevice state
- * @sd_fmt: subdevice format structure to populate
- * @format_code: media bus format code to use
- *
- * This function sets resolution to sensor driver via CSI subdevice.
+ * @sd_fmt: Format structure (input: requested, output: actual)
  * Returns: 0 on success, negative error code on failure
  */
-static int camera_isp_set_sensor_resolution_and_program(struct camera_isp_dev *isp_dev,
+static int camera_isp_get_sensor_resolution_and_program(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *subdev,
 		struct v4l2_subdev_state *sd_state,
-		struct v4l2_subdev_format *sd_fmt,
-		u32 format_code)
+		struct v4l2_subdev_format *sd_fmt)
 {
+	struct media_pad *sensor_pad;
+	struct v4l2_subdev *sensor_subdev;
+	struct v4l2_subdev_format sensor_fmt = {0};
+	enum selection_method method;
+	u32 requested_width = sd_fmt->format.width;
+	u32 requested_height = sd_fmt->format.height;
 	int ret;
-	struct v4l2_subdev_format sensor_fmt = {
-		.which = sd_fmt->which,
-		.pad = 0,
-		.format = {
-			.width = sd_fmt->format.width,
-			.height = sd_fmt->format.height,
-			.code = format_code,
-		}
-	};
 
-	/* Get resolution from sensor driver via CSI subdevice */
-	ret = v4l2_subdev_call(subdev, pad, set_fmt, sd_state, &sensor_fmt);
-	if (ret == 0 && sensor_fmt.format.width > 0 && sensor_fmt.format.height > 0) {
-		dev_dbg(isp_dev->dev, "Got resolution from sensor driver: %dx%d\n",
-				 sensor_fmt.format.width, sensor_fmt.format.height);
+	/* Find the sensor subdevice connected to CSI */
+	sensor_pad = media_pad_remote_pad_first(&subdev->entity.pads[0]);
+	if (!sensor_pad || !is_media_entity_v4l2_subdev(sensor_pad->entity))
+		return -ENODEV;
 
-		/* Program CSI subdevice with sensor resolution */
-		sd_fmt->format.width = sensor_fmt.format.width;
-		sd_fmt->format.height = sensor_fmt.format.height;
-		sd_fmt->format.code = sensor_fmt.format.code;//format_code;
+	sensor_subdev = media_entity_to_v4l2_subdev(sensor_pad->entity);
+	if (!sensor_subdev)
+		return -ENODEV;
 
-		dev_dbg(isp_dev->dev, "Programming CSI with sensor resolution: %dx%d, code 0x%x\n",
-				 sd_fmt->format.width, sd_fmt->format.height, sd_fmt->format.code);
-		return 0;
-	} else {
-		dev_info(isp_dev->dev, "Sensor driver not available (ret=%d)\n", ret);
+	/* Resolution selection with method information */
+	ret = camera_isp_select_optimal_sensor_mode(isp_dev, sensor_subdev, sd_state,
+				requested_width, requested_height, &sensor_fmt, &method);
+	if (ret)
 		return ret;
-	}
+
+	/* Always update sd_fmt with selected sensor resolution */
+	/* This is what goes to CSI and sensor */
+	sd_fmt->format.width = sensor_fmt.format.width;
+	sd_fmt->format.height = sensor_fmt.format.height;
+	sd_fmt->format.code = sensor_fmt.format.code;
+
+	return 0;
 }
 
 static int camera_isp_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
@@ -97,7 +293,6 @@ static int camera_isp_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct isp_ctrl wb_ctrl;
 	int ret = 0;
 
-	dev_info(isp_dev->dev, "ISP s_ctrl: id=0x%x, val=%d\n", ctrl->id, ctrl->val);
 
 	switch (ctrl->id) {
 	case V4L2_CID_USER_WB_ENABLE:
@@ -191,6 +386,7 @@ static int camera_isp_notifier_bound(struct v4l2_async_notifier *notifier,
 	struct media_entity *source, *sink;
 	unsigned int source_pad, sink_pad;
 	int ret = 0;
+
 	while (1) {
 		ep = fwnode_graph_get_next_endpoint(sd->fwnode, ep);
 		if (!ep)
@@ -293,8 +489,31 @@ static int camera_isp_buf_queue(struct v4l2_subdev *sd, void *arg)
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
 	struct camera_pad_buf *pad_buf = (struct camera_pad_buf *)arg;
 	unsigned long flags;
+	CSI_PL_CTX_t *ctx;
 
-	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)isp_dev->pipe[pad_buf->pad - 1];
+	if (!pad_buf || pad_buf->pad == CAMERA_ISP_PAD_SINK ||
+		pad_buf->pad >= CAMERA_ISP_PAD_NR) {
+		dev_err(isp_dev->dev, "%s: invalid pad %u for buf_queue\n",
+			__func__, pad_buf ? pad_buf->pad : (u32)-1);
+		return -EINVAL;
+	}
+
+	if (!isp_dev->pipe[pad_buf->pad - 1]) {
+		dev_err(isp_dev->dev, "%s: pipeline not initialized for pad %u\n",
+			__func__, pad_buf->pad);
+		return -EINVAL;
+	}
+
+	if (!pad_buf->buf) {
+		dev_err(isp_dev->dev, "%s: NULL buffer for pad %u\n", __func__, pad_buf->pad);
+		return -EINVAL;
+	}
+
+	/* If first plane dma address looks invalid */
+	if (!pad_buf->buf->planes[0].dma_addr)
+		dev_warn(isp_dev->dev, "%s: pad %u plane0 dma_addr is 0\n", __func__, pad_buf->pad);
+
+	ctx = (CSI_PL_CTX_t *)isp_dev->pipe[pad_buf->pad - 1];
 
 	spin_lock_irqsave(&ctx->buf.lock, flags);
 	list_add_tail(&pad_buf->buf->list, &ctx->buf.queue);
@@ -339,6 +558,20 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 	int ret = 0;
 	int req_pad = pad_stream->pad - 1;
 
+	if (!pad_stream || pad_stream->pad == CAMERA_ISP_PAD_SINK ||
+		pad_stream->pad >= CAMERA_ISP_PAD_NR) {
+		dev_err(isp_dev->dev, "%s: invalid pad %u for s_stream\n",
+			__func__, pad_stream ? pad_stream->pad : (u32)-1);
+		return -EINVAL;
+	}
+
+	if (!isp_dev->pipe[pad_stream->pad - 1]) {
+		dev_err(isp_dev->dev, "%s: pipeline not initialized for pad %u\n",
+			__func__, pad_stream->pad);
+		return -EINVAL;
+	}
+
+	//TODO pipe index calculation
 	if (pad_stream->status) {
 		isp_dev->active_pipe_id = req_pad;
 
@@ -366,6 +599,7 @@ static int camera_isp_ioctl_g_ctrl(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_pad_control *pad_ctrl = (struct camera_pad_control *)arg;
+
 	if (pad_ctrl && pad_ctrl->control &&
 		pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
 		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
@@ -386,8 +620,9 @@ static int camera_isp_ioctl_s_ctrl(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_pad_control *pad_ctrl = (struct camera_pad_control *)arg;
+
 	if (pad_ctrl && pad_ctrl->control &&
-		pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
+			pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
 		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
 				V4L2_CID_USER_WB_ENABLE);
 		if (!ctrl) {
@@ -406,37 +641,46 @@ static int camera_isp_ioctl_s_ctrl(struct camera_isp_dev *isp_dev,
 static int camera_isp_ioctl_g_ext_ctrls(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
-	  struct camera_pad_ext_controls *pad_ext_ctrls = arg;
+	struct camera_pad_ext_controls *pad_ext_ctrls = arg;
 
-	  return v4l2_g_ext_ctrls(&isp_dev->ctrl_handler, sd->devnode,
-				sd->v4l2_dev->mdev, pad_ext_ctrls->ext_controls);
+	return v4l2_g_ext_ctrls(&isp_dev->ctrl_handler, sd->devnode,
+			sd->v4l2_dev->mdev, pad_ext_ctrls->ext_controls);
 }
 static int camera_isp_ioctl_s_ext_ctrls(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
-	  struct camera_pad_ext_controls *pad_ext_ctrls = arg;
+	struct camera_pad_ext_controls *pad_ext_ctrls = arg;
 
-	  return v4l2_s_ext_ctrls(NULL, &isp_dev->ctrl_handler, sd->devnode,
-				sd->v4l2_dev->mdev, pad_ext_ctrls->ext_controls);
+	return v4l2_s_ext_ctrls(NULL, &isp_dev->ctrl_handler, sd->devnode,
+			sd->v4l2_dev->mdev, pad_ext_ctrls->ext_controls);
 }
 static int camera_isp_ioctl_try_ext_ctrls(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
-	  struct camera_pad_ext_controls *pad_ext_ctrls = arg;
+	struct camera_pad_ext_controls *pad_ext_ctrls = arg;
 
-	  return v4l2_try_ext_ctrls(&isp_dev->ctrl_handler, sd->devnode,
-			   sd->v4l2_dev->mdev, pad_ext_ctrls->ext_controls);
+	return v4l2_try_ext_ctrls(&isp_dev->ctrl_handler, sd->devnode,
+			sd->v4l2_dev->mdev, pad_ext_ctrls->ext_controls);
 }
-static int camera_isp_ioctl_queryctrl(struct camera_isp_dev *isp_dev, void *arg) {
+
+static int camera_isp_ioctl_queryctrl(struct camera_isp_dev *isp_dev, void *arg)
+{
 	struct camera_pad_queryctrl *pad_query_ctrl = arg;
+
 	return v4l2_queryctrl(&isp_dev->ctrl_handler, pad_query_ctrl->query_ctrl);
 }
-static int camera_isp_ioctl_query_ext_ctrl(struct camera_isp_dev *isp_dev, void *arg) {
+
+static int camera_isp_ioctl_query_ext_ctrl(struct camera_isp_dev *isp_dev, void *arg)
+{
 	struct camera_pad_query_ext_ctrl *pad_query_ext_ctrl = arg;
+
 	return v4l2_query_ext_ctrl(&isp_dev->ctrl_handler, pad_query_ext_ctrl->query_ext_ctrl);
 }
-static int camera_isp_ioctl_querymenu(struct camera_isp_dev *isp_dev, void *arg) {
+
+static int camera_isp_ioctl_querymenu(struct camera_isp_dev *isp_dev, void *arg)
+{
 	struct camera_pad_querymenu *pad_querymenu = arg;
+
 	return v4l2_querymenu(&isp_dev->ctrl_handler, pad_querymenu->querymenu);
 }
 
@@ -457,6 +701,7 @@ static long camera_isp_priv_ioctl(struct v4l2_subdev *sd,
 {
 	int ret = -EINVAL;
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
+
 	if (!isp_dev)
 		return -ENODEV;
 
@@ -501,7 +746,7 @@ static long camera_isp_priv_ioctl(struct v4l2_subdev *sd,
 	return ret;
 }
 
-static struct v4l2_subdev_core_ops camera_isp_core_ops = {
+static const struct v4l2_subdev_core_ops camera_isp_core_ops = {
 	.ioctl = camera_isp_priv_ioctl,
 	.subscribe_event = camera_isp_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
@@ -606,8 +851,8 @@ static int camera_isp_set_selection(struct v4l2_subdev *sd,
 						   max_height - sel->r.top);
 
 	/* Align dimensions */
-	sel->r.width = ALIGN(sel->r.width, CAMERA_ISP_WIDTH_ALIGN);
-	sel->r.height = ALIGN(sel->r.height, CAMERA_ISP_HEIGHT_ALIGN);
+	//sel->r.width = ALIGN(sel->r.width, CAMERA_ISP_WIDTH_ALIGN);
+	//sel->r.height = ALIGN(sel->r.height, CAMERA_ISP_HEIGHT_ALIGN);
 
 	/* Ensure crop rectangle doesn't exceed bounds after alignment */
 	if (sel->r.left + sel->r.width > max_width) {
@@ -633,18 +878,156 @@ static int camera_isp_set_selection(struct v4l2_subdev *sd,
 		u32 scale_y = crop_height / ctx->op_ht;
 
 		ctx->crop.scale = (scale_x > scale_y) ? scale_x : scale_y;
-		if (ctx->crop.scale < 1) ctx->crop.scale = 1;
+		if (ctx->crop.scale < 1)
+			ctx->crop.scale = 1;
 		ctx->crop.imgres_oprn = (ctx->crop.scale > 1) ? 1 : 0;	/* 1=scaling, 0=cropping */
 	}
 
-	/* Apply crop settings to hardware registers through pipeline reconfiguration */
-	/* The crop parameters are now stored in ctx->crop and will be applied
-	 * during the next CSI_PIPE_Config call when format is set or streaming starts */
+	/*
+	 * Apply crop settings to hardware registers through pipeline reconfiguration
+	 * The crop parameters are now stored in ctx->crop and will be applied
+	 * during the next CSI_PIPE_Config call when format is set or streaming starts
+	 */
 
 	dev_info(isp_dev->dev, "%s crop (%d,%d)/%dx%d -> (%d,%d)-(%d,%d) scale=%d oprn=%d\n",
 			 __func__, sel->r.left, sel->r.top, sel->r.width, sel->r.height,
 			 ctx->crop.x_st, ctx->crop.y_st, ctx->crop.x_end, ctx->crop.y_end,
 			 ctx->crop.scale, ctx->crop.imgres_oprn);
+
+	return 0;
+}
+
+/* Get supported formats for a pad */
+static void camera_isp_supported_fmts_for_pad(u32 pad,
+					  struct camera_isp_mbus_fmt **fmts,
+					  int *num_fmts)
+{
+	if (pad == CAMERA_ISP_PAD_SOURCE_PATH0 ||
+	    pad == CAMERA_ISP_PAD_SOURCE_PATH1) {
+		*fmts = camera_isp_mp_fmts;
+		*num_fmts = ARRAY_SIZE(camera_isp_mp_fmts);
+	} else {
+		*fmts = camera_isp_sp_fmts;
+		*num_fmts = ARRAY_SIZE(camera_isp_sp_fmts);
+	}
+}
+
+/* Check input/output formats */
+static int camera_isp_check_formats(struct device *dev,
+					     u32 in_code, u32 out_code)
+{
+	bool in_is_raw = false;
+	bool in_is_yuv422 = false;
+	bool in_is_yuv420 = false;
+	bool in_is_rgb = false;
+	bool out_is_raw = false;
+	bool out_is_yuv420 = false;
+	bool out_is_yuv422 = false;
+	bool out_is_rgb = false;
+
+	switch (in_code) {
+	case MEDIA_BUS_FMT_SBGGR8_1X8:
+	case MEDIA_BUS_FMT_SGRBG8_1X8:
+	case MEDIA_BUS_FMT_SRGGB8_1X8:
+	case MEDIA_BUS_FMT_SGBRG8_1X8:
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		in_is_raw = true;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+	case MEDIA_BUS_FMT_YUYV8_1X16:
+	case MEDIA_BUS_FMT_UYVY8_1X16:
+		in_is_yuv422 = true;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_1_5X8:
+		in_is_yuv420 = true;
+		break;
+	case MEDIA_BUS_FMT_RGB888_3X8:
+	case MEDIA_BUS_FMT_BGR888_3X8:
+		in_is_rgb = true;
+		break;
+	default:
+		break;
+	}
+
+	switch (out_code) {
+	case MEDIA_BUS_FMT_SBGGR8_1X8:
+	case MEDIA_BUS_FMT_SGRBG8_1X8:
+	case MEDIA_BUS_FMT_SRGGB8_1X8:
+	case MEDIA_BUS_FMT_SGBRG8_1X8:
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		out_is_raw = true;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+	case MEDIA_BUS_FMT_YUYV8_1X16:
+	case MEDIA_BUS_FMT_UYVY8_1X16:
+		out_is_yuv422 = true;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_1_5X8:
+		out_is_yuv420 = true;
+		break;
+	case MEDIA_BUS_FMT_RGB888_3X8:
+	case MEDIA_BUS_FMT_BGR888_3X8:
+		out_is_rgb = true;
+		break;
+	default:
+		break;
+	}
+
+	if (in_is_raw) {
+		if (!(out_is_yuv420 || out_is_rgb || out_is_raw)) {
+			dev_err(dev, "%s: RAW-in allows YUV420, RGB888, or RAW out (req=0x%x)\n",
+				__func__, out_code);
+			return -EINVAL;
+		}
+	} else if (in_is_yuv422) {
+		if (!(out_is_yuv422 || out_is_yuv420)) {
+			dev_err(dev, "%s: YUV422-in allows YUV422 or YUV420 out (in=0x%x out=0x%x)\n",
+				__func__, in_code, out_code);
+			return -EINVAL;
+		}
+	} else if (in_is_yuv420) {
+		if (out_code != in_code) {
+			dev_err(dev, "%s: YUV420-in must pass-through as-is (in=0x%x out=0x%x)\n",
+				__func__, in_code, out_code);
+			return -EINVAL;
+		}
+	} else if (in_is_rgb) {
+		if (out_code != in_code) {
+			dev_err(dev, "%s: RGB-in must pass-through as-is (in=0x%x out=0x%x)\n",
+				__func__, in_code, out_code);
+			return -EINVAL;
+		}
+	} else {
+		dev_err(dev, "%s: unsupported input code 0x%x\n", __func__, in_code);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/* Program pipeline */
+static int camera_isp_program_pipeline(struct camera_isp_dev *isp_dev,
+						 u32 pad,
+						 struct v4l2_mbus_framefmt *in_fmt,
+						 struct v4l2_mbus_framefmt *out_fmt,
+						 u32 scale_factor)
+{
+	if (!isp_dev->pipeline_ready[pad - 1]) {
+		isp_dev->pipe[pad - 1] = CSI_PIPE_Create(isp_dev, pad - 1);
+		isp_dev->pipeline_ready[pad - 1] = true;
+	}
+
+	CSI_PIPE_Set_Input_Fmt(isp_dev->pipe[pad - 1],
+				  in_fmt->width, in_fmt->height);
+
+	CSI_PIPE_Set_Fmt(isp_dev->pipe[pad - 1], out_fmt);
+	CSI_PIPE_Config(isp_dev->pipe[pad - 1], in_fmt->code, scale_factor);
 
 	return 0;
 }
@@ -656,8 +1039,11 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 {
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
 	struct camera_isp_mbus_fmt *supported_fmts;
+	struct v4l2_subdev *subdev;
+	struct media_pad *pad;
 	int num_fmts;
 	int i;
+	int ret;
 	struct v4l2_subdev_format sd_fmt = {
 		.which = format->which,
 		.pad = 0,
@@ -666,22 +1052,14 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 			.height = format->format.height,
 		}
 	};
-	int req_pad;
 
-	if (format->pad >= CAMERA_ISP_PAD_NR){
+	if (format->pad >= CAMERA_ISP_PAD_NR) {
 		pr_err("%s %d error !!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
 	/* Get supported formats based on pad */
-	if (format->pad == CAMERA_ISP_PAD_SOURCE_PATH0 ||
-		format->pad == CAMERA_ISP_PAD_SOURCE_PATH1) {
-		supported_fmts = camera_isp_mp_fmts;
-		num_fmts = ARRAY_SIZE(camera_isp_mp_fmts);
-	} else {
-		supported_fmts = camera_isp_sp_fmts;
-		num_fmts = ARRAY_SIZE(camera_isp_sp_fmts);
-	}
+	camera_isp_supported_fmts_for_pad(format->pad, &supported_fmts, &num_fmts);
 
 	/* Validate format */
 	for (i = 0; i < num_fmts; i++) {
@@ -690,8 +1068,9 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 	}
 
 	if (i >= num_fmts) {
-		/* Use first supported format as default */
-		format->format.code = supported_fmts[0].code;
+		dev_dbg(isp_dev->dev, "%s: unsupported code 0x%x on pad %u\n",
+			__func__, format->format.code, format->pad);
+		return -EINVAL;
 	}
 
 	/* Clamp dimensions */
@@ -700,49 +1079,42 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 	format->format.height = clamp_t(u32, format->format.height,
 			CAMERA_ISP_HEIGHT_MIN, CAMERA_ISP_HEIGHT_MAX);
 
-	/* Align dimensions */
-	format->format.width = ALIGN(format->format.width, CAMERA_ISP_WIDTH_ALIGN);
-	format->format.height = ALIGN(format->format.height, CAMERA_ISP_HEIGHT_ALIGN);
-
-	dev_dbg(isp_dev->dev, "request format pad %d: %dx%d, code 0x%x\n",
-			format->pad, format->format.width, format->format.height,
-			format->format.code);
-
-	req_pad = format->pad - 1;
-	if (!isp_dev->pipeline_ready[req_pad]) {
-		isp_dev->pipe[req_pad] = CSI_PIPE_Create(isp_dev, req_pad);
-		isp_dev->pipeline_ready[req_pad] = true;
-	}
-
-	CSI_PIPE_Set_Fmt(isp_dev->pipe[req_pad], &format->format);
-
-	// CSI subdev integration
-	struct v4l2_subdev *subdev;
-	struct media_pad *pad;
-	//TODO Sink pad calculation should be neat
 	pad = media_pad_remote_pad_first(&isp_dev->pads[CAMERA_ISP_PAD_SINK]);
-	/* Get the format that the CSI supports. Same will be applied in the
-	 * Pipe_Config */
 	if (pad && is_media_entity_v4l2_subdev(pad->entity)) {
 		sd_fmt.pad = pad->index;
+		sd_fmt.format = format->format;
 		subdev = media_entity_to_v4l2_subdev(pad->entity);
 
-		/* Use sensor driver function for production */
-		camera_isp_set_sensor_resolution_and_program(isp_dev, subdev, sd_state,
-				&sd_fmt, format->format.code);
+		/* Select sensor mode and update sd_fmt */
+		ret = camera_isp_get_sensor_resolution_and_program(isp_dev, subdev,
+				sd_state, &sd_fmt);
+		if (ret)
+			return ret;
+
+		/* Apply selected sensor format to CSI */
+		if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+			ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &sd_fmt);
+			if (ret)
+				return ret;
+		}
 	}
-	dev_dbg(isp_dev->dev, "sd format pad %d: %dx%d, code 0x%x\n",
-			sd_fmt.pad, sd_fmt.format.width, sd_fmt.format.height,
-			sd_fmt.format.code);
 
+	/* Enforce input->output format policy for source pads */
+	ret = camera_isp_check_formats(isp_dev->dev,
+					      sd_fmt.format.code,
+					      format->format.code);
+	if (ret)
+		return ret;
 
-	// Always set output format for both normal and scaling pipelines
-	CSI_PIPE_Set_Output_Fmt(isp_dev->pipe[req_pad],
-			sd_fmt.format.width, sd_fmt.format.height);
-	dev_dbg(isp_dev->dev, "Set output format: %dx%d\n",
-			format->format.width, format->format.height);
-
-	CSI_PIPE_Config(isp_dev->pipe[req_pad], sd_fmt.format.code);
+	/* Program pipeline */
+	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+		ret = camera_isp_program_pipeline(isp_dev, format->pad,
+					      &sd_fmt.format,
+					      &format->format,
+					      isp_dev->scale_factor);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
@@ -754,7 +1126,7 @@ static int camera_isp_get_fmt(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *fmt;
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
 
-	if (format->pad >= CAMERA_ISP_PAD_NR){
+	if (format->pad >= CAMERA_ISP_PAD_NR) {
 		pr_err("%s %d error !!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
@@ -776,7 +1148,7 @@ static int camera_isp_enum_mbus_code(struct v4l2_subdev *sd,
 	struct camera_isp_mbus_fmt *supported_fmts;
 	int num_fmts;
 
-	if (code->pad >= CAMERA_ISP_PAD_NR){
+	if (code->pad >= CAMERA_ISP_PAD_NR) {
 		pr_err("%s %d error !!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
@@ -801,6 +1173,7 @@ static int camera_isp_enum_mbus_code(struct v4l2_subdev *sd,
 	return 0;
 }
 
+
 static const struct v4l2_subdev_pad_ops camera_isp_pad_ops = {
 	.set_fmt = camera_isp_set_fmt,
 	.get_fmt = camera_isp_get_fmt,
@@ -809,7 +1182,7 @@ static const struct v4l2_subdev_pad_ops camera_isp_pad_ops = {
 	.set_selection = camera_isp_set_selection,
 };
 
-static struct v4l2_subdev_ops camera_isp_subdev_ops = {
+static const struct v4l2_subdev_ops camera_isp_subdev_ops = {
 	.core = &camera_isp_core_ops,
 	/*.video = &camera_isp_video_ops,*/
 	.pad = &camera_isp_pad_ops,
@@ -839,6 +1212,7 @@ static int camera_isp_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 		/* Initialize default crop rectangles for source pads */
 		if (i != CAMERA_ISP_PAD_SINK) {
 			struct v4l2_rect *crop;
+
 			crop = v4l2_subdev_state_get_crop(fh->state, i);
 			crop->left = 0;
 			crop->top = 0;
@@ -882,9 +1256,8 @@ static int camera_isp_register_async_notifier(struct camera_isp_dev *isp_dev)
 			ep = fwnode_graph_get_endpoint_by_id(
 					dev_fwnode(isp_dev->dev),
 					pad, 0, FWNODE_GRAPH_ENDPOINT_NEXT);
-			if (!ep) {
+			if (!ep)
 				continue;
-			}
 
 			remote_ep = fwnode_graph_get_remote_endpoint(ep);
 
@@ -928,6 +1301,7 @@ static void camera_isp_unregister_async_notifier(struct camera_isp_dev *isp_dev)
 static void parse_wb_config_from_dt(struct device_node *node, WB_CONFIG_t *cfg)
 {
 	struct device_node *wb_np = of_get_child_by_name(node, "white-balance-config");
+
 	if (wb_np) {
 		of_property_read_u32(wb_np, "wb-mode", &cfg->wb_mode);
 		of_property_read_u32(wb_np, "wb-p00-mantissa", &cfg->wb_p00_mantissa);
@@ -1000,6 +1374,13 @@ static int camera_isp_parse_dt(struct camera_isp_dev *isp_dev,
 	/* Parse device ID */
 	if (of_property_read_u32(node, "id", &isp_dev->id))
 		isp_dev->id = 0;
+
+	if (of_property_read_u32(node, "max-sensor-width",
+				   &isp_dev->max_sensor_width))
+		isp_dev->max_sensor_width = MAX_SENSOR_WIDTH;
+	if (of_property_read_u32(node, "max-sensor-height",
+				   &isp_dev->max_sensor_height))
+		isp_dev->max_sensor_height = MAX_SENSOR_HEIGHT;
 
 	/* Fetch IORESOURCE_MEM for core_base_addr */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1151,6 +1532,11 @@ static int camera_isp_probe(struct platform_device *pdev)
 
 	/* Initialize mutex */
 	mutex_init(&isp_dev->lock);
+
+	/* Initialize sensor mode cache */
+	isp_dev->cached_modes = NULL;
+	isp_dev->num_cached_modes = 0;
+	isp_dev->cached_format_code = 0;
 
 	v4l2_ctrl_handler_init(&isp_dev->ctrl_handler, 1);
 	v4l2_ctrl_new_std(&isp_dev->ctrl_handler, &wb_enable_ctrl_ops,
