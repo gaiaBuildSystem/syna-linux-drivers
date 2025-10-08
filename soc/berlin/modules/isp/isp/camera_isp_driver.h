@@ -39,7 +39,14 @@ typedef void* CSIPIPE_HANDLE;
 
 #define HAL_ISP_CORE_REG_WRITE32(dev, addr, val) \
 	do { \
-		writel(val, dev->core_base_addr + addr); \
+		uint32_t _readback_val; \
+		void __iomem *_full_addr = dev->core_base_addr + addr; \
+		writel(val, _full_addr); \
+		_readback_val = readl(_full_addr); \
+		if ((_readback_val != (val)) && (_readback_val != 0)) { \
+			pr_info("addr=0x%px, written=0x%lX, read=0x%X\n", \
+				_full_addr, (unsigned long)val, _readback_val); \
+		} \
 		pr_debug("ISPWC 0X%lX = 0x%lx\n", \
 			(unsigned long)addr, (unsigned long)val); \
 	} while (0)

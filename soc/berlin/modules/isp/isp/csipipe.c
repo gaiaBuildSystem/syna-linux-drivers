@@ -1245,7 +1245,7 @@ int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code)
 	ctx->inp_comp_order = 1;
 
 	// Module enable control
-	ctx->fvf_en = 1;
+	ctx->fvf_en = 0; // Fix : Keep it 0 to fix the restart issue
 	ctx->op_through_ipi = 0;
 
 	// Capture properties
@@ -2110,6 +2110,9 @@ void CSI_PIPE_Stop(CSIPIPE_HANDLE handle)
 	if (!isp_dev->streaming)
 		isp_dev->pending_intr_count = 0;
 	spin_unlock_irqrestore(&isp_dev->isr_lock, flags);
+
+	/* Reset frame counter when stopping pipeline */
+	ctx->frame_cnt = 0;
 
 	CSI_PIPE_StopPipeline(handle);
 	INIT_LIST_HEAD(&ctx->buf.queue);

@@ -358,8 +358,8 @@ int snps_dphy_probe(struct snps_dphy *state, int index)
 		return PTR_ERR(state->base_address);
 	}
 	/* TODO Get this value from subdev ctrl */
-	state->dphy_freq = 160000; /* Generator */
-	/* state->dphy_freq = 280000; OV5647 VGA */
+	//state->dphy_freq = 160000; /* Generator */
+	state->dphy_freq = 280000; /* OV5647 VGA */
 	/* state->dphy_freq = 408000; OV5647 */
 	state->max_lanes = 2;
 	state->ref_clk = 25000;
