@@ -28,6 +28,8 @@
 #define V4L2_PIX_FMT_P010 v4l2_fourcc('P', '0', '1', '0')
 #endif
 
+#define WIDTH_ALIGNMENT 16
+
 /**
  * camera_video_s_ctrl - Set V4L2 control value
  * @ctrl: V4L2 control to set
@@ -272,6 +274,34 @@ static int camera_video_vfmt_to_mfmt(struct v4l2_format *f, struct v4l2_subdev_f
 	return camera_video_fourcc_to_mbus(f->fmt.pix_mp.pixelformat, &mfmt->format.code);
 }
 
+static void print_v4l2_pix_format_mplane(struct v4l2_pix_format_mplane *pix_mp)
+{
+    int i;
+
+    if (pix_mp == NULL) {
+        pr_err("The structure pointer is NULL.\n");
+        return;
+    }
+
+    pr_debug("Width: %u\n", pix_mp->width);
+    pr_debug("Height: %u\n", pix_mp->height);
+    pr_debug("Pixel Format: %u\n", pix_mp->pixelformat);
+    pr_debug("Field: %u\n", pix_mp->field);
+    pr_debug("Colorspace: %u\n", pix_mp->colorspace);
+    pr_debug("ycbcr_enc: %u\n", pix_mp->ycbcr_enc);
+    pr_debug("Quantization: %u\n", pix_mp->quantization);
+    pr_debug("Flags: %u\n", pix_mp->flags);
+    pr_debug("Transfer Func: %u\n", pix_mp->xfer_func);
+    pr_debug("Number of planes: %u\n", pix_mp->num_planes);
+
+    for (i = 0; i < pix_mp->num_planes; ++i) {
+        pr_debug("Plane %d sizeimage: %u\n",
+                i, pix_mp->plane_fmt[i].sizeimage);
+        pr_debug("Plane %d bytesperline: %u\n",
+                i, pix_mp->plane_fmt[i].bytesperline);
+    }
+}
+
 /**
  * camera_video_mfmt_to_vfmt - Convert subdev format to V4L2 format
  * @mfmt: Subdev format structure
@@ -283,7 +313,21 @@ static int camera_video_mfmt_to_vfmt(struct v4l2_subdev_format *mfmt, struct v4l
 {
 	u32 fourcc;
 	int ret;
+	int i;
 	const struct v4l2_format_info *info;
+	uint32_t bytesperline, width, height;
+	uint32_t sizeimage = 0;
+
+	memset(f, 0, sizeof(*f));
+	f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	f->fmt.pix_mp.width = mfmt->format.width;
+	f->fmt.pix_mp.height = mfmt->format.height;
+	f->fmt.pix_mp.field = V4L2_FIELD_NONE;
+	f->fmt.pix_mp.colorspace = mfmt->format.colorspace;
+	f->fmt.pix_mp.quantization = mfmt->format.quantization;
+
+	width =  mfmt->format.width;
+	height =  mfmt->format.height;
 
 	ret = camera_video_mbus_to_fourcc(mfmt->format.code, &fourcc);
 	if (ret < 0)
@@ -295,28 +339,37 @@ static int camera_video_mfmt_to_vfmt(struct v4l2_subdev_format *mfmt, struct v4l
 		return -EINVAL;
 	}
 
-	memset(f, 0, sizeof(*f));
-	f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-	f->fmt.pix_mp.width = mfmt->format.width;
-	f->fmt.pix_mp.height = mfmt->format.height;
 	f->fmt.pix_mp.pixelformat = fourcc;
-	f->fmt.pix_mp.field = V4L2_FIELD_NONE;
-	f->fmt.pix_mp.colorspace = mfmt->format.colorspace;
-	f->fmt.pix_mp.quantization = mfmt->format.quantization;
+	bytesperline = ALIGN (info->bpp[0] * width, WIDTH_ALIGNMENT);
+	sizeimage = bytesperline * height;
 
 	/* Fill plane format information */
 	f->fmt.pix_mp.num_planes = info->mem_planes;
-	if (info->mem_planes == 1) {
-		f->fmt.pix_mp.plane_fmt[0].bytesperline = info->bpp[0] * f->fmt.pix_mp.width;
-		f->fmt.pix_mp.plane_fmt[0].sizeimage =
-			f->fmt.pix_mp.plane_fmt[0].bytesperline * f->fmt.pix_mp.height;
-	} else {
-		int i;
 
-		for (i = 0; i < info->mem_planes; i++) {
-			f->fmt.pix_mp.plane_fmt[i].bytesperline = info->bpp[i] * f->fmt.pix_mp.width;
-			f->fmt.pix_mp.plane_fmt[i].sizeimage =
-				f->fmt.pix_mp.plane_fmt[i].bytesperline * f->fmt.pix_mp.height;
+	if (info->comp_planes == 1) {
+		f->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
+		f->fmt.pix_mp.plane_fmt[0].sizeimage = sizeimage;
+		return 0;
+	}
+
+	if (info->mem_planes == 1) {
+		f->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
+		f->fmt.pix_mp.plane_fmt[0].sizeimage = sizeimage;
+		for (i = 1; i < info->comp_planes; i++) {
+			bytesperline = ALIGN (info->bpp[i] *
+					DIV_ROUND_UP(width, info->hdiv), WIDTH_ALIGNMENT);
+			sizeimage = bytesperline * DIV_ROUND_UP(height, info->vdiv);
+			f->fmt.pix_mp.plane_fmt[0].sizeimage += sizeimage;
+		}
+	} else {
+		f->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
+		f->fmt.pix_mp.plane_fmt[0].sizeimage = sizeimage;
+		for (i = 1; i < info->mem_planes; i++) {
+			bytesperline = ALIGN (info->bpp[i] *
+					DIV_ROUND_UP(width, info->hdiv), WIDTH_ALIGNMENT);
+			sizeimage = bytesperline * DIV_ROUND_UP(height, info->vdiv);
+			f->fmt.pix_mp.plane_fmt[i].bytesperline = bytesperline;
+			f->fmt.pix_mp.plane_fmt[i].sizeimage = sizeimage;
 		}
 	}
 	return 0;
@@ -503,48 +556,6 @@ static int camera_videoc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 			f->fmt.pix_mp.height < 64 || f->fmt.pix_mp.height > 4096)
 		return -EINVAL;
 
-	/* Configure format based on pixel format */
-	f->fmt.pix_mp.field = V4L2_FIELD_NONE;
-	f->fmt.pix_mp.colorspace = V4L2_COLORSPACE_DEFAULT;
-
-	/* Set plane information based on format */
-	if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
-			f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12M ||
-			f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV16) {
-		/* Multi-plane format */
-		f->fmt.pix_mp.num_planes = 2;
-		f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width;
-		f->fmt.pix_mp.plane_fmt[0].sizeimage = f->fmt.pix_mp.width * f->fmt.pix_mp.height;
-		f->fmt.pix_mp.plane_fmt[1].bytesperline = f->fmt.pix_mp.width;
-		f->fmt.pix_mp.plane_fmt[1].sizeimage =
-			f->fmt.pix_mp.width * f->fmt.pix_mp.height / 2;
-	} else {
-		/* Single-plane format through MPLANE interface */
-		f->fmt.pix_mp.num_planes = 1;
-		switch (f->fmt.pix_mp.pixelformat) {
-		case V4L2_PIX_FMT_YUYV:
-			f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width * 2;
-			break;
-		case V4L2_PIX_FMT_RGB565:
-			f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width * 2;
-			break;
-		case V4L2_PIX_FMT_RGB24:
-			f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width * 3;
-			break;
-		case V4L2_PIX_FMT_ARGB32:
-			f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width * 4;
-			break;
-		case V4L2_PIX_FMT_GREY:
-			f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width;
-			break;
-		default:
-			f->fmt.pix_mp.plane_fmt[0].bytesperline = f->fmt.pix_mp.width * 2;
-			break;
-		}
-		f->fmt.pix_mp.plane_fmt[0].sizeimage = f->fmt.pix_mp.plane_fmt[0].bytesperline
-			* f->fmt.pix_mp.height;
-	}
-
 	subdev = camera_video_remote_subdev(camera_vdev);
 	if (!subdev) {
 		dev_err(NULL, "%s: %d returning -ENOTTY\n", __func__, __LINE__);
@@ -570,9 +581,15 @@ static int camera_videoc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 		return ret;
 	}
 
+	/* Convert back to multi-plane format */
+	ret = camera_video_mfmt_to_vfmt(&sd_fmt, f);
+
 	/* Store the validated format */
 	camera_vdev->format = *f;
 
+	pr_info("%s :%d x %d fmt %s\n", __func__,f->fmt.pix_mp.width,
+			f->fmt.pix_mp.height, (char *)&f->fmt.pix_mp.pixelformat);
+	print_v4l2_pix_format_mplane(&f->fmt.pix_mp);
 	return 0;
 }
 
@@ -964,86 +981,6 @@ static int camera_video_vb2_queue_setup(struct vb2_queue *queue,
 	dev_dbg(camera_vdev->camera_mdev->dev,
 			"Queue type: %d\n", queue->type);
 
-	/* Ensure format is initialized as MPLANE */
-	if (format->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		struct v4l2_subdev *subdev;
-		struct media_pad *pad;
-		struct v4l2_subdev_format sd_fmt;
-		int ret = 0;
-
-		dev_warn(camera_vdev->camera_mdev->dev,
-			"Format type mismatch: %u, attempting to initialize from subdevice\n",
-			format->type);
-
-		subdev = camera_video_remote_subdev(camera_vdev);
-		if (subdev) {
-			pad = media_pad_remote_pad_first(&camera_vdev->pad);
-			if (pad) {
-				memset(&sd_fmt, 0, sizeof(sd_fmt));
-				sd_fmt.pad = pad->index;
-				sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-				ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &sd_fmt);
-				if (!ret) {
-					struct v4l2_format tmp;
-
-					memset(&tmp, 0, sizeof(tmp));
-					ret = camera_video_mfmt_to_vfmt(&sd_fmt, &tmp);
-					if (!ret)
-						*format = tmp;
-				}
-			} else {
-				ret = -ENOTTY;
-			}
-		} else {
-			ret = -ENOTTY;
-		}
-
-		if (ret || format->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-			/* Fallback default to 1920x1080 YUYV */
-			memset(format, 0, sizeof(*format));
-			format->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-			format->fmt.pix_mp.width = 1920;
-			format->fmt.pix_mp.height = 1080;
-			format->fmt.pix_mp.pixelformat = V4L2_PIX_FMT_YUYV;
-			format->fmt.pix_mp.field = V4L2_FIELD_NONE;
-			format->fmt.pix_mp.colorspace = V4L2_COLORSPACE_DEFAULT;
-			format->fmt.pix_mp.num_planes = 1;
-			format->fmt.pix_mp.plane_fmt[0].bytesperline = format->fmt.pix_mp.width * 2;
-			format->fmt.pix_mp.plane_fmt[0].sizeimage =
-				format->fmt.pix_mp.plane_fmt[0].bytesperline * format->fmt.pix_mp.height;
-		}
-	}
-
-	dev_info(camera_vdev->camera_mdev->dev,
-			"Format: %ux%u, pixelformat=0x%x (%c%c%c%c), num_planes=%u\n",
-			pix_mp->width, pix_mp->height, pix_mp->pixelformat,
-			(pix_mp->pixelformat >> 0) & 0xff,
-			(pix_mp->pixelformat >> 8) & 0xff,
-			(pix_mp->pixelformat >> 16) & 0xff,
-			(pix_mp->pixelformat >> 24) & 0xff,
-			pix_mp->num_planes);
-
-	/* MPLANE-only buffer setup */
-	if (*num_planes) {
-		dev_info(camera_vdev->camera_mdev->dev, "Validating existing plane setup\n");
-		if (*num_planes != pix_mp->num_planes) {
-			dev_err(camera_vdev->camera_mdev->dev,
-					"Plane count mismatch: expected %u, got %u\n",
-					pix_mp->num_planes, *num_planes);
-			return -EINVAL;
-		}
-		for (i = 0; i < *num_planes; i++) {
-			if (sizes[i] < pix_mp->plane_fmt[i].sizeimage) {
-				dev_err(camera_vdev->camera_mdev->dev,
-						"Plane %d size too small: %u < %u\n",
-						i, sizes[i], pix_mp->plane_fmt[i].sizeimage);
-				return -EINVAL;
-			}
-		}
-		dev_info(camera_vdev->camera_mdev->dev, "Plane validation passed\n");
-		return 0;
-	}
-
 	*num_planes = pix_mp->num_planes;
 	for (i = 0; i < *num_planes; i++) {
 		sizes[i] = pix_mp->plane_fmt[i].sizeimage;
@@ -1062,8 +999,8 @@ static int camera_video_vb2_queue_setup(struct vb2_queue *queue,
 	}
 
 	dev_dbg(camera_vdev->camera_mdev->dev,
-			"=== QUEUE SETUP SUCCESS: %u buffers, %u planes ===\n",
-			*num_buffers, *num_planes);
+			"=== QUEUE SETUP SUCCESS: %u buffers, %u planes  %u size ===\n",
+			*num_buffers, *num_planes, sizes[0]);
 
 	return 0;
 }
@@ -1075,7 +1012,15 @@ static int camera_video_vb2_buf_prepare(struct vb2_buffer *vb)
 	struct v4l2_format *format = &camera_vdev->format;
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct camera_vb2_buffer *buf = container_of(vbuf, struct camera_vb2_buffer, vb);
+	const struct v4l2_format_info *info;
+	uint32_t bytesperline, sizeimage;
 	int i;
+
+	info = v4l2_format_info(format->fmt.pix_mp.pixelformat);
+	if (!info) {
+		dev_err(NULL, "%s: %d returning -EINVAL\n", __func__, __LINE__);
+		return -EINVAL;
+	}
 
 	/* Validate buffer type for MPLANE capture */
 	if (format->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
@@ -1113,6 +1058,20 @@ static int camera_video_vb2_buf_prepare(struct vb2_buffer *vb)
 				(unsigned int)buf->planes[i].size);
 	}
 
+	//To support contigous memory
+	if (info->mem_planes == 1 && info->comp_planes >1 ) {
+		bytesperline = info->bpp[0] * format->fmt.pix_mp.width;
+		sizeimage = bytesperline * format->fmt.pix_mp.height;
+		for (i = 1; i < info->comp_planes; i++) {
+			buf->planes[i].dma_addr = buf->planes[i-1].dma_addr + sizeimage;
+			bytesperline = info->bpp[i] * DIV_ROUND_UP(format->fmt.pix_mp.width, info->hdiv);
+			sizeimage = bytesperline * DIV_ROUND_UP(format->fmt.pix_mp.height, info->vdiv);
+			dev_dbg(camera_vdev->camera_mdev->dev,
+					"Plane %d: DMA addr=0x%lx, size=%u\n",
+					i, (unsigned long)buf->planes[i].dma_addr,
+					(unsigned int)buf->planes[i].size);
+		}
+	}
 	return 0;
 }
 
