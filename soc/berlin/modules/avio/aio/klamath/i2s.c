@@ -230,9 +230,11 @@ int aio_set_i2s_clk_enable(void *hd, u32 clk_idx, bool enable)
 	switch (clk_idx) {
 	case AIO_I2S_I2S1_MCLK:
 		reg.uCTRL0_I2S1_MCLK_OEN = enable;
+		reg.uCTRL0_I2S1_MCLK_SEL = 0; /* I2S1 MCLK Mux */
 		break;
 	case AIO_I2S_I2S2_MCLK:
 		reg.uCTRL0_I2S2_MCLK_OEN = enable;
+		reg.uCTRL0_I2S2_MCLK_SEL = 1; /* I2S2 MCLK Mux */
 		break;
 	case AIO_PDM_CLK:
 		reg.uCTRL0_PDM_CLK_OEN  = enable;
