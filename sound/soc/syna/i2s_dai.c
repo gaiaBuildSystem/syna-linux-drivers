@@ -384,8 +384,23 @@ static int i2s_soc_dai_setfmt(struct snd_soc_dai *dai, unsigned int fmt)
 			soc_dai->ctrl.invbclk, soc_dai->ctrl.invfs,
 			soc_dai->sample_period);
 
-	if (soc_dai->output_mclk)
-		aio_set_i2s_clk_enable(soc_dai->aio_handle, AIO_I2S_I2S1_MCLK, 1);
+	if (soc_dai->output_mclk) {
+		switch (i2s_tx->i2s_chid)
+		{
+		case AIO_ID_I2S1_TX:
+		case AIO_ID_I2S1_RX:
+			aio_set_i2s_clk_enable(soc_dai->aio_handle, AIO_I2S_I2S1_MCLK, 1);
+			break;
+
+		case AIO_ID_I2S2_TX:
+		case AIO_ID_I2S2_RX:
+			aio_set_i2s_clk_enable(soc_dai->aio_handle, AIO_I2S_I2S2_MCLK, 1);
+			break;
+		default:
+			dev_err(dai->dev, "Invalid MCLK OUT i2s_chid=%u\n", i2s_tx->i2s_chid);
+			break;
+		}
+	}
 
 	aio_set_extPortCfg(soc_dai->aio_handle, i2s_tx->i2s_chid,
 					soc_dai->eAPRKTMode, soc_dai->bUsePauseResume);
