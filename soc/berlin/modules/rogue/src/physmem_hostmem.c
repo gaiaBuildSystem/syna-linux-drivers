@@ -150,7 +150,7 @@ PVRSRV_ERROR HostMemDeviceCreate(PVRSRV_DEVICE_NODE **ppsDeviceNode)
 	/* N.B.- In case of any failures in this function, we just return error to
 	   the caller, as clean-up is taken care by _HostMemDeviceDestroy function */
 
-	psDeviceNode = OSAllocZMem(sizeof(*psDeviceNode));
+	psDeviceNode = OSAllocZMem(sizeof(*psDeviceNode) + sizeof(*psDeviceNode->psMMUDevAttrs));
 	PVR_LOG_RETURN_IF_NOMEM(psDeviceNode, "OSAllocZMem");
 
 	/* early save return pointer to aid clean-up */
@@ -161,22 +161,34 @@ PVRSRV_ERROR HostMemDeviceCreate(PVRSRV_DEVICE_NODE **ppsDeviceNode)
 	psDeviceNode->psPhysHeapList = NULL;
 
 	eError = OSLockCreate(&psDeviceNode->hPhysHeapLock);
-	PVR_LOG_RETURN_IF_ERROR(eError, "OSLockCreate");
+	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate", LockCreateErr);
 
 	eError = PhysHeapCreateHeapFromConfig(psDeviceNode,
 										  &psDevConfig->pasPhysHeaps[0],
 										  NULL);
-	PVR_LOG_RETURN_IF_ERROR(eError, "PhysHeapCreateHeapFromConfig");
+	PVR_LOG_GOTO_IF_ERROR(eError, "PhysHeapCreateHeapFromConfig", PhysHeapCreateErr);
 
 	/* Only CPU local heap is valid on host-mem DevNode, so enable minimal callbacks */
 	eError = PhysHeapAcquireByID(PVRSRV_PHYS_HEAP_CPU_LOCAL,
 								 psDeviceNode,
 								 &psDeviceNode->apsPhysHeap[PVRSRV_PHYS_HEAP_CPU_LOCAL]);
-	PVR_LOG_RETURN_IF_ERROR(eError, "PhysHeapAcquire");
+	PVR_LOG_GOTO_IF_ERROR(eError, "PhysHeapAcquire", AcquirePhysHeapErr);
+
+	psDeviceNode->psMMUDevAttrs = (MMU_DEVICEATTRIBS*)(psDeviceNode + 1);
+	psDeviceNode->psMMUDevAttrs->ui32ValidPageSizeMask = OSGetPageSize();
 
 	dllist_init(&psDeviceNode->sCleanupThreadWorkList);
 
 	return PVRSRV_OK;
+
+AcquirePhysHeapErr:
+	PhysHeapDestroyDeviceHeaps(psDeviceNode);
+PhysHeapCreateErr:
+	OSLockDestroy(psDeviceNode->hPhysHeapLock);
+LockCreateErr:
+	OSFreeMem(psDeviceNode);
+
+	return eError;
 }
 
 void HostMemDeviceDestroy(PVRSRV_DEVICE_NODE *psDeviceNode)

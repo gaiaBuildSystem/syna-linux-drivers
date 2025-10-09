@@ -66,8 +66,4 @@ typedef struct _RGX_LAYER_PARAMS_
 #endif
 } RGX_LAYER_PARAMS;
 
-#if defined(SUPPORT_VALIDATION)
-PVRSRV_ERROR RGXStartValidation(const void *hPrivate);
-PVRSRV_ERROR RGXStopValidation(const void *hPrivate);
-#endif
 #endif /* RGXLAYER_IMPL_H */

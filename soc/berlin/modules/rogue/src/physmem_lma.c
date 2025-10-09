@@ -330,7 +330,7 @@ LMA_PhyContigPagesAllocGPV(PHYS_HEAP *psPhysHeap,
 
 	psMemHandle->uiOSid = ui32OSid;		/* For Free() use */
 
-	eError =  RAMemDoPhyContigPagesAlloc(pArena, uiSize, psMemHandle,
+	eError =  RAMemDoPhyContigPagesAlloc(pArena, uiSize, psDevNode, psMemHandle,
 	                                     psDevPAddr, uiPid);
 	PVR_LOG_IF_ERROR(eError, "RAMemDoPhyContigPagesAlloc");
 
@@ -354,6 +354,7 @@ LMA_PhyContigPagesAlloc(PHYS_HEAP *psPhysHeap,
 
 	RA_ARENA *pArena;
 	IMG_UINT32 ui32Log2NumPages = 0;
+	PVRSRV_DEVICE_NODE *psDevNode = PhysHeapDeviceNode(psPhysHeap);
 
 	eError = PhysmemGetArenaLMA(psPhysHeap, &pArena);
 	PVR_LOG_RETURN_IF_ERROR(eError, "PhysmemGetArenaLMA");
@@ -362,7 +363,7 @@ LMA_PhyContigPagesAlloc(PHYS_HEAP *psPhysHeap,
 	ui32Log2NumPages = OSGetOrder(uiSize);
 	uiSize = IMG_PAGES2BYTES64(OSGetPageSize(),ui32Log2NumPages);
 
-	eError = RAMemDoPhyContigPagesAlloc(pArena, uiSize, psMemHandle,
+	eError = RAMemDoPhyContigPagesAlloc(pArena, uiSize, psDevNode, psMemHandle,
 	                                    psDevPAddr, uiPid);
 	PVR_LOG_IF_ERROR(eError, "RAMemDoPhyContigPagesAlloc");
 
@@ -408,11 +409,11 @@ LMA_PhyContigPagesFree(PHYS_HEAP *psPhysHeap,
 	        uiCardAddr, ui32OSid));
 
 #else
-	PhysmemGetArenaLMA(psPhysHeap, &pArena);
+	PVRSRV_ERROR eError = PhysmemGetArenaLMA(psPhysHeap, &pArena);
+	PVR_LOG_RETURN_VOID_IF_ERROR(eError, "PhysmemGetArenaLMA");
 #endif
 
-	RAMemDoPhyContigPagesFree(pArena,
-	                          psMemHandle);
+	RAMemDoPhyContigPagesFree(pArena, psPhysHeap, psMemHandle);
 }
 
 static PVRSRV_ERROR
@@ -453,7 +454,7 @@ LMAPhysmemNewRAMemRamBackedPMR(PHYS_HEAP *psPhysHeap,
 	return PVRSRV_OK;
 }
 
-static PHEAP_IMPL_FUNCS _sPHEAPImplFuncs =
+static const PHEAP_IMPL_FUNCS _sPHEAPImplFuncs =
 {
 	.pfnDestroyData = &_DestroyImplData,
 	.pfnGetDevPAddr = &_GetDevPAddr,
@@ -480,6 +481,7 @@ PhysmemCreateHeapLMA(PVRSRV_DEVICE_NODE *psDevNode,
                      PHYS_HEAP **ppsPhysHeap)
 {
 	PHYSMEM_LMA_DATA *psLMAData;
+	PHYS_HEAP *psPhysHeap;
 	PVRSRV_ERROR eError;
 
 	PVR_LOG_RETURN_IF_INVALID_PARAM(pszLabel != NULL, "pszLabel");
@@ -499,16 +501,23 @@ PhysmemCreateHeapLMA(PVRSRV_DEVICE_NODE *psDevNode,
 							uiPolicy,
 							(PHEAP_IMPL_DATA)psLMAData,
 							&_sPHEAPImplFuncs,
-							ppsPhysHeap);
-	if (eError != PVRSRV_OK)
-	{
-		OSFreeMem(psLMAData);
-		return eError;
-	}
+							&psPhysHeap);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PhysHeapCreate", err_free_lma_data);
 
 	eError = _CreateArenas(psLMAData, pszLabel, uiPolicy);
-	PVR_LOG_RETURN_IF_ERROR(eError, "_CreateArenas");
+	PVR_LOG_GOTO_IF_ERROR(eError, "_CreateArenas", err_free_physheap);
 
+	if (ppsPhysHeap != NULL)
+	{
+		*ppsPhysHeap = psPhysHeap;
+	}
 
+	return PVRSRV_OK;
+
+err_free_physheap:
+	PhysHeapDestroy(psPhysHeap);
+err_free_lma_data:
+	OSFreeMem(psLMAData);
 	return eError;
+
 }

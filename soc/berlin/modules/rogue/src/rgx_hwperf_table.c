@@ -45,6 +45,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_fwif_hwperf.h"
 #if defined(__KERNEL__)
 #include "rgxdefs_km.h"
+#include "rgx_fwif_km.h"
 #else
 #include "rgxdefs.h"
 #endif
@@ -83,10 +84,7 @@ static bool rgxfw_hwperf_pow_st_direct(RGX_HWPERF_CNTBLK_ID eBlkType, IMG_UINT8 
 	PVR_UNREFERENCED_PARAMETER(eBlkType);
 	PVR_UNREFERENCED_PARAMETER(ui8UnitId);
 
-#if defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE)
-	/* S7XT: JONES */
-	return (eBlkType == RGX_CNTBLK_ID_JONES);
-#elif defined(RGX_FEATURE_XT_TOP_INFRASTRUCTURE)
+#if defined(RGX_FEATURE_XT_TOP_INFRASTRUCTURE)
 	/* S6XT: TA, TORNADO */
 	return true;
 #else
@@ -110,9 +108,6 @@ static bool rgxfw_hwperf_pow_st_indirect(RGX_HWPERF_CNTBLK_ID eBlkType, IMG_UINT
 		switch (eBlkType)
 		{
 		case RGX_CNTBLK_ID_TPU_MCU0:                   /* S6 and S6XT */
-#if defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE)
-		case RGX_CNTBLK_ID_TEXAS0:                     /* S7 */
-#endif
 			if (ui8UnitId >= ui32NumDustsEnabled)
 			{
 				return false;
@@ -155,8 +150,8 @@ static bool rgxfw_hwperf_pow_st_indirect(RGX_HWPERF_CNTBLK_ID eBlkType, IMG_UINT
 
 #else /* !defined(RGX_FIRMWARE) || !defined(RGX_FEATURE_PERFBUS) */
 
-# define rgxfw_hwperf_pow_st_direct   ((void*)NULL)
-# define rgxfw_hwperf_pow_st_indirect ((void*)NULL)
+# define rgxfw_hwperf_pow_st_direct   ((PFN_RGXFW_HWPERF_CNTBLK_POWERED)NULL)
+# define rgxfw_hwperf_pow_st_indirect ((PFN_RGXFW_HWPERF_CNTBLK_POWERED)NULL)
 
 #endif /* !defined(RGX_FIRMWARE) || !defined(RGX_FEATURE_PERFBUS) */
 
@@ -244,8 +239,15 @@ static IMG_BOOL rgx_hwperf_blk_present_not_clustergrouping(const RGXFW_HWPERF_CN
 static IMG_UINT32 rgx_units_indirect_by_phantom(const PVRSRV_DEVICE_FEATURE_CONFIG *psFeatCfg)
 {
 	/* Run-time math for RGX_HWPERF_INDIRECT_BY_PHANTOM */
-	return ((psFeatCfg->ui64Features & RGX_FEATURE_CLUSTER_GROUPING_BIT_MASK) == 0) ? 1
-			: (psFeatCfg->ui32FeaturesValues[RGX_FEATURE_NUM_CLUSTERS_IDX]+3)/4;
+	IMG_UINT64 ui64FeatureFlags = psFeatCfg->paui64Features[RGX_FEATURE_CLUSTER_GROUPING_ARRAY_INDEX];
+	if ((ui64FeatureFlags & RGX_FEATURE_CLUSTER_GROUPING_BIT_MASK) == 0)
+	{
+		return 1;
+	}
+	else
+	{
+		return (psFeatCfg->ui32FeaturesValues[RGX_FEATURE_NUM_CLUSTERS_IDX] + 3) / 4;
+	}
 }
 
 static IMG_UINT32 rgx_units_phantom_indirect_by_dust(const PVRSRV_DEVICE_FEATURE_CONFIG *psFeatCfg)
@@ -319,6 +321,7 @@ static IMG_BOOL rgx_hwperf_blk_present_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 			(psBlkTypeDesc->ui32CntBlkIdBase == RGX_CNTBLK_ID_PBE0));
 
 #if defined(__KERNEL__) /* Server context */
+#if defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE_IDX)
 	PVR_ASSERT(pvDev_km != NULL);
 	PVR_ASSERT(pvRtInfo != NULL);
 	{
@@ -358,6 +361,7 @@ static IMG_BOOL rgx_hwperf_blk_present_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 			}
 		}
 	}
+#endif
 #else /* FW context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 	PVR_UNREFERENCED_PARAMETER(psBlkTypeDesc);
@@ -384,8 +388,7 @@ static IMG_BOOL rgx_hwperf_blk_present_not_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_
 	{
 		RGX_HWPERF_CNTBLK_RT_INFO *psRtInfo = (RGX_HWPERF_CNTBLK_RT_INFO *) pvRtInfo;
 		const PVRSRV_RGXDEV_INFO *psDevInfo = (const PVRSRV_RGXDEV_INFO *)pvDev_km;
-		if (!RGX_IS_FEATURE_SUPPORTED(psDevInfo, S7_TOP_INFRASTRUCTURE) &&
-				RGX_IS_FEATURE_SUPPORTED(psDevInfo, PERFBUS))
+		if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, PERFBUS))
 		{
 			if (psBlkTypeDesc->ui32CntBlkIdBase == RGX_CNTBLK_ID_TA)
 			{
@@ -620,6 +623,10 @@ static const RGXFW_HWPERF_CNTBLK_TYPE_MODEL gasCntBlkTypeModel[] =
 		RGXFW_HWPERF_CNTBLK_TYPE_UNSUPPORTED(RGX_CNTBLK_ID_PBE0),
 #endif
 };
+
+#if defined(__KERNEL__)
+static_assert(ARRAY_SIZE(gasCntBlkTypeModel) <= RGXFWIF_HWPERF_CTRL_BLKS_MAX, "Number of control blocks exceeds limit.");
+#endif
 
 
 IMG_INTERNAL IMG_UINT32

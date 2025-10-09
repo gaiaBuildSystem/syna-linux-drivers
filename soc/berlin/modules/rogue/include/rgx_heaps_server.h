@@ -1,5 +1,6 @@
 /*************************************************************************/ /*!
 @File
+@Title          RGX heap (server) definitions
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
 @License        Dual MIT/GPLv2
 
@@ -38,58 +39,48 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
-#undef TRACE_SYSTEM
-#define TRACE_SYSTEM power
+#if !defined RGX_HEAPS_SERVER_H
+#define RGX_HEAPS_SERVER_H
 
-#if !defined(TRACE_GPU_FREQUENCY_H) || defined(TRACE_HEADER_MULTI_READ)
-#define TRACE_GPU_FREQUENCY_H
-
-#include <linux/tracepoint.h>
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
-int PVRGpuTraceEnableFreqCallback(void);
-#else
-void PVRGpuTraceEnableFreqCallback(void);
-#endif
-void PVRGpuTraceDisableFreqCallback(void);
+#include "img_types.h"
+#include "rgx_heaps.h"
 
 /*
- * gpu_frequency - Reports the GPU frequency in GPU clock domains.
- *
- * @state : New frequency (in KHz)
- * @gpu_id: Id for each GPU clock domain
+ *  Supported log2 page size values for RGX_GENERAL_NON_4K_HEAP_ID
  */
-TRACE_EVENT_FN(gpu_frequency,
+#define RGX_HEAP_PAGE_SHIFTS_DEF \
+	X(4KB, 12U) \
+	X(16KB, 14U) \
+	X(64KB, 16U) \
+	X(256KB, 18U) \
+	X(1MB, 20U) \
+	X(2MB, 21U)
 
-	TP_PROTO(uint32_t state, uint32_t gpu_id),
+typedef enum RGX_HEAP_PAGE_SHIFTS_TAG
+{
+#define X(_name, _shift) RGX_HEAP_ ## _name ## _PAGE_SHIFT = _shift,
+	RGX_HEAP_PAGE_SHIFTS_DEF
+#undef X
+} RGX_HEAP_PAGE_SHIFTS;
 
-	TP_ARGS(state, gpu_id),
+/* Base and size alignment 2MB */
+#define RGX_HEAP_BASE_SIZE_ALIGN 0x200000UL
+#define RGX_GENERAL_SVM_BASE_SIZE_ALIGNMENT 0x8000UL
 
-	TP_STRUCT__entry(
-		__field(unsigned int, state)
-		__field(unsigned int, gpu_id)
-	),
+/*************************************************************************/ /*!
+@Function       RGXGetValidHeapPageSizeMask
+@Description    Returns a bitmask indicating all supported virtual heap page sizes.
 
-	TP_fast_assign(
-		__entry->state = state;
-		__entry->gpu_id = gpu_id;
-	),
+@Return         IMG_UINT32  A 32-bit mask with enabled bits indicating valid
+                            page sizes.
+*/ /**************************************************************************/
+static inline IMG_UINT32 RGXGetValidHeapPageSizeMask(void)
+{
+	/* Generates a bit mask with the values of RGX_HEAP_PAGE_SHIFTS_DEF.
+	 * 0 is required for the first shift to properly bitwise OR. */
+#define X(_name, _shift) | (1 << _shift)
+	return 0 RGX_HEAP_PAGE_SHIFTS_DEF;
+#undef X
+}
 
-	TP_printk("state=%u gpu_id=%u",
-		__entry->state, __entry->gpu_id),
-
-	PVRGpuTraceEnableFreqCallback,
-	PVRGpuTraceDisableFreqCallback
-);
-
-#endif /* TRACE_GPU_FREQUENCY_H */
-
-#undef TRACE_INCLUDE_PATH
-#undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_PATH .
-
-/* This is needed because the name of this file doesn't match TRACE_SYSTEM. */
-#define TRACE_INCLUDE_FILE gpu_frequency
-
-/* This part must be outside protection */
-#include <trace/define_trace.h>
+#endif /* RGX_HEAPS_SERVER_H */

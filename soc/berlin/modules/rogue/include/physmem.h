@@ -153,8 +153,8 @@ PVRSRV_ERROR
 PhysmemNewRamBackedPMR(CONNECTION_DATA * psConnection,
                        PVRSRV_DEVICE_NODE *psDevNode,
                        IMG_DEVMEM_SIZE_T uiSize,
-                       IMG_UINT32 ui32NumPhysChunks,
-                       IMG_UINT32 ui32NumVirtChunks,
+                       IMG_UINT32 ui32PhysChunkCount,
+                       IMG_UINT32 ui32LogicalChunkCount,
                        IMG_UINT32 *pui32MappingTable,
                        IMG_UINT32 uiLog2PageSize,
                        PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -169,8 +169,8 @@ PVRSRV_ERROR
 PhysmemNewRamBackedPMR_direct(CONNECTION_DATA * psConnection,
 							  PVRSRV_DEVICE_NODE *psDevNode,
 							  IMG_DEVMEM_SIZE_T uiSize,
-							  IMG_UINT32 ui32NumPhysChunks,
-							  IMG_UINT32 ui32NumVirtChunks,
+							  IMG_UINT32 ui32PhysChunkCount,
+							  IMG_UINT32 ui32LogicalChunkCount,
 							  IMG_UINT32 *pui32MappingTable,
 							  IMG_UINT32 uiLog2PageSize,
 							  PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -238,9 +238,13 @@ PVRSRVPhysHeapGetMemInfoKM(CONNECTION_DATA *psConnection,
 @Function       PhysMemValidateParams
 @Description    Checks the PMR creation parameters and adjusts them
                 if possible and necessary
+
+@Input          psDevNode              The associated device node.
 @Input          ui32NumPhysChunks      Number of physical chunks.
 @Input          ui32NumVirtChunks      Number of virtual chunks.
+@Input          pui32MappingTable      Mapping Table.
 @Input          uiFlags                Allocation flags.
+@Input          uiPid                  PID of current process.
 @Inout          puiLog2AllocPageSize   Log2 of allocation page size.
                                        May be adjusted.
 @Inout          puiSize                Size of the allocation.
@@ -248,9 +252,12 @@ PVRSRVPhysHeapGetMemInfoKM(CONNECTION_DATA *psConnection,
 @Return         PVRSRV_OK if parameters are valid.
 */ /**************************************************************************/
 PVRSRV_ERROR
-PhysMemValidateParams(IMG_UINT32 ui32NumPhysChunks,
+PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
+                      IMG_UINT32 ui32NumPhysChunks,
                       IMG_UINT32 ui32NumVirtChunks,
+                      IMG_UINT32 *pui32MappingTable,
                       PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                      IMG_PID uiPid,
                       IMG_UINT32 *puiLog2AllocPageSize,
                       IMG_DEVMEM_SIZE_T *puiSize);
 

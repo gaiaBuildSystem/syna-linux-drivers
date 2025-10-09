@@ -1,5 +1,6 @@
-/*************************************************************************/ /*!
-@File           ion_support_synaptics.c
+/**************************************************************************/ /*!
+@File           dkf_server.h
+@Title          Functions for supporting the DRM Key Framework
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
 @License        Dual MIT/GPLv2
 
@@ -37,39 +38,66 @@ PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/ /**************************************************************************/
+*/ /***************************************************************************/
 
-#include "pvrsrv_error.h"
+#if !defined(DKF_SERVER_H)
+#define DKF_SERVER_H
+
 #include "img_types.h"
-#include "pvr_debug.h"
-#include "ion_support.h"
-#include "ion_sys.h"
+#include "pvrsrv_error.h"
 
-//static struct ion_device *idev = NULL;
+#if defined(SUPPORT_LINUX_FDINFO)
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-PVRSRV_ERROR IonInit(void *phPrivateData)
-{
-    idev = ion_get_dev();
-    if (idev == NULL) {
-        return PVRSRV_ERROR_INVALID_DEVICE;
-    }
-    return PVRSRV_OK;
-}
+#include <drm/drm_print.h>
+typedef void (DKF_VPRINTF_FUNC)(struct drm_printer *p, const char *fmt, va_list *va) __printf(2, 0);
 
-struct ion_device *IonDevAcquire(void)
-{
-    return idev;
-}
+#else /* !defined(SUPPORT_LINUX_FDINFO) */
+typedef void (DKF_VPRINTF_FUNC)(void *p, const char *fmt, ...) __printf(2, 3);
 
-void IonDevRelease(struct ion_device *psIonDev)
-{
-    /* Nothing to do, sanity check the pointer we're passed back */
-    PVR_ASSERT(psIonDev == idev);
-}
+#endif	/* defined(SUPPORT_LINUX_FDINFO) */
+struct _PVRSRV_DEVICE_NODE_;
 
-void IonDeinit(void)
-{
-    idev = NULL;
-}
+typedef IMG_UINT32 DKF_CONNECTION_FLAGS;
+
+#define DKF_CONNECTION_FLAG_SYNC        BIT(0)
+#define DKF_CONNECTION_FLAG_SERVICES    BIT(1)
+
+#define DKF_CONNECTION_FLAG_INVALID     IMG_UINT32_C(0)
+
+/*! @Function PVRDKFTraverse
+ *
+ * @Description
+ * Outputs the DKP data associated with the given device node's
+ * framework entries.
+ *
+ * @Input   pfnPrint            The print function callback to be used to output.
+ * @Input   pvArg               Print function first argument.
+ * @Input   psDevNode           Device node associated with fdinfo owner.
+ * @Input   pid                 Process ID of the process owning the FD the fdinfo
+ *                              file relates to.
+ * @Input   ui32ConnectionType  A value indicating the PVR connection type
+ *                              (sync or services).
+ */
+void PVRDKFTraverse(DKF_VPRINTF_FUNC *pfnPrint,
+                    void *pvArg,
+                    struct _PVRSRV_DEVICE_NODE_ *psDevNode,
+                    IMG_PID pid,
+                    DKF_CONNECTION_FLAGS ui32ConnectionType);
+
+/* @Function PVRDKFInit
+ *
+ * @Description
+ * Initialises the DKF infrastructure for subsequent usage by the PVR system.
+ *
+ * @Returns  PVRSRV_ERROR.
+ */
+PVRSRV_ERROR PVRDKFInit(void);
+
+/* @Function PVRDKFDeInit
+ *
+ * @Description
+ * Removes and frees all associated system-specific DKF meta-data.
+ */
+void PVRDKFDeInit(void);
+
 #endif

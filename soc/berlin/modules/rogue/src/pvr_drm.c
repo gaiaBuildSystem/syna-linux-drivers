@@ -61,7 +61,9 @@
 #include <linux/platform_device.h>
 #include <linux/pm.h>
 #include <linux/mutex.h>
+#include <linux/pci.h>
 
+#include "pvrsrv.h"
 #include "module_common.h"
 #include "pvr_drm.h"
 #include "pvr_drv.h"
@@ -72,9 +74,14 @@
 
 #include "kernel_compatibility.h"
 
+#include "dkf_server.h"
+#include "dkp_impl.h"
+
 #define PVR_DRM_DRIVER_NAME PVR_DRM_NAME
 #define PVR_DRM_DRIVER_DESC "Imagination Technologies PVR DRM"
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
 #define	PVR_DRM_DRIVER_DATE "20170530"
+#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #define	PVR_DRM_DRIVER_PRIME 0
@@ -229,6 +236,44 @@ const struct dev_pm_ops pvr_pm_ops = {
 	.restore = pvr_pm_restore,
 };
 
+#if defined(SUPPORT_LINUX_FDINFO)
+static void pvr_drm_show_drm_info(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
+	int pid, void *hPrivHandle)
+{
+	struct pvr_drm_private *priv;
+	struct drm_device *pdev;
+
+	pdev = (struct drm_device *)hPrivHandle;
+
+	/* The only field possibly valid in 'priv' is the dev_node field */
+	priv = (struct pvr_drm_private *)pdev->dev_private;
+
+	if (priv->dev_node == psDevNode) {
+
+		/* For kernels post 6.5.0 the mandatory driver fields are produced
+		 * by the 'drm_show_fdinfo' routine in the kernel.
+		 * Avoid duplicating this information here.
+		 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0))
+		PVRDKPOutput(priv->hDeviceDKPRef,
+		             "drm-driver:\t%s\n",
+		             PVR_DRM_DRIVER_NAME);
+#if defined(CONFIG_PCI)
+		if (dev_is_pci(pdev->dev)) {
+			struct pci_dev *pcidev = to_pci_dev(pdev->dev);
+
+			PVRDKPOutput(priv->hDeviceDKPRef,
+			             "drm-pdev:\t%04x:%02x:%02x.%d\n",
+			             pci_domain_nr(pcidev->bus),
+			             pcidev->bus->number,
+			             PCI_SLOT(pcidev->devfn),
+			             PCI_FUNC(pcidev->devfn));
+		}
+#endif /* defined(CONFIG_PCI) */
+#endif	/* LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0) */
+	}
+}
+#endif	/* SUPPORT_LINUX_FDINFO */
 
 int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 {
@@ -258,6 +303,7 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 
 	mutex_lock(&g_device_mutex);
 
+	PVRSRVDeviceCreationPvzLock();
 	srv_err = PVRSRVCommonDeviceCreate(ddev->dev, deviceId, &priv->dev_node);
 	if (srv_err != PVRSRV_OK) {
 		DRM_ERROR("failed to create device node for device %p (%s)\n",
@@ -266,6 +312,7 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 			err = -EPROBE_DEFER;
 		else
 			err = -ENODEV;
+		PVRSRVDeviceCreationPvzUnlock();
 		goto err_unset_dma_parms;
 	}
 
@@ -273,17 +320,38 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 	if (err) {
 		DRM_ERROR("device %p initialisation failed (err=%d)\n",
 			  ddev->dev, err);
+		PVRSRVDeviceCreationPvzUnlock();
 		goto err_device_destroy;
 	}
 
 	drm_mode_config_init(ddev);
+	PVRSRVDeviceCreationPvzUnlock();
 
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_PROBE)
-	srv_err = PVRSRVCommonDeviceInitialise(priv->dev_node);
+	PVRSRVDeviceInitPvzLock(priv->dev_node);
+	if (priv->dev_node->eDevState == PVRSRV_DEVICE_STATE_CREATED) {
+		srv_err = PVRSRVCommonDeviceInitialise(priv->dev_node);
+		if (srv_err != PVRSRV_OK) {
+			err = -ENODEV;
+			DRM_ERROR("device %p initialisation failed (err=%d)\n",
+				  ddev->dev, err);
+			goto err_device_deinit;
+		}
+	}
+	PVRSRVDeviceInitPvzUnlock(priv->dev_node);
+#endif
+
+#if defined(SUPPORT_LINUX_FDINFO)
+	srv_err = PVRSRVRegisterDKP(ddev,
+	                            "drm-pvr-drm",
+	                            pvr_drm_show_drm_info,
+	                            DKP_CONNECTION_FLAG_ALL,
+	                            &priv->hDeviceDKPRef);
+
 	if (srv_err != PVRSRV_OK) {
 		err = -ENODEV;
 		DRM_ERROR("device %p initialisation failed (err=%d)\n",
-			  ddev->dev, err);
+				  ddev->dev, err);
 		goto err_device_deinit;
 	}
 #endif
@@ -292,8 +360,11 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 
 	return 0;
 
-#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_PROBE)
+#if defined(SUPPORT_LINUX_FDINFO) || (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_PROBE)
 err_device_deinit:
+#endif
+#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_PROBE)
+	PVRSRVDeviceInitPvzUnlock(priv->dev_node);
 	drm_mode_config_cleanup(ddev);
 	PVRSRVDeviceDeinit(priv->dev_node);
 #endif
@@ -308,11 +379,7 @@ err_exit:
 	return err;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-int pvr_drm_unload(struct drm_device *ddev)
-#else
 void pvr_drm_unload(struct drm_device *ddev)
-#endif
 {
 	struct pvr_drm_private *priv = ddev->dev_private;
 
@@ -329,12 +396,13 @@ void pvr_drm_unload(struct drm_device *ddev)
 	if (ddev->dev->dma_parms == &priv->dma_parms)
 		ddev->dev->dma_parms = NULL;
 
+#if defined(SUPPORT_LINUX_FDINFO)
+	PVRSRVUnRegisterDKP(ddev, priv->hDeviceDKPRef);
+#endif
+
 	kfree(priv);
 	ddev->dev_private = NULL;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-	return 0;
-#endif
 }
 
 static int pvr_drm_open(struct drm_device *ddev, struct drm_file *dfile)
@@ -369,28 +437,25 @@ static void pvr_drm_release(struct drm_device *ddev, struct drm_file *dfile)
 	module_put(THIS_MODULE);
 }
 
-/*
- * The DRM global lock is taken for ioctls unless the DRM_UNLOCKED flag is set.
- */
 static struct drm_ioctl_desc pvr_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(PVR_SRVKM_CMD, PVRSRV_BridgeDispatchKM,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(PVR_SRVKM_INIT, drm_pvr_srvkm_init,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 #if defined(SUPPORT_NATIVE_FENCE_SYNC) && !defined(USE_PVRSYNC_DEVNODE)
 	DRM_IOCTL_DEF_DRV(PVR_SYNC_RENAME_CMD, pvr_sync_rename_ioctl,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(PVR_SYNC_FORCE_SW_ONLY_CMD, pvr_sync_force_sw_only_ioctl,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(PVR_SW_SYNC_CREATE_FENCE_CMD, pvr_sw_sync_create_fence_ioctl,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(PVR_SW_SYNC_INC_CMD, pvr_sw_sync_inc_ioctl,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(PVR_EXP_FENCE_SYNC_FORCE_CMD, pvr_sync_ioctl_force_exp_only,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(PVR_SYNC_CREATE_EXPORT_FENCE_CMD,
 			  pvr_export_fence_sync_create_fence_ioctl,
-			  DRM_RENDER_ALLOW | DRM_UNLOCKED),
+			  DRM_RENDER_ALLOW),
 #endif
 };
 
@@ -407,6 +472,43 @@ static long pvr_compat_ioctl(struct file *file, unsigned int cmd,
 }
 #endif /* defined(CONFIG_COMPAT) */
 
+#if defined(SUPPORT_LINUX_FDINFO)
+/*
+ * Produce the PVR specific fdinfo (utilization figures etc.) when queried.
+ *
+ * For kernels post 6.5 there is a helper function called 'drm_show_fdinfo'
+ * which will generate the mandatory keys (drm-driver, drm-pdev, drm-client-id)
+ * so we do not need to generate these if running on a later kernel etc.
+ *
+ */
+static void pvr_show_fdinfo(struct seq_file *seq_file, struct file *file)
+{
+	struct drm_file *dfile = file->private_data;
+	struct drm_device *dev = dfile->minor->dev;
+	struct drm_printer p = drm_seq_file_printer(seq_file);
+	PVRSRV_CONNECTION_PRIV *pvr_connection = dfile->driver_priv;
+	struct pvr_drm_private *priv;
+	int my_pid;
+
+	/* Grab the PID from the associated drm_file->pid->numbers[0].nr */
+	my_pid = dfile->pid->numbers[0].nr;
+
+	priv = (struct pvr_drm_private *)dev->dev_private;
+
+	/* Generate driver-specific keys */
+	PVRDKFTraverse((DKF_VPRINTF_FUNC*)drm_vprintf,
+	               &p,
+	               priv->dev_node,
+	               my_pid,
+	               pvr_connection->ui32Type);
+
+	/* Call into OS-specific drm_show_fdinfo if it is supported */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0))
+	drm_show_fdinfo(seq_file, file);
+#endif	/* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0) */
+}
+#endif /* SUPPORT_LINUX_FDINFO */
+
 const struct file_operations pvr_drm_fops = {
 	.owner			= THIS_MODULE,
 	.open			= drm_open,
@@ -418,10 +520,17 @@ const struct file_operations pvr_drm_fops = {
 	.mmap			= PVRSRV_MMap,
 	.poll			= drm_poll,
 	.read			= drm_read,
+#if defined(SUPPORT_LINUX_FDINFO)
+	.show_fdinfo	= pvr_show_fdinfo,
+#endif /* SUPPORT_LINUX_FDINFO */
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.fop_flags		= FOP_UNSIGNED_OFFSET,
+#endif
 };
 
 const struct drm_driver pvr_drm_generic_driver = {
-	.driver_features	= DRIVER_MODESET | DRIVER_RENDER |
+	.driver_features	= DRIVER_RENDER |
 				  DRIVER_GEM | PVR_DRM_DRIVER_PRIME,
 
 	.load			= NULL,
@@ -429,10 +538,10 @@ const struct drm_driver pvr_drm_generic_driver = {
 	.open			= pvr_drm_open,
 	.postclose		= pvr_drm_release,
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
-
 	/* prime_fd_to_handle is not supported */
-	.prime_fd_to_handle	= NULL,
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0))
 	.gem_prime_export	= PhysmemGEMPrimeExport,
@@ -444,7 +553,9 @@ const struct drm_driver pvr_drm_generic_driver = {
 
 	.name			= PVR_DRM_DRIVER_NAME,
 	.desc			= PVR_DRM_DRIVER_DESC,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
 	.date			= PVR_DRM_DRIVER_DATE,
+#endif
 	.major			= PVRVERSION_MAJ,
 	.minor			= PVRVERSION_MIN,
 	.patchlevel		= PVRVERSION_BUILD,

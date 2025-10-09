@@ -55,29 +55,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 typedef struct _RGX_INIT_APPHINTS_
 {
-	IMG_UINT32 ui32DriverMode;
 	IMG_BOOL   bEnableSignatureChecks;
 	IMG_UINT32 ui32SignatureChecksBufSize;
 
 	IMG_BOOL   bAssertOnOutOfMem;
 	IMG_BOOL   bAssertOnHWRTrigger;
-#if defined(SUPPORT_VALIDATION)
-	IMG_BOOL   bValidateIrq;
-	IMG_BOOL   bValidateSOCUSCTimer;
-	IMG_UINT32 ui32FBCDCVersionOverride;
-	IMG_UINT32 aui32TPUTrilinearFracMask[RGXFWIF_TPU_DM_LAST];
-#if defined(PVR_ARCH_VOLCANIC)
-	IMG_UINT32 ui32RenderKillingCtl;
-	IMG_UINT32 ui32CDMTDMKillingCtl;
-	IMG_UINT32 aui32USRMNumRegions[RGXFWIF_USRM_DM_LAST];
-	IMG_UINT64 aui64UVBRMNumRegions[RGXFWIF_UVBRM_DM_LAST];
-	IMG_UINT64 ui64ClkCtrl0;
-	IMG_UINT64 ui64ClkCtrl1;
-	IMG_UINT32 ui32ClkCtrl2;
-	IMG_UINT32 ui32TpuF20BilPrecision;
-	IMG_UINT32 ui32TPUTAGCtrl;
-#endif
-#endif
 #if defined(RGX_FEATURE_TFBC_VERSION_MAX_VALUE_IDX)
 	IMG_UINT32 ui32TFBCVersion;
 	IMG_UINT32 ui32TFBCCompressionControlGroup;
@@ -102,15 +84,10 @@ typedef struct _RGX_INIT_APPHINTS_
 	IMG_UINT32 ui32HWPerfFilter0;
 	IMG_UINT32 ui32HWPerfFilter1;
 	IMG_UINT32 ui32HWPerfHostFilter;
-	IMG_UINT32 ui32TimeCorrClock;
+	IMG_UINT32 ui32SecondaryOSClockSource;
 	IMG_UINT32 ui32HWRDebugDumpLimit;
-	IMG_UINT32 ui32JonesDisableMask;
 	IMG_UINT32 ui32LogType;
 	IMG_UINT32 ui32KCCBSizeLog2;
-#if defined(PVR_ARCH_VOLCANIC)
-	IMG_UINT32 ui32ISPSchedulingLatencyMode;
-	IMG_UINT32 ui32CDMArbitrationMode;
-#endif
 	FW_PERF_CONF eFirmwarePerf;
 	RGX_ACTIVEPM_CONF eRGXActivePMConf;
 	RGX_RD_POWER_ISLAND_CONF eRGXRDPowerIslandConf;
@@ -125,6 +102,15 @@ typedef struct _RGX_INIT_APPHINTS_
 	IMG_UINT32 ui32PhysMemTestPasses;
 #endif
 	RGX_FWT_LOGTYPE eDebugDumpFWTLogType;
+#if defined(SUPPORT_ICS)
+	IMG_UINT32 ui32EnableIdleCycleStealing;
+	IMG_UINT32 ui32FDTI;
+	IMG_UINT32 ui32ICSThreshold;
+	IMG_BOOL   bTestModeOn;
+#endif
+#if defined(RGX_FEATURE_PIPELINED_DATAMASTERS_VERSION_MAX_VALUE_IDX)
+	IMG_BOOL   bEnableCrossDMPause;
+#endif
 } RGX_INIT_APPHINTS;
 
 #endif /* RGXINIT_APPHINTS_H */

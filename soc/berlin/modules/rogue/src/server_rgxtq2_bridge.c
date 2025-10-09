@@ -53,9 +53,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_debug.h"
 #include "connection_server.h"
 #include "pvr_bridge.h"
-#if defined(SUPPORT_RGX)
-#include "rgx_bridge.h"
-#endif
 #include "srvcore.h"
 #include "handle.h"
 
@@ -77,7 +74,7 @@ static PVRSRV_ERROR _RGXTDMCreateTransferContextpsTransferContextIntRelease(void
 static_assert(RGXFWIF_RF_CMD_SIZE <= IMG_UINT32_MAX,
 	      "RGXFWIF_RF_CMD_SIZE must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMCreateTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 					IMG_UINT8 * psRGXTDMCreateTransferContextIN_UI8,
 					IMG_UINT8 * psRGXTDMCreateTransferContextOUT_UI8,
@@ -111,17 +108,20 @@ PVRSRVBridgeRGXTDMCreateTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 	}
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMCreateTransferContextOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMCreateTransferContext_exit;
 		}
+#endif
 	}
 
 	if (ui64BufferSize > IMG_UINT32_MAX)
@@ -210,7 +210,9 @@ PVRSRVBridgeRGXTDMCreateTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 						ui32PackedCCBSizeU88,
 						psRGXTDMCreateTransferContextIN->ui32ContextFlags,
 						psRGXTDMCreateTransferContextIN->
-						ui64RobustnessAddress, &psTransferContextInt);
+						ui64RobustnessAddress,
+						psRGXTDMCreateTransferContextIN->ui32MaxDeadlineMS,
+						&psTransferContextInt);
 	/* Exit early if bridged call fails */
 	if (unlikely(psRGXTDMCreateTransferContextOUT->eError != PVRSRV_OK))
 	{
@@ -268,10 +270,10 @@ RGXTDMCreateTransferContext_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMCREATETRANSFERCONTEXT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMDestroyTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 					 IMG_UINT8 * psRGXTDMDestroyTransferContextIN_UI8,
 					 IMG_UINT8 * psRGXTDMDestroyTransferContextOUT_UI8,
@@ -285,17 +287,20 @@ PVRSRVBridgeRGXTDMDestroyTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 	    IMG_OFFSET_ADDR(psRGXTDMDestroyTransferContextOUT_UI8, 0);
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMDestroyTransferContextOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMDestroyTransferContext_exit;
 		}
+#endif
 	}
 
 	/* Lock over handle destruction. */
@@ -324,10 +329,10 @@ PVRSRVBridgeRGXTDMDestroyTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXTDMDestroyTransferContext_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMDESTROYTRANSFERCONTEXT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMSetTransferContextPriority(IMG_UINT32 ui32DispatchTableEntry,
 					     IMG_UINT8 * psRGXTDMSetTransferContextPriorityIN_UI8,
 					     IMG_UINT8 * psRGXTDMSetTransferContextPriorityOUT_UI8,
@@ -344,17 +349,20 @@ PVRSRVBridgeRGXTDMSetTransferContextPriority(IMG_UINT32 ui32DispatchTableEntry,
 	RGX_SERVER_TQ_TDM_CONTEXT *psTransferContextInt = NULL;
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMSetTransferContextPriorityOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMSetTransferContextPriority_exit;
 		}
+#endif
 	}
 
 	/* Lock over handle lookup. */
@@ -395,10 +403,10 @@ RGXTDMSetTransferContextPriority_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPRIORITY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMNotifyWriteOffsetUpdate(IMG_UINT32 ui32DispatchTableEntry,
 					  IMG_UINT8 * psRGXTDMNotifyWriteOffsetUpdateIN_UI8,
 					  IMG_UINT8 * psRGXTDMNotifyWriteOffsetUpdateOUT_UI8,
@@ -415,17 +423,20 @@ PVRSRVBridgeRGXTDMNotifyWriteOffsetUpdate(IMG_UINT32 ui32DispatchTableEntry,
 	RGX_SERVER_TQ_TDM_CONTEXT *psTransferContextInt = NULL;
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMNotifyWriteOffsetUpdateOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMNotifyWriteOffsetUpdate_exit;
 		}
+#endif
 	}
 
 	/* Lock over handle lookup. */
@@ -465,7 +476,7 @@ RGXTDMNotifyWriteOffsetUpdate_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMNOTIFYWRITEOFFSETUPDATE, eError);
 }
 
 static_assert(PVRSRV_MAX_SYNCS <= IMG_UINT32_MAX,
@@ -477,7 +488,7 @@ static_assert(RGXFWIF_DM_INDEPENDENT_KICK_CMD_SIZE <= IMG_UINT32_MAX,
 static_assert(PVRSRV_MAX_SYNCS <= IMG_UINT32_MAX,
 	      "PVRSRV_MAX_SYNCS must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psRGXTDMSubmitTransfer2IN_UI8,
 				  IMG_UINT8 * psRGXTDMSubmitTransfer2OUT_UI8,
@@ -539,17 +550,20 @@ PVRSRVBridgeRGXTDMSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 	}
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMSubmitTransfer2OUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMSubmitTransfer2_exit;
 		}
+#endif
 	}
 
 	if (ui64BufferSize > IMG_UINT32_MAX)
@@ -814,6 +828,7 @@ PVRSRVBridgeRGXTDMSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 					 psRGXTDMSubmitTransfer2IN->hUpdateTimeline,
 					 &psRGXTDMSubmitTransfer2OUT->hUpdateFence,
 					 uiUpdateFenceNameInt,
+					 psRGXTDMSubmitTransfer2IN->hExportFenceToSignal,
 					 psRGXTDMSubmitTransfer2IN->ui32CommandSize,
 					 ui8FWCommandInt,
 					 psRGXTDMSubmitTransfer2IN->ui32ExternalJobReference,
@@ -882,7 +897,7 @@ RGXTDMSubmitTransfer2_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSUBMITTRANSFER2, eError);
 }
 
 static PVRSRV_ERROR _RGXTDMGetSharedMemorypsCLIPMRMemIntRelease(void *pvData)
@@ -892,14 +907,7 @@ static PVRSRV_ERROR _RGXTDMGetSharedMemorypsCLIPMRMemIntRelease(void *pvData)
 	return eError;
 }
 
-static PVRSRV_ERROR _RGXTDMGetSharedMemorypsUSCPMRMemIntRelease(void *pvData)
-{
-	PVRSRV_ERROR eError;
-	eError = PVRSRVRGXTDMReleaseSharedMemoryKM((PMR *) pvData);
-	return eError;
-}
-
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMGetSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psRGXTDMGetSharedMemoryIN_UI8,
 				  IMG_UINT8 * psRGXTDMGetSharedMemoryOUT_UI8,
@@ -913,27 +921,29 @@ PVRSRVBridgeRGXTDMGetSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 	    IMG_OFFSET_ADDR(psRGXTDMGetSharedMemoryOUT_UI8, 0);
 
 	PMR *psCLIPMRMemInt = NULL;
-	PMR *psUSCPMRMemInt = NULL;
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMGetSharedMemoryOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMGetSharedMemory_exit;
 		}
+#endif
 	}
 
 	PVR_UNREFERENCED_PARAMETER(psRGXTDMGetSharedMemoryIN);
 
 	psRGXTDMGetSharedMemoryOUT->eError =
 	    PVRSRVRGXTDMGetSharedMemoryKM(psConnection, OSGetDevNode(psConnection),
-					  &psCLIPMRMemInt, &psUSCPMRMemInt);
+					  &psCLIPMRMemInt);
 	/* Exit early if bridged call fails */
 	if (unlikely(psRGXTDMGetSharedMemoryOUT->eError != PVRSRV_OK))
 	{
@@ -957,20 +967,6 @@ PVRSRVBridgeRGXTDMGetSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 		goto RGXTDMGetSharedMemory_exit;
 	}
 
-	psRGXTDMGetSharedMemoryOUT->eError = PVRSRVAllocHandleUnlocked(psConnection->psHandleBase,
-								       &psRGXTDMGetSharedMemoryOUT->
-								       hUSCPMRMem,
-								       (void *)psUSCPMRMemInt,
-								       PVRSRV_HANDLE_TYPE_PMR_LOCAL_EXPORT_HANDLE,
-								       PVRSRV_HANDLE_ALLOC_FLAG_MULTI,
-								       (PFN_HANDLE_RELEASE) &
-								       _RGXTDMGetSharedMemorypsUSCPMRMemIntRelease);
-	if (unlikely(psRGXTDMGetSharedMemoryOUT->eError != PVRSRV_OK))
-	{
-		UnlockHandle(psConnection->psHandleBase);
-		goto RGXTDMGetSharedMemory_exit;
-	}
-
 	/* Release now we have created handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
@@ -982,16 +978,12 @@ RGXTDMGetSharedMemory_exit:
 		{
 			PVRSRVRGXTDMReleaseSharedMemoryKM(psCLIPMRMemInt);
 		}
-		if (psUSCPMRMemInt)
-		{
-			PVRSRVRGXTDMReleaseSharedMemoryKM(psUSCPMRMemInt);
-		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMGETSHAREDMEMORY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMReleaseSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 				      IMG_UINT8 * psRGXTDMReleaseSharedMemoryIN_UI8,
 				      IMG_UINT8 * psRGXTDMReleaseSharedMemoryOUT_UI8,
@@ -1005,17 +997,20 @@ PVRSRVBridgeRGXTDMReleaseSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 	    IMG_OFFSET_ADDR(psRGXTDMReleaseSharedMemoryOUT_UI8, 0);
 
 	{
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
 
 		/* Check that device supports the required feature */
 		if ((psDeviceNode->pfnCheckDeviceFeature) &&
 		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
+							 RGX_FEATURE_FASTRENDER_DM_ARRAY_INDEX,
 							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
 		{
 			psRGXTDMReleaseSharedMemoryOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
 
 			goto RGXTDMReleaseSharedMemory_exit;
 		}
+#endif
 	}
 
 	/* Lock over handle destruction. */
@@ -1041,81 +1036,7 @@ PVRSRVBridgeRGXTDMReleaseSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXTDMReleaseSharedMemory_exit:
 
-	return 0;
-}
-
-static IMG_INT
-PVRSRVBridgeRGXTDMSetTransferContextProperty(IMG_UINT32 ui32DispatchTableEntry,
-					     IMG_UINT8 * psRGXTDMSetTransferContextPropertyIN_UI8,
-					     IMG_UINT8 * psRGXTDMSetTransferContextPropertyOUT_UI8,
-					     CONNECTION_DATA * psConnection)
-{
-	PVRSRV_BRIDGE_IN_RGXTDMSETTRANSFERCONTEXTPROPERTY *psRGXTDMSetTransferContextPropertyIN =
-	    (PVRSRV_BRIDGE_IN_RGXTDMSETTRANSFERCONTEXTPROPERTY *)
-	    IMG_OFFSET_ADDR(psRGXTDMSetTransferContextPropertyIN_UI8, 0);
-	PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPROPERTY *psRGXTDMSetTransferContextPropertyOUT =
-	    (PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPROPERTY *)
-	    IMG_OFFSET_ADDR(psRGXTDMSetTransferContextPropertyOUT_UI8, 0);
-
-	IMG_HANDLE hTransferContext = psRGXTDMSetTransferContextPropertyIN->hTransferContext;
-	RGX_SERVER_TQ_TDM_CONTEXT *psTransferContextInt = NULL;
-
-	{
-		PVRSRV_DEVICE_NODE *psDeviceNode = OSGetDevNode(psConnection);
-
-		/* Check that device supports the required feature */
-		if ((psDeviceNode->pfnCheckDeviceFeature) &&
-		    !psDeviceNode->pfnCheckDeviceFeature(psDeviceNode,
-							 RGX_FEATURE_FASTRENDER_DM_BIT_MASK))
-		{
-			psRGXTDMSetTransferContextPropertyOUT->eError = PVRSRV_ERROR_NOT_SUPPORTED;
-
-			goto RGXTDMSetTransferContextProperty_exit;
-		}
-	}
-
-	/* Lock over handle lookup. */
-	LockHandle(psConnection->psHandleBase);
-
-	/* Look up the address from the handle */
-	psRGXTDMSetTransferContextPropertyOUT->eError =
-	    PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
-				       (void **)&psTransferContextInt,
-				       hTransferContext,
-				       PVRSRV_HANDLE_TYPE_RGX_SERVER_TQ_TDM_CONTEXT, IMG_TRUE);
-	if (unlikely(psRGXTDMSetTransferContextPropertyOUT->eError != PVRSRV_OK))
-	{
-		UnlockHandle(psConnection->psHandleBase);
-		goto RGXTDMSetTransferContextProperty_exit;
-	}
-	/* Release now we have looked up handles. */
-	UnlockHandle(psConnection->psHandleBase);
-
-	psRGXTDMSetTransferContextPropertyOUT->eError =
-	    PVRSRVRGXTDMSetTransferContextPropertyKM(psTransferContextInt,
-						     psRGXTDMSetTransferContextPropertyIN->
-						     ui32Property,
-						     psRGXTDMSetTransferContextPropertyIN->
-						     ui64Input,
-						     &psRGXTDMSetTransferContextPropertyOUT->
-						     ui64Output);
-
-RGXTDMSetTransferContextProperty_exit:
-
-	/* Lock over handle lookup cleanup. */
-	LockHandle(psConnection->psHandleBase);
-
-	/* Unreference the previously looked up handle */
-	if (psTransferContextInt)
-	{
-		PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
-					    hTransferContext,
-					    PVRSRV_HANDLE_TYPE_RGX_SERVER_TQ_TDM_CONTEXT);
-	}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle(psConnection->psHandleBase);
-
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMRELEASESHAREDMEMORY, eError);
 }
 
 /* ***************************************************************************
@@ -1169,12 +1090,6 @@ PVRSRV_ERROR InitRGXTQ2Bridge(void)
 			      sizeof(PVRSRV_BRIDGE_IN_RGXTDMRELEASESHAREDMEMORY),
 			      sizeof(PVRSRV_BRIDGE_OUT_RGXTDMRELEASESHAREDMEMORY));
 
-	SetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ2,
-			      PVRSRV_BRIDGE_RGXTQ2_RGXTDMSETTRANSFERCONTEXTPROPERTY,
-			      PVRSRVBridgeRGXTDMSetTransferContextProperty, NULL,
-			      sizeof(PVRSRV_BRIDGE_IN_RGXTDMSETTRANSFERCONTEXTPROPERTY),
-			      sizeof(PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPROPERTY));
-
 	return PVRSRV_OK;
 }
 
@@ -1202,8 +1117,5 @@ void DeinitRGXTQ2Bridge(void)
 
 	UnsetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ2,
 				PVRSRV_BRIDGE_RGXTQ2_RGXTDMRELEASESHAREDMEMORY);
-
-	UnsetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ2,
-				PVRSRV_BRIDGE_RGXTQ2_RGXTDMSETTRANSFERCONTEXTPROPERTY);
 
 }

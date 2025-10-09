@@ -68,14 +68,14 @@ PVRSRV_ERROR PVRSRVRGXTDMCreateTransferContextKM(
 	IMG_UINT32					ui32PackedCCBSizeU88,
 	IMG_UINT32                  ui32ContextFlags,
 	IMG_UINT64					ui64RobustnessAddress,
+	IMG_UINT32                  ui32MaxDeadlineMS,
 	RGX_SERVER_TQ_TDM_CONTEXT **ppsTransferContext);
 
 
 PVRSRV_ERROR PVRSRVRGXTDMGetSharedMemoryKM(
 	CONNECTION_DATA           * psConnection,
 	PVRSRV_DEVICE_NODE        * psDeviceNode,
-	PMR                      ** ppsCLIPMRMem,
-	PMR                      ** ppsUSCPMRMem);
+	PMR                      ** ppsCLIPMRMem);
 
 
 PVRSRV_ERROR PVRSRVRGXTDMReleaseSharedMemoryKM(PMR * psUSCPMRMem);
@@ -95,6 +95,7 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 	PVRSRV_TIMELINE             iUpdateTimeline,
 	PVRSRV_FENCE              * piUpdateFence,
 	IMG_CHAR                    szUpdateFenceName[PVRSRV_SYNC_NAME_LENGTH],
+	PVRSRV_FENCE                iExportFenceToSignal,
 	IMG_UINT32                  ui32FWCommandSize,
 	IMG_UINT8                 * pui8FWCommand,
 	IMG_UINT32                  ui32ExtJobRef,
@@ -113,11 +114,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPriorityKM(CONNECTION_DATA *psConnect
                                                    PVRSRV_DEVICE_NODE * psDeviceNode,
 												   RGX_SERVER_TQ_TDM_CONTEXT *psTransferContext,
 												   IMG_INT32 i32Priority);
-
-PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPropertyKM(RGX_SERVER_TQ_TDM_CONTEXT *psTransferContext,
-													 RGX_CONTEXT_PROPERTY eContextProperty,
-													 IMG_UINT64 ui64Input,
-													 IMG_UINT64 *pui64Output);
 
 /* Debug - Dump debug info of TDM transfer contexts on this device */
 void DumpTDMTransferCtxtsInfo(PVRSRV_RGXDEV_INFO *psDevInfo,

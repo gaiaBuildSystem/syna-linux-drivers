@@ -62,7 +62,7 @@ static IMG_UINT32 PhysHeapOSGetPageShift(void)
 	return (IMG_UINT32)OSGetPageShift();
 }
 
-static PHEAP_IMPL_FUNCS _sPHEAPImplFuncs =
+static const PHEAP_IMPL_FUNCS _sPHEAPImplFuncs =
 {
 	.pfnDestroyData = NULL,
 	.pfnGetFactoryMemStats = PhysmemGetOSRamMemStats,

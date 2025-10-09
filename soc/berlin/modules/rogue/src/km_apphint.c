@@ -69,7 +69,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_notifier.h"
 
 #include "km_apphint_defs.h"
-#include "km_apphint.h"
+#include "os_apphintkm.h"
 
 #if defined(PDUMP)
 #if defined(__linux__)
@@ -305,6 +305,8 @@ static struct apphint_state
 	DI_ENTRY *debuginfo_device_entry[PVRSRV_MAX_DEVICES][APPHINT_DEBUGINFO_DEVICE_ID_MAX];
 	DI_GROUP *debuginfo_rootdir;
 	DI_ENTRY *debuginfo_entry[APPHINT_DEBUGINFO_ID_MAX];
+	DI_GROUP *modparam_rootdir;
+	DI_ENTRY *modparam_entry[APPHINT_MODPARAM_ID_MAX];
 	DI_GROUP *buildvar_rootdir;
 	DI_ENTRY *buildvar_entry[APPHINT_BUILDVAR_ID_MAX];
 
@@ -635,7 +637,7 @@ static int apphint_read(char *buffer, size_t count, APPHINT_ID ue,
 			goto err_exit;
 		}
 
-		OSStringLCopy(value->STRING, string, len);
+		OSStringSafeCopy(value->STRING, string, len);
 		break;
 	}
 	default:
@@ -755,7 +757,7 @@ static int apphint_write(char *buffer, const size_t size,
 	switch (hint->data_type) {
 	case APPHINT_DATA_TYPE_UINT64:
 		result += snprintf(buffer + result, size - result,
-				"0x%016llx",
+				"0x%016" IMG_UINT64_FMTSPECx,
 				value.UINT64);
 		break;
 	case APPHINT_DATA_TYPE_UINT32:
@@ -854,25 +856,33 @@ static int apphint_kparam_set(const char *val, const struct kernel_param *kp)
 	char val_copy[APPHINT_BUFFER_SIZE];
 	APPHINT_ID id;
 	union apphint_value value;
-	int result;
+	ssize_t result = OSStringSafeCopy(val_copy, val, APPHINT_BUFFER_SIZE);
 
-	/* need to discard const in case of string comparison */
-	result = strlcpy(val_copy, val, APPHINT_BUFFER_SIZE);
+	/* Document the assumption - we can safely store the result of
+	 * apphint_read() in a ssize_t variable, no need for a separate one */
+#ifndef SSIZE_MAX
+#define SSIZE_MAX ((~(size_t)0) >> 1)
+#endif
+	BUILD_BUG_ON(INT_MAX > SSIZE_MAX);
+
+	if (result < 0) {
+		PVR_DPF((PVR_DBG_ERROR, "%s: String too long", __func__));
+		return (int)result;
+	}
 
 	get_apphint_id_from_action_addr(kp->arg, &id);
-	if (result < APPHINT_BUFFER_SIZE) {
-		result = apphint_read(val_copy, result, id, &value);
-		if (result >= 0) {
-			((struct apphint_action *)kp->arg)->stored = value;
-			((struct apphint_action *)kp->arg)->initialised = true;
-			if (param_lookup[id].data_type == APPHINT_DATA_TYPE_STRING) {
-				((struct apphint_action *)kp->arg)->free = true;
-			}
-		}
-	} else {
-		PVR_DPF((PVR_DBG_ERROR, "%s: String too long", __func__));
+	result = apphint_read(val_copy, result, id, &value);
+	if (result < 0) {
+		return (int)result;
 	}
-	return (result > 0) ? 0 : result;
+
+	((struct apphint_action *)kp->arg)->stored = value;
+	((struct apphint_action *)kp->arg)->initialised = true;
+	if (param_lookup[id].data_type == APPHINT_DATA_TYPE_STRING) {
+		((struct apphint_action *)kp->arg)->free = true;
+	}
+
+	return 0;
 }
 
 /*
@@ -979,6 +989,9 @@ static IMG_INT64 apphint_set(const IMG_CHAR *buffer, IMG_UINT64 count,
 	if (ppos == NULL)
 		return -EIO;
 
+	if (count == 0)
+		return -EINVAL;
+
 	if (count >= APPHINT_BUFFER_SIZE) {
 		PVR_DPF((PVR_DBG_ERROR, "%s: String too long (%" IMG_INT64_FMTSPECd ")",
 			__func__, count));
@@ -1012,18 +1025,24 @@ static int apphint_debuginfo_init(const char *sub_dir,
 		const struct apphint_init_data *init_data,
 		DI_GROUP *parentdir,
 		DI_GROUP **rootdir,
-		DI_ENTRY *entry[])
+		DI_ENTRY *entry[],
+		bool bReadOnly)
 {
 	PVRSRV_ERROR result;
 	unsigned int i;
 	unsigned int device_value_offset = device_num * APPHINT_DEBUGINFO_DEVICE_ID_MAX;
-	const DI_ITERATOR_CB iterator = {
+	DI_ITERATOR_CB iterator = {
 		.pfnStart = apphint_di_start, .pfnStop = apphint_di_stop,
 		.pfnNext  = apphint_di_next,  .pfnShow = apphint_di_show,
 		.pfnWrite = apphint_set,      .ui32WriteLenMax = APPHINT_BUFFER_SIZE
 	};
+
 	/* Determine if we're booted as a GUEST VZ OS */
-	IMG_BOOL bIsGUEST = PVRSRV_VZ_MODE_IS(GUEST);
+	IMG_BOOL bIsGUEST = PVRSRV_VZ_MODE_IS(GUEST, DEVID, device_num);
+
+	if (bReadOnly) {
+		iterator.pfnWrite = NULL;
+	}
 
 	if (*rootdir) {
 		PVR_DPF((PVR_DBG_WARNING,
@@ -1260,17 +1279,29 @@ int pvr_apphint_init(void)
 		goto err_out;
 	}
 
+	/* Device & Driver AppHints */
 	result = apphint_debuginfo_init("apphint", 0,
 		ARRAY_SIZE(init_data_debuginfo), init_data_debuginfo,
 		NULL,
-		&apphint.debuginfo_rootdir, apphint.debuginfo_entry);
+		&apphint.debuginfo_rootdir, apphint.debuginfo_entry, false);
 	if (0 != result)
 		goto err_out;
 
+	/* Build AppHints */
 	result = apphint_debuginfo_init("buildvar", 0,
 		ARRAY_SIZE(init_data_buildvar), init_data_buildvar,
 		NULL,
-		&apphint.buildvar_rootdir, apphint.buildvar_entry);
+		&apphint.buildvar_rootdir, apphint.buildvar_entry, true);
+	if (0 != result)
+		goto err_out;
+
+	/* Module parameter Configuration AppHints */
+	result = apphint_debuginfo_init("param", 0,
+		ARRAY_SIZE(init_data_modparam), init_data_modparam,
+		NULL,
+		&apphint.modparam_rootdir, apphint.modparam_entry, true);
+	if (0 != result)
+		goto err_out;
 
 	apphint.initialized = 1;
 
@@ -1322,7 +1353,7 @@ int pvr_apphint_device_register(PVRSRV_DEVICE_NODE *device)
 	                              init_data_debuginfo_device,
 	                              device->sDebugInfo.psGroup,
 	                              &apphint.debuginfo_device_rootdir[device->sDevId.ui32InternalID],
-	                              apphint.debuginfo_device_entry[device->sDevId.ui32InternalID]);
+	                              apphint.debuginfo_device_entry[device->sDevId.ui32InternalID], false);
 	if (0 != result)
 		goto err_out;
 
@@ -1398,6 +1429,8 @@ void pvr_apphint_deinit(void)
 			&apphint.debuginfo_rootdir, apphint.debuginfo_entry);
 	apphint_debuginfo_deinit(APPHINT_BUILDVAR_ID_MAX,
 			&apphint.buildvar_rootdir, apphint.buildvar_entry);
+	apphint_debuginfo_deinit(APPHINT_MODPARAM_ID_MAX,
+			&apphint.modparam_rootdir, apphint.modparam_entry);
 
 	destroy_workqueue(apphint.workqueue);
 
@@ -1492,13 +1525,13 @@ int pvr_apphint_get_string(PVRSRV_DEVICE_NODE *device, APPHINT_ID ue, IMG_CHAR *
 	if (ue < APPHINT_ID_MAX && apphint.val[ue].stored.STRING) {
 		if ((int)ue > APPHINT_DEBUGINFO_DEVICE_ID_OFFSET) // From this point, we're in the device apphints
 		{
-			if (OSStringLCopy(pBuffer, apphint.val[ue + device_offset].stored.STRING, size) < size) {
+			if (OSStringSafeCopy(pBuffer, apphint.val[ue + device_offset].stored.STRING, size) >= 0) {
 				error = 0;
 			}
 		}
 		else
 		{
-			if (OSStringLCopy(pBuffer, apphint.val[ue].stored.STRING, size) < size) {
+			if (OSStringSafeCopy(pBuffer, apphint.val[ue].stored.STRING, size) >= 0) {
 				error = 0;
 			}
 		}
@@ -1585,10 +1618,8 @@ int pvr_apphint_set_string(PVRSRV_DEVICE_NODE *device, APPHINT_ID ue, IMG_CHAR *
 			error = apphint.val[ue + device_offset].set.STRING(apphint.val[ue + device_offset].device,
 															 apphint.val[ue + device_offset].private_data,
 															 pBuffer);
-		} else {
-			if (strlcpy(apphint.val[ue + device_offset].stored.STRING, pBuffer, size) < size) {
-				error = 0;
-			}
+		} else if (OSStringSafeCopy(apphint.val[ue + device_offset].stored.STRING, pBuffer, size) >= 0) {
+			error = 0;
 		}
 		apphint.val[ue].device = device;
 	}

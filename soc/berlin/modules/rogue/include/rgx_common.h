@@ -125,6 +125,15 @@ typedef IMG_UINT32 RGX_KICK_TYPE_DM;
 /* The set of DMs for gathering stats on GPU utilisation excludes GP */
 #define RGXFWIF_GPU_UTIL_DM_MAX (RGXFWIF_DM_MAX - 1U)
 
+/*!
+ ******************************************************************************
+ * GPU Utilisation states for hwperf
+ *****************************************************************************/
+#define RGXFWIF_GPU_UTIL_STATE_IDLE      (0U)
+#define RGXFWIF_GPU_UTIL_STATE_ACTIVE    (1U)
+#define RGXFWIF_GPU_UTIL_STATE_BLOCKED   (2U)
+#define RGXFWIF_GPU_UTIL_STATE_NUM       (3U)
+
 /*
  * Data Master Tags to be appended to resources created on behalf of each RGX
  * Context.
@@ -186,24 +195,6 @@ typedef IMG_UINT32 RGX_KICK_TYPE_DM;
  *****************************************************************************/
 #define UNCACHED_ALIGN      RGXFW_ALIGN
 
-
-/*!
- ******************************************************************************
- * GPU Utilisation states
- *****************************************************************************/
-#define RGXFWIF_GPU_UTIL_STATE_IDLE      (0U)
-#define RGXFWIF_GPU_UTIL_STATE_ACTIVE    (1U)
-#define RGXFWIF_GPU_UTIL_STATE_BLOCKED   (2U)
-#define RGXFWIF_GPU_UTIL_STATE_NUM       (3U)
-/* the state below "combines" IDLE and BLOCKED
- * and is used when we only care about GPU being in ACTIVE or not */
-#define RGXFWIF_GPU_UTIL_STATE_INACTIVE  (0U)
-/* when we combine IDLE and BLOCKED we end up with one state less */
-#define RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM       (RGXFWIF_GPU_UTIL_STATE_NUM-1U)
-#define RGXFWIF_GPU_UTIL_STATE_MASK      IMG_UINT64_C(0x0000000000000003)
-#define RGXFWIF_GPU_UTIL_STATE_MASK32    IMG_UINT32_C(0x00000003)
-
-
 /*
  * Maximum amount of register writes that can be done by the register
  * programmer (FW or META DMA). This is not a HW limitation, it is only
@@ -231,13 +222,14 @@ typedef IMG_UINT32 RGX_KICK_TYPE_DM;
  *
  *                                   0
  *                                   |
- *    -------------------------------x
+ *    ------------------------------xx
  */
 /*
  * Context creation flags
  * (specify a context's properties at creation time)
  */
 #define RGX_CONTEXT_FLAG_DISABLESLR					(1UL << 0) /*!< Disable SLR */
+#define RGX_CONTEXT_FLAG_CDM_TRANSFER				(1UL << 1) /*!< Compute context used for transfers */
 
 /* Bitmask of context flags allowed to be modified after context create. */
 #define RGX_CONTEXT_FLAGS_WRITEABLE_MASK            (RGX_CONTEXT_FLAG_DISABLESLR)
@@ -245,6 +237,11 @@ typedef IMG_UINT32 RGX_KICK_TYPE_DM;
 /* List of attributes that may be set for a context */
 typedef IMG_UINT32 RGX_CONTEXT_PROPERTY;
 #define RGX_CONTEXT_PROPERTY_FLAGS 0U /*!< Context flags */
+
+/* MMU4 supported number of ranges */
+#define RGX_MAX_NUM_MMU_PAGE_SIZE_RANGES (4U)
+#define RGX_MMU_RANGE_NON4KHEAP          (0U)
+#define RGX_MMU_RANGE_GLOBAL             (RGX_MAX_NUM_MMU_PAGE_SIZE_RANGES - 1)
 
 #if defined(__cplusplus)
 }

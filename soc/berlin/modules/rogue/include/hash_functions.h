@@ -1,9 +1,8 @@
 /*************************************************************************/ /*!
-@File           ion_sys.c
-@Title          System level interface for Ion
+@File
+@Title          Reusable hash functions for hash.c.
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    This file defined the API between services and system layer
-                required for Ion integration.
+@Description    Implements common hash functions.
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -42,25 +41,26 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#ifndef ION_SYS_H
-#define ION_SYS_H
+#include "img_types.h"
 
-#include <linux/version.h>
+/*************************************************************************/ /*!
+@Function       HASH_Djb2_Hash
+@Description    Hash function intended for hashing string keys. This function
+                implements DJB2 algorithm.
+@Input          uKeySize     The size of the string hash key, in bytes.
+@Input          pKey         A pointer to the string key to hash.
+@Input          uHashTabLen  The length of the hash table.
+@Return         The hash value.
+*/ /**************************************************************************/
+IMG_UINT32 HASH_Djb2_Hash(size_t uKeySize, void *pKey, IMG_UINT32 uHashTabLen);
 
-#include "pvrsrv_error.h"
-#if defined(SUPPORT_ION)
-#include PVR_ANDROID_ION_HEADER
-#endif
-
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-PVRSRV_ERROR IonInit(void *pvPrivateData);
-
-struct ion_device *IonDevAcquire(void);
-
-void IonDevRelease(struct ion_device *psIonDev);
-
-void IonDeinit(void);
-#endif
-
-#endif /* ION_SYS_H */
+/*************************************************************************/ /*!
+@Function       HASH_Key_Comp_Default
+@Description    Compares string keys.
+@Input          uKeySize     The size of the string key.
+@Input          pKey1        Pointer to first string hash key to compare.
+@Input          pKey2        Pointer to second string hash key to compare.
+@Return         IMG_TRUE  - The keys match.
+                IMG_FALSE - The keys don't match.
+*/ /**************************************************************************/
+IMG_BOOL HASH_Djb2_Compare(size_t uKeySize, void *pKey1, void *pKey2);

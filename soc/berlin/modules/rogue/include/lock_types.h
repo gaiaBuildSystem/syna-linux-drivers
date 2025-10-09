@@ -55,7 +55,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * isn't ideal and usually you wouldn't do that in kernel code. */
 typedef struct mutex *POS_LOCK;
 typedef struct rw_semaphore *POSWR_LOCK;
-typedef spinlock_t *POS_SPINLOCK;
+
+/* For non-linux kernel builds, POS_SPINLOCK is defined as a POS_LOCK (a pointer)
+ * see lock.h */
+typedef spinlock_t POS_SPINLOCK;
 typedef atomic_t ATOMIC_T;
 
 #else /* defined(__linux__) && defined(__KERNEL__) */

@@ -121,6 +121,7 @@ PVRSRV_ERROR PVRSRVRGXSubmitTransferKM(RGX_SERVER_TQ_CONTEXT	*psTransferContext,
 									PVRSRV_TIMELINE			i3DUpdateTimeline,
 									PVRSRV_FENCE			*pi3DUpdateFence,
 									IMG_CHAR				szFenceName[32],
+									PVRSRV_FENCE			iExportFenceToSignal,
 									IMG_UINT32				*paui32FWCommandSize,
 									IMG_UINT8				**papaui8FWCommand,
 									IMG_UINT32				*pui32TQPrepareFlags,
@@ -134,11 +135,6 @@ PVRSRV_ERROR PVRSRVRGXSetTransferContextPriorityKM(CONNECTION_DATA *psConnection
 												   RGX_SERVER_TQ_CONTEXT *psTransferContext,
 												   IMG_INT32 i32Priority);
 
-PVRSRV_ERROR PVRSRVRGXSetTransferContextPropertyKM(RGX_SERVER_TQ_CONTEXT *psTransferContext,
-												   RGX_CONTEXT_PROPERTY eContextProperty,
-												   IMG_UINT64 ui64Input,
-												   IMG_UINT64 *pui64Output);
-
 /* Debug - Dump debug info of transfer contexts on this device */
 void DumpTransferCtxtsInfo(PVRSRV_RGXDEV_INFO *psDevInfo,
                            DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
@@ -151,8 +147,7 @@ IMG_UINT32 CheckForStalledClientTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
 PVRSRV_ERROR PVRSRVRGXTQGetSharedMemoryKM(
 	CONNECTION_DATA           * psConnection,
 	PVRSRV_DEVICE_NODE        * psDeviceNode,
-	PMR                      ** ppsCLIPMRMem,
-	PMR                      ** ppsUSCPMRMem);
+	PMR                      ** ppsCLIPMRMem);
 
 PVRSRV_ERROR PVRSRVRGXTQReleaseSharedMemoryKM(PMR * psUSCPMRMem);
 

@@ -314,7 +314,6 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	gsPhysHeapConfig[ui32NextPhysHeapID].uConfig.sLMA.sStartAddr.uiAddr    = getSecureHeapPaddr();
 	gsPhysHeapConfig[ui32NextPhysHeapID].uConfig.sLMA.sCardBase.uiAddr     = getSecureHeapPaddr();
 	gsPhysHeapConfig[ui32NextPhysHeapID].uConfig.sLMA.uiSize               = (FW_CODE_SIZE+FW_DATA_SIZE)*2;
-    printk(KERN_ERR "pvr: add : %llx", gsPhysHeapConfig[ui32NextPhysHeapID].uConfig.sLMA.sStartAddr.uiAddr);
 	ui32NextPhysHeapID++;
 
 	/* Device's physical heaps */

@@ -48,9 +48,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * Any new code should be built on top of the existing abstraction layer,
  * which should be extended when necessary. */
 #include "rgxfwimageutils.h"
-#include "rgxfwutils.h"
 #include "pvrversion.h"
 
+#if defined(CONFIG_ARM64) && defined(__linux__) && defined(SUPPORT_CPUCACHED_FWMEMCTX)
+#include "rgxfwutils.h"
+#endif
 
 /************************************************************************
 * FW layout information
@@ -252,11 +254,13 @@ static void RGXFWConfigureSegMMU(const void       *hPrivate,
 	/* Configure Segment MMU */
 	RGXCommentLog(hPrivate, "********** FW configure Segment MMU **********");
 
+#if defined(RGX_FEATURE_SLC_VIVT_BIT_MASK)
 	if (RGX_DEVICE_HAS_FEATURE(hPrivate, SLC_VIVT))
 	{
 		ui64SegOutAddrTop = RGXFW_SEGMMU_OUTADDR_TOP_VIVT_SLC_CACHED(MMU_CONTEXT_MAPPING_FWPRIV);
 	}
 	else
+#endif
 	{
 		ui64SegOutAddrTop = RGXFW_SEGMMU_OUTADDR_TOP_SLC(MMU_CONTEXT_MAPPING_FWPRIV, RGXFW_SEGMMU_META_BIFDM_ID);
 	}
@@ -508,7 +512,9 @@ PVRSRV_ERROR ProcessLDRCommandStream(const void *hPrivate,
 					           pvWriteAddr,
 					           psL2Block->aui32BlockData,
 					           ui32DataSize);
+#if defined(CONFIG_ARM64) && defined(__linux__) && defined(SUPPORT_CPUCACHED_FWMEMCTX)
 					RGXFwSharedMemCacheOpExec(pvWriteAddr, ui32DataSize, PVRSRV_CACHE_OP_FLUSH);
+#endif
 				}
 
 				break;
@@ -559,7 +565,9 @@ PVRSRV_ERROR ProcessLDRCommandStream(const void *hPrivate,
 				if (pvWriteAddr)
 				{
 					RGXMemSet(hPrivate, pvWriteAddr, 0, ui32ByteCount);
+#if defined(CONFIG_ARM64) && defined(__linux__) && defined(SUPPORT_CPUCACHED_FWMEMCTX)
 					RGXFwSharedMemCacheOpExec(pvWriteAddr, ui32ByteCount, PVRSRV_CACHE_OP_FLUSH);
+#endif
 				}
 
 				break;
@@ -718,7 +726,9 @@ PVRSRV_ERROR ProcessELFCommandStream(const void *hPrivate,
 			          0,
 			          psProgramHeader->ui32Pmemsz - psProgramHeader->ui32Pfilesz);
 
+#if defined(CONFIG_ARM64) && defined(__linux__) && defined(SUPPORT_CPUCACHED_FWMEMCTX)
 			RGXFwSharedMemCacheOpExec(pvWriteAddr, psProgramHeader->ui32Pmemsz, PVRSRV_CACHE_OP_FLUSH);
+#endif
 		}
 	}
 
@@ -1003,6 +1013,11 @@ PVRSRV_ERROR RGXProcessFWImage(const void *hPrivate,
 			 */
 			pui32BootConf = ((IMG_UINT32*) pvFWCode) + RGXFW_BOOTLDR_CONF_OFFSET;
 
+			*pui32BootConf = 0;
+			pui32BootConf++;
+			*pui32BootConf = 0;
+			pui32BootConf++;
+
 			/* Slave port and JTAG accesses are privileged */
 			*pui32BootConf++ = META_CR_SYSC_JTAG_THREAD;
 			*pui32BootConf++ = META_CR_SYSC_JTAG_THREAD_PRIV_EN;
@@ -1061,12 +1076,14 @@ PVRSRV_ERROR RGXProcessFWImage(const void *hPrivate,
 				*pui32BootConf++ = 0;
 			}
 
+#if defined(RGX_FEATURE_META_DMA_BIT_MASK)
 			if (RGX_DEVICE_HAS_FEATURE(hPrivate, META_DMA))
 			{
 				*pui32BootConf++ = (IMG_UINT32) (puFWParams->sMeta.sFWCorememCodeDevVAddr.uiAddr >> 32);
 				*pui32BootConf++ = (IMG_UINT32) puFWParams->sMeta.sFWCorememCodeDevVAddr.uiAddr;
 			}
 			else
+#endif
 			{
 				*pui32BootConf++ = 0;
 				*pui32BootConf++ = 0;
@@ -1146,6 +1163,8 @@ PVRSRV_ERROR RGXProcessFWImage(const void *hPrivate,
 			psBootData->ui64CorememDataDevVAddr = puFWParams->sRISCV.sFWCorememDataDevVAddr.uiAddr;
 			psBootData->ui32CorememDataFWAddr   = puFWParams->sRISCV.sFWCorememDataFWAddr.ui32Addr;
 			psBootData->ui32CorememDataSize     = puFWParams->sRISCV.uiFWCorememDataSize;
+
+			psBootData->ui32Flags				= 0;
 		}
 	}
 

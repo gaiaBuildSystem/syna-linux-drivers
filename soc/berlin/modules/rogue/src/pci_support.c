@@ -598,19 +598,15 @@ PVRSRV_ERROR OSPCIClearResourceMTRRs(PVRSRV_PCI_DEV_HANDLE hPVRPCI, IMG_UINT32 u
 	start = pci_resource_start(psPVRPCI->psPCIDev, ui32Index);
 	end = pci_resource_end(psPVRPCI->psPCIDev, ui32Index) + 1;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
 	res = arch_io_reserve_memtype_wc(start, end - start);
 	if (res)
 	{
 		return PVRSRV_ERROR_PCI_CALL_FAILED;
 	}
-#endif
 	res = arch_phys_wc_add(start, end - start);
 	if (res < 0)
 	{
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
 		arch_io_free_memtype_wc(start, end - start);
-#endif
 
 		return PVRSRV_ERROR_PCI_CALL_FAILED;
 	}
@@ -634,7 +630,6 @@ void OSPCIReleaseResourceMTRRs(PVRSRV_PCI_DEV_HANDLE hPVRPCI, IMG_UINT32 ui32Ind
 		arch_phys_wc_del(psPVRPCI->iMTRR[ui32Index]);
 		psPVRPCI->iMTRR[ui32Index] = -1;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
 		{
 			resource_size_t start, end;
 
@@ -643,7 +638,6 @@ void OSPCIReleaseResourceMTRRs(PVRSRV_PCI_DEV_HANDLE hPVRPCI, IMG_UINT32 ui32Ind
 
 			arch_io_free_memtype_wc(start, end - start);
 		}
-#endif
 	}
 }
 #endif /* defined(CONFIG_MTRR) */

@@ -81,7 +81,7 @@ static HTB_DBG_INFO g_sHTBData;
 // #define HTB_CHATTY_PRINT(x) PVR_DPF(x)
 #define HTB_CHATTY_PRINT(x)
 
-typedef void (DI_PRINTF)(const OSDI_IMPL_ENTRY *, const IMG_CHAR *, ...);
+typedef void (DI_PRINTF)(const OSDI_IMPL_ENTRY *, const IMG_CHAR *, ...) __printf(2, 3);
 
 /******************************************************************************
  * debugFS display routines
@@ -169,7 +169,12 @@ static IMG_PBYTE HTB_GetNextMessage(HTB_Sentinel_t *pSentinel)
 		if (pNext >= pLast)
 		{
 			eError = TLClientReleaseData(DIRECT_BRIDGE_HANDLE, g_sHTBData.hStream);
-			PVR_ASSERT(eError == PVRSRV_OK);
+			if (PVRSRV_OK != eError)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: %s FAILED '%s'", __func__,
+					"TLClientReleaseData", PVRSRVGETERRORSTRING(eError)));
+				return NULL;
+			}
 
 			eError = TLClientAcquireData(DIRECT_BRIDGE_HANDLE,
 				g_sHTBData.hStream, &pSentinel->pBuf, &pSentinel->uiBufLen);
@@ -958,13 +963,21 @@ DecodeHTB(HTB_Sentinel_t *pSentinel, OSDI_IMPL_ENTRY *pvDumpDebugFile,
 		{
 			if (pszFmt)
 			{
-				nPrinted = OSStringLCopy(pszBuffer, pszFmt, uBufBytesAvailable);
-				if (nPrinted >= uBufBytesAvailable)
+				const ssize_t iCopiedCnt =
+					OSStringSafeCopy(pszBuffer, pszFmt, uBufBytesAvailable);
+				if (iCopiedCnt < 0)
 				{
-					PVR_DUMPDEBUG_LOG("Buffer overrun - "IMG_SIZE_FMTSPEC" printed,"
-						" max space "IMG_SIZE_FMTSPEC"\n", nPrinted,
-						uBufBytesAvailable);
-					nPrinted = uBufBytesAvailable;	/* Ensure we don't overflow buffer */
+					PVR_DUMPDEBUG_LOG("Buffer overrun - %zu required,"
+					                  " max space %zu\n",
+					                   OSStringLength(pszFmt),
+					                   uBufBytesAvailable);
+
+					/* Ensure we don't overflow buffer */
+					nPrinted = uBufBytesAvailable;
+				}
+				else
+				{
+					nPrinted = iCopiedCnt;
 				}
 				PVR_DUMPDEBUG_LOG("%s", pszBuffer);
 				pszBuffer += nPrinted;
@@ -1039,8 +1052,20 @@ DecodeHTB(HTB_Sentinel_t *pSentinel, OSDI_IMPL_ENTRY *pvDumpDebugFile,
 							break;
 
 						case TRACEBUF_ARG_TYPE_NONE:
-							nPrinted = OSStringLCopy(pszBuffer, pszFmt,
-								uBufBytesAvailable);
+							{
+								const ssize_t iCopiedCnt =
+									OSStringSafeCopy(pszBuffer,
+									                 pszFmt,
+									                 uBufBytesAvailable);
+								if (iCopiedCnt < 0)
+								{
+									nPrinted = OSStringLength(pszFmt);
+								}
+								else
+								{
+									nPrinted = iCopiedCnt;
+								}
+							}
 							break;
 
 						default:
@@ -1063,13 +1088,21 @@ DecodeHTB(HTB_Sentinel_t *pSentinel, OSDI_IMPL_ENTRY *pvDumpDebugFile,
 				/* Display any remaining text in pszFmt string */
 				if (pszFmt)
 				{
-					nPrinted = OSStringLCopy(pszBuffer, pszFmt, uBufBytesAvailable);
-					if (nPrinted >= uBufBytesAvailable)
+					const ssize_t iCopiedCnt =
+						OSStringSafeCopy(pszBuffer, pszFmt, uBufBytesAvailable);
+					if (iCopiedCnt < 0)
 					{
-						PVR_DUMPDEBUG_LOG("Buffer overrun - "IMG_SIZE_FMTSPEC" printed,"
-							" max space "IMG_SIZE_FMTSPEC"\n", nPrinted,
-							uBufBytesAvailable);
-						nPrinted = uBufBytesAvailable;	/* Ensure we don't overflow buffer */
+						PVR_DUMPDEBUG_LOG("Buffer overrun - %zu required,"
+						                  " max space %zu\n",
+						                   OSStringLength(pszFmt),
+						                   uBufBytesAvailable);
+
+						/* Ensure we don't overflow buffer */
+						nPrinted = uBufBytesAvailable;
+					}
+					else
+					{
+						nPrinted = iCopiedCnt;
 					}
 					PVR_DUMPDEBUG_LOG("%s", pszBuffer);
 					pszBuffer += nPrinted;

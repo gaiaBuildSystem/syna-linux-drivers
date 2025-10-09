@@ -94,9 +94,6 @@ extern "C" {
 #include "common_validation_bridge.h"
 #endif
 
-#if defined(PVR_TESTING_UTILS)
-#include "common_tutils_bridge.h"
-#endif
 
 #include "common_devicememhistory_bridge.h"
 #include "common_synctracking_bridge.h"
@@ -105,9 +102,7 @@ extern "C" {
 #include "common_syncfallback_bridge.h"
 #endif
 
-#if defined(SUPPORT_DI_BRG_IMPL)
 #include "common_di_bridge.h"
-#endif
 
 /*
  * Bridge Cmd Ids
@@ -272,13 +267,8 @@ extern "C" {
 
 /*  18: TUTILS interface functions */
 #define PVRSRV_BRIDGE_TUTILS				18UL
-#if defined(PVR_TESTING_UTILS)
-#define PVRSRV_BRIDGE_TUTILS_DISPATCH_FIRST (PVRSRV_BRIDGE_VALIDATION_DISPATCH_LAST + 1)
-#define PVRSRV_BRIDGE_TUTILS_DISPATCH_LAST  (PVRSRV_BRIDGE_TUTILS_DISPATCH_FIRST + PVRSRV_BRIDGE_TUTILS_CMD_LAST)
-#else
 #define PVRSRV_BRIDGE_TUTILS_DISPATCH_FIRST 0
 #define PVRSRV_BRIDGE_TUTILS_DISPATCH_LAST  (PVRSRV_BRIDGE_VALIDATION_DISPATCH_LAST)
-#endif
 
 /*  19: DevMem history interface functions */
 #define PVRSRV_BRIDGE_DEVICEMEMHISTORY		19UL
@@ -332,13 +322,8 @@ extern "C" {
 
 /*  25: Debug Information (DI) interface functions */
 #define PVRSRV_BRIDGE_DI					25UL
-#if defined(SUPPORT_DI_BRG_IMPL)
 #define PVRSRV_BRIDGE_DI_DISPATCH_FIRST (PVRSRV_BRIDGE_SYNCFALLBACK_DISPATCH_LAST + 1)
 #define PVRSRV_BRIDGE_DI_DISPATCH_LAST  (PVRSRV_BRIDGE_DI_DISPATCH_FIRST + PVRSRV_BRIDGE_DI_CMD_LAST)
-#else
-#define PVRSRV_BRIDGE_DI_DISPATCH_FIRST 0
-#define PVRSRV_BRIDGE_DI_DISPATCH_LAST  (PVRSRV_BRIDGE_SYNCFALLBACK_DISPATCH_LAST)
-#endif
 
 /*  26: DMA transfer functions */
 
@@ -358,7 +343,7 @@ extern "C" {
 
 /* bit mask representing the enabled PVR bridges */
 
-static const IMG_UINT32 gui32PVRBridges =
+static const IMG_UINT32 __maybe_unused gui32PVRBridges =
 	  (1U << (PVRSRV_BRIDGE_DEFAULT - PVRSRV_BRIDGE_FIRST))
 	| (1U << (PVRSRV_BRIDGE_SRVCORE - PVRSRV_BRIDGE_FIRST))
 	| (1U << (PVRSRV_BRIDGE_SYNC - PVRSRV_BRIDGE_FIRST))
@@ -391,12 +376,6 @@ static const IMG_UINT32 gui32PVRBridges =
 #if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
 	| (1U << (PVRSRV_BRIDGE_RI - PVRSRV_BRIDGE_FIRST))
 #endif
-#if defined(SUPPORT_VALIDATION)
-	| (1U << (PVRSRV_BRIDGE_VALIDATION - PVRSRV_BRIDGE_FIRST))
-#endif
-#if defined(PVR_TESTING_UTILS)
-	| (1U << (PVRSRV_BRIDGE_TUTILS - PVRSRV_BRIDGE_FIRST))
-#endif
 	| (1U << (PVRSRV_BRIDGE_DEVICEMEMHISTORY - PVRSRV_BRIDGE_FIRST))
 #if defined(PVRSRV_ENABLE_HTB)
 	| (1U << (PVRSRV_BRIDGE_HTBUFFER - PVRSRV_BRIDGE_FIRST))
@@ -411,9 +390,7 @@ static const IMG_UINT32 gui32PVRBridges =
 #if defined(SUPPORT_FALLBACK_FENCE_SYNC)
 	| (1U << (PVRSRV_BRIDGE_SYNCFALLBACK - PVRSRV_BRIDGE_FIRST))
 #endif
-#if defined(SUPPORT_DI_BRG_IMPL)
 	| (1U << (PVRSRV_BRIDGE_DI - PVRSRV_BRIDGE_FIRST))
-#endif
 #if defined(SUPPORT_DMA_TRANSFER)
 	| (1U << (PVRSRV_BRIDGE_DMA - PVRSRV_BRIDGE_FIRST))
 #endif

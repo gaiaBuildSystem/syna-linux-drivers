@@ -90,8 +90,5 @@ PVRSRV_ERROR DIWriteEntryKM(DI_CONTEXT *psContext, const IMG_CHAR *pszEntryPath,
 
 PVRSRV_ERROR DIListAllEntriesKM(DI_CONTEXT *psContext);
 
-#ifdef PVR_TESTING_UTILS
-PVRSRV_ERROR DIContextRefCount(DI_CONTEXT *psContext, ATOMIC_T **ppiAtomic);
-#endif /* PVR_TESTING_UTILS */
 
 #endif /* PVR_IMPL_BRG_H */

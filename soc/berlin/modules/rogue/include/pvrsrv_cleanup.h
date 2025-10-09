@@ -127,6 +127,7 @@ typedef PVRSRV_ERROR (*CLEANUP_THREAD_FN)(void *pvParam);
 	X(MMU)     /**/ \
 	X(OSMEM)   /**/ \
 	X(PMR)       /**/ \
+	X(RAMEM)       /**/ \
 	X(LAST)      /**/ \
 
 #define CLEANUP_TYPE_ITEM_LABEL_MAX_SIZE 11     /* CONNECTION\0 */

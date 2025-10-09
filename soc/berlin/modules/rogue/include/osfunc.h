@@ -271,41 +271,6 @@ typedef void (*PFN_MISR)(void *pvData);
 typedef void (*PFN_THREAD)(void *pvData);
 
 /*************************************************************************/ /*!
-@Function       OSChangeSparseMemCPUAddrMap
-@Description    This function changes the CPU mapping of the underlying
-                sparse allocation. It is used by a PMR 'factory'
-                implementation if that factory supports sparse
-                allocations.
-@Input          psPageArray        array representing the pages in the
-                                   sparse allocation
-@Input          sCpuVAddrBase      the virtual base address of the sparse
-                                   allocation ('first' page)
-@Input          sCpuPAHeapBase     the physical address of the virtual
-                                   base address 'sCpuVAddrBase'
-@Input          ui32AllocPageCount the number of pages referenced in
-                                   'pai32AllocIndices'
-@Input          pai32AllocIndices  list of indices of pages within
-                                   'psPageArray' that we now want to
-                                   allocate and map
-@Input          ui32FreePageCount  the number of pages referenced in
-                                   'pai32FreeIndices'
-@Input          pai32FreeIndices   list of indices of pages within
-                                   'psPageArray' we now want to
-                                   unmap and free
-@Input          bIsLMA             flag indicating if the sparse allocation
-                                   is from LMA or UMA memory
-@Return         PVRSRV_OK on success, a failure code otherwise.
-*/ /**************************************************************************/
-PVRSRV_ERROR OSChangeSparseMemCPUAddrMap(void **psPageArray,
-                                         IMG_UINT64 sCpuVAddrBase,
-                                         IMG_CPU_PHYADDR sCpuPAHeapBase,
-                                         IMG_UINT32 ui32AllocPageCount,
-                                         IMG_UINT32 *pai32AllocIndices,
-                                         IMG_UINT32 ui32FreePageCount,
-                                         IMG_UINT32 *pai32FreeIndices,
-                                         IMG_BOOL bIsLMA);
-
-/*************************************************************************/ /*!
 @Function       OSInstallMISR
 @Description    Installs a Mid-level Interrupt Service Routine (MISR)
                 which handles higher-level processing of interrupts from
@@ -349,6 +314,15 @@ PVRSRV_ERROR OSUninstallMISR(IMG_HANDLE hMISRData);
 @Return         PVRSRV_OK on success, a failure code otherwise.
 */ /**************************************************************************/
 PVRSRV_ERROR OSScheduleMISR(IMG_HANDLE hMISRData);
+
+/*************************************************************************/ /*!
+@Function       OSSyncIRQ
+@Description    Wait for LISR to complete. If you use this function while
+                holding a resource which the IRQ handler also requires,
+                you will deadlock.
+@Input          ui32IRQ     IRQ number
+*/ /**************************************************************************/
+void OSSyncIRQ(IMG_UINT32 ui32IRQ);
 
 /*************************************************************************/ /*!
 @Description    Pointer to a function implementing debug dump of thread-specific
@@ -603,10 +577,11 @@ typedef enum
                 This is used to infer whether the virtual or physical address
                 supplied to the OSCPUCacheXXXRangeKM functions can be omitted
                 when called.
-@Input          psDevNode   device on which the allocation was made
+@Input          psDevNode       device on which the allocation was made
+@Input          ePhysHeapType   physical heap type of the allocation
 @Return         OS_CACHE_OP_ADDR_TYPE
 */ /**************************************************************************/
-OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode);
+OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode, PHYS_HEAP_TYPE ePhysHeapType);
 
 /*! CPU Cache attributes available for retrieval, DCache unless specified */
 typedef enum _OS_CPU_CACHE_ATTRIBUTE_
@@ -682,6 +657,32 @@ IMG_PID OSGetCurrentClientProcessIDKM(void);
 @Return         Client process name
 *****************************************************************************/
 IMG_CHAR *OSGetCurrentClientProcessNameKM(void);
+
+/*************************************************************************/ /*!
+@Function       OSAcquireCurrentPPIDResourceRefKM
+@Description    Returns a unique process identifier for the current client
+                parent process (thread group) and takes a reference on it
+                (if required) to prevent it being freed/re-allocated.
+                This value may then be used as a unique reference to the
+                process rather than using the PID value which might be
+                reallocated to represent a further process on process
+                destruction.
+                Note that the value to be returned is an address relating to
+                the parent process (thread group) and not to just one thread.
+                It is the caller's responsibility to ensure the reference is
+                subsequently dropped (by calling OSReleasePPIDResourceRefKM())
+                to allow it to be freed when no longer required.
+@Return         Address of a kernel resource allocated for the current client
+                parent process (thread group)
+*****************************************************************************/
+uintptr_t OSAcquireCurrentPPIDResourceRefKM(void);
+
+/*************************************************************************/ /*!
+@Function       OSReleasePPIDResourceRefKM
+@Description    Drops a reference on the unique process identifier provided.
+@Return         None
+*****************************************************************************/
+void OSReleasePPIDResourceRefKM(uintptr_t psPPIDResource);
 
 /*************************************************************************/ /*!
 @Function       OSGetCurrentClientThreadIDKM
@@ -1085,17 +1086,17 @@ void OSWriteMemoryBarrier(volatile void *hReadback);
 	} while (0)
 
 #if defined(NO_HARDWARE)
-	/* OSReadHWReg operations skipped in no hardware builds */
-	#define OSReadUncheckedHWReg32(addr, off) ((void)(addr), 0x30f73a4eU)
+	/* OSReadHWReg and OSWriteHWReg operations are skipped to no-op in nohw builds */
+	#define OSReadUncheckedHWReg32(addr, off) ((void)(addr), (void)(off), 0x30f73a4eU)
 #if defined(__QNXNTO__) && __SIZEOF_LONG__ == 8
 	/* This is needed for 64-bit QNX builds where the size of a long is 64 bits */
-	#define OSReadUncheckedHWReg64(addr, off) ((void)(addr), 0x5b376c9d30f73a4eUL)
+	#define OSReadUncheckedHWReg64(addr, off) ((void)(addr), (void)(off), 0x5b376c9d30f73a4eUL)
 #else
-	#define OSReadUncheckedHWReg64(addr, off) ((void)(addr), 0x5b376c9d30f73a4eULL)
+	#define OSReadUncheckedHWReg64(addr, off) ((void)(addr), (void)(off), 0x5b376c9d30f73a4eULL)
 #endif
 
-	#define OSWriteUncheckedHWReg32(addr, off, val)
-	#define OSWriteUncheckedHWReg64(addr, off, val) ((void)(val))
+	#define OSWriteUncheckedHWReg32(addr, off, val) ((void)(addr), (void)(off), (void)(val))
+	#define OSWriteUncheckedHWReg64(addr, off, val) ((void)(addr), (void)(off), (void)(val))
 
 	#define OSReadHWReg32(addr, off) OSReadUncheckedHWReg32(addr, off)
 	#define OSReadHWReg64(addr, off) OSReadUncheckedHWReg64(addr, off)
@@ -1318,7 +1319,7 @@ PVRSRV_ERROR OSDisableTimer(IMG_HANDLE hTimer);
  @Description   Take action in response to an unrecoverable driver error
  @Return        None
 */ /**************************************************************************/
-void OSPanic(void);
+void __noreturn OSPanic(void);
 
 /*************************************************************************/ /*!
 @Function       OSCopyToUser
@@ -1587,13 +1588,13 @@ static INLINE void OSWRLockReleaseWrite(POSWR_LOCK psLock)
 @Description    Divide a 64-bit value by a 32-bit value. Return the 64-bit
                 quotient.
                 The remainder is also returned in 'pui32Remainder'.
-@Input          ui64Divident        The number to be divided.
-@Input          ui32Divisor         The 32-bit value 'ui64Divident' is to
+@Input          ui64Dividend        The number to be divided.
+@Input          ui32Divisor         The 32-bit value 'ui64Dividend' is to
                                     be divided by.
 @Output         pui32Remainder      The remainder of the division.
 @Return         The 64-bit quotient (result of the division).
 */ /**************************************************************************/
-IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
+IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
 
 /*************************************************************************/ /*!
 @Function       OSDivide64
@@ -1603,13 +1604,13 @@ IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UI
                 This function allows for a more optimal implementation
                 of a 64-bit division when the result is known to be
                 representable in 32-bits.
-@Input          ui64Divident        The number to be divided.
-@Input          ui32Divisor         The 32-bit value 'ui64Divident' is to
+@Input          ui64Dividend        The number to be divided.
+@Input          ui32Divisor         The 32-bit value 'ui64Dividend' is to
                                     be divided by.
 @Output         pui32Remainder      The remainder of the division.
 @Return         The 32-bit quotient (result of the division).
 */ /**************************************************************************/
-IMG_UINT32 OSDivide64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
+IMG_UINT32 OSDivide64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
 
 /*************************************************************************/ /*!
 @Function       OSDumpStack
@@ -1764,6 +1765,36 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 void
 OSFreeSecBuf(PMR *psPMR);
 #endif
+
+/*************************************************************************/ /*!
+@Function       OSGetUID
+@Description    Get UID for a given PID
+@Input          pid         PID to convert
+@Output         pui32UID    IMG_UINT32 pointer to write converted UID to
+@Return         PVRSRV_OK on success, a failure code otherwise.
+*/ /**************************************************************************/
+PVRSRV_ERROR OSGetUID(IMG_PID pid, IMG_UINT32 *pui32UID);
+
+/*************************************************************************/ /*!
+@Function       OSFindFreeCPURangeTopDown
+@Description    Finds a CPU address that is within a given range. If on a 32-bit
+                platform, and ui64RangeEnd is > IMG_UINT32_MAX, the value
+                will be clamped IMG_UINT32_MAX.
+@Input          ui64RangeStart  The (inclusive) start of the range to search.
+@Input          ui64RangeEnd    The (exclusive) end of the range to search.
+@Input          ui64Size        The size of the allocation to be made.
+@Input          ui64AddrHint    An address that will be used as a hint to find
+                                a free CPU address quicker. If no hint is to be
+                                supplied, a value of 0 should be given.
+@Output         pui64Addr       The address found.
+@Return         PVRSRV_OK on success, PVRSRV_ERROR_CPU_ADDR_NOT_FOUND if no address
+                was able to be found.
+*/ /**************************************************************************/
+PVRSRV_ERROR OSFindFreeCPURangeTopDown(IMG_UINT64 ui64RangeStart,
+                                       IMG_UINT64 ui64RangeEnd,
+                                       IMG_UINT64 ui64Size,
+                                       IMG_UINT64 ui64AddrHint,
+                                       IMG_UINT64 *pui64Addr);
 #endif /* OSFUNC_H */
 
 /******************************************************************************

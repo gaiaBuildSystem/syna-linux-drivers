@@ -79,17 +79,11 @@ bool trace_rogue_are_fence_checks_traced(void)
  * simply a no-op, there is no harm in it.
  */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 int trace_fence_update_enabled_callback(void)
-#else
-void trace_fence_update_enabled_callback(void)
-#endif
 {
 	fence_update_event_enabled = true;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 	return 0;
-#endif
 }
 
 void trace_fence_update_disabled_callback(void)
@@ -97,17 +91,11 @@ void trace_fence_update_disabled_callback(void)
 	fence_update_event_enabled = false;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 int trace_fence_check_enabled_callback(void)
-#else
-void trace_fence_check_enabled_callback(void)
-#endif
 {
 	fence_check_event_enabled = true;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 	return 0;
-#endif
 }
 
 void trace_fence_check_disabled_callback(void)
@@ -234,7 +222,6 @@ void trace_rogue_ufo_checks_fail(IMG_UINT64 ui64OSTimestamp,
 	}
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 
 int PVRGpuTraceEnableUfoCallbackWrapper(void)
 {
@@ -247,7 +234,6 @@ int PVRGpuTraceEnableFirmwareActivityCallbackWrapper(void)
 	PVRGpuTraceEnableFirmwareActivityCallback();
 	return 0;
 }
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)) */
 #endif /* defined(SUPPORT_RGX) */
 #endif /* defined(PVRSRV_TRACE_ROGUE_EVENTS) */
 

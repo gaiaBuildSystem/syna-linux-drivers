@@ -120,7 +120,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	/* BRN_65273 GENERAL_NON4K base  0x73C0000000 */
 
 /* 0x00_0000_8000 - 0x7F_FFFF_8000 **/
-	/* 32 KiB to 512 GiB, size of 512 GiB less 32 KiB : GENERAL_SVM_HEAP **/
+	/* MAX(32 KiB, PAGE_SIZE) to 512 GiB, size of 512 GiB less MAX(32 KiB, PAGE_SIZE) : GENERAL_SVM_HEAP **/
+
+	/* The MAX is determined at runtime (PAGE_SIZE isn't available on all platforms)
+	 * so the #defines must NOT be used directly. Use the heap config after initialisation. */
 	#define RGX_GENERAL_SVM_HEAP_BASE           IMG_UINT64_C(0x0000008000)
 	#define RGX_GENERAL_SVM_HEAP_SIZE           (RGX_HEAP_SIZE_512GiB - RGX_HEAP_SIZE_32KiB)
 
@@ -213,11 +216,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	/* 933 GiB to 936 GiB, size of 3 GiB : FREE **/
 
 /* 0xEA_0000_0000 - 0xEA_001F_FFFF **/
-	/* 936 GiB to 937 GiB, size 2MB : SIGNALS_HEAP **/
-	/* CDM Signals heap (31 signals less one reserved for Services).
-	 * Size 960B rounded up to 2MB */
-	#define RGX_SIGNALS_HEAP_BASE               IMG_UINT64_C(0xEA00000000)
-	#define RGX_SIGNALS_HEAP_SIZE               RGX_HEAP_SIZE_2MiB
+	/* 936 GiB to 937 GiB, size of 1 GiB : FREE **/
 
 /* 0xEA_4000_0000 - 0xEA_FFFF_FFFF **/
 	/* 937 GiB to 940 GiB, size of 3 GiB : FREE **/
@@ -273,10 +272,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	/* BRN_65273 MMU_INIA base 0xF800000000 */
 	/* BRN_65273 MMU_INIB base 0xF900000000 */
 
-/* 0xF3_0000_0000 - 0xFF_FFFF_FFFF **/
-	/* 972 GiB to 1024 GiB, size of 52 GiB : FREE **/
+/* 0xF3_0000_0000 - 0xF9_FFFF_FFFF **/
+	/* 972 GiB to 1000 GiB, size of 28 GiB : FREE **/
 
+/* 0xFA_0000_0000 - 0xFA_3FFF_FFFF **/
+	/* 1000 GiB to 1001 GiB, size of 1 GiB : PMMETA_PROTECT_HEAP **/
+	#define RGX_PMMETA_PROTECT_HEAP_BASE        IMG_UINT64_C(0xFA00000000)
+	#define RGX_PMMETA_PROTECT_HEAP_SIZE        RGX_HEAP_SIZE_1GiB
 
+/* 0xFA_4000_000 - 0xFF_FFFF_FFFF **/
+	/* 1001 GiB to 1024 GiB, size of 23 GiB : FREE **/
 
 /* 0xFF_FFFF_FFFF ************************************************************/
 

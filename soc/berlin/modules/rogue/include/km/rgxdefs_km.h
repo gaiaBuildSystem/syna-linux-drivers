@@ -48,7 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #define IMG_EXPLICIT_INCLUDE_HWDEFS
-#if defined(__KERNEL__)
+#if defined(__KERNEL__) || defined(TEE_DDK)
 #include "rgx_cr_defs_km.h"
 #endif
 #undef IMG_EXPLICIT_INCLUDE_HWDEFS
@@ -143,15 +143,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define LTP218   (3U)
 #define LTP217   (4U)
 
-/* META Core memory feature depending on META variants */
-#define RGX_META_COREMEM_32K      (32*1024)
-#define RGX_META_COREMEM_48K      (48*1024)
-#define RGX_META_COREMEM_64K      (64*1024)
-#define RGX_META_COREMEM_96K      (96*1024)
-#define RGX_META_COREMEM_128K     (128*1024)
-#define RGX_META_COREMEM_256K     (256*1024)
-
-#if !defined(__KERNEL__)
+#if !(defined(__KERNEL__) || defined(TEE_DDK))
 #if (!defined(SUPPORT_TRUSTED_DEVICE) || defined(RGX_FEATURE_META_DMA)) && \
     (defined(RGX_FEATURE_META_COREMEM_SIZE) && RGX_FEATURE_META_COREMEM_SIZE != 0)
 #define RGX_META_COREMEM_SIZE     (RGX_FEATURE_META_COREMEM_SIZE*1024U)
@@ -229,6 +221,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* PM interactive mode enabled default for all rogue cores */
 #define PM_INTERACTIVE_MODE
 
+#define RGX_MLIST_ENTRY_STRIDE	(4U) /* 4 bytes */
+#define RGX_NUM_PM_ADDR_SPACES	(3U) /* VCE, TE and Alist */
+#define RGX_PM_MAX_PB_VIRT_ADDR_SPACE  (IMG_UINT64_C(0x400000000)) /* PM Maximum addressable limit */
+
 #define RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT		(12U)
 #define RGX_BIF_PM_PHYSICAL_PAGE_SIZE			(1UL << RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT)
 
@@ -249,7 +245,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_REQ_NUM_BERNADOS(CLUSTERS) (((CLUSTERS) + 3U) / 4U)
 #define RGX_REQ_NUM_BLACKPEARLS(CLUSTERS) (((CLUSTERS) + 3U) / 4U)
 
-#if !defined(__KERNEL__)
+#if !(defined(__KERNEL__) || defined(TEE_DDK))
 # define RGX_NUM_PHANTOMS (RGX_REQ_NUM_PHANTOMS(RGX_FEATURE_NUM_CLUSTERS))
 #endif
 
@@ -293,7 +289,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_CR_JONES_IDLE_MASKFULL                        (IMG_UINT64_C(0x0000000000003FFF))
 #endif
 
-#if !defined(__KERNEL__)
+#if !(defined(__KERNEL__) || defined(TEE_DDK))
 
 #if defined(RGX_FEATURE_ROGUEXE)
 #define RGX_NUM_RASTERISATION_MODULES	RGX_FEATURE_NUM_CLUSTERS
@@ -301,7 +297,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_NUM_RASTERISATION_MODULES	RGX_NUM_PHANTOMS
 #endif
 
-#endif /* defined(__KERNEL__) */
+#endif /* !(defined(__KERNEL__) || defined(TEE_DDK)) */
 
 /* GPU CR timer tick in GPU cycles */
 #define RGX_CRTIME_TICK_IN_CYCLES					(256U)
@@ -346,6 +342,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_HOST_SECURE_REGBANK_SIZE				(0x10000U)
 
 /*
+	Maximum number of render targets in array
+*/
+#define RGX_MAX_TA_RENDER_TARGETS					(2048U)
+
+/*
  * Macro used to indicate which version of HWPerf is active
  */
 #define RGX_FEATURE_HWPERF_ROGUE
@@ -360,9 +361,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #define RGX_WGP_MAX_NUM_CORES                           (8U)
 
-#if defined(RGX_FEATURE_VOLCANIC_TB)
-#define SUPPORT_VOLCANIC_TB
-#endif
 #define RGX_FEATURE_SECURITY_ROGUE
 
 /* Typically the PCI bus returns this value on error */

@@ -71,73 +71,24 @@ static void _FreeWrapData(PMR_WRAP_DATA *psPrivData)
 {
 	OSFreeMem(psPrivData->ppsPageArray);
 	OSFreeMem(psPrivData->ppvPhysAddr);
-	psPrivData->psVMArea = NULL;
 	OSFreeMem(psPrivData);
 }
 
 
 /* Allocate the PMR private data */
 static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
-                            PVRSRV_DEVICE_NODE *psDevNode,
-                            IMG_DEVMEM_SIZE_T uiSize,
-                            IMG_CPU_VIRTADDR pvCpuVAddr,
-                            PVRSRV_MEMALLOCFLAGS_T uiFlags)
+                                   PVRSRV_DEVICE_NODE *psDevNode,
+                                   IMG_DEVMEM_SIZE_T uiSize,
+                                   PVRSRV_MEMALLOCFLAGS_T uiFlags)
 {
 	PVRSRV_ERROR eError;
 	PMR_WRAP_DATA *psPrivData;
-	struct vm_area_struct *psVMArea;
 	IMG_UINT32 ui32CPUCacheMode;
 
-	/* Obtain a reader lock on the process mmap lock while we are using
-	 * the psVMArea.
-	 */
-
-	mmap_read_lock(current->mm);
-
-	/* Find the VMA */
-	psVMArea = find_vma(current->mm, (uintptr_t)pvCpuVAddr);
-	if (psVMArea == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: Couldn't find memory region containing start address %p",
-				__func__,
-				(void*) pvCpuVAddr));
-		eError = PVRSRV_ERROR_INVALID_CPU_ADDR;
-		goto eUnlockReturn;
-	}
-
-	/* If requested size is larger than actual allocation
-	 * return error. Can never request more memory to be imported
-	 * than its original allocation */
-	/* Now check the end address is in range */
-	if (((uintptr_t)pvCpuVAddr + uiSize) > psVMArea->vm_end)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: End address %p is outside of the region returned by find_vma",
-				__func__,
-				(void*) (uintptr_t)((uintptr_t)pvCpuVAddr + uiSize)));
-		eError = PVRSRV_ERROR_BAD_PARAM_SIZE;
-		goto eUnlockReturn;
-	}
-
-	/* Find_vma locates a region with an end point past a given
-	 * virtual address. So check the address is actually in the region. */
-	if ((uintptr_t)pvCpuVAddr < psVMArea->vm_start)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: Start address %p is outside of the region returned by find_vma",
-				__func__,
-				(void*) pvCpuVAddr));
-		eError = PVRSRV_ERROR_INVALID_CPU_ADDR;
-		goto eUnlockReturn;
-	}
-
-	eError = DevmemCPUCacheMode(psDevNode,
-	                            uiFlags,
-	                            &ui32CPUCacheMode);
+	eError = DevmemCPUCacheMode(uiFlags, &ui32CPUCacheMode);
 	if (eError != PVRSRV_OK)
 	{
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	/* Allocate and initialise private factory data */
@@ -145,24 +96,21 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 	if (psPrivData == NULL)
 	{
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	psPrivData->ui32CPUCacheFlags = ui32CPUCacheMode;
-
-	/* Track the VMA area structure so that it can be checked later */
-	psPrivData->psVMArea = psVMArea;
 
 	psPrivData->psDevNode = psDevNode;
 	psPrivData->uiTotalNumPages = uiSize >> PAGE_SHIFT;
 
 	/* Allocate page and phys address arrays */
 	psPrivData->ppsPageArray = OSAllocZMem(sizeof(*(psPrivData->ppsPageArray)) * psPrivData->uiTotalNumPages);
-	if (psPrivData == NULL)
+	if (psPrivData->ppsPageArray == NULL)
 	{
 		OSFreeMem(psPrivData);
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	psPrivData->ppvPhysAddr = OSAllocZMem(sizeof(*(psPrivData->ppvPhysAddr)) * psPrivData->uiTotalNumPages);
@@ -171,7 +119,7 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 		OSFreeMem(psPrivData->ppsPageArray);
 		OSFreeMem(psPrivData);
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	if (uiFlags & (PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE |
@@ -183,9 +131,8 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 	*ppsPrivData = psPrivData;
 
 	eError = PVRSRV_OK;
-eUnlockReturn:
-	mmap_read_unlock(current->mm);
 
+eReturn:
 	return eError;
 }
 
@@ -204,6 +151,34 @@ static void _FreeFindVMAPages(PMR_WRAP_DATA *psPrivData)
 		}
 	}
 }
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0))
+#define PVR_FOLL_LONGTERM (0x0U)
+#else
+#define PVR_FOLL_LONGTERM FOLL_LONGTERM
+#endif
+
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0))
+
+#define _get_user_pages_fast(puiAddress, num_pages, bWrite, pages)  get_user_pages_fast( \
+    (unsigned long)puiAddress, \
+    (int)num_pages, \
+    (int) (bWrite ? FOLL_WRITE : 0) | PVR_FOLL_LONGTERM, \
+    pages)
+
+#define _unpin_user_page(p) put_page(p)
+
+#else
+
+#define _get_user_pages_fast(puiAddress, num_pages, bWrite, pages) pin_user_pages_fast( \
+    (unsigned long)puiAddress, \
+    (int) num_pages, \
+    (int) (bWrite ? FOLL_WRITE : 0) | PVR_FOLL_LONGTERM, \
+    pages)
+
+#define _unpin_user_page(p) unpin_user_page(p)
+
 #endif
 
 /* Release pages got via get_user_pages().
@@ -225,10 +200,16 @@ static void _FreeGetUserPages(PMR_WRAP_DATA *psPrivData)
 			}
 
 			/* Release the page */
-			put_page(psPrivData->ppsPageArray[i]);
+			_unpin_user_page(psPrivData->ppsPageArray[i]);
 		}
 	}
 }
+
+#if defined(SUPPORT_LINUX_WRAP_EXTMEM_PAGE_TABLE_WALK)
+#define _PVR_DBG_LEVEL PVR_DBG_MESSAGE
+#else
+#define _PVR_DBG_LEVEL PVR_DBG_ERROR
+#endif
 
 /* Get the page structures and physical addresses mapped to
  * a CPU virtual range via get_user_pages() */
@@ -237,20 +218,32 @@ static PVRSRV_ERROR _TryGetUserPages(PVRSRV_DEVICE_NODE *psDevNode,
                                 IMG_CPU_VIRTADDR pvCpuVAddr,
                                 PMR_WRAP_DATA *psPrivData)
 {
-	IMG_INT32 iMappedPages, i;
+	IMG_INT32 i, iMappedPages;
+	IMG_INT32  iRequestedPages = uiSize >> PAGE_SHIFT;
+	PVRSRV_ERROR eError;
+
 	IMG_UINT64 ui64DmaMask = dma_get_mask(psDevNode->psDevConfig->pvOSDevice);
 
 	/* Do the actual call */
-	iMappedPages = get_user_pages_fast((uintptr_t) pvCpuVAddr, uiSize >> PAGE_SHIFT,
+	iMappedPages = _get_user_pages_fast((uintptr_t) pvCpuVAddr, iRequestedPages,
 	                                    psPrivData->bWrite, psPrivData->ppsPageArray);
 	if (iMappedPages < 0)
 	{
-		PVR_DPF((PVR_DBG_MESSAGE,
-		         "get_user_pages_fast() failed, got back %d, expected num pages %d",
-		         iMappedPages,
-		         psPrivData->uiTotalNumPages));
+		PVR_DPF((_PVR_DBG_LEVEL,
+		         "_get_user_pages_fast() failed, expected num pages %d, got error %d",
+		         psPrivData->uiTotalNumPages,
+		         iMappedPages));
 
 		return PVRSRV_ERROR_FAILED_TO_ACQUIRE_PAGES;
+	}
+	else if (iMappedPages != iRequestedPages)
+	{
+		PVR_DPF((_PVR_DBG_LEVEL,
+		         "_get_user_pages_fast() failed, expected num pages %d, got number pages %d",
+		         psPrivData->uiTotalNumPages,
+		         iMappedPages));
+
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_FAILED_TO_ACQUIRE_PAGES, ErrUnpinPages);
 	}
 
 	/* Fill the physical address array */
@@ -266,12 +259,13 @@ static PVRSRV_ERROR _TryGetUserPages(PVRSRV_DEVICE_NODE *psDevNode,
 			psPrivData->ppvPhysAddr[i].uiAddr = 0;
 		}
 
-		/* APOLLO test chips TCF5 or ES2 can only access 4G maximum memory from the card.
-		 * This is due to the 32 bit PCI card interface to the host
-		 * Hence pages with physical address beyond 4G range cannot be accessed by the device
-		 * An error is reported in such a case
+
+		/* Check the data transfer capability of the DMA.
 		 *
-		 * The same restriction may apply on to platforms as well*/
+		 * For instance:
+		 * APOLLO test chips TCF5 or ES2 can only access 4G maximum memory from the card.
+		 * Hence pages with a physical address beyond 4G range cannot be accessed by the
+		 * device. An error is reported in such a case. */
 		if (psPrivData->ppvPhysAddr[i].uiAddr & ~ui64DmaMask)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
@@ -289,7 +283,20 @@ static PVRSRV_ERROR _TryGetUserPages(PVRSRV_DEVICE_NODE *psDevNode,
 	}
 
 	return PVRSRV_OK;
+
+ErrUnpinPages:
+	for (i = 0; i < iMappedPages; i++)
+	{
+		if (psPrivData->ppsPageArray[i] != NULL)
+		{
+			_unpin_user_page(psPrivData->ppsPageArray[i]);
+		}
+	}
+
+	return eError;
 }
+
+#undef _PVR_DBG_LEVEL
 
 /* Release all the pages we got via _TryGetUserPages or _TryFindVMA */
 static PVRSRV_ERROR _WrapExtMemReleasePages(PMR_WRAP_DATA *psPrivData)
@@ -373,11 +380,11 @@ static PVRSRV_ERROR _WrapExtMemAcquirePages(PVRSRV_DEVICE_NODE *psDevNode,
 }
 
 static PVRSRV_ERROR
-PMRSysPhysAddrExtMem(PMR_IMPL_PRIVDATA pvPriv,
+PMRDevPhysAddrExtMem(PMR_IMPL_PRIVDATA pvPriv,
                      IMG_UINT32 ui32Log2PageSize,
                      IMG_UINT32 ui32NumOfPages,
                      IMG_DEVMEM_OFFSET_T *puiOffset,
-#if defined(PVRSRV_SUPPORT_IPA_FEATURE)
+#if defined(SUPPORT_STATIC_IPA)
                      IMG_UINT64 ui64IPAPolicyValue,
                      IMG_UINT64 ui64IPAClearMask,
 #endif
@@ -390,7 +397,7 @@ PMRSysPhysAddrExtMem(PMR_IMPL_PRIVDATA pvPriv,
 	IMG_UINT32 uiPageIndex;
 	IMG_UINT32 uiIdx;
 
-#if defined(PVRSRV_SUPPORT_IPA_FEATURE)
+#if defined(SUPPORT_STATIC_IPA)
 	PVR_UNREFERENCED_PARAMETER(ui64IPAPolicyValue);
 	PVR_UNREFERENCED_PARAMETER(ui64IPAClearMask);
 #endif
@@ -417,20 +424,18 @@ PMRSysPhysAddrExtMem(PMR_IMPL_PRIVDATA pvPriv,
 
 		PVR_ASSERT(uiInPageOffset < uiPageSize);
 
-		/* We always handle CPU physical addresses in this PMR factory
-		 * but this callback expects device physical addresses so we have to translate. */
-		PhysHeapCpuPAddrToDevPAddr(psWrapData->psDevNode->apsPhysHeap[PVRSRV_PHYS_HEAP_CPU_LOCAL],
-		                           1,
-		                           &psDevPAddr[uiIdx],
-		                           &psWrapData->ppvPhysAddr[uiPageIndex]);
+		/* The ExtMem is only enabled in UMA mode, in that mode, the device physical
+		 * address translation will be handled by the PRM factory after this call.
+		 * Here we just copy the physical address like other callback implementations. */
+		psDevPAddr[uiIdx].uiAddr = psWrapData->ppvPhysAddr[uiPageIndex].uiAddr;
 
 		pbValid[uiIdx] = (psDevPAddr[uiIdx].uiAddr)? IMG_TRUE:IMG_FALSE;
 
 		psDevPAddr[uiIdx].uiAddr += uiInPageOffset;
-#if defined(PVRSRV_SUPPORT_IPA_FEATURE)
+#if defined(SUPPORT_STATIC_IPA)
 		psDevPAddr[uiIdx].uiAddr &= ~ui64IPAClearMask;
 		psDevPAddr[uiIdx].uiAddr |= ui64IPAPolicyValue;
-#endif	/* PVRSRV_SUPPORT_IPA_FEATURE */
+#endif	/* SUPPORT_STATIC_IPA */
 	}
 
 	return PVRSRV_OK;
@@ -463,8 +468,8 @@ static void _UnmapPage(PMR_WRAP_DATA *psWrapData,
 			PVR_DPF((PVR_DBG_ERROR, "%s: Unable to unmap wrapped extmem "
 			        "page - wrong cached mode flags passed. This may leak "
 			        "memory.", __func__));
-			PVR_ASSERT(!"Found non-cpu cache mode flag when unmapping from "
-			           "the cpu");
+			PVR_DPF((PVR_DBG_ERROR, "Found non-cpu cache mode flag when unmapping from "
+					 "the cpu"));
 		}
 		else
 		{
@@ -627,6 +632,15 @@ PMRWriteBytesExtMem(PMR_IMPL_PRIVDATA pvPriv,
                     size_t uiBufSz,
                     size_t *puiNumBytes)
 {
+	PMR_WRAP_DATA *psWrapData = (PMR_WRAP_DATA*) pvPriv;
+
+	if (!psWrapData->bWrite)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Attempt to write to read only vma.",
+		                        __func__));
+		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+	}
+
 	return _CopyBytesExtMem(pvPriv,
 	                        uiOffset,
 	                        pcBuffer,
@@ -726,7 +740,7 @@ static inline void begin_user_mode_access(IMG_UINT *uiState)
 #elif defined(CONFIG_ARM64) && defined(CONFIG_ARM64_SW_TTBR0_PAN)
 	PVR_UNREFERENCED_PARAMETER(uiState);
 	uaccess_enable_privileged();
-#elif defined(CONFIG_X86) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,168))
+#elif defined(CONFIG_X86)
 	PVR_UNREFERENCED_PARAMETER(uiState);
 	__uaccess_begin();
 #else
@@ -742,13 +756,15 @@ static inline void end_user_mode_access(IMG_UINT uiState)
 #elif defined(CONFIG_ARM64) && defined(CONFIG_ARM64_SW_TTBR0_PAN)
 	PVR_UNREFERENCED_PARAMETER(uiState);
 	uaccess_disable_privileged();
-#elif defined(CONFIG_X86) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,168))
+#elif defined(CONFIG_X86)
 	PVR_UNREFERENCED_PARAMETER(uiState);
 	__uaccess_end();
 #else
 	PVR_UNREFERENCED_PARAMETER(uiState);
 #endif
 }
+
+#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 
 static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 							PMR_WRAP_DATA *psPrivData,
@@ -761,11 +777,8 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 
 	mmap_read_lock(current->mm);
 
-	/* Check that the recorded psVMArea matches the one associated with
-	 * this request. If not, fail the request.
-	 */
 	psVMArea = find_vma(current->mm, (uintptr_t)pvCpuVAddr);
-	if ((psVMArea != psPrivData->psVMArea) || (psVMArea == NULL))
+	if (psVMArea == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR,
 		         "%s: Couldn't find memory region containing start address %p",
@@ -788,7 +801,7 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 	 * */
 	begin_user_mode_access(&uiUserAccessState);
 	{
-		if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_VIRTUAL)
+		if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UNKNOWN) == OS_CACHE_OP_ADDR_TYPE_VIRTUAL)
 		{
 			IMG_CPU_PHYADDR sCPUPhysStart = {0};
 
@@ -799,7 +812,7 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 								sCPUPhysStart,
 								PVRSRV_CACHE_OP_FLUSH);
 		}
-		else if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_PHYSICAL)
+		else if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UNKNOWN) == OS_CACHE_OP_ADDR_TYPE_PHYSICAL)
 		{
 			IMG_CPU_PHYADDR sCPUPhysStart, sCPUPhysEnd;
 			IMG_UINT i = 0;
@@ -824,7 +837,7 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 				}
 			}
 		}
-		else if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_BOTH)
+		else if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UNKNOWN) == OS_CACHE_OP_ADDR_TYPE_BOTH)
 		{
 			IMG_CPU_PHYADDR sCPUPhysStart, sCPUPhysEnd;
 			void *pvVirtStart, *pvVirtEnd;
@@ -870,17 +883,17 @@ UMFlushUnlockReturn:
 	mmap_read_unlock(current->mm);
 	return eError;
 }
+#endif
 
 static PMR_IMPL_FUNCTAB _sPMRWrapPFuncTab = {
     .pfnLockPhysAddresses = NULL,
     .pfnUnlockPhysAddresses = NULL,
-    .pfnDevPhysAddr = &PMRSysPhysAddrExtMem,
+    .pfnDevPhysAddr = &PMRDevPhysAddrExtMem,
     .pfnAcquireKernelMappingData = PMRAcquireKernelMappingDataExtMem,
     .pfnReleaseKernelMappingData = PMRReleaseKernelMappingDataExtMem,
     .pfnReadBytes = PMRReadBytesExtMem,
     .pfnWriteBytes = PMRWriteBytesExtMem,
     .pfnChangeSparseMem = NULL,
-    .pfnChangeSparseMemCPUMap = NULL,
     .pfnFinalize = &PMRFinalizeExtMem,
 };
 
@@ -888,10 +901,19 @@ static inline PVRSRV_ERROR PhysmemValidateParam( IMG_DEVMEM_SIZE_T uiSize,
                                                  IMG_CPU_VIRTADDR pvCpuVAddr,
                                                  PVRSRV_MEMALLOCFLAGS_T uiFlags)
 {
+	PVR_LOG_RETURN_IF_INVALID_PARAM(uiSize != 0, "uiSize");
+
 	if (!access_ok(pvCpuVAddr, uiSize))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "Invalid User mode CPU virtual address"));
 		return PVRSRV_ERROR_INVALID_CPU_ADDR;
+	}
+
+	/* Fail if size is too large */
+	if (uiSize > PMR_MAX_SUPPORTED_SIZE)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Requested size too large (max supported size 0x%llx Bytes).", PMR_MAX_SUPPORTED_SIZE));
+		return PVRSRV_ERROR_PMR_TOO_LARGE;
 	}
 
 	/* Fail if requesting coherency on one side but uncached on the other */
@@ -909,6 +931,14 @@ static inline PVRSRV_ERROR PhysmemValidateParam( IMG_DEVMEM_SIZE_T uiSize,
 		PVR_DPF((PVR_DBG_ERROR, "Request for GPU coherency but specifying CPU uncached "
 				"Please use CPU cached flags for coherency."));
 		return PVRSRV_ERROR_UNSUPPORTED_CACHE_MODE;
+	}
+
+	if (uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAGS_MASK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Device specific flags not supported. "
+		                        "Passed Flags: 0x%"PVRSRV_MEMALLOCFLAGS_FMTSPEC,
+		                        __func__, uiFlags));
+		return PVRSRV_ERROR_INVALID_FLAGS;
 	}
 
 #if !defined(PVRSRV_WRAP_EXTMEM_WRITE_ATTRIB_ENABLE)
@@ -966,7 +996,10 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	PMR_WRAP_DATA *psPrivData;
 	PMR *psPMR;
 	IMG_UINT uiTotalNumPages = (uiSize >> PAGE_SHIFT);
+	IMG_BOOL bIsPMRDestroyed = IMG_FALSE;
 	IMG_UINT i = 0;
+	IMG_UINT32 uiNumPhysChunks;
+	IMG_UINT32 uiNumLogicalChunks;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0))
 	/* Ignore the most significant byte. */
@@ -985,7 +1018,6 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	eError = _AllocWrapData(&psPrivData,
 	                        psDevNode,
 	                        uiSize,
-	                        pvCpuVAddr,
 	                        uiFlags);
 	if (eError != PVRSRV_OK)
 	{
@@ -1021,13 +1053,22 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	if (psPrivData->uiNumBackedPages == psPrivData->uiTotalNumPages)
 	{
 		uiFlags |= PVRSRV_MEMALLOCFLAG_SPARSE_NO_SCRATCH_BACKING;
+
+		/* For non-sparse PMRs we indicate a single logical and physical chunk */
+		uiNumPhysChunks = 1;
+		uiNumLogicalChunks = 1;
+	}
+	else
+	{
+		uiNumPhysChunks = psPrivData->uiNumBackedPages;
+		uiNumLogicalChunks = psPrivData->uiTotalNumPages;
 	}
 
 	/* Create a suitable PMR */
 	eError = PMRCreatePMR(psDevNode->apsPhysHeap[PVRSRV_PHYS_HEAP_CPU_LOCAL],
-	                      uiSize,    /* PMR_SIZE_T uiLogicalSize                  */
-	                      uiTotalNumPages,    /* IMG_UINT32 ui32NumPhysChunks              */
-	                      uiTotalNumPages,    /* IMG_UINT32 ui32NumVirtChunks              */
+	                      uiSize,    /* PMR_SIZE_T uiLogicalSize                             */
+	                      uiNumPhysChunks,    /* IMG_UINT32 ui32NumPhysChunks                */
+	                      uiNumLogicalChunks,    /* IMG_UINT32 ui32NumLogicalChunks          */
 	                      pui32MappingTable,
 	                      PAGE_SHIFT,           /* PMR_LOG2ALIGN_T uiLog2ContiguityGuarantee */
 	                      (uiFlags & PVRSRV_MEMALLOCFLAGS_PMRFLAGSMASK), /* PMR_FLAGS_T uiFlags */
@@ -1042,6 +1083,7 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 		goto e2;
 	}
 
+#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 	if (PVRSRV_CHECK_CPU_CACHE_CLEAN(uiFlags))
 	{
 		eError = _FlushUMVirtualRange(psDevNode,
@@ -1053,6 +1095,7 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 			goto e3;
 		}
 	}
+#endif
 
 	/* Mark the PMR such that no layout changes can happen.
 	 * The memory is allocated in the CPU domain and hence
@@ -1064,12 +1107,18 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	OSFreeMem(pui32MappingTable);
 
 	return PVRSRV_OK;
+#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 e3:
-	PMRUnrefPMR(psPMR);
+	(void) PMRUnrefPMR(psPMR);
+	bIsPMRDestroyed = IMG_TRUE;
+#endif
 e2:
 	OSFreeMem(pui32MappingTable);
 e1:
-	_WrapExtMemReleasePages(psPrivData);
+	if (!bIsPMRDestroyed)
+	{
+		(void)_WrapExtMemReleasePages(psPrivData);
+	}
 e0:
 	return eError;
 }

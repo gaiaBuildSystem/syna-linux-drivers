@@ -118,8 +118,6 @@ RGXInitFirmware(PVRSRV_DEVICE_NODE       *psDeviceNode,
 
  @Input ppsRGXFW - fw pointer
 
- @Output ppbFWData - pointer to FW data (NULL if an error occurred)
-
  @Return PVRSRV_ERROR - PVRSRV_OK on success
                         PVRSRV_ERROR_NOT_READY if filesystem is not ready
                         PVRSRV_ERROR_NOT_FOUND if no suitable FW image found
@@ -128,8 +126,7 @@ RGXInitFirmware(PVRSRV_DEVICE_NODE       *psDeviceNode,
 
 ******************************************************************************/
 PVRSRV_ERROR RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
-                                 OS_FW_IMAGE **ppsRGXFW,
-                                 const IMG_BYTE **ppbFWData);
+                                 OS_FW_IMAGE **ppsRGXFW);
 
 #if defined(PDUMP)
 /*!
@@ -202,43 +199,6 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode);
 
 void RGX_WaitForInterruptsTimeout(PVRSRV_RGXDEV_INFO *psDevInfo);
 
-/*!
-*******************************************************************************
-
- @Function     SORgxGpuUtilStatsRegister
-
- @Description  SO Interface function called from the OS layer implementation.
-               Initialise data used to compute GPU utilisation statistics
-               for a particular user (identified by the handle passed as
-               argument). This function must be called only once for each
-               different user/handle.
-
- @Input        phGpuUtilUser - Pointer to handle used to identify a user of
-                               RGXGetGpuUtilStats
-
- @Return       PVRSRV_ERROR
-
-******************************************************************************/
-PVRSRV_ERROR SORgxGpuUtilStatsRegister(IMG_HANDLE *phGpuUtilUser);
-
-
-/*!
-*******************************************************************************
-
- @Function     SORgxGpuUtilStatsUnregister
-
- @Description  SO Interface function called from the OS layer implementation.
-               Free data previously used to compute GPU utilisation statistics
-               for a particular user (identified by the handle passed as
-               argument).
-
- @Input        hGpuUtilUser - Handle used to identify a user of
-                              RGXGetGpuUtilStats
-
- @Return       PVRSRV_ERROR
-
-******************************************************************************/
-PVRSRV_ERROR SORgxGpuUtilStatsUnregister(IMG_HANDLE hGpuUtilUser);
 #endif /* !defined(NO_HARDWARE) */
 
 #if defined(RGX_FEATURE_AXI_ACE_BIT_MASK)
@@ -286,5 +246,31 @@ PVRSRV_ERROR RGXInitCreateFWKernelMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode
  @Input         psDeviceNode  device node
  ******************************************************************************/
 void RGXDeInitDestroyFWKernelMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode);
+
+/*!
+ *******************************************************************************
+
+ @Function      RGXHeapDerivePageSize
+
+ @Description   Ensure the desire page size is suitable for the RGX hardware
+
+ @Input         uiLog2PageSize target page log2 size
+
+ @Return        IMG_UINT32 valid page log2 size
+ ******************************************************************************/
+IMG_UINT32 RGXHeapDerivePageSize(IMG_UINT32 uiLog2PageSize);
+
+/*!
+ *******************************************************************************
+
+ @Function      RGXGetNon4KHeapPageShift
+
+ @Description   Retrieves the log2 page size of the General non 4k heap
+
+ @Output        pui32Log2Non4KPgShift page shift
+ ******************************************************************************/
+PVRSRV_ERROR RGXGetNon4KHeapPageShift(const void *hPrivate,
+                                     IMG_UINT32 *pui32Log2Non4KPgShift);
+
 
 #endif /* RGXINIT_H */

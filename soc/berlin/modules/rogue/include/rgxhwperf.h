@@ -96,4 +96,14 @@ PVRSRV_ERROR PVRSRVRGXGetEnabledHWPerfBlocks(PVRSRV_DEVICE_NODE *psDevNode,
                                              IMG_UINT32 *pui32BlockCount,
                                              IMG_UINT32 *pui32EnabledBlockIDs);
 
+typedef struct HWPERF_STREAM_DESC_TAG HWPERF_STREAM_DESC;
+
+PVRSRV_ERROR PVRSRVRGXOpenHWPerfClientStreamKM(CONNECTION_DATA *psConnection,
+                                               PVRSRV_DEVICE_NODE *psDeviceNode,
+                                               HWPERF_STREAM_DESC **ppsSD);
+PVRSRV_ERROR PVRSRVRGXCloseHWPerfClientStreamKM(HWPERF_STREAM_DESC *psSD);
+PVRSRV_ERROR PVRSRVRGXWriteHWPerfClientEventKM(HWPERF_STREAM_DESC *psSD,
+                                               IMG_UINT32 uiSize,
+                                               IMG_BYTE *puiData);
+
 #endif /* RGXHWPERF_H_ */

@@ -1,6 +1,8 @@
 /*************************************************************************/ /*!
-@Title          RGX Core BVNC 33.8.22.1
+@File
+@Title          Reusable hash functions for hash.c.
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@Description    Implements common hash functions.
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -39,37 +41,33 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#ifndef RGXCORE_KM_33_8_22_1_H
-#define RGXCORE_KM_33_8_22_1_H
+#include "hash_functions.h"
+#include "img_defs.h"
 
-/* Automatically generated file (21/01/2022 09:01:15): Do not edit manually */
-/* CS: @5544349 */
+/* Declaring function here to avoid dependencies that are introduced by
+ * including osfunc.h. */
+IMG_INT32 OSStringNCompare(const IMG_CHAR *pStr1, const IMG_CHAR *pStr2,
+                           size_t uiSize);
 
-/******************************************************************************
- * BVNC = 33.8.22.1
- *****************************************************************************/
-#define RGX_BVNC_KM_B 33
-#define RGX_BVNC_KM_V 8
-#define RGX_BVNC_KM_N 22
-#define RGX_BVNC_KM_C 1
+IMG_UINT32 HASH_Djb2_Hash(size_t uKeySize, void *pKey, IMG_UINT32 uHashTabLen)
+{
+	IMG_CHAR *pszStr = pKey;
+	IMG_UINT32 ui32Hash = 5381, ui32Char;
 
-/******************************************************************************
- * Errata
- *****************************************************************************/
+	PVR_UNREFERENCED_PARAMETER(uKeySize);
+	PVR_UNREFERENCED_PARAMETER(uHashTabLen);
 
-#define FIX_HW_BRN_63553
-#define FIX_HW_BRN_71317
+	while ((ui32Char = *pszStr++) != '\0')
+	{
+		ui32Hash = ((ui32Hash << 5) + ui32Hash) + ui32Char;
+	}
 
+	return ui32Hash;
+}
 
+IMG_BOOL HASH_Djb2_Compare(size_t uKeySize, void *pKey1, void *pKey2)
+{
+	IMG_CHAR *pszKey1 = pKey1, *pszKey2 = pKey2;
 
-/******************************************************************************
- * Enhancements
- *****************************************************************************/
-#define HW_ERN_42290
-#define HW_ERN_42606
-#define HW_ERN_47025
-#define HW_ERN_57596
-
-
-
-#endif /* RGXCORE_KM_33_8_22_1_H */
+	return OSStringNCompare(pszKey1, pszKey2, uKeySize) == 0;
+}

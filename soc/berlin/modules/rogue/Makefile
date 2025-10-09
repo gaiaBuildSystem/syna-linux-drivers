@@ -11,6 +11,8 @@ ccflags-$(CONFIG_POWERVR_ROGUE:m=y) += -I$(srctree)/drivers/synaptics/soc/berlin
 ccflags-$(CONFIG_POWERVR_ROGUE:m=y) += $(TEE_INC_PATH)
 ccflags-y += -Werror
 
+#DEBUG := 1
+
 ifeq ($(CONFIG_GPU_DOLPHIN),y)
 ccflags-$(CONFIG_POWERVR_ROGUE:m=y) += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue/dolphin_config_kernel.h
 else ifeq ($(CONFIG_GPU_PLATYPUS),y)
@@ -21,11 +23,15 @@ endif
 
 obj-$(CONFIG_POWERVR_ROGUE) += pvrsrvkm.o
 
-ifdef $(DEBUG)
+ifdef DEBUG
+ccflags-y += -DDEBUG
 pvrsrvkm-y += src/client_htbuffer_direct_bridge.o
+pvrsrvkm-y += src/htb_debug.o
 pvrsrvkm-y += src/htbserver.o
 pvrsrvkm-y += src/htbuffer.o
+pvrsrvkm-y += src/rgxkicksync.o
 pvrsrvkm-y += src/server_htbuffer_bridge.o
+pvrsrvkm-y += src/server_rgxkicksync_bridge.o
 endif
 pvrsrvkm-y += src/allocmem.o
 pvrsrvkm-y += src/cache_km.o
@@ -41,15 +47,15 @@ pvrsrvkm-y += src/devicemem_heapcfg.o
 pvrsrvkm-y += src/devicemem_history_server.o
 pvrsrvkm-y += src/devicemem_server.o
 pvrsrvkm-y += src/devicemem_utils.o
+pvrsrvkm-y += src/dkf_server.o
 pvrsrvkm-y += src/dma_support.o
 pvrsrvkm-y += src/event.o
 pvrsrvkm-y += src/handle.o
 pvrsrvkm-y += src/handle_idr.o
 pvrsrvkm-y += src/hash.o
-pvrsrvkm-y += src/htb_debug.o
+pvrsrvkm-y += src/hash_functions.o
 pvrsrvkm-y += src/info_page_km.o
 pvrsrvkm-y += src/interrupt_support.o
-pvrsrvkm-y += src/ion_support_synaptics.o
 pvrsrvkm-y += src/km_apphint.o
 pvrsrvkm-y += src/lists.o
 pvrsrvkm-y += src/mem_utils.o
@@ -61,6 +67,7 @@ pvrsrvkm-y += src/osfunc.o
 pvrsrvkm-y += src/osmmap_stub.o
 pvrsrvkm-y += src/physheap.o
 pvrsrvkm-y += src/physmem.o
+pvrsrvkm-y += src/physmem_dmabuf_fbc_tracker.o
 pvrsrvkm-y += src/physmem_extmem_linux.o
 pvrsrvkm-y += src/physmem_extmem.o
 pvrsrvkm-y += src/physmem_dmabuf.o
@@ -81,10 +88,8 @@ pvrsrvkm-y += src/pvr_debug.o
 pvrsrvkm-y += src/pvr_drm.o
 pvrsrvkm-y += src/pvr_fence.o
 pvrsrvkm-y += src/pvr_gputrace.o
-pvrsrvkm-y += src/pvr_gpuwork.o
 pvrsrvkm-y += src/pvr_notifier.o
 pvrsrvkm-y += src/pvr_platform_drv.o
-pvrsrvkm-y += src/pvr_gpufreq.o
 pvrsrvkm-y += src/pvrsrv_bridge_init.o
 pvrsrvkm-y += src/pvrsrv.o
 pvrsrvkm-y += src/pvrsrv_error.o
@@ -106,7 +111,7 @@ pvrsrvkm-y += src/rgxfwutils.o
 pvrsrvkm-y += src/rgxhwperf.o
 pvrsrvkm-y += src/rgx_hwperf_table.o
 pvrsrvkm-y += src/rgxinit.o
-pvrsrvkm-y += src/rgxkicksync.o
+pvrsrvkm-y += src/rgxinit_common.o
 pvrsrvkm-y += src/rgxlayer_impl.o
 pvrsrvkm-y += src/rgxmem.o
 pvrsrvkm-y += src/rgxmipsmmuinit.o
@@ -133,7 +138,6 @@ pvrsrvkm-y += src/server_rgxbreakpoint_bridge.o
 pvrsrvkm-y += src/server_rgxcmp_bridge.o
 pvrsrvkm-y += src/server_rgxfwdbg_bridge.o
 pvrsrvkm-y += src/server_rgxhwperf_bridge.o
-pvrsrvkm-y += src/server_rgxkicksync_bridge.o
 pvrsrvkm-y += src/server_rgxregconfig_bridge.o
 pvrsrvkm-y += src/server_rgxta3d_bridge.o
 pvrsrvkm-y += src/server_rgxtq2_bridge.o
@@ -170,7 +174,6 @@ pvrsrvkm-y += src/server_rgxtimerquery_bridge.o
 pvrsrvkm-y += src/debug_common.o
 pvrsrvkm-y += src/rgxtimerquery.o
 pvrsrvkm-y += src/server_di_bridge.o
-pvrsrvkm-y += src/ion_support_synaptics.o
 # pvrsrvkm-y += src/pci_support.o
 pvrsrvkm-y += src/pvr_sync_ioctl_common.o
 pvrsrvkm-y += src/pvr_sync_ioctl_dev.o

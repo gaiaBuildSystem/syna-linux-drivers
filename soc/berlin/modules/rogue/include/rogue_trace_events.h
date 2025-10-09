@@ -59,16 +59,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define show_usecs_from_ns(ns) \
 	({ \
 		u64 t = ns + (NSEC_PER_USEC / 2); \
-		u32 rem; \
 		do_div(t, NSEC_PER_USEC); \
-		rem = do_div(t, USEC_PER_SEC); \
+		do_div(t, USEC_PER_SEC); \
 	})
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
-int trace_fence_update_enabled_callback(void);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
+#define pvr_assign_str __assign_str
 #else
-void trace_fence_update_enabled_callback(void);
+#define pvr_assign_str(a, b) __assign_str(a)
 #endif
+
+int trace_fence_update_enabled_callback(void);
 void trace_fence_update_disabled_callback(void);
 
 TRACE_EVENT_FN(rogue_fence_update,
@@ -90,9 +91,9 @@ TRACE_EVENT_FN(rogue_fence_update,
 	),
 
 	TP_fast_assign(
-		__assign_str(comm, comm);
-		__assign_str(cmd, cmd);
-		__assign_str(dm, dm);
+		pvr_assign_str(comm, comm);
+		pvr_assign_str(cmd, cmd);
+		pvr_assign_str(dm, dm);
 		__entry->gpu_id = gpu_id;
 		__entry->ctx_id = ctx_id;
 		__entry->offset = offset;
@@ -115,11 +116,7 @@ TRACE_EVENT_FN(rogue_fence_update,
 	trace_fence_update_disabled_callback
 );
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 int trace_fence_check_enabled_callback(void);
-#else
-void trace_fence_check_enabled_callback(void);
-#endif
 void trace_fence_check_disabled_callback(void);
 
 TRACE_EVENT_FN(rogue_fence_check,
@@ -141,9 +138,9 @@ TRACE_EVENT_FN(rogue_fence_check,
 	),
 
 	TP_fast_assign(
-		__assign_str(comm, comm);
-		__assign_str(cmd, cmd);
-		__assign_str(dm, dm);
+		pvr_assign_str(comm, comm);
+		pvr_assign_str(cmd, cmd);
+		pvr_assign_str(dm, dm);
 		__entry->gpu_id = gpu_id;
 		__entry->ctx_id = ctx_id;
 		__entry->offset = offset;
@@ -186,7 +183,7 @@ TRACE_EVENT(rogue_job_enqueue,
 		__entry->ctx_id = ctx_id;
 		__entry->int_id = int_id;
 		__entry->ext_id = ext_id;
-		__assign_str(kick_type, kick_type);
+		pvr_assign_str(kick_type, kick_type);
 	),
 
 	TP_printk("gpu=%lu, ctx_id=%lu int_id=%lu ext_id=%lu kick_type=%s",
@@ -218,7 +215,7 @@ TRACE_EVENT(rogue_sched_switch,
 	),
 
 	TP_fast_assign(
-		__assign_str(work_type, work_type);
+		pvr_assign_str(work_type, work_type);
 		__entry->switch_type = switch_type;
 		__entry->timestamp = timestamp;
 		__entry->gpu_id = gpu_id;
@@ -259,8 +256,8 @@ TRACE_EVENT(rogue_create_fw_context,
 	),
 
 	TP_fast_assign(
-		__assign_str(comm, comm);
-		__assign_str(dm, dm);
+		pvr_assign_str(comm, comm);
+		pvr_assign_str(dm, dm);
 		__entry->gpu_id = gpu_id;
 		__entry->ctx_id = ctx_id;
 	),
@@ -275,12 +272,7 @@ TRACE_EVENT(rogue_create_fw_context,
 
 void PVRGpuTraceEnableUfoCallback(void);
 void PVRGpuTraceDisableUfoCallback(void);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 int PVRGpuTraceEnableUfoCallbackWrapper(void);
-#else
-#define PVRGpuTraceEnableUfoCallbackWrapper \
-		PVRGpuTraceEnableUfoCallback
-#endif
 
 TRACE_EVENT_FN(rogue_ufo_update,
 
@@ -536,12 +528,7 @@ TRACE_EVENT(rogue_events_lost,
 
 void PVRGpuTraceEnableFirmwareActivityCallback(void);
 void PVRGpuTraceDisableFirmwareActivityCallback(void);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 int PVRGpuTraceEnableFirmwareActivityCallbackWrapper(void);
-#else
-#define PVRGpuTraceEnableFirmwareActivityCallbackWrapper \
-		PVRGpuTraceEnableFirmwareActivityCallback
-#endif
 
 TRACE_EVENT_FN(rogue_firmware_activity,
 
@@ -558,8 +545,8 @@ TRACE_EVENT_FN(rogue_firmware_activity,
 
 	TP_fast_assign(
 		__entry->timestamp = timestamp;
-		__entry->gpu_id = gpu_id,
-		__assign_str(task, task);
+		__entry->gpu_id = gpu_id;
+		pvr_assign_str(task, task);
 		__entry->fw_event = fw_event;
 	),
 

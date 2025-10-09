@@ -94,6 +94,9 @@ struct pvr_sw_timeline_advance_data {
 #define PVR_SRVKM_SERVICES_INIT  1
 #define PVR_SRVKM_SYNC_INIT 2
 #define PVR_SRVKM_SYNC_EXP_FENCE_INIT 3
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+#define PVR_SRVKM_SERVICES_PAGE_MIGRATE_INIT 4
+#endif
 struct drm_pvr_srvkm_init_data {
 	__u32 init_module;
 };

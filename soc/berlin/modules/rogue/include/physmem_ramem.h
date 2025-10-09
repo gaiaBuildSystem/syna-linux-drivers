@@ -59,12 +59,13 @@ RAMemGetPageShift(void);
 PVRSRV_ERROR
 RAMemDoPhyContigPagesAlloc(RA_ARENA *pArena,
                            size_t uiSize,
+                           PVRSRV_DEVICE_NODE *psDevNode,
                            PG_HANDLE *psMemHandle,
                            IMG_DEV_PHYADDR *psDevPAddr,
                            IMG_PID uiPid);
 
 void
-RAMemDoPhyContigPagesFree(RA_ARENA *pArena,
+RAMemDoPhyContigPagesFree(RA_ARENA *pArena, PHYS_HEAP *psPhysHeap,
                           PG_HANDLE *psMemHandle);
 
 PVRSRV_ERROR

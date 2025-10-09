@@ -73,15 +73,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGXFWIF_DM_STATE_INNOCENT_OVERRUNING		(IMG_UINT32_C(0x1) << 8)	/*!< DM was innocently affected by another DM over-running which caused HWR */
 #define RGXFWIF_DM_STATE_HARD_CONTEXT_SWITCH		(IMG_UINT32_C(0x1) << 9)	/*!< DM was forced into HWR as it delayed more important workloads */
 #define RGXFWIF_DM_STATE_GPU_ECC_HWR				(IMG_UINT32_C(0x1) << 10)	/*!< DM was forced into HWR due to an uncorrected GPU ECC error */
+#define RGXFWIF_DM_STATE_GPU_PARITY_HWR				(IMG_UINT32_C(0x1) << 11)	/*!< DM was forced into HWR due to an uncorrected GPU PARITY error */
+#define RGXFWIF_DM_STATE_GPU_LATENT_HWR				(IMG_UINT32_C(0x1) << 12)	/*!< DM was forced into HWR due to an uncorrected GPU LATENT error */
+
 
 /* Firmware's connection state */
 typedef IMG_UINT32 RGXFWIF_CONNECTION_FW_STATE;
-#define RGXFW_CONNECTION_FW_OFFLINE		0U	/*!< Firmware is offline */
-#define RGXFW_CONNECTION_FW_READY		1U	/*!< Firmware is initialised */
-#define RGXFW_CONNECTION_FW_ACTIVE		2U	/*!< Firmware connection is fully established */
-#define RGXFW_CONNECTION_FW_OFFLOADING	3U	/*!< Firmware is clearing up connection data */
-#define RGXFW_CONNECTION_FW_COOLDOWN	4U	/*!< Firmware connection is in cooldown period */
-#define RGXFW_CONNECTION_FW_STATE_COUNT	5U
+#define RGXFW_CONNECTION_FW_OFFLINE				0U	/*!< Firmware is offline */
+#define RGXFW_CONNECTION_FW_READY				1U	/*!< Firmware is initialised */
+#define RGXFW_CONNECTION_FW_ACTIVE				2U	/*!< Firmware connection is fully established */
+#define RGXFW_CONNECTION_FW_GRACEFUL_OFFLOAD	3U	/*!< Firmware is clearing up connection data */
+#define RGXFW_CONNECTION_FW_FORCED_OFFLOAD		4U	/*!< Firmware is clearing up connection data */
+#define RGXFW_CONNECTION_FW_COOLDOWN			5U	/*!< Firmware connection is in cooldown period */
+#define RGXFW_CONNECTION_FW_STATE_COUNT			6U
+
+#define RGXFW_FORCED_OFFLOAD_HCS_DEADLINE_MS	2U		/*!< Workloads of Guest being forcefully offloaded must be stopped quickly */
+#define RGXFW_GRACEFUL_OFFLOAD_HCS_DEADLINE_MS	1000U	/*!< Workloads of Guest being gracefully offloaded are allowed more time to finish */
 
 /* OS' connection state */
 typedef enum
@@ -97,11 +104,6 @@ typedef enum
 #define RGXFWIF_CTXSWITCH_PROFILE_SLOW_EN		(IMG_UINT32_C(0x3))
 #define RGXFWIF_CTXSWITCH_PROFILE_NODELAY_EN	(IMG_UINT32_C(0x4))
 
-#define RGXFWIF_CDM_ARBITRATION_TASK_DEMAND_EN	(IMG_UINT32_C(0x1))
-#define RGXFWIF_CDM_ARBITRATION_ROUND_ROBIN_EN	(IMG_UINT32_C(0x2))
-
-#define RGXFWIF_ISP_SCHEDMODE_VER1_IPP			(IMG_UINT32_C(0x1))
-#define RGXFWIF_ISP_SCHEDMODE_VER2_ISP			(IMG_UINT32_C(0x2))
 /*!
  ******************************************************************************
  * RGX firmware Init Config Data
@@ -132,22 +134,15 @@ typedef enum
 #define RGXFWIF_INICFG_CTXSWITCH_PROFILE_MASK			(IMG_UINT32_C(0x7) << RGXFWIF_INICFG_CTXSWITCH_PROFILE_SHIFT)
 #define RGXFWIF_INICFG_DISABLE_DM_OVERLAP				(IMG_UINT32_C(0x1) << 19)
 #define RGXFWIF_INICFG_ASSERT_ON_HWR_TRIGGER			(IMG_UINT32_C(0x1) << 20)
-#define RGXFWIF_INICFG_FULL_GPU_CPU_COHERENCY			(IMG_UINT32_C(0x1) << 21)
+/* 21 - unused */
 #define RGXFWIF_INICFG_VALIDATE_IRQ						(IMG_UINT32_C(0x1) << 22)
 #define RGXFWIF_INICFG_DISABLE_PDP_EN					(IMG_UINT32_C(0x1) << 23)
 #define RGXFWIF_INICFG_SPU_POWER_STATE_MASK_CHANGE_EN	(IMG_UINT32_C(0x1) << 24)
 #define RGXFWIF_INICFG_WORKEST							(IMG_UINT32_C(0x1) << 25)
 #define RGXFWIF_INICFG_PDVFS							(IMG_UINT32_C(0x1) << 26)
-#define RGXFWIF_INICFG_CDM_ARBITRATION_SHIFT			(27)
-#define RGXFWIF_INICFG_CDM_ARBITRATION_TASK_DEMAND		(RGXFWIF_CDM_ARBITRATION_TASK_DEMAND_EN << RGXFWIF_INICFG_CDM_ARBITRATION_SHIFT)
-#define RGXFWIF_INICFG_CDM_ARBITRATION_ROUND_ROBIN		(RGXFWIF_CDM_ARBITRATION_ROUND_ROBIN_EN << RGXFWIF_INICFG_CDM_ARBITRATION_SHIFT)
-#define RGXFWIF_INICFG_CDM_ARBITRATION_MASK				(IMG_UINT32_C(0x3) << RGXFWIF_INICFG_CDM_ARBITRATION_SHIFT)
-#define RGXFWIF_INICFG_ISPSCHEDMODE_SHIFT				(29)
-#define RGXFWIF_INICFG_ISPSCHEDMODE_NONE				(0)
-#define RGXFWIF_INICFG_ISPSCHEDMODE_VER1_IPP			(RGXFWIF_ISP_SCHEDMODE_VER1_IPP << RGXFWIF_INICFG_ISPSCHEDMODE_SHIFT)
-#define RGXFWIF_INICFG_ISPSCHEDMODE_VER2_ISP			(RGXFWIF_ISP_SCHEDMODE_VER2_ISP << RGXFWIF_INICFG_ISPSCHEDMODE_SHIFT)
-#define RGXFWIF_INICFG_ISPSCHEDMODE_MASK				(RGXFWIF_INICFG_ISPSCHEDMODE_VER1_IPP |\
-                                                         RGXFWIF_INICFG_ISPSCHEDMODE_VER2_ISP)
+#define RGXFWIF_INICFG_INJECT_XPU_BUS_FAULT				(IMG_UINT32_C(0x1) << 27)
+#define RGXFWIF_INICFG_INJECT_MMU_PTE_FAULT				(IMG_UINT32_C(0x1) << 28)
+/* 30:29 unused */
 #define RGXFWIF_INICFG_VALIDATE_SOCUSC_TIMER			(IMG_UINT32_C(0x1) << 31)
 
 #define RGXFWIF_INICFG_ALL								(0xFFFFFFFFU)
@@ -178,11 +173,6 @@ typedef enum
 #define RGXFWIF_INICFG_OS_CTXSWITCH_GEOM_EN				(IMG_UINT32_C(0x1) << 1) /*!< Enables GEOM DM context switch */
 #define RGXFWIF_INICFG_OS_CTXSWITCH_3D_EN				(IMG_UINT32_C(0x1) << 2) /*!< Enables FRAG DM context switch */
 #define RGXFWIF_INICFG_OS_CTXSWITCH_CDM_EN				(IMG_UINT32_C(0x1) << 3) /*!< Enables CDM context switch */
-
-#define RGXFWIF_INICFG_OS_LOW_PRIO_CS_TDM				(IMG_UINT32_C(0x1) << 4)
-#define RGXFWIF_INICFG_OS_LOW_PRIO_CS_GEOM				(IMG_UINT32_C(0x1) << 5)
-#define RGXFWIF_INICFG_OS_LOW_PRIO_CS_3D				(IMG_UINT32_C(0x1) << 6)
-#define RGXFWIF_INICFG_OS_LOW_PRIO_CS_CDM				(IMG_UINT32_C(0x1) << 7)
 
 #define RGXFWIF_INICFG_OS_ALL							(0xFFU)
 
@@ -328,7 +318,6 @@ typedef struct
 	/* FW-accessible TA state which must be written out to memory on context store */
 	IMG_UINT64	RGXFW_ALIGN uTAReg_VDM_CALL_STACK_POINTER;		 /*!< VDM control stream stack pointer, to store in mid-TA */
 	IMG_UINT64	RGXFW_ALIGN uTAReg_VDM_CALL_STACK_POINTER_Init;	 /*!< Initial value of VDM control stream stack pointer (in case is 'lost' due to a lock-up) */
-	IMG_UINT32	uTAReg_VBS_SO_PRIM[4];
 	IMG_UINT16	ui16TACurrentIdx;
 } UNCACHED_ALIGN RGXFWIF_TACTX_STATE_PER_GEOM;
 
@@ -395,23 +384,8 @@ static_assert(sizeof(RGXFWIF_COMPUTECTX_STATE) == 4,
 				"RGXFWIF_COMPUTECTX_STATE is incorrect size for SUPPORT_OPEN_SOURCE_DRIVER");
 #endif
 
-#define RGXFWIF_CONTEXT_COMPAT_FLAGS_STATS_PENDING      (1U << 0)
-#define RGXFWIF_CONTEXT_COMPAT_FLAGS_HAS_DEFER_COUNT    (1U << 1)
-#define RGXFWIF_CONTEXT_COMPAT_FLAGS_HAS_CANCEL_RANGES  (1U << 2)
-
-typedef struct
-{
-	IMG_UINT32	ui32ExtJobRefToDisableZSStore;
-	IMG_BOOL	bDisableZStore;
-	IMG_BOOL	bDisableSStore;
-} RGXFWIF_DISABLE_ZSSTORE;
-
-#define MAX_ZSSTORE_DISABLE 8
-
-typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_TQ[RGX_TRP_MAX_NUM_CORES][1];
-typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_2D[RGX_TRP_MAX_NUM_CORES][2];
-typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_3D[RGX_TRP_MAX_NUM_CORES][4];
-typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_GEOM[RGX_TRP_MAX_NUM_CORES][2];
+#define RGXFWIF_CONTEXT_COMPAT_FLAGS_STATS_PENDING   (1U << 0)
+#define RGXFWIF_CONTEXT_COMPAT_FLAGS_HAS_DEFER_COUNT (1U << 1)
 
 /*!
  * @InGroup WorkloadContexts
@@ -422,22 +396,6 @@ typedef struct
 	RGXFWIF_FWCOMMONCONTEXT	sTAContext;				/*!< Firmware context for the TA */
 	RGXFWIF_FWCOMMONCONTEXT	s3DContext;				/*!< Firmware context for the 3D */
 
-	RGXFWIF_STATIC_RENDERCONTEXT_STATE sStaticRenderContextState;
-
-	RGXFWIF_DISABLE_ZSSTORE sDisableZSStoreQueue[MAX_ZSSTORE_DISABLE];
-
-	IMG_UINT32			ui32ZSStoreQueueCount;
-	IMG_UINT32			ui32WriteOffsetOfDisableZSStore;
-
-	IMG_UINT32			ui32WorkEstCCBSubmitted; /*!< Number of commands submitted to the WorkEst FW CCB */
-
-	IMG_UINT32			ui32FwRenderCtxFlags; /*!< Compatibility and other flags */
-
-#if defined(SUPPORT_TRP)
-	RGXFWIF_TRP_CHECKSUM_3D		aui64TRPChecksums3D;	/*!< Used by Firmware to store checksums during 3D WRR */
-	RGXFWIF_TRP_CHECKSUM_GEOM	aui64TRPChecksumsGeom;	/*!< Used by Firmware to store checksums during TA WRR */
-	RGXFWIF_DM			eTRPGeomCoreAffinity; /* !< Represent the DM affinity for pending 2nd TRP pass of GEOM otherwise points RGXFWIF_DM_MAX. */
-#endif
 } UNCACHED_ALIGN RGXFWIF_FWRENDERCONTEXT;
 
 /*!
@@ -447,14 +405,6 @@ typedef struct
 {
 	RGXFWIF_FWCOMMONCONTEXT sCDMContext;				/*!< Firmware context for the CDM */
 
-	RGXFWIF_STATIC_COMPUTECONTEXT_STATE sStaticComputeContextState;
-
-	IMG_UINT32			ui32WorkEstCCBSubmitted; /*!< Number of commands submitted to the WorkEst FW CCB */
-
-	IMG_UINT32 ui32ComputeCtxFlags; /*!< Compatibility and other flags */
-
-	IMG_UINT32		ui32WGPState;
-	IMG_UINT32		aui32WGPChecksum[RGX_WGP_MAX_NUM_CORES];
 } UNCACHED_ALIGN RGXFWIF_FWCOMPUTECONTEXT;
 
 /*!
@@ -463,8 +413,6 @@ typedef struct
 typedef struct
 {
 	RGXFWIF_FWCOMMONCONTEXT	sTDMContext;				/*!< Firmware context for the TDM */
-
-	IMG_UINT32			ui32WorkEstCCBSubmitted; /*!< Number of commands submitted to the WorkEst FW CCB */
 
 } UNCACHED_ALIGN RGXFWIF_FWTDMCONTEXT;
 
@@ -476,10 +424,6 @@ typedef struct
 {
 	RGXFWIF_FWCOMMONCONTEXT	sTQContext;			 /*!< Firmware context for TQ3D */
 
-#if defined(SUPPORT_TRP)
-	IMG_UINT32				ui32TRPState;		/*!< Used by Firmware to track current state of a protected kick */
-	RGXFWIF_TRP_CHECKSUM_TQ aui64TRPChecksumsTQ;/*!< Used by Firmware to store checksums during TQ WRR */
-#endif
 } UNCACHED_ALIGN RGXFWIF_FWTRANSFERCONTEXT;
 
 /*!
@@ -527,16 +471,9 @@ static_assert(sizeof(RGXFWIF_CCB_CTL) == 16,
 
 #if !defined(__KERNEL__)
 
-#if !defined(RGX_FEATURE_SLC_VIVT)
 #define RGXFWIF_MMUCACHEDATA_FLAGS_PMTLB   (0x10U) /* can't use PM_TLB0 bit from BIFPM_CTRL reg because it collides with PT bit from BIF_CTRL reg */
 #define RGXFWIF_MMUCACHEDATA_FLAGS_TLB     (RGXFWIF_MMUCACHEDATA_FLAGS_PMTLB | 0x8U) /* BIF_CTRL_INVAL_TLB1_EN */
 #define RGXFWIF_MMUCACHEDATA_FLAGS_CTX_ALL (0x0U) /* not used */
-
-#else /* RGX_FEATURE_SLC_VIVT */
-#define RGXFWIF_MMUCACHEDATA_FLAGS_PMTLB   (0x0U) /* not used */
-#define RGXFWIF_MMUCACHEDATA_FLAGS_TLB     (0x0U) /* not used */
-#define RGXFWIF_MMUCACHEDATA_FLAGS_CTX_ALL (0x800U) /* MMU_CTRL_INVAL_ALL_CONTEXTS_EN */
-#endif
 
 #else
 #define RGXFWIF_MMUCACHEDATA_FLAGS_PMTLB   (0x10U) /* can't use PM_TLB0 bit from BIFPM_CTRL reg because it collides with PT bit from BIF_CTRL reg */
@@ -755,22 +692,6 @@ typedef struct
 	IMG_BOOL				bDone;								/*!< action backing/unbacking succeeded */
 } RGXFWIF_ZSBUFFER_BACKING_DATA;
 
-#if defined(SUPPORT_VALIDATION)
-typedef struct
-{
-	IMG_UINT32 ui32RegWidth;
-	IMG_BOOL   bWriteOp;
-	IMG_UINT32 ui32RegAddr;
-	IMG_UINT64 RGXFW_ALIGN ui64RegVal;
-} RGXFWIF_RGXREG_DATA;
-
-typedef struct
-{
-	IMG_UINT64 ui64BaseAddress;
-	PRGXFWIF_FWCOMMONCONTEXT psContext;
-	IMG_UINT32 ui32Size;
-} RGXFWIF_GPUMAP_DATA;
-#endif
 
 /*!
  * @Brief Command data for \ref RGXFWIF_KCCB_CMD_FREELIST_GROW_UPDATE type command
@@ -784,7 +705,10 @@ typedef struct
 } RGXFWIF_FREELIST_GS_DATA;
 
 #define RGXFWIF_MAX_FREELISTS_TO_RECONSTRUCT         (MAX_HW_TA3DCONTEXTS * RGXFW_MAX_FREELISTS * 2U)
-#define RGXFWIF_FREELISTS_RECONSTRUCTION_FAILED_FLAG 0x80000000U
+#define RGXFWIF_MAX_FREELISTS_TO_RECONSTRUCT_64BIT   (MAX_HW_TA3DCONTEXTS * RGXFW_MAX_FREELISTS * 2U) >> 1
+
+#define RGXFWIF_FREELISTS_RECONSTRUCTION_32_FAILED_FLAG 0x80000000U
+#define RGXFWIF_FREELISTS_RECONSTRUCTION_FAILED_FLAG (0x1ULL << 63)
 
 /*!
  * @Brief Command data for \ref RGXFWIF_KCCB_CMD_FREELISTS_RECONSTRUCTION_UPDATE type command
@@ -793,6 +717,12 @@ typedef struct
 {
 	IMG_UINT32			ui32FreelistsCount;
 	IMG_UINT32			aui32FreelistIDs[RGXFWIF_MAX_FREELISTS_TO_RECONSTRUCT];
+} RGXFWIF_FREELISTS_RECONSTRUCTION_32BIT_DATA;
+
+typedef struct
+{
+	IMG_UINT32			ui32FreelistsCountAndFlags;
+	IMG_UINT64	RGXFW_ALIGN		aui64FreelistIDs[RGXFWIF_MAX_FREELISTS_TO_RECONSTRUCT_64BIT];
 } RGXFWIF_FREELISTS_RECONSTRUCTION_DATA;
 
 /*!
@@ -807,22 +737,22 @@ typedef struct
  ******************************************************************************
  * Proactive DVFS Structures
  *****************************************************************************/
-#define NUM_OPP_VALUES 16
+#define NUM_OPP_LEVELS 16
 
 typedef struct
 {
 	IMG_UINT32			ui32Volt; /* V  */
 	IMG_UINT32			ui32Freq; /* Hz */
-} UNCACHED_ALIGN PDVFS_OPP;
+} UNCACHED_ALIGN OPP_LEVEL;
 
 typedef struct
 {
-	PDVFS_OPP		asOPPValues[NUM_OPP_VALUES];
+	OPP_LEVEL		asOPPValues[NUM_OPP_LEVELS];
 #if defined(DEBUG)
 	IMG_UINT32		ui32MinOPPPoint;
 #endif
 	IMG_UINT32		ui32MaxOPPPoint;
-} UNCACHED_ALIGN RGXFWIF_PDVFS_OPP;
+} UNCACHED_ALIGN RGXFWIF_OPP_INFO;
 
 typedef struct
 {
@@ -833,6 +763,20 @@ typedef struct
 {
 	IMG_UINT32 ui32MinOPPPoint;
 } UNCACHED_ALIGN RGXFWIF_PDVFS_MIN_FREQ_DATA;
+
+#if defined(SUPPORT_PDVFS_HEADROOM_EXT)
+typedef struct
+{
+	IMG_INT32 i32Headroom;
+} UNCACHED_ALIGN RGXFWIF_PDVFS_SET_FREQ_HEADROOM_DATA;
+#endif
+
+#if defined(SUPPORT_PDVFS_POLLINT_EXT)
+typedef struct
+{
+	IMG_UINT32 ui32ReactiveInterval;
+} UNCACHED_ALIGN RGXFWIF_PDVFS_REACT_IVL_DATA;
+#endif
 
 /*!
  ******************************************************************************
@@ -848,18 +792,6 @@ typedef enum
 	RGXFWIF_REGCFG_CMD_ENABLE			= 103,
 	RGXFWIF_REGCFG_CMD_DISABLE			= 104
 } RGXFWIF_REGDATA_CMD_TYPE;
-
-typedef enum
-{
-	RGXFWIF_REG_CFG_TYPE_PWR_ON=0,      /* Sidekick power event */
-	RGXFWIF_REG_CFG_TYPE_DUST_CHANGE,   /* Rascal / dust power event */
-	RGXFWIF_REG_CFG_TYPE_TA,            /* TA kick */
-	RGXFWIF_REG_CFG_TYPE_3D,            /* 3D kick */
-	RGXFWIF_REG_CFG_TYPE_CDM,           /* Compute kick */
-	RGXFWIF_REG_CFG_TYPE_TLA,           /* TLA kick */
-	RGXFWIF_REG_CFG_TYPE_TDM,           /* TDM kick */
-	RGXFWIF_REG_CFG_TYPE_ALL            /* Applies to all types. Keep as last element */
-} RGXFWIF_REG_CFG_TYPE;
 
 typedef struct
 {
@@ -934,7 +866,7 @@ typedef enum
 	RGXFWIF_KCCB_CMD_ZSBUFFER_BACKING_UPDATE			= 106U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Backing for on-demand ZS-Buffer done */
 	RGXFWIF_KCCB_CMD_ZSBUFFER_UNBACKING_UPDATE			= 107U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Unbacking for on-demand ZS-Buffer done */
 	RGXFWIF_KCCB_CMD_FREELIST_GROW_UPDATE				= 108U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Freelist Grow done */
-	RGXFWIF_KCCB_CMD_FREELISTS_RECONSTRUCTION_UPDATE	= 109U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Freelists Reconstruction done */
+	RGXFWIF_KCCB_CMD_FREELISTS_RECONSTRUCTION_UPDATE_32	= 109U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Freelists Reconstruction done */
 	RGXFWIF_KCCB_CMD_NOTIFY_WRITE_OFFSET_UPDATE			= 110U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Informs the firmware that the host has added more data to a CDM2 Circular Buffer */
 	RGXFWIF_KCCB_CMD_HEALTH_CHECK						= 111U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Health check request */
 	RGXFWIF_KCCB_CMD_FORCE_UPDATE						= 112U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Forcing signalling of all unmet UFOs for a given CCB offset */
@@ -942,6 +874,7 @@ typedef enum
 	RGXFWIF_KCCB_CMD_OS_ONLINE_STATE_CONFIGURE			= 114U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Informs the FW that a Guest OS has come online / offline. */
 	RGXFWIF_KCCB_CMD_DISABLE_ZSSTORE					= 115U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Informs the FW to disable zs store of a running 3D or add it to queue of render context. */
 	RGXFWIF_KCCB_CMD_CANCEL_WORK						= 116U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Cancel all work up to and including a given intjobref for a given context */
+	RGXFWIF_KCCB_CMD_FREELISTS_RECONSTRUCTION_UPDATE	= 117U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Freelists Reconstruction done (32-bit Freelist Ids) */
 	/* Commands only permitted to the native or host OS */
 	RGXFWIF_KCCB_CMD_POW								= 200U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Power request */
 	RGXFWIF_KCCB_CMD_REGCONFIG							= 201U | RGX_CMD_MAGIC_DWORD_SHIFTED,
@@ -952,16 +885,17 @@ typedef enum
 	RGXFWIF_KCCB_CMD_STATEFLAGS_CTRL					= 206U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Set or clear firmware state flags */
 	RGXFWIF_KCCB_CMD_PDVFS_LIMIT_MIN_FREQ				= 207U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Set a minimum frequency/OPP point */
 	RGXFWIF_KCCB_CMD_PHR_CFG							= 208U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Configure Periodic Hardware Reset behaviour */
-#if defined(SUPPORT_VALIDATION)
-	RGXFWIF_KCCB_CMD_RGXREG								= 209U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Read RGX Register from FW */
-#endif
 	RGXFWIF_KCCB_CMD_WDG_CFG							= 210U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Configure Safety Firmware Watchdog */
 	RGXFWIF_KCCB_CMD_COUNTER_DUMP						= 211U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Controls counter dumping in the FW */
-#if defined(SUPPORT_VALIDATION)
-	RGXFWIF_KCCB_CMD_GPUMAP								= 212U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Request a FW GPU mapping which is written into by the FW with a pattern */
-#endif
 	RGXFWIF_KCCB_CMD_VZ_DRV_TIME_SLICE					= 213U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Changes the GPU time slice for a particular driver. It can only be serviced for the Host DDK */
 	RGXFWIF_KCCB_CMD_VZ_DRV_TIME_SLICE_INTERVAL			= 214U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Changes the GPU time slice interval for all drivers. It can only be serviced for the Host DDK */
+	RGXFWIF_KCCB_CMD_EXPORT_DETAILED_UTIL_STATS			= 215U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Ask the FW to export the accumulated per-DM/per-VM GPU usage statistics data to shared memory */
+#if defined(SUPPORT_PDVFS_HEADROOM_EXT)
+	RGXFWIF_KCCB_CMD_PDVFS_SET_FREQ_HEADROOM			= 216U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Add a headroom to the frequency set by DVFS */
+#endif
+#if defined(SUPPORT_PDVFS_POLLINT_EXT)
+	RGXFWIF_KCCB_CMD_PDVFS_SET_REACTIVE_INTERVAL		= 217U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Set the update interval for reactive DVFS */
+#endif
 
 	/* HWPerf commands */
 	RGXFWIF_KCCB_CMD_HWPERF_UPDATE_CONFIG				= 300U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Configure HWPerf events (to be generated) and HWPerf buffer address (if required) */
@@ -1002,19 +936,22 @@ typedef struct
 		RGXFWIF_ZSBUFFER_BACKING_DATA		sZSBufferBackingData;	/*!< Feedback for Z/S Buffer backing/unbacking */
 		RGXFWIF_FREELIST_GS_DATA			sFreeListGSData;		/*!< Feedback for Freelist grow/shrink */
 		RGXFWIF_FREELISTS_RECONSTRUCTION_DATA	sFreeListsReconstructionData;	/*!< Feedback for Freelists reconstruction */
+		RGXFWIF_FREELISTS_RECONSTRUCTION_32BIT_DATA	sFreeListsReconstruction32Data;	/*!< Feedback for Freelists reconstruction (32-bit freelist ids) */
 		RGXFWIF_REGCONFIG_DATA				sRegConfigData;			/*!< Data for custom register configuration */
 		RGXFWIF_WRITE_OFFSET_UPDATE_DATA    sWriteOffsetUpdateData; /*!< Data for informing the FW about the write offset update */
 		RGXFWIF_PDVFS_MAX_FREQ_DATA			sPDVFSMaxFreqData;		/*!< Data for setting the max frequency/OPP */
 		RGXFWIF_PDVFS_MIN_FREQ_DATA			sPDVFSMinFreqData;		/*!< Data for setting the min frequency/OPP */
+#if defined(SUPPORT_PDVFS_HEADROOM_EXT)
+		RGXFWIF_PDVFS_SET_FREQ_HEADROOM_DATA		sPDVFSSetFreqHeadroomData;		/*!< Data for setting the frequency headroom */
+#endif
+#if defined(SUPPORT_PDVFS_POLLINT_EXT)
+		RGXFWIF_PDVFS_REACT_IVL_DATA		sPDVFSReactIvlData;		/*!< Data for setting the reactive DVFS update interval */
+#endif
 		RGXFWIF_OS_STATE_CHANGE_DATA        sCmdOSOnlineStateData;  /*!< Data for updating the Guest Online states */
 		RGXFWIF_DEV_VIRTADDR                sTBIBuffer;             /*!< Dev address for TBI buffer allocated on demand */
 		RGXFWIF_COUNTER_DUMP_DATA			sCounterDumpConfigData; /*!< Data for dumping of register ranges */
 		RGXFWIF_KCCB_CMD_DISABLE_ZSSTORE_DATA	sDisableZSStoreData;	/*!< Data for disabling zs store of a 3D workload */
 		RGXFWIF_KCCB_CMD_FORCE_UPDATE_DATA  sForceUpdateData;       /*!< Data for signalling all unmet fences for a given CCB */
-#if defined(SUPPORT_VALIDATION) && !defined(SUPPORT_OPEN_SOURCE_DRIVER)
-		RGXFWIF_RGXREG_DATA                 sFwRgxData;             /*!< Data for reading off an RGX register */
-		RGXFWIF_GPUMAP_DATA                 sGPUMapData;            /*!< Data for requesting a FW GPU mapping which is written into by the FW with a pattern */
-#endif
 		RGXFWIF_CANCEL_WORK_DATA			sCancelWorkData;		/*!< Data for cancelling work */
 	} UNCACHED_ALIGN uCmdData;
 } UNCACHED_ALIGN RGXFWIF_KCCB_CMD;
@@ -1046,13 +983,23 @@ typedef struct
 
 /*!
  ******************************************************************************
- * @Brief Command data of the \ref RGXFWIF_FWCCB_CMD_FREELIST_GROW Firmware CCB
+ * @Brief Command data of the \ref RGXFWIF_FWCCB_CMD_FREELIST_GROW_32 Firmware CCB
  * command
  *****************************************************************************/
 typedef struct
 {
 	IMG_UINT32				ui32FreelistID; /*!< Freelist ID */
-} RGXFWIF_FWCCB_CMD_FREELIST_GS_DATA;
+} RGXFWIF_FWCCB_CMD_FREELIST_GS_32_DATA;
+
+/*!
+ ******************************************************************************
+ * @Brief Command data of the \ref RGXFWIF_FWCCB_CMD_FREELIST_GROW Firmware CCB
+ * command
+ *****************************************************************************/
+typedef struct
+{
+	IMG_UINT64				ui64FreelistID; /*!< Freelist ID */
+} RGXFW_ALIGN RGXFWIF_FWCCB_CMD_FREELIST_GS_DATA;
 
 /*!
  ******************************************************************************
@@ -1061,13 +1008,28 @@ typedef struct
  *****************************************************************************/
 typedef struct
 {
+	IMG_UINT32			ui32FreelistsCountAndFlags;                             /*!< Freelists count and flags */
+	IMG_UINT32			ui32HwrCounter;                                         /*!< HWR counter */
+	IMG_UINT64	RGXFW_ALIGN		aui64FreelistIDs[RGXFWIF_MAX_FREELISTS_TO_RECONSTRUCT_64BIT]; /*!< Array of freelist IDs to reconstruct */
+} RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_DATA;
+
+/*!
+ ******************************************************************************
+ * @Brief Command data of the \ref RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_32
+ * Firmware CCB command
+ *****************************************************************************/
+typedef struct
+{
 	IMG_UINT32			ui32FreelistsCount;                                     /*!< Freelists count */
 	IMG_UINT32			ui32HwrCounter;                                         /*!< HWR counter */
 	IMG_UINT32			aui32FreelistIDs[RGXFWIF_MAX_FREELISTS_TO_RECONSTRUCT]; /*!< Array of freelist IDs to reconstruct */
-} RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_DATA;
+} RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_32_DATA;
+
 
 #define RGXFWIF_FWCCB_CMD_CONTEXT_RESET_FLAG_PF			(1U<<0)	/*!< 1 if a page fault happened */
 #define RGXFWIF_FWCCB_CMD_CONTEXT_RESET_FLAG_ALL_CTXS	(1U<<1)	/*!< 1 if applicable to all contexts */
+
+#define RGXFWIF_FLAG_FREELISTS_RECONSTRUCTION_FINAL	(1U<<31)	/*!< 1 if this is the final reconstruction request */
 
 /*!
  ******************************************************************************
@@ -1105,10 +1067,10 @@ typedef enum
 	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_ZSBUFFER_BACKING_DATA */
 	RGXFWIF_FWCCB_CMD_ZSBUFFER_UNBACKING            = 102U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests ZSBuffer to be unbacked
 	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_ZSBUFFER_BACKING_DATA */
-	RGXFWIF_FWCCB_CMD_FREELIST_GROW                 = 103U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests an on-demand freelist grow
-	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FREELIST_GS_DATA */
-	RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION      = 104U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests freelists reconstruction
-	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_DATA */
+	RGXFWIF_FWCCB_CMD_FREELIST_GROW_32              = 103U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests an on-demand freelist grow (with 32-bit freelist IDs)
+	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FREELIST_GS_32_DATA */
+	RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_32   = 104U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests freelists reconstruction (with 32-bit freelist IDs)
+	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_32_DATA */
 	RGXFWIF_FWCCB_CMD_CONTEXT_RESET_NOTIFICATION    = 105U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Notifies host of a HWR event on a context
 	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_CONTEXT_RESET_DATA */
 	RGXFWIF_FWCCB_CMD_DEBUG_DUMP                    = 106U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests an on-demand debug dump
@@ -1119,14 +1081,12 @@ typedef enum
 	RGXFWIF_FWCCB_CMD_CORE_CLK_RATE_CHANGE          = 108U | RGX_CMD_MAGIC_DWORD_SHIFTED,
 	RGXFWIF_FWCCB_CMD_REQUEST_GPU_RESTART           = 109U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests GPU restart
 	                                                                                          \n Command data: None */
-#if defined(SUPPORT_VALIDATION)
-	RGXFWIF_FWCCB_CMD_REG_READ                      = 110U | RGX_CMD_MAGIC_DWORD_SHIFTED,
-#if defined(SUPPORT_SOC_TIMER)
-	RGXFWIF_FWCCB_CMD_SAMPLE_TIMERS                 = 111U | RGX_CMD_MAGIC_DWORD_SHIFTED,
-#endif
-#endif
 	RGXFWIF_FWCCB_CMD_CONTEXT_FW_PF_NOTIFICATION    = 112U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Notifies host of a FW pagefault
 	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FW_PAGEFAULT_DATA */
+	RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION      = 113U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests freelists reconstruction with 64bit freelist IDs
+	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_DATA */
+	RGXFWIF_FWCCB_CMD_FREELIST_GROW                 = 114U | RGX_CMD_MAGIC_DWORD_SHIFTED,   /*!< Requests an on-demand freelist grow
+	                                                                                          \n Command data: RGXFWIF_FWCCB_CMD_FREELIST_GS_DATA */
 } RGXFWIF_FWCCB_CMD_TYPE;
 
 /*!
@@ -1160,21 +1120,6 @@ typedef struct
 	IMG_UINT32 ui32CoreClkRate;
 } UNCACHED_ALIGN RGXFWIF_FWCCB_CMD_CORE_CLK_RATE_CHANGE_DATA;
 
-#if defined(SUPPORT_VALIDATION)
-typedef struct
-{
-	IMG_UINT64 ui64RegValue;
-} RGXFWIF_FWCCB_CMD_RGXREG_READ_DATA;
-
-#if defined(SUPPORT_SOC_TIMER)
-typedef struct
-{
-	IMG_UINT64 ui64timerGray;
-	IMG_UINT64 ui64timerBinary;
-	IMG_UINT64 aui64uscTimers[RGX_FEATURE_NUM_CLUSTERS];
-}  RGXFWIF_FWCCB_CMD_SAMPLE_TIMERS_DATA;
-#endif
-#endif
 
 /*!
  ******************************************************************************
@@ -1188,18 +1133,14 @@ typedef struct
 	union
 	{
 		RGXFWIF_FWCCB_CMD_ZSBUFFER_BACKING_DATA				sCmdZSBufferBacking;			/*!< Data for Z/S-Buffer on-demand (un)backing*/
+		RGXFWIF_FWCCB_CMD_FREELIST_GS_32_DATA				sCmdFreeListGS32;				/*!< Data for on-demand freelist grow/shrink (32-bit ids)*/
+		RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_32_DATA	sCmdFreeListsReconstruction32;	/*!< Data for freelists reconstruction (32-bit ids)*/
 		RGXFWIF_FWCCB_CMD_FREELIST_GS_DATA					sCmdFreeListGS;					/*!< Data for on-demand freelist grow/shrink */
 		RGXFWIF_FWCCB_CMD_FREELISTS_RECONSTRUCTION_DATA		sCmdFreeListsReconstruction;	/*!< Data for freelists reconstruction */
 		RGXFWIF_FWCCB_CMD_CONTEXT_RESET_DATA				sCmdContextResetNotification;	/*!< Data for context reset notification */
 		RGXFWIF_FWCCB_CMD_UPDATE_STATS_DATA					sCmdUpdateStatsData;			/*!< Data for updating process stats */
 		RGXFWIF_FWCCB_CMD_CORE_CLK_RATE_CHANGE_DATA			sCmdCoreClkRateChange;
 		RGXFWIF_FWCCB_CMD_FW_PAGEFAULT_DATA					sCmdFWPagefault;				/*!< Data for context reset notification */
-#if defined(SUPPORT_VALIDATION) && !defined(SUPPORT_OPEN_SOURCE_DRIVER)
-		RGXFWIF_FWCCB_CMD_RGXREG_READ_DATA					sCmdRgxRegReadData;
-#if defined(SUPPORT_SOC_TIMER)
-		RGXFWIF_FWCCB_CMD_SAMPLE_TIMERS_DATA				sCmdTimers;
-#endif
-#endif
 	} RGXFW_ALIGN uCmdData;
 } RGXFW_ALIGN RGXFWIF_FWCCB_CMD;
 
@@ -1219,6 +1160,7 @@ static_assert(sizeof(RGXFWIF_FWCCB_CMD) == 48,
 typedef struct
 {
 	IMG_UINT16 ui16ReturnDataIndex; /*!< Index for return data array */
+	IMG_UINT16 ui16CyclesTakenHigh;	/*!< Not used on Rogue GPU cores. */
 	IMG_UINT32 ui32CyclesTaken;     /*!< The cycles the workload took on the hardware */
 } RGXFWIF_WORKEST_FWCCB_CMD;
 
@@ -1266,12 +1208,8 @@ typedef IMG_UINT32 RGXFWIF_CCB_CMD_TYPE;
    bit cleared for POST_TIMESTAMPs. That's why we have 2 different cmd types.
 */
 #define RGXFWIF_CCB_CMD_TYPE_POST_TIMESTAMP (217U | RGX_CMD_MAGIC_DWORD_SHIFTED)
-#define RGXFWIF_CCB_CMD_TYPE_UNFENCED_UPDATE (218U | RGX_CMD_MAGIC_DWORD_SHIFTED) /*!< Unfenced fence updates of a command */
-#define RGXFWIF_CCB_CMD_TYPE_UNFENCED_RMW_UPDATE (219U | RGX_CMD_MAGIC_DWORD_SHIFTED) /*!< Unfenced fence updates related to workload resources */
+/* UNFENCED type is not supported but keeping defines as it is for now */
 
-#if defined(SUPPORT_VALIDATION)
-#define RGXFWIF_CCB_CMD_TYPE_REG_READ (220U | RGX_CMD_MAGIC_DWORD_SHIFTED)
-#endif
 
 #define RGXFWIF_CCB_CMD_TYPE_PADDING	(221U | RGX_CMD_MAGIC_DWORD_SHIFTED) /*!< Skip without action type command */
 #define RGXFWIF_CCB_CMD_TYPE_VK_TIMESTAMP	(223U | RGX_CMD_MAGIC_DWORD_SHIFTED | RGX_CCB_TYPE_TASK) /*!< Process a vulkan timestamp */
@@ -1396,7 +1334,8 @@ typedef struct
 
 typedef struct
 {
-	IMG_UINT32                 ui32NumCores;
+	IMG_UINT16                 ui16SLCSizeInKB;
+	IMG_UINT16                 ui16NumCores;
 	IMG_UINT64 RGXFW_ALIGN     aui64MultiCoreCapabilities[RGX_MULTICORE_MAX_NOHW_CORES];
 } UNCACHED_ALIGN RGXFWIF_MULTICORE_INFO;
 
@@ -1409,12 +1348,14 @@ typedef struct
 	IMG_UINT32         ui32RuntimeCfgFlags;                      /*!< Compatibility and other flags */
 	IMG_BOOL           bActivePMLatencyPersistant;               /*!< If set, APM latency does not reset to system default each GPU power transition */
 	IMG_UINT32         ui32CoreClockSpeed;                       /*!< Core clock speed, currently only used to calculate timer ticks */
+	IMG_UINT32         ui32SOCClockSpeed;                        /*!< SOC clock speed, used for deadline scheduling */
 	IMG_UINT32         ui32PowUnitsState;                        /*!< Last number of dusts change requested by the host */
 	IMG_UINT32         ui32PHRMode;                              /*!< Periodic Hardware Reset configuration values */
 	IMG_UINT32         ui32HCSDeadlineMS;                        /*!< New number of milliseconds C/S is allowed to last */
 	IMG_UINT32         ui32WdgPeriodUs;                          /*!< The watchdog period in microseconds */
 	IMG_INT32          ai32DriverPriority[RGXFW_MAX_NUM_OSIDS];  /*!< Array of priorities per OS */
 	IMG_UINT32         aui32DriverIsolationGroup[RGXFW_MAX_NUM_OSIDS]; /*!< Array of isolation groups per OS */
+	IMG_BOOL           bSafetyIsolationGroupEnabled;             /*!< Safety isolation group enabled for HOST Driver isolation group */
 	IMG_UINT32         aui32TSPercentage[RGXFW_MAX_NUM_OSIDS];   /*!< Array of time slice per OS */
 	IMG_UINT32         ui32TSIntervalMs;                         /*!< Time slice interval */
 	IMG_UINT32         ui32VzConnectionCooldownPeriodInSec;      /*!< Vz Connection Cooldown period in secs */
@@ -1422,8 +1363,8 @@ typedef struct
 	PRGXFWIF_HWPERFBUF sHWPerfBuf;                               /*!< On-demand allocated HWPerf buffer address, to be passed to the FW */
 	RGXFWIF_DMA_ADDR   sHWPerfDMABuf;
 	RGXFWIF_DMA_ADDR   sHWPerfCtlDMABuf;
-#if defined(SUPPORT_VALIDATION) && !defined(SUPPORT_OPEN_SOURCE_DRIVER)
-	IMG_BOOL           bInjectFWFault;                           /*!< Injecting firmware fault to validate recovery through Host */
+#if defined(SUPPORT_ICS)
+	IMG_BOOL           bICSFaultInject;
 #endif
 } RGXFWIF_RUNTIME_CFG;
 
@@ -1436,6 +1377,9 @@ static_assert(sizeof(RGXFWIF_RUNTIME_CFG) == 68,
  *****************************************************************************
  * Control data for RGX
  *****************************************************************************/
+
+/* Mask for usable bits in UFO Firmware address. */
+#define RGXFWIF_UFO_ADDR_MASK (IMG_UINT32_C(0xFFFFFFFC))
 
 #define RGXFWIF_HWR_DEBUG_DUMP_ALL (99999U)
 
@@ -1521,7 +1465,14 @@ typedef enum
 	FW_BOOT_CACHE_DONE,
 	FW_BOOT_TLB_DONE,
 	FW_BOOT_MAIN_STARTED,
+	FW_BOOT_FW_INIT_STARTED,
 	FW_BOOT_ALIGNCHECKS_DONE,
+	FW_BOOT_HWPERFCTL_INIT_STARTED,
+	FW_BOOT_FW_PRIV_DATA_INIT_STARTED,
+	FW_BOOT_FW_RUNTIME_DATA_INIT_STARTED,
+	FW_BOOT_FW_PRIMARY_GPU_INIT_STARTED,
+	FW_BOOT_SELF_TEST_START,
+	FW_BOOT_SELF_TEST_DONE,
 	FW_BOOT_INIT_DONE,
 } FW_BOOT_STAGE;
 
@@ -1601,19 +1552,14 @@ typedef struct
 
 	IMG_DEV_VIRTADDR        RGXFW_ALIGN sPDSExecBase; /*!< PDS execution base */
 	IMG_DEV_VIRTADDR        RGXFW_ALIGN sUSCExecBase; /*!< USC execution base */
-	IMG_DEV_VIRTADDR        RGXFW_ALIGN sFBCDCStateTableBase; /*!< FBCDC bindless texture state table base */
-	IMG_DEV_VIRTADDR        RGXFW_ALIGN sFBCDCLargeStateTableBase;
-	IMG_DEV_VIRTADDR        RGXFW_ALIGN sTextureHeapBase; /*!< Texture state base */
 
 	IMG_UINT64              RGXFW_ALIGN ui64HWPerfFilter; /*! Event filter for Firmware events */
 
-	IMG_DEV_VIRTADDR        RGXFW_ALIGN sSLC3FenceDevVAddr; /*!< Address to use as a fence when issuing SLC3_CFI */
-
 	IMG_UINT32              RGXFW_ALIGN aui32TPUTrilinearFracMask[RGXFWIF_TPU_DM_LAST];
 
+#if defined(PDUMP)
 	RGXFWIF_SIGBUF_CTL      asSigBufCtl[RGXFWIF_DM_MAX]; /*!< Signature and Checksum Buffers for DMs */
-
-	RGXFWIF_PDVFS_OPP       sPDVFSOPPInfo;
+#endif
 
 	RGXFWIF_DMA_ADDR        sCorememDataStore; /*!< Firmware coremem data */
 
@@ -1633,13 +1579,15 @@ typedef struct
 	PRGXFWIF_TBIBUF         sTBIBuf; /*!< Tbi log buffer */
 #endif
 
-	PRGXFWIF_GPU_UTIL_FW    sGpuUtilFWCtl; /*!< GPU utilization buffer */
+	PRGXFWIF_GPU_UTIL_FW    sGpuUtilFWCtl; /*!< Timing correlation data */
 	PRGXFWIF_REG_CFG        sRegCfg; /*!< Firmware register user configuration */
 	PRGXFWIF_HWPERF_CTL     sHWPerfCtl; /*!< HWPerf counter block configuration.*/
 
 	RGXFWIF_DEV_VIRTADDR    sAlignChecks; /*!< Array holding Server structures alignment data */
 
 	IMG_UINT32              ui32InitialCoreClockSpeed; /*!< Core clock speed at FW boot time */
+
+	IMG_UINT32              ui32InitialSOCClockSpeed; /*!< System/SOC clock speed at FW boot time */
 
 	IMG_UINT32              ui32InitialActivePMLatencyms; /*!< APM latency in ms before signalling IDLE to the host */
 
@@ -1649,16 +1597,18 @@ typedef struct
 
 	IMG_UINT32              ui32FirmwareStartedTimeStamp; /*!< Firmware initialization complete time */
 
-	IMG_UINT32              ui32JonesDisableMask;
-
 	FW_PERF_CONF            eFirmwarePerf; /*!< Firmware performance counter config */
+
+#if defined(SUPPORT_FW_OPP_TABLE)
+	RGXFWIF_OPP_INFO        RGXFW_ALIGN sOPPInfo;
 
 	/**
 	 * FW Pointer to memory containing core clock rate in Hz.
 	 * Firmware (PDVFS) updates the memory when running on non primary FW thread
 	 * to communicate to host driver.
 	 */
-	PRGXFWIF_CORE_CLK_RATE  sCoreClockRate;
+	PRGXFWIF_CORE_CLK_RATE  RGXFW_ALIGN sCoreClockRate;
+#endif
 
 #if defined(PDUMP)
 	RGXFWIF_PID_FILTER      sPIDFilter;
@@ -1768,33 +1718,8 @@ typedef struct
 
 /*!
  ******************************************************************************
- * GPU Utilisation
+ * Timer correlation
  *****************************************************************************/
-
-/* See rgx_common.h for a list of GPU states */
-#define RGXFWIF_GPU_UTIL_TIME_MASK       (IMG_UINT64_C(0xFFFFFFFFFFFFFFFF) & ~RGXFWIF_GPU_UTIL_STATE_MASK)
-#define RGXFWIF_GPU_UTIL_TIME_MASK32     (IMG_UINT32_C(0xFFFFFFFF) & ~RGXFWIF_GPU_UTIL_STATE_MASK32)
-
-#define RGXFWIF_GPU_UTIL_GET_TIME(word)    ((word) & RGXFWIF_GPU_UTIL_TIME_MASK)
-#define RGXFWIF_GPU_UTIL_GET_STATE(word)   ((word) & RGXFWIF_GPU_UTIL_STATE_MASK)
-#define RGXFWIF_GPU_UTIL_GET_TIME32(word)  ((IMG_UINT32)(word) & RGXFWIF_GPU_UTIL_TIME_MASK32)
-#define RGXFWIF_GPU_UTIL_GET_STATE32(word) ((IMG_UINT32)(word) & RGXFWIF_GPU_UTIL_STATE_MASK32)
-
-/* The OS timestamps computed by the FW are approximations of the real time,
- * which means they could be slightly behind or ahead the real timer on the Host.
- * In some cases we can perform subtractions between FW approximated
- * timestamps and real OS timestamps, so we need a form of protection against
- * negative results if for instance the FW one is a bit ahead of time.
- */
-#define RGXFWIF_GPU_UTIL_GET_PERIOD(newtime,oldtime) \
-	(((newtime) > (oldtime)) ? ((newtime) - (oldtime)) : 0U)
-
-#define RGXFWIF_GPU_UTIL_MAKE_WORD(time,state) \
-	(RGXFWIF_GPU_UTIL_GET_TIME(time) | RGXFWIF_GPU_UTIL_GET_STATE(state))
-
-#define RGXFWIF_GPU_UTIL_MAKE_WORD32(time,state) \
-	(RGXFWIF_GPU_UTIL_GET_TIME32(time) | RGXFWIF_GPU_UTIL_GET_STATE32(state))
-
 
 /* The timer correlation array must be big enough to ensure old entries won't be
  * overwritten before all the HWPerf events linked to those entries are processed
@@ -1813,10 +1738,6 @@ typedef struct
 static_assert((RGXFWIF_TIME_CORR_ARRAY_SIZE & (RGXFWIF_TIME_CORR_ARRAY_SIZE - 1U)) == 0U,
 			  "RGXFWIF_TIME_CORR_ARRAY_SIZE must be a power of two");
 
-/* The time is stored in DM state time-stamps, and as a result in DMs states counters, in "approximately microseconds",
- * dividing the time originally obtained in nanoseconds by 2^10 for the sake of reducing coremem usage */
-#define RGXFWIF_DM_OS_TIMESTAMP_SHIFT    10U
-
 typedef struct
 {
 	RGXFWIF_TIME_CORR      sTimeCorr[RGXFWIF_TIME_CORR_ARRAY_SIZE];
@@ -1825,38 +1746,14 @@ typedef struct
 	/* Compatibility and other flags */
 	IMG_UINT32             ui32GpuUtilFlags;
 
-	/* Last GPU state + OS time of the last state update */
-	IMG_UINT64 RGXFW_ALIGN ui64GpuLastWord;
-	/* Counters for the amount of time the GPU was active/idle/blocked */
-	IMG_UINT64 RGXFW_ALIGN aui64GpuStatsCounters[RGXFWIF_GPU_UTIL_STATE_NUM];
-
-	/* Last GPU DM per-OS states + OS time of the last state update */
-	IMG_UINT32 RGXFW_ALIGN aaui32DMOSLastWord[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS];
-	/* DMs time-stamps are cached in coremem - to reduce coremem usage we allocate 32 bits for each of them
-	 * and save their values divided by 2^10, so they wrap around in ~73 mins, consequently
-	 * we keep the count of the wrapping around instances */
-	IMG_UINT32 RGXFW_ALIGN aaui32DMOSLastWordWrap[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS];
-	/* Counters for the amount of time the GPU DMs were active or inactive(idle or blocked) */
-	IMG_UINT32 RGXFW_ALIGN aaaui32DMOSStatsCounters[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS][RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM];
-	/* DMs Counters are cached in coremem - to reduce coremem usage we allocate 32 bits for each of them
-	 * and save their values divided by 2^10, so they wrap around in ~73 mins, consequently
-	 * we keep the count of the wrapping around instances */
-	IMG_UINT32 aaaui32DMOSCountersWrap[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS][RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM];
+	/* Device off period timestamp offset */
+	IMG_INT64 RGXFW_ALIGN i64DeviceTimestampOffset;
 } UNCACHED_ALIGN RGXFWIF_GPU_UTIL_FW;
 
 #if defined(SUPPORT_OPEN_SOURCE_DRIVER)
 static_assert(sizeof(RGXFWIF_GPU_UTIL_FW) == 12584,
 				"RGXFWIF_GPU_UTIL_FW is incorrect size for SUPPORT_OPEN_SOURCE_DRIVER");
 #endif
-
-#define RGXFWIF_MAX_NUM_CANCEL_REQUESTS 	(8U)		/* Maximum number of workload cancellation requests */
-
-typedef struct
-{
-	IMG_UINT32				aui32FirstIntJobRefToCancel[RGXFWIF_MAX_NUM_CANCEL_REQUESTS];	/*!< Saved values of the beginning of range of IntJobRefs at and above which workloads will be discarded */
-	IMG_UINT32				aui32FirstValidIntJobRef[RGXFWIF_MAX_NUM_CANCEL_REQUESTS];	/*!< Saved values of the end of range of IntJobRef below which workloads will be discarded */
-	IMG_BOOL				bCancelRangesActive;	/*!< True if any active ranges in aui32FirstIntJobRefToCancel and aui32FirstValidIntJobRef arrays */
-} UNCACHED_ALIGN RGXFWIF_CANCEL_RANGES_FW;
 
 #define RGXFWIF_KM_GENERAL_HEAP_TDM_SECURE_QUEUE_OFFSET_BYTES      RGX_HEAP_KM_GENERAL_RESERVED_REGION_OFFSET
 #define RGXFWIF_KM_GENERAL_HEAP_TDM_SECURE_QUEUE_MAX_SIZE_BYTES    2048U
@@ -1873,6 +1770,7 @@ typedef struct
 #define RGXFWIF_TDM_SECURE_QUEUE_VADDR                             (RGX_GENERAL_HEAP_BASE + RGXFWIF_KM_GENERAL_HEAP_TDM_SECURE_QUEUE_OFFSET_BYTES)
 #define RGXFWIF_CDM_SECURE_QUEUE_VADDR                             (RGX_GENERAL_HEAP_BASE + RGXFWIF_KM_GENERAL_HEAP_CDM_SECURE_QUEUE_OFFSET_BYTES)
 
+#define IRQ_VALIDATION_DONE             0x00000040
 /*!
  ******************************************************************************
  * Virtualisation and Security
@@ -1916,7 +1814,7 @@ static_assert((RGX_FW_HEAP_OSID_ASSIGNMENT == RGX_FW_HEAP_USES_FIRMWARE_OSID),
 
 #if defined(RGX_NUM_DRIVERS_SUPPORTED) && (RGX_NUM_DRIVERS_SUPPORTED > 1)
 
-#define FOREACH_SUPPORTED_DRIVER(did)               for ((did)=RGXFW_HOST_DRIVER_ID; (did) < RGX_NUM_DRIVERS_SUPPORTED; (did)++)
+#define FOREACH_SUPPORTED_DRIVER(did)              for ((did)=RGXFW_HOST_DRIVER_ID; (did) < RGX_NUM_DRIVERS_SUPPORTED; (did)++)
 
 #if defined(__KERNEL__)
 /* Driver implementation */
@@ -1932,25 +1830,34 @@ static_assert((RGX_FW_HEAP_OSID_ASSIGNMENT == RGX_FW_HEAP_USES_FIRMWARE_OSID),
 /* Firmware implementation */
 #define FOREACH_ACTIVE_DRIVER(did)                 do {                                                                      \
                                                    unsigned int idx;                                                         \
-                                                   for ((idx)=RGXFW_HOST_DRIVER_ID, (did)=gsRGXFWCtl.aui32ActiveDrivers[0U]; \
-                                                        (idx) < RGXFW_NUM_ACTIVE_DRIVERS;                                         \
-                                                        ++(idx), (did)=gsRGXFWCtl.aui32ActiveDrivers[(idx)])  {
+                                                   for (idx = 0; idx < RGXFW_NUM_ACTIVE_DRIVERS; idx++)                      \
+                                                   {                                                                         \
+                                                       (did) = gsRGXFWCtl.aui32ActiveDrivers[idx];                           \
+                                                       {
 
-#define END_FOREACH_ACTIVE_DRIVER                    }} while (false);
+#define END_FOREACH_ACTIVE_DRIVER                  }}} while (false);
 #endif /* defined(__KERNEL__) */
 
 
 #else
-#define FOREACH_SUPPORTED_DRIVER(did)               for ((did)=RGXFW_HOST_DRIVER_ID; (did) <= RGXFW_HOST_DRIVER_ID; (did)++)
 
-#define FOREACH_ACTIVE_DRIVER(did)                  FOREACH_SUPPORTED_DRIVER(did)
+#define FOREACH_SUPPORTED_DRIVER(did)              for ((did)=RGXFW_HOST_DRIVER_ID; (did) <= RGXFW_HOST_DRIVER_ID; (did)++)
+
+#if defined(__KERNEL__)
+/* Driver implementation */
+#define FOREACH_ACTIVE_DRIVER(devinfo, did)        FOREACH_SUPPORTED_DRIVER(did)
+#else
+/* Firmware implementation */
+#define FOREACH_ACTIVE_DRIVER(did)                 FOREACH_SUPPORTED_DRIVER(did)
+#endif
+
 #define END_FOREACH_ACTIVE_DRIVER
 
 #endif /* (RGX_NUM_DRIVERS_SUPPORTED > 1) */
 
 #define FOREACH_VALIDATION_OSID(osid)              for ((osid)=0; (osid) < GPUVIRT_VALIDATION_NUM_OS; (osid)++)
 #define FOREACH_HW_OSID(osid)                      for ((osid)=0; (osid) < RGXFW_MAX_NUM_OSIDS; (osid)++)
-#define FOREACH_DRIVER_RAW_HEAP(did)               for ((did)=RGX_FIRST_RAW_HEAP_DRIVER_ID; (did) < ((PVRSRV_VZ_MODE_IS(NATIVE) ? 1 : RGX_NUM_DRIVERS_SUPPORTED)); (did)++)
+#define FOREACH_DRIVER_RAW_HEAP(did, _struct, dev) for ((did)=RGX_FIRST_RAW_HEAP_DRIVER_ID; (did) < ((PVRSRV_VZ_MODE_IS(NATIVE, _struct, dev) ? 1 : RGX_NUM_DRIVERS_SUPPORTED)); (did)++)
 
 #endif /* RGX_FWIF_KM_H */
 

@@ -53,6 +53,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_bridge.h"
 #endif
 
+#if defined(DEBUG_BRIDGE_KM)
 PVRSRV_ERROR
 CopyFromUserWrapper(CONNECTION_DATA *psConnection,
                     IMG_UINT32 ui32DispatchTableEntry,
@@ -65,16 +66,32 @@ CopyToUserWrapper(CONNECTION_DATA *psConnection,
                   void __user *pvDest,
                   void *pvSrc,
                   IMG_UINT32 ui32Size);
-
-IMG_INT
-DummyBW(IMG_UINT32 ui32DispatchTableEntry,
-        IMG_UINT8 *psBridgeIn,
-        IMG_UINT8 *psBridgeOut,
-        CONNECTION_DATA *psConnection);
+#else
+FORCE_INLINE PVRSRV_ERROR
+CopyFromUserWrapper(CONNECTION_DATA *psConnection,
+					IMG_UINT32 ui32DispatchTableEntry,
+					void *pvDest,
+					void __user *pvSrc,
+					IMG_UINT32 ui32Size)
+{
+	PVR_UNREFERENCED_PARAMETER (ui32DispatchTableEntry);
+	return OSBridgeCopyFromUser(psConnection, pvDest, pvSrc, ui32Size);
+}
+FORCE_INLINE PVRSRV_ERROR
+CopyToUserWrapper(CONNECTION_DATA *psConnection,
+				  IMG_UINT32 ui32DispatchTableEntry,
+				  void __user *pvDest,
+				  void *pvSrc,
+				  IMG_UINT32 ui32Size)
+{
+	PVR_UNREFERENCED_PARAMETER (ui32DispatchTableEntry);
+	return OSBridgeCopyToUser(psConnection, pvDest, pvSrc, ui32Size);
+}
+#endif
 
 typedef PVRSRV_ERROR (*ServerResourceDestroyFunction)(IMG_HANDLE, IMG_HANDLE);
 
-typedef IMG_INT (*BridgeWrapperFunction)(IMG_UINT32 ui32DispatchTableEntry,
+typedef size_t (*BridgeWrapperFunction)(IMG_UINT32 ui32DispatchTableEntry,
 									 IMG_UINT8 *psBridgeIn,
 									 IMG_UINT8 *psBridgeOut,
 									 CONNECTION_DATA *psConnection);
@@ -139,7 +156,7 @@ UnsetDispatchTableEntry(IMG_UINT32 ui32BridgeGroup,
 		static_assert((ui32OutBufferSize) <= PVRSRV_MAX_BRIDGE_OUT_SIZE, "Bridge output buffer is too small for bridge function: " #pfFunction); \
 		_SetDispatchTableEntry(ui32BridgeGroup, ui32Index, #ui32Index, (BridgeWrapperFunction)pfFunction, #pfFunction,\
 		                       (POS_LOCK)hBridgeLock, #hBridgeLock, ui32InBufferSize, ui32OutBufferSize); \
-	} while(0)
+	} while (0)
 
 #define DISPATCH_TABLE_GAP_THRESHOLD 5
 
@@ -221,6 +238,14 @@ PVRSRV_ERROR PVRSRVFindProcessMemStatsKM(IMG_PID pid,
                                          IMG_UINT32 ui32ArrSize,
                                          IMG_BOOL bAllProcessStats,
                                          IMG_UINT64 *pui64MemoryStats);
+
+PVRSRV_ERROR PVRSRVGetSLCSizeKM(CONNECTION_DATA *psConnection,
+                                      PVRSRV_DEVICE_NODE *psDeviceNode,
+                                      IMG_UINT32 *pui32SLCSizeInBytes);
+
+PVRSRV_ERROR PVRSRVGetSocFreqKM(CONNECTION_DATA *psConnection,
+                                      PVRSRV_DEVICE_NODE *psDeviceNode,
+                                      IMG_UINT32 *pui32SocFreq);
 
 static INLINE
 PVRSRV_ERROR DestroyServerResource(const SHARED_DEV_CONNECTION hConnection,

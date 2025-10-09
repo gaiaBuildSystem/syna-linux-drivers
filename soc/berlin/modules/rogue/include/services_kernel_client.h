@@ -187,6 +187,11 @@ enum PVRSRV_ERROR_TAG PVRSRVCommonDeviceInitialise(
 #ifndef CHECKPOINT_PFNS
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_FENCE_RESOLVE_FN)(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext, PVRSRV_FENCE fence, u32 *nr_checkpoints, PSYNC_CHECKPOINT **checkpoint_handles, u64 *fence_uid);
 
+typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_RESOLVE_FN)(PVRSRV_FENCE export_fence, PSYNC_CHECKPOINT_CONTEXT checkpoint_context, PSYNC_CHECKPOINT *checkpoint_handle);
+typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_ROLLBACK_FN)(PVRSRV_FENCE export_fence);
+typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_FINALISE_FN)(PVRSRV_FENCE export_fence);
+
+
 #ifndef CHECKPOINT_PFNS
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_FENCE_CREATE_FN)(
 		struct _PVRSRV_DEVICE_NODE_ *device,
@@ -232,6 +237,7 @@ typedef PVRSRV_ERROR(*PFN_SYNC_CHECKPOINT_FENCE_GETCHECKPOINTS_FN)(PVRSRV_FENCE 
  */
 #ifndef CHECKPOINT_PFNS
 typedef void (*PFN_SYNC_CHECKPOINT_NOHW_UPDATE_TIMELINES_FN)(void *private_data);
+typedef void (*PFN_SYNC_CHECKPOINT_NOHW_SIGNAL_EXPORT_FENCE_FN)(PVRSRV_FENCE fence_to_signal);
 typedef void (*PFN_SYNC_CHECKPOINT_FREE_CHECKPOINT_LIST_MEM_FN)(void *mem_ptr);
 
 #define SYNC_CHECKPOINT_IMPL_MAX_STRLEN 20
@@ -242,12 +248,16 @@ typedef struct {
 	PFN_SYNC_CHECKPOINT_FENCE_ROLLBACK_DATA_FN pfnFenceDataRollback;
 	PFN_SYNC_CHECKPOINT_FENCE_FINALISE_FN pfnFenceFinalise;
 	PFN_SYNC_CHECKPOINT_NOHW_UPDATE_TIMELINES_FN pfnNoHWUpdateTimelines;
+	PFN_SYNC_CHECKPOINT_NOHW_SIGNAL_EXPORT_FENCE_FN pfnNoHWSignalExpFence;
 	PFN_SYNC_CHECKPOINT_FREE_CHECKPOINT_LIST_MEM_FN pfnFreeCheckpointListMem;
 	PFN_SYNC_CHECKPOINT_DUMP_INFO_ON_STALLED_UFOS_FN pfnDumpInfoOnStalledUFOs;
 	char pszImplName[SYNC_CHECKPOINT_IMPL_MAX_STRLEN];
 #if defined(PDUMP)
 	PFN_SYNC_CHECKPOINT_FENCE_GETCHECKPOINTS_FN pfnSyncFenceGetCheckpoints;
 #endif
+	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_RESOLVE_FN pfnExportFenceResolve;
+	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_ROLLBACK_FN pfnExportFenceRollback;
+	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_FINALISE_FN pfnExportFenceFinalise;
 } PFN_SYNC_CHECKPOINT_STRUCT;
 
 enum PVRSRV_ERROR_TAG SyncCheckpointRegisterFunctions(PFN_SYNC_CHECKPOINT_STRUCT *psSyncCheckpointPfns);
@@ -261,6 +271,7 @@ enum PVRSRV_ERROR_TAG SyncCheckpointContextDestroy(PSYNC_CHECKPOINT_CONTEXT hSyn
 void SyncCheckpointContextRef(PSYNC_CHECKPOINT_CONTEXT psContext);
 void SyncCheckpointContextUnref(PSYNC_CHECKPOINT_CONTEXT psContext);
 enum PVRSRV_ERROR_TAG SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext, PVRSRV_TIMELINE timeline, PVRSRV_FENCE fence, const char *pszCheckpointName, PSYNC_CHECKPOINT *ppsSyncCheckpoint);
+enum PVRSRV_ERROR_TAG SyncCheckpointAllocProxy(PSYNC_CHECKPOINT_CONTEXT psSyncContext, PVRSRV_FENCE fence, IMG_HANDLE hEnvFenceObjPtr, IMG_BOOL bIsPVRSWFence, const char *pszCheckpointName, PSYNC_CHECKPOINT *ppsSyncCheckpoint);
 void SyncCheckpointSignal(PSYNC_CHECKPOINT psSyncCheckpoint, u32 fence_sync_flags);
 void SyncCheckpointError(PSYNC_CHECKPOINT psSyncCheckpoint, u32 fence_sync_flags);
 bool SyncCheckpointIsSignalled(PSYNC_CHECKPOINT psSyncCheckpoint, u32 fence_sync_flags);
@@ -278,6 +289,9 @@ const char *SyncCheckpointGetStateString(PSYNC_CHECKPOINT psSyncCheckpoint);
 #if defined(SUPPORT_NATIVE_FENCE_SYNC)
 struct _PVRSRV_DEVICE_NODE_ *SyncCheckpointGetAssociatedDevice(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext);
 #endif
+IMG_BOOL SyncCheckpointCommonDeviceIDs(PSYNC_CHECKPOINT_CONTEXT psSyncContext, IMG_HANDLE hDevRef);
+enum PVRSRV_ERROR_TAG SyncCheckpointGetCounters(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT32 *puiInUse, IMG_UINT32 *puiMax, IMG_UINT32 *puiXDInUse, IMG_UINT32*puiXDMax);
+enum PVRSRV_ERROR_TAG SyncCheckpointGetDevIDs(PSYNC_CHECKPOINT psSyncContext, IMG_INT32 *piKernelDevId, IMG_UINT32 *puiInternalDevId);
 
 #endif
 
@@ -289,6 +303,11 @@ struct _PVRSRV_DEVICE_NODE_ *SyncCheckpointGetAssociatedDevice(PSYNC_CHECKPOINT_
 @Return         struct workqueue_struct ptr on success, NULL otherwise.
 */ /**************************************************************************/
 struct workqueue_struct *NativeSyncGetFenceStatusWq(void);
+/*************************************************************************/ /*!
+@Function       NativeSyncGetFenceCtxDestroyWq
+@Return         struct workqueue_struct ptr on success, NULL otherwise.
+*/ /**************************************************************************/
+struct workqueue_struct *NativeSyncGetFenceCtxDestroyWq(void);
 #endif
 
 #endif /* __SERVICES_KERNEL_CLIENT__ */

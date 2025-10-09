@@ -73,6 +73,9 @@ typedef union _PVRSRV_FW_BOOT_PARAMS_
 
 	struct
 	{
+		IMG_DEV_VIRTADDR sFWCodeDevVAddr;
+		IMG_DEV_VIRTADDR sFWDataDevVAddr;
+
 		IMG_DEV_VIRTADDR sFWCorememCodeDevVAddr;
 		RGXFWIF_DEV_VIRTADDR sFWCorememCodeFWAddr;
 		IMG_DEVMEM_SIZE_T uiFWCorememCodeSize;

@@ -68,16 +68,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/kthread.h>
 #include <linux/utsname.h>
 #include <linux/scatterlist.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
+#include <linux/interrupt.h>
 #include <linux/pfn_t.h>
 #include <linux/pfn.h>
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
 #include <linux/sched/clock.h>
 #include <linux/sched/signal.h>
-#else
-#include <linux/sched.h>
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)) */
+#include <linux/pid.h>
 #if defined(SUPPORT_SECURE_ALLOC_KM)
 #if defined(PVR_ANDROID_HAS_DMA_HEAP_FIND)
 #include <linux/dma-heap.h>
@@ -605,6 +601,7 @@ IMG_UINT32 OSStringUINT32ToStr(IMG_CHAR *pszBuf, size_t uSize,
 
 #if defined(SUPPORT_NATIVE_FENCE_SYNC) || defined(SUPPORT_BUFFER_SYNC)
 static struct workqueue_struct *gpFenceStatusWq;
+static struct workqueue_struct *gpFenceCtxDestroyWq;
 
 static PVRSRV_ERROR _NativeSyncInit(void)
 {
@@ -616,12 +613,21 @@ static PVRSRV_ERROR _NativeSyncInit(void)
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
+	gpFenceCtxDestroyWq = create_freezable_workqueue("pvr_fence_context_destroy");
+	if (!gpFenceCtxDestroyWq)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to create foreign fence context destruction workqueue",
+				 __func__));
+		return PVRSRV_ERROR_INIT_FAILURE;
+	}
+
 	return PVRSRV_OK;
 }
 
 static void _NativeSyncDeinit(void)
 {
 	destroy_workqueue(gpFenceStatusWq);
+	destroy_workqueue(gpFenceCtxDestroyWq);
 }
 
 struct workqueue_struct *NativeSyncGetFenceStatusWq(void)
@@ -636,13 +642,27 @@ struct workqueue_struct *NativeSyncGetFenceStatusWq(void)
 
 	return gpFenceStatusWq;
 }
+
+struct workqueue_struct *NativeSyncGetFenceCtxDestroyWq(void)
+{
+	if (!gpFenceCtxDestroyWq)
+	{
+#if defined(DEBUG)
+		PVR_ASSERT(gpFenceCtxDestroyWq);
+#endif
+		return NULL;
+	}
+
+	return gpFenceCtxDestroyWq;
+}
 #endif
 
 PVRSRV_ERROR OSInitEnvData(void)
 {
-	PVRSRV_ERROR eError = PVRSRV_OK;
+	PVRSRV_ERROR eError;
 
-	LinuxInitPhysmem();
+	eError = LinuxInitPhysmem();
+	PVR_GOTO_IF_ERROR(eError, error_out);
 
 	_OSInitThreadList();
 
@@ -650,6 +670,7 @@ PVRSRV_ERROR OSInitEnvData(void)
 	eError = _NativeSyncInit();
 #endif
 
+error_out:
 	return eError;
 }
 
@@ -746,11 +767,7 @@ static inline IMG_UINT64 KClockns64(void)
 {
 	ktime_t sTime = ktime_get();
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 	return sTime;
-#else
-	return sTime.tv64;
-#endif
 }
 
 PVRSRV_ERROR OSClockMonotonicns64(IMG_UINT64 *pui64Time)
@@ -858,6 +875,22 @@ IMG_PID OSGetCurrentClientProcessIDKM(void)
 IMG_CHAR *OSGetCurrentClientProcessNameKM(void)
 {
 	return OSGetCurrentProcessName();
+}
+
+uintptr_t OSAcquireCurrentPPIDResourceRefKM(void)
+{
+	struct pid *psPPIDResource = find_pid_ns(OSGetCurrentClientProcessIDKM(), &init_pid_ns);
+
+	PVR_ASSERT(psPPIDResource != NULL);
+	/* Take ref on pPid */
+	get_pid(psPPIDResource);
+	return (uintptr_t)psPPIDResource;
+}
+
+void OSReleasePPIDResourceRefKM(uintptr_t psPPIDResource)
+{
+	/* Drop ref on uiProc */
+	put_pid((struct pid*)psPPIDResource);
 }
 
 uintptr_t OSGetCurrentClientThreadIDKM(void)
@@ -1023,6 +1056,11 @@ PVRSRV_ERROR OSScheduleMISR(IMG_HANDLE hMISRData)
 		return rc ? PVRSRV_OK : PVRSRV_ERROR_ALREADY_EXISTS;
 	}
 #endif
+}
+
+void OSSyncIRQ(IMG_UINT32 ui32IRQ)
+{
+	synchronize_irq(ui32IRQ);
 }
 
 /* OS specific values for thread priority */
@@ -1290,31 +1328,30 @@ OSMapPhysToLin(IMG_CPU_PHYADDR BasePAddr,
 
 	if (uiMappingFlags & ~(PVRSRV_MEMALLOCFLAG_CPU_CACHE_MODE_MASK))
 	{
-		PVR_ASSERT(!"Found non-cpu cache mode flag when mapping to the cpu");
+		PVR_DPF((PVR_DBG_ERROR, "Found non-cpu cache mode flag when mapping to the cpu"));
 		return NULL;
 	}
 
-	if (! PVRSRV_VZ_MODE_IS(NATIVE))
+#if defined(RGX_NUM_DRIVERS_SUPPORTED) && (RGX_NUM_DRIVERS_SUPPORTED > 1)
+	/*
+	  This is required to support DMA physheaps for GPU virtualization.
+	  Unfortunately, if a region of kernel managed memory is turned into
+	  a DMA buffer, conflicting mappings can come about easily on Linux
+	  as the original memory is mapped by the kernel as normal cached
+	  memory whilst DMA buffers are mapped mostly as uncached device or
+	  cache-coherent device memory. In both cases the system will have
+	  two conflicting mappings for the same memory region and will have
+	  "undefined behaviour" for most processors notably ARMv6 onwards
+	  and some x86 micro-architectures. As a result, perform ioremapping
+	  manually for DMA physheap allocations by translating from CPU/VA
+	  to BUS/PA thereby preventing the creation of conflicting mappings.
+	*/
+	pvLinAddr = (void __iomem *) SysDmaDevPAddrToCpuVAddr(BasePAddr.uiAddr, ui32Bytes);
+	if (pvLinAddr != NULL)
 	{
-		/*
-		  This is required to support DMA physheaps for GPU virtualization.
-		  Unfortunately, if a region of kernel managed memory is turned into
-		  a DMA buffer, conflicting mappings can come about easily on Linux
-		  as the original memory is mapped by the kernel as normal cached
-		  memory whilst DMA buffers are mapped mostly as uncached device or
-		  cache-coherent device memory. In both cases the system will have
-		  two conflicting mappings for the same memory region and will have
-		  "undefined behaviour" for most processors notably ARMv6 onwards
-		  and some x86 micro-architectures. As a result, perform ioremapping
-		  manually for DMA physheap allocations by translating from CPU/VA
-		  to BUS/PA thereby preventing the creation of conflicting mappings.
-		*/
-		pvLinAddr = (void __iomem *) SysDmaDevPAddrToCpuVAddr(BasePAddr.uiAddr, ui32Bytes);
-		if (pvLinAddr != NULL)
-		{
-			return (void __force *) pvLinAddr;
-		}
+		return (void __force *) pvLinAddr;
 	}
+#endif
 
 	switch (uiMappingFlags)
 	{
@@ -1337,11 +1374,11 @@ OSMapPhysToLin(IMG_CPU_PHYADDR BasePAddr,
 			break;
 		case PVRSRV_MEMALLOCFLAG_CPU_CACHE_COHERENT:
 		case PVRSRV_MEMALLOCFLAG_CPU_CACHE_INCOHERENT:
-			PVR_ASSERT(!"Unexpected cpu cache mode");
+			PVR_DPF((PVR_DBG_ERROR, "Unexpected cpu cache mode"));
 			pvLinAddr = NULL;
 			break;
 		default:
-			PVR_ASSERT(!"Unsupported cpu cache mode");
+			PVR_DPF((PVR_DBG_ERROR, "Unsupported cpu cache mode"));
 			pvLinAddr = NULL;
 			break;
 	}
@@ -1355,13 +1392,12 @@ OSUnMapPhysToLin(void *pvLinAddr, size_t ui32Bytes)
 {
 	PVR_UNREFERENCED_PARAMETER(ui32Bytes);
 
-	if (!PVRSRV_VZ_MODE_IS(NATIVE))
+#if defined(RGX_NUM_DRIVERS_SUPPORTED) && (RGX_NUM_DRIVERS_SUPPORTED > 1)
+	if (SysDmaCpuVAddrToDevPAddr(pvLinAddr))
 	{
-		if (SysDmaCpuVAddrToDevPAddr(pvLinAddr))
-		{
-			return IMG_TRUE;
-		}
+		return IMG_TRUE;
 	}
+#endif
 
 	iounmap((void __iomem *) pvLinAddr);
 
@@ -1382,7 +1418,7 @@ typedef struct TIMER_CALLBACK_DATA_TAG
 	struct work_struct	sWork;
 }TIMER_CALLBACK_DATA;
 
-static struct workqueue_struct *psTimerWorkQueue;
+static struct workqueue_struct *psTimerWorkQueue = NULL;
 
 static TIMER_CALLBACK_DATA sTimers[OS_MAX_TIMERS];
 
@@ -1692,18 +1728,18 @@ PVRSRV_ERROR OSCopyFromUser(void *pvProcess,
 		return PVRSRV_ERROR_FAILED_TO_COPY_VIRT_MEMORY;
 }
 
-IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
+IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
 {
-	*pui32Remainder = do_div(ui64Divident, ui32Divisor);
+	*pui32Remainder = do_div(ui64Dividend, ui32Divisor);
 
-	return ui64Divident;
+	return ui64Dividend;
 }
 
-IMG_UINT32 OSDivide64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
+IMG_UINT32 OSDivide64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
 {
-	*pui32Remainder = do_div(ui64Divident, ui32Divisor);
+	*pui32Remainder = do_div(ui64Dividend, ui32Divisor);
 
-	return (IMG_UINT32) ui64Divident;
+	return (IMG_UINT32)ui64Dividend;
 }
 
 /* One time osfunc initialisation */
@@ -1750,181 +1786,6 @@ void PVROSFuncDeInit(void)
 void OSDumpStack(void)
 {
 	dump_stack();
-}
-
-PVRSRV_ERROR OSChangeSparseMemCPUAddrMap(void **psPageArray,
-                                         IMG_UINT64 sCpuVAddrBase,
-                                         IMG_CPU_PHYADDR sCpuPAHeapBase,
-                                         IMG_UINT32 ui32AllocPageCount,
-                                         IMG_UINT32 *pai32AllocIndices,
-                                         IMG_UINT32 ui32FreePageCount,
-                                         IMG_UINT32 *pai32FreeIndices,
-                                         IMG_BOOL bIsLMA)
-{
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
-	pfn_t sPFN;
-#else
-	IMG_UINT64 uiPFN;
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
-
-	PVRSRV_ERROR eError;
-
-	struct mm_struct *psMM = current->mm;
-	struct vm_area_struct *psVMA = NULL;
-	struct address_space *psMapping = NULL;
-	struct page *psPage = NULL;
-
-	IMG_UINT64 uiCPUVirtAddr = 0;
-	IMG_UINT32 ui32Loop = 0;
-	IMG_UINT32 ui32PageSize = OSGetPageSize();
-	IMG_BOOL bMixedMap = IMG_FALSE;
-
-	/*
-	 * Acquire the lock before manipulating the VMA
-	 * In this case only mmap_write_lock would suffice as the pages associated with this VMA
-	 * are never meant to be swapped out.
-	 *
-	 * In the future, in case the pages are marked as swapped, page_table_lock needs
-	 * to be acquired in conjunction with this to disable page swapping.
-	 */
-	/* Acquire the memory sem */
-	mmap_write_lock(psMM);
-
-	/* Find the Virtual Memory Area associated with the user base address */
-	psVMA = find_vma(psMM, (uintptr_t)sCpuVAddrBase);
-	if (NULL == psVMA)
-	{
-		eError = PVRSRV_ERROR_PMR_NO_CPU_MAP_FOUND;
-		goto eFailed;
-	}
-
-
-	psMapping = psVMA->vm_file->f_mapping;
-
-	/* Set the page offset to the correct value as this is disturbed in MMAP_PMR func */
-	psVMA->vm_pgoff = (psVMA->vm_start >>  PAGE_SHIFT);
-
-	/* Delete the entries for the pages that got freed */
-	if (ui32FreePageCount && (pai32FreeIndices != NULL))
-	{
-		for (ui32Loop = 0; ui32Loop < ui32FreePageCount; ui32Loop++)
-		{
-			uiCPUVirtAddr = (uintptr_t)(sCpuVAddrBase + (pai32FreeIndices[ui32Loop] * ui32PageSize));
-
-			unmap_mapping_range(psMapping, uiCPUVirtAddr, ui32PageSize, 1);
-
-#ifndef PVRSRV_UNMAP_ON_SPARSE_CHANGE
-			/*
-			 * Still need to map pages in case remap flag is set.
-			 * That is not done until the remap case succeeds
-			 */
-#endif
-		}
-		eError = PVRSRV_OK;
-	}
-
-	if ((psVMA->vm_flags & VM_MIXEDMAP) || bIsLMA)
-	{
-		pvr_vm_flags_set(psVMA, VM_MIXEDMAP);
-		bMixedMap = IMG_TRUE;
-	}
-	else
-	{
-		if (ui32AllocPageCount && (NULL != pai32AllocIndices))
-		{
-			for (ui32Loop = 0; ui32Loop < ui32AllocPageCount; ui32Loop++)
-			{
-
-				psPage = (struct page *)psPageArray[pai32AllocIndices[ui32Loop]];
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
-				sPFN = page_to_pfn_t(psPage);
-
-				if (!pfn_t_valid(sPFN) || page_count(pfn_t_to_page(sPFN)) == 0)
-#else
-				uiPFN = page_to_pfn(psPage);
-
-				if (!pfn_valid(uiPFN) || (page_count(pfn_to_page(uiPFN)) == 0))
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
-				{
-					bMixedMap = IMG_TRUE;
-					pvr_vm_flags_set(psVMA, VM_MIXEDMAP);
-					break;
-				}
-			}
-		}
-	}
-
-	/* Map the pages that got allocated */
-	if (ui32AllocPageCount && (NULL != pai32AllocIndices))
-	{
-		for (ui32Loop = 0; ui32Loop < ui32AllocPageCount; ui32Loop++)
-		{
-			int err;
-
-			uiCPUVirtAddr = (uintptr_t)(sCpuVAddrBase + (pai32AllocIndices[ui32Loop] * ui32PageSize));
-			unmap_mapping_range(psMapping, uiCPUVirtAddr, ui32PageSize, 1);
-
-			if (bIsLMA)
-			{
-				phys_addr_t uiAddr = sCpuPAHeapBase.uiAddr +
-				                     ((IMG_DEV_PHYADDR *)psPageArray)[pai32AllocIndices[ui32Loop]].uiAddr;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
-				sPFN = phys_to_pfn_t(uiAddr, 0);
-				psPage = pfn_t_to_page(sPFN);
-#else
-				uiPFN = uiAddr >> PAGE_SHIFT;
-				psPage = pfn_to_page(uiPFN);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
-			}
-			else
-			{
-				psPage = (struct page *)psPageArray[pai32AllocIndices[ui32Loop]];
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
-				sPFN = page_to_pfn_t(psPage);
-#else
-				uiPFN = page_to_pfn(psPage);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
-			}
-
-			if (bMixedMap)
-			{
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
-				vm_fault_t vmf;
-
-				vmf = vmf_insert_mixed(psVMA, uiCPUVirtAddr, sPFN);
-				if (vmf & VM_FAULT_ERROR)
-				{
-					err = vm_fault_to_errno(vmf, 0);
-				}
-				else
-				{
-					err = 0;
-				}
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
-				err = vm_insert_mixed(psVMA, uiCPUVirtAddr, sPFN);
-#else
-				err = vm_insert_mixed(psVMA, uiCPUVirtAddr, uiPFN);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)) */
-			}
-			else
-			{
-				err = vm_insert_page(psVMA, uiCPUVirtAddr, psPage);
-			}
-
-			if (err)
-			{
-				PVR_DPF((PVR_DBG_MESSAGE, "Remap failure error code: %d", err));
-				eError = PVRSRV_ERROR_PMR_CPU_PAGE_MAP_FAILED;
-				goto eFailed;
-			}
-		}
-	}
-
-	eError = PVRSRV_OK;
-eFailed:
-	mmap_write_unlock(psMM);
-
-	return eError;
 }
 
 /*************************************************************************/ /*!
@@ -2190,16 +2051,20 @@ DMADumpPhysicalAddresses(struct page **ppsHostMemPages,
 		if (uiIdx == 0)
 		{
 			sPagePhysAddr.uiAddr += ui64Offset;
-			PVR_DPF((PVR_DBG_MESSAGE, "\tHost mem start at 0x%llX", sPagePhysAddr.uiAddr));
+			PVR_DPF((PVR_DBG_MESSAGE,
+					 "\tHost mem start at 0x%" IMG_UINT64_FMTSPECx,
+					 (IMG_UINT64)sPagePhysAddr.uiAddr));
 		}
 		else
 		{
-			PVR_DPF((PVR_DBG_MESSAGE, "\tHost Mem Page %d at 0x%llX", uiIdx,
-					 sPagePhysAddr.uiAddr));
+			PVR_DPF((PVR_DBG_MESSAGE,
+					 "\tHost Mem Page %d at 0x%" IMG_UINT64_FMTSPECx,
+					 uiIdx, (IMG_UINT64)sPagePhysAddr.uiAddr));
 		}
 	}
-	PVR_DPF((PVR_DBG_MESSAGE, "Devmem CPU phys address: 0x%llX",
-			 sDmaAddr->uiAddr));
+	PVR_DPF((PVR_DBG_MESSAGE,
+			 "Devmem CPU phys address: 0x%" IMG_UINT64_FMTSPECx,
+			 (IMG_UINT64)sDmaAddr->uiAddr));
 }
 #endif
 
@@ -2464,11 +2329,8 @@ PVRSRV_ERROR OSDmaPrepareTransfer(PVRSRV_DEVICE_NODE *psDevNode,
 	psDesc->callback_param = psOSCleanupData;
 	psDesc->callback = dma_callback;
 
-	if	(bFirst)
-	{
-		struct task_struct* t1;
-		t1 = kthread_run(cleanup_thread, psOSCleanupData, "dma-cleanup-thread");
-	}
+	if (bFirst)
+		kthread_run(cleanup_thread, psOSCleanupData, "dma-cleanup-thread");
 	psOSCleanupData->ppsDescriptors[psOSCleanupData->uiCount] = psDesc;
 
 	psOSCleanupData->uiCount++;
@@ -2679,7 +2541,7 @@ PVRSRV_ERROR OSDmaPrepareTransferSparse(PVRSRV_DEVICE_NODE *psDevNode,
 			PVR_DPF((PVR_DBG_ERROR, "%s: dmaengine_prep_slave_sg failed", __func__));
 			eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-		goto e6;
+			goto e6;
 		}
 
 		psOSCleanupData->ppsSgSparse[psOSCleanupData->uiCount][valid_idx] = psSg;
@@ -2693,13 +2555,11 @@ PVRSRV_ERROR OSDmaPrepareTransferSparse(PVRSRV_DEVICE_NODE *psDevNode,
 
 			if (bFirst)
 			{
-				struct task_struct* t1;
-
 				psOSCleanupData->eDirection = eDataDirection;
 				psOSCleanupData->pfnServerCleanup = pfnServerCleanup;
 				psOSCleanupData->pvServerCleanupData = pvServerCleanupParam;
 
-				t1 = kthread_run(cleanup_thread, psOSCleanupData, "dma-cleanup-thread");
+				kthread_run(cleanup_thread, psOSCleanupData, "dma-cleanup-thread");
 			}
 
 			psOSCleanupData->uiCount++;
@@ -2781,7 +2641,11 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 	PVR_LOG_GOTO_IF_NOMEM(heap, eError, ErrorExit);
 
 	buf = dma_heap_buffer_alloc(heap, uiSize, 0, 0);
-	PVR_LOG_GOTO_IF_NOMEM(buf, eError, ErrorBufPut);
+	if (IS_ERR_OR_NULL(buf))
+	{
+		PVR_LOG_GOTO_WITH_ERROR("dma_heap_buffer_alloc", eError,
+		                        PVRSRV_ERROR_OUT_OF_MEMORY, ErrorHeapPut);
+	}
 
 	if (buf->size < uiSize)
 	{
@@ -2792,13 +2656,18 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 	}
 
 	buf_attachment = dma_buf_attach(buf, dev);
-	PVR_LOG_GOTO_IF_NOMEM(buf_attachment, eError, ErrorBufFree);
+	if (IS_ERR_OR_NULL(buf_attachment))
+	{
+		PVR_LOG_GOTO_WITH_ERROR("dma_buf_attach", eError,
+		                        PVRSRV_ERROR_OUT_OF_MEMORY, ErrorBufFree);
+	}
 
 	eError = PhysmemCreateNewDmaBufBackedPMR(psDeviceNode->apsPhysHeap[PVRSRV_PHYS_HEAP_EXTERNAL],
 											 buf_attachment,
 											 NULL,
 											 PVRSRV_MEMALLOCFLAG_GPU_READABLE
 											 | PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE,
+											 OSGetCurrentClientProcessIDKM(),
 											 buf->size,
 											 1,
 											 1,
@@ -2808,27 +2677,39 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 											 ppsPMR);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PhysmemCreateNewDmaBufBackedPMR", ErrorBufDetach);
 
+	PhysmemSetDmaHeap(*ppsPMR, heap);
+
 	return PVRSRV_OK;
 
 ErrorBufDetach:
 	dma_buf_detach(buf, buf_attachment);
 ErrorBufFree:
 	dma_heap_buffer_free(buf);
-ErrorBufPut:
-	dma_buf_put(buf);
+ErrorHeapPut:
+	dma_heap_put(heap);
 ErrorExit:
-
 	return eError;
 }
 
 IMG_INTERNAL void
 OSFreeSecBuf(PMR *psPMR)
 {
+	PVRSRV_ERROR eError;
+
 	struct dma_buf *buf = PhysmemGetDmaBuf(psPMR);
-	dma_buf_put(buf);
+	struct dma_heap *heap = PhysmemGetDmaHeap(psPMR);
+
+	/* calls dma_buf_put() */
 	dma_heap_buffer_free(buf);
 
-	PMRUnrefPMR(psPMR);
+	if (heap != NULL)
+	{
+		PhysmemSetDmaHeap(psPMR, NULL);
+		dma_heap_put(heap);
+	}
+
+	eError = PMRUnrefPMR(psPMR);
+	PVR_ASSERT(eError == PVRSRV_OK);
 }
 #else /* PVR_ANDROID_HAS_DMA_HEAP_FIND */
 IMG_INTERNAL PVRSRV_ERROR
@@ -2867,7 +2748,7 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 #if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
 ErrorUnrefPMR:
-	PMRUnrefPMR(*ppsPMR);
+	(void) PMRUnrefPMR(*ppsPMR);
 #endif
 ErrorExit:
 	return eError;
@@ -2876,7 +2757,148 @@ ErrorExit:
 IMG_INTERNAL void
 OSFreeSecBuf(PMR *psPMR)
 {
-	PMRUnrefPMR(psPMR);
+	PVRSRV_ERROR eError = PMRUnrefPMR(psPMR);
+	PVR_ASSERT(eError == PVRSRV_OK);
 }
 #endif
 #endif /* SUPPORT_SECURE_ALLOC_KM */
+
+PVRSRV_ERROR OSGetUID(IMG_PID pid, IMG_UINT32 *pui32UID)
+{
+	struct task_struct *psTask;
+	struct pid *psPid;
+
+	if (pui32UID == NULL)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	psPid = find_get_pid((pid_t)pid);
+	if (!psPid)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to lookup PID %u.",
+		                        __func__, pid));
+		return PVRSRV_ERROR_NOT_FOUND;
+	}
+
+	psTask = get_pid_task(psPid, PIDTYPE_PID);
+	put_pid(psPid);
+	if (!psTask)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get pid task for PID %u.",
+		                        __func__, pid));
+		return PVRSRV_ERROR_NOT_FOUND;
+	}
+
+	*pui32UID = from_kuid(&init_user_ns, psTask->cred->uid);
+	put_task_struct(psTask);
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR OSFindFreeCPURangeTopDown(IMG_UINT64 ui64RangeStart,
+                                       IMG_UINT64 ui64RangeEnd,
+                                       IMG_UINT64 ui64Size,
+                                       IMG_UINT64 ui64AddrHint,
+                                       IMG_UINT64 *pui64Addr)
+{
+	struct vm_area_struct *psVma, *psPrevVma;
+	unsigned long uiTargetAddr;
+	IMG_BOOL bFoundAddress = IMG_FALSE;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	struct vma_iterator sItr;
+#endif
+
+#if !defined(CONFIG_64BIT)
+	if (ui64RangeEnd > IMG_UINT32_MAX)
+	{
+		ui64RangeEnd = IMG_UINT32_MAX;
+	}
+#endif
+
+	PVR_LOG_RETURN_IF_INVALID_PARAM(ui64RangeStart < ui64RangeEnd, "ui64RangeStart");
+
+	PVR_ASSERT(ui64Size != 0);
+	PVR_ASSERT(ui64Size <= (ui64RangeEnd - ui64RangeStart));
+	PVR_ASSERT(pui64Addr != NULL);
+
+	if (ui64AddrHint == 0)
+	{
+		uiTargetAddr = ui64RangeEnd - ui64Size;
+	}
+	else
+	{
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui64AddrHint >= ui64RangeStart,
+		                                "ui64AddrHint invalid");
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui64AddrHint < ui64RangeEnd,
+		                                "ui64AddrHint invalid");
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui64AddrHint + ui64Size < ui64RangeEnd,
+		                                "ui64AddrHint invalid");
+
+		uiTargetAddr = ui64AddrHint;
+		PVR_DPF((PVR_DBG_MESSAGE, "%s: SVM Address hint = 0x%08lx", __func__, uiTargetAddr));
+	}
+
+	mmap_read_lock(current->mm);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	vma_iter_init(&sItr, current->mm, (unsigned long)uiTargetAddr);
+	/* We only care about vma's within the range. */
+	psVma = vma_find(&sItr, ui64RangeEnd);
+#else
+	psVma = find_vma(current->mm, uiTargetAddr);
+#endif
+
+	/* psVma may be NULL in the case that there is no valid VMA with
+	 * vma->vm_end > uiTargetAddr
+	 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	if (psVma == NULL)
+#else
+	if (psVma == NULL || psVma->vm_start > uiTargetAddr + ui64Size)
+#endif
+	{
+		*pui64Addr = uiTargetAddr;
+		bFoundAddress = IMG_TRUE;
+		goto out;
+	}
+
+	while (psVma != NULL)
+	{
+		PVR_ASSERT(psVma->vm_start < psVma->vm_end);
+		/* We expect no wrap around of the VMAs traversal. */
+		PVR_ASSERT(psVma->vm_start <= ui64RangeEnd);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+		psPrevVma = vma_prev(&sItr);
+#else
+		psPrevVma = psVma->vm_prev;
+#endif
+
+		if (psVma->vm_start < ui64RangeStart)
+		{
+			PVR_DPF((PVR_DBG_MESSAGE, "%s: VMA was below range!", __func__));
+			break;
+		}
+
+		/* If there is no previous vma or a gap we can calculate the address. */
+		if (psPrevVma == NULL || psVma->vm_start - psPrevVma->vm_end >= ui64Size)
+		{
+			uiTargetAddr = psVma->vm_start - ui64Size;
+			/* Ensure address is properly within bounds. */
+			if (uiTargetAddr >= ui64RangeStart && uiTargetAddr < psVma->vm_start)
+			{
+				*pui64Addr = uiTargetAddr;
+				bFoundAddress = IMG_TRUE;
+				break;
+			}
+		}
+
+		psVma = psPrevVma;
+	}
+
+out:
+	mmap_read_unlock(current->mm);
+
+	return (bFoundAddress == IMG_TRUE) ? PVRSRV_OK : PVRSRV_ERROR_CPU_ADDR_NOT_FOUND;
+}

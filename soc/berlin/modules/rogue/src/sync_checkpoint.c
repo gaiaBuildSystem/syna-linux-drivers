@@ -66,9 +66,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv_sync_km.h"
 #include "rgxhwperf.h"
 
-#if defined(SUPPORT_VALIDATION) && defined(SUPPORT_SOC_TIMER)
-#include "rgxsoctimer.h"
-#endif
+
 
 #if defined(PVRSRV_NEED_PVR_DPF)
 
@@ -123,19 +121,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #define SYNC_CHECKPOINT_POOL_LIMIT	1024
 
-/* The 'sediment' value represents the minimum number of
- * sync checkpoints which must be in the pool before one
- * will be allocated from the pool rather than from memory.
- * This effectively helps avoid re-use of a sync checkpoint
- * just after it has been returned to the pool, making
- * debugging somewhat easier to understand.
- */
-#if defined(PDUMP)
-#define SYNC_CHECKPOINT_POOL_SEDIMENT 20
-#else
-#define SYNC_CHECKPOINT_POOL_SEDIMENT 0
-#endif
-
 #if (SYNC_CHECKPOINT_POOL_LIMIT & (SYNC_CHECKPOINT_POOL_LIMIT - 1)) != 0
 #error "SYNC_CHECKPOINT_POOL_LIMIT must be power of 2."
 #endif
@@ -183,17 +168,23 @@ struct _SYNC_CHECKPOINT_CONTEXT_CTL_
 	/* Counters to provide stats for number of checkpoints used at any one time */
 	IMG_UINT32                              ui32CurrentInUseSyncCheckpoints;
 	IMG_UINT32                              ui32MaxInUseSyncCheckpoints;
+	IMG_UINT32                              ui32CurrentInUseMirroringSyncCPs;
+	IMG_UINT32                              ui32MaxInUseMirroringSyncCPs;
 	/* Lock to protect the checkpoint stats */
 	POS_SPINLOCK							hSyncCheckpointStatsLock;
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
-	IMG_UINT32      ui32SyncCheckpointPoolSize;  /*! Allocated size of the pool */
-	IMG_UINT32      ui32SyncCheckpointPoolCount; /*! Number of checkpoints currently in pool */
-	IMG_UINT32      ui32SyncCheckpointPoolWp;    /*! Pool write pointer */
-	IMG_UINT32      ui32SyncCheckpointPoolRp;    /*! Pool read pointer */
-	POS_SPINLOCK    hSyncCheckpointPoolLock;     /*! Lock to protect access to pool control data */
-	IMG_UINT8       ui8PoolStateFlags;           /*! Flags to indicate state of pool */
+	IMG_UINT32								ui32SyncCheckpointPoolSize;    /*! Allocated size of the pool */
+	IMG_UINT32								ui32SyncCheckpointPoolCount;   /*! Number of checkpoints currently in pool */
+	IMG_UINT32								ui32SyncCheckpointPoolWp;      /*! Pool write pointer */
+	IMG_UINT32								ui32SyncCheckpointPoolRp;      /*! Pool read pointer */
+#if defined(PDUMP)
+	SYNC_CHECKPOINT_BLOCK					*psSyncCheckpointPoolBlock;    /*! Block that all pool checkpoints come from */
+	IMG_BOOL								bAllocateFromCheckpointPool;   /*! PDumps only use the pool once it has allocated all its checkpoints */
+#endif
+	POS_SPINLOCK							hSyncCheckpointPoolLock;       /*! Lock to protect access to pool control data */
+	IMG_UINT8								ui8PoolStateFlags;             /*! Flags to indicate state of pool */
 	/*! Array of SYNC_CHECKPOINTs. Must be last member in structure */
-	SYNC_CHECKPOINT *apsSyncCheckpointPool[1];   /*! The allocated checkpoint pool */
+	SYNC_CHECKPOINT *apsSyncCheckpointPool[IMG_FLEX_ARRAY_MEMBER];   /*! The allocated checkpoint pool */
 #endif
 }; /*_SYNC_CHECKPOINT_CONTEXT_CTL is already typedef-ed in sync_checkpoint_internal.h */
 
@@ -201,7 +192,7 @@ struct SYNC_CHECKPOINT_CONTEXT_TAG
 {
 #if defined(PDUMP)
 	DLLIST_NODE						sSyncCheckpointBlockListHead;          /*!< List head for the sync chkpt blocks in this context*/
-	DLLIST_NODE						sListNode;				/*!< List node for the sync chkpt context list*/
+	DLLIST_NODE						sListNode;				               /*!< List node for the sync chkpt context list*/
 	POS_LOCK						hSyncCheckpointBlockListLock;          /*!< sync chkpt blocks list lock*/
 #endif
 	RA_ARENA						*psSpanRA;                             /*!< RA used for span management of SubAllocRA */
@@ -355,10 +346,8 @@ void SyncCheckpointContextUnref(PSYNC_CHECKPOINT_CONTEXT psContext)
 
 		/* SyncCheckpointContextDestroy only when no longer referenced */
 		OSSpinLockDestroy(psCtxCtl->hDeferredCleanupListLock);
-		psCtxCtl->hDeferredCleanupListLock = NULL;
-
 		OSSpinLockDestroy(psCtxCtl->hSyncCheckpointStatsLock);
-		psCtxCtl->hSyncCheckpointStatsLock = NULL;
+
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
 		if (psCtxCtl->ui32SyncCheckpointPoolCount)
 		{
@@ -371,7 +360,6 @@ void SyncCheckpointContextUnref(PSYNC_CHECKPOINT_CONTEXT psContext)
 		}
 		CLEAR_CHECKPOINT_POOL_FULL(psCtxCtl);
 		OSSpinLockDestroy(psCtxCtl->hSyncCheckpointPoolLock);
-		psCtxCtl->hSyncCheckpointPoolLock = NULL;
 #endif
 		OSFreeMem(psContextInt->psContextCtl);
 		RA_Delete(psContextInt->psSpanRA);
@@ -428,6 +416,7 @@ _AllocSyncCheckpointBlock(_SYNC_CHECKPOINT_CONTEXT *psContext,
 	PVR_LOG_GOTO_IF_INVALID_PARAM(psDevNode, eError, fail_alloc_ufo_block);
 
 	eError = psDevNode->pfnAllocUFOBlock(psDevNode,
+	                                     SYNC_CHECKPOINT_POOL_LIMIT * sizeof(SYNC_CHECKPOINT_FW_OBJ),
 	                                     &psSyncBlk->hMemDesc,
 	                                     &psSyncBlk->ui32FirmwareAddr,
 	                                     &psSyncBlk->ui32SyncBlockSize);
@@ -494,9 +483,7 @@ _SyncCheckpointBlockImport(RA_PERARENA_HANDLE hArena,
                            RA_FLAGS_T uFlags,
                            RA_LENGTH_T uBaseAlignment,
                            const IMG_CHAR *pszAnnotation,
-                           RA_BASE_T *puiBase,
-                           RA_LENGTH_T *puiActualSize,
-                           RA_PERISPAN_HANDLE *phImport)
+                           RA_IMPORT *psImport)
 {
 	_SYNC_CHECKPOINT_CONTEXT *psContext = hArena;
 	SYNC_CHECKPOINT_BLOCK *psSyncBlock = NULL;
@@ -539,9 +526,9 @@ _SyncCheckpointBlockImport(RA_PERARENA_HANDLE hArena,
 	PVR_LOG_IF_FALSE((uiSpanSize == psSyncBlock->ui32SyncBlockSize),
 	                 "uiSpanSize invalid");
 
-	*puiBase = psSyncBlock->uiSpanBase;
-	*puiActualSize = psSyncBlock->ui32SyncBlockSize;
-	*phImport = psSyncBlock;
+	psImport->base = psSyncBlock->uiSpanBase;
+	psImport->uSize = psSyncBlock->ui32SyncBlockSize;
+	psImport->hPriv = psSyncBlock;
 	return PVRSRV_OK;
 
 fail_spanalloc:
@@ -623,6 +610,9 @@ SyncCheckpointResolveFence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 #if defined(PDUMP)
 	SYNC_CHECKPOINT *psSyncCheckpoint = NULL;
 #endif
+#if (ENABLE_SYNC_CHECKPOINT_FENCE_DEBUG == 1)
+	_PSYNC_CHECKPOINT_CONTEXT_CTL	psContextCtl;
+#endif
 
 	if (unlikely(!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnFenceResolve))
 	{
@@ -633,6 +623,16 @@ SyncCheckpointResolveFence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 		PVR_LOG_ERROR(eError, "g_pfnFenceResolve is NULL");
 		return eError;
 	}
+
+#if (ENABLE_SYNC_CHECKPOINT_FENCE_DEBUG == 1)
+	psContextCtl = psSyncCheckpointContext->psContextCtl;
+
+	PVR_DPF((PVR_DBG_WARNING,
+	        "%s: Checkpoint %p DeviceID = [%u/%d]\n", __func__,
+	        psSyncCheckpointContext,
+	        psContextCtl->psDeviceNode->sDevId.ui32InternalID,
+	        psContextCtl->psDeviceNode->sDevId.i32KernelDeviceID));
+#endif
 
 	if (papsSyncCheckpoints)
 	{
@@ -677,6 +677,7 @@ SyncCheckpointResolveFence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 			}
 
 			SyncCheckpointFreeCheckpointListMem(*papsSyncCheckpoints);
+			*papsSyncCheckpoints = NULL;
 		}
 
 		return PVRSRV_ERROR_INVALID_PARAMS;
@@ -702,6 +703,65 @@ SyncCheckpointResolveFence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 					(void*)psNextCheckpoint));
 		}
 	}
+#endif
+
+	return eError;
+}
+
+PVRSRV_ERROR
+SyncCheckpointResolveExportFence(PVRSRV_FENCE hExportFence,
+                                 PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
+                                 PSYNC_CHECKPOINT *ppsSyncCheckpoint,
+                                 PDUMP_FLAGS_T ui32PDumpFlags)
+{
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	if (unlikely(!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnExportFenceResolve))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		        "%s: ERROR (eError=PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED)",
+		        __func__));
+		eError = PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED;
+		PVR_LOG_ERROR(eError, "pfnExportFenceResolve is NULL");
+		return eError;
+	}
+
+	if (ppsSyncCheckpoint)
+	{
+		eError = g_psSyncCheckpointPfnStruct->pfnExportFenceResolve(
+		                           hExportFence,
+		                           psSyncCheckpointContext,
+		                           ppsSyncCheckpoint);
+	}
+	else
+	{
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	PVR_LOG_RETURN_IF_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnExportFenceResolve");
+
+#if (ENABLE_SYNC_CHECKPOINT_FENCE_DEBUG == 1)
+	{
+		PVR_DPF((PVR_DBG_WARNING,
+		        "%s: g_psSyncCheckpointPfnStruct->pfnExportFenceResolve() for fence %d returned the following checkpoint:",
+		        __func__,
+		        hExportFence));
+
+		PVR_DPF((PVR_DBG_WARNING,
+		         "%s:   psSyncCheckpoint:<%p>",
+		         __func__,
+		         (void*)*ppsSyncCheckpoint));
+	}
+#endif
+
+#if defined(PDUMP)
+	if (*ppsSyncCheckpoint)
+	{
+		SYNC_CHECKPOINT *psSyncCheckpoint = (SYNC_CHECKPOINT *)(*ppsSyncCheckpoint);
+		psSyncCheckpoint->ui32PDumpFlags = ui32PDumpFlags;
+	}
+#else
+	PVR_UNREFERENCED_PARAMETER(ui32PDumpFlags);
 #endif
 
 	return eError;
@@ -761,9 +821,12 @@ SyncCheckpointCreateFence(PVRSRV_DEVICE_NODE *psDevNode,
 		else
 		{
 			PVR_DPF((PVR_DBG_WARNING,
-					"%s created new fence<%d> for timeline<%d> using "
-					"sync checkpoint context<%p>, new sync_checkpoint=<%p>",
+					"%s [%u/%d] created new fence<%d> for timeline<%d> "
+					"using sync checkpoint context<%p>, "
+					"new sync_checkpoint=<%p>",
 					__func__,
+					psDevNode->sDevId.ui32InternalID,
+					psDevNode->sDevId.i32KernelDeviceID,
 					*phNewFence,
 					hTimeline,
 					(void*)psSyncCheckpointContext,
@@ -794,9 +857,6 @@ SyncCheckpointRollbackFenceData(PVRSRV_FENCE hFence, void *pvFinaliseData)
 
 	if (!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnFenceDataRollback)
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: ERROR (eError=PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED)",
-				__func__));
 		eError = PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED;
 		PVR_LOG_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnFenceDataRollback is NULL");
 	}
@@ -844,11 +904,31 @@ SyncCheckpointFinaliseFence(PPVRSRV_DEVICE_NODE psDevNode,
 		PVR_LOG_IF_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnFenceFinalise returned error");
 
 		RGXSRV_HWPERF_ALLOC_FENCE(psDevNode, OSGetCurrentClientProcessIDKM(), hFence,
-		                          SyncCheckpointGetFirmwareAddr(psSyncCheckpoint),
+		                          PVRSRV_UFO_GET_FWADDR(SyncCheckpointGetFirmwareAddr(psSyncCheckpoint)),
 		                          pszName, OSStringLength(pszName));
 	}
 	return eError;
 }
+
+PVRSRV_ERROR SyncCheckpointFinaliseExportFence(PVRSRV_FENCE hExportFence)
+{
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	PVR_ASSERT(hExportFence != PVRSRV_NO_FENCE);
+
+	if (unlikely(!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnExportFenceFinalise))
+	{
+		eError = PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED;
+		PVR_LOG_ERROR(eError, "pfnExportFenceFinalise is NULL");
+		return eError;
+	}
+
+	eError = g_psSyncCheckpointPfnStruct->pfnExportFenceFinalise(hExportFence);
+	PVR_LOG_IF_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnExportFenceFinalise");
+
+	return eError;
+}
+
 
 void
 SyncCheckpointFreeCheckpointListMem(void *pvCheckpointListMem)
@@ -877,7 +957,26 @@ SyncCheckpointNoHWUpdateTimelines(void *pvPrivateData)
 		g_psSyncCheckpointPfnStruct->pfnNoHWUpdateTimelines(pvPrivateData);
 	}
 	return eError;
+}
 
+PVRSRV_ERROR
+SyncCheckpointNoHWSignalExportFence(PVRSRV_FENCE iExportFenceToSignal)
+{
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	if (!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnNoHWSignalExpFence)
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+				"%s: ERROR (eError=PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED)",
+				__func__));
+		eError = PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED;
+		PVR_LOG_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnNoHWSignalExpFence is NULL");
+	}
+	else
+	{
+		g_psSyncCheckpointPfnStruct->pfnNoHWSignalExpFence(iExportFenceToSignal);
+	}
+	return eError;
 }
 
 PVRSRV_ERROR
@@ -939,8 +1038,12 @@ _AllocSyncCheckpoint(_SYNC_CHECKPOINT_CONTEXT *psContext,
 	psNewSyncCheckpoint->psSyncCheckpointFwObj =
 	        (volatile SYNC_CHECKPOINT_FW_OBJ*)(void *)(psNewSyncCheckpoint->psSyncCheckpointBlock->pui32LinAddr +
 	                (_SyncCheckpointGetOffset(psNewSyncCheckpoint)/sizeof(IMG_UINT32)));
-	psNewSyncCheckpoint->ui32FWAddr = psNewSyncCheckpoint->psSyncCheckpointBlock->ui32FirmwareAddr +
-	                                  _SyncCheckpointGetOffset(psNewSyncCheckpoint) + 1;
+
+	psNewSyncCheckpoint->ui32FWAddr =
+	    psNewSyncCheckpoint->psSyncCheckpointBlock->ui32FirmwareAddr +
+	    _SyncCheckpointGetOffset(psNewSyncCheckpoint);
+	PVRSRV_UFO_TYPE_SET(psNewSyncCheckpoint->ui32FWAddr, PVRSRV_UFO_TYPE_SYNC_CP);
+
 	OSAtomicIncrement(&psNewSyncCheckpoint->psSyncCheckpointBlock->psContext->hCheckpointCount);
 
 #if defined(DEBUG)
@@ -1003,6 +1106,13 @@ _PrepopulateSyncCheckpointPool(_SYNC_CHECKPOINT_CONTEXT *psContext,
 		eError = _AllocSyncCheckpoint(psContext, &psNewSyncCheckpoint);
 		PVR_LOG_RETURN_IF_ERROR(eError, "_AllocSyncCheckpoint");
 
+#if defined(PDUMP)
+		if (ui32SyncCheckpoint == 0)
+		{
+			psContext->psContextCtl->psSyncCheckpointPoolBlock = psNewSyncCheckpoint->psSyncCheckpointBlock;
+		}
+#endif
+
 		if (!_PutCheckpointInPool(psNewSyncCheckpoint))
 		{
 			_FreeSyncCheckpoint(psNewSyncCheckpoint);
@@ -1026,13 +1136,10 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	IMG_CHAR azTempName[PVRSRV_SYNC_NAME_LENGTH] = {0};
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
+#if !defined(PDUMP)
 	void *pvAppHintState = NULL;
-	const IMG_UINT32 ui32DefaultMaxPoolLog2Size = 8;
-#if defined(PDUMP)
-	/* Pdumps start with an empty pool to avoid extra work allocating checkpoints which might not be used. */
-	const IMG_UINT32 ui32DefaultInitPoolLog2Size = 0;
-#else
-	const IMG_UINT32 ui32DefaultInitPoolLog2Size = 7;
+	const IMG_UINT32 ui32DefaultMaxPoolLog2Size = PVRSRV_APPHINT_CHECKPOINTPOOLMAXLOG2;
+	const IMG_UINT32 ui32DefaultInitPoolLog2Size = PVRSRV_APPHINT_CHECKPOINTPOOLINITLOG2;
 #endif
 	IMG_UINT32 ui32MaxPoolLog2Size;
 	IMG_UINT32 ui32InitPoolLog2Size;
@@ -1045,6 +1152,20 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	                  PVRSRV_ERROR_INVALID_PARAMS);
 
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
+#if defined(PDUMP)
+	/*
+	   Pdumps use the maximum pool size to limit checkpoint address reuse and start with
+	   a minimum pool to avoid extra work allocating checkpoints which might not be used.
+	   Since during a pdump capture the pool is setup once during the pdump init phase
+	   and not emptied / de-initialised between captures we need to map at least one
+	   checkpoint at creation time, so that the pdump records the CPU mapping of the
+	   pool. Not doing this would lead to errors on subsequent pdump captures because
+	   only the first pdump would contain the mapping.
+	*/
+	ui32MaxPoolLog2Size = 10;
+	ui32InitPoolLog2Size = 0;
+	ui32InitPoolSize = 1;
+#else
 	/* Read AppHints to determine the size of the sync checkpoint pool, if specified */
 	OSCreateAppHintState(&pvAppHintState);
 	OSGetAppHintUINT32(APPHINT_NO_DEVICE, pvAppHintState, SyncCheckpointPoolMaxLog2,
@@ -1052,6 +1173,7 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	OSGetAppHintUINT32(APPHINT_NO_DEVICE, pvAppHintState, SyncCheckpointPoolInitLog2,
 	                     &ui32DefaultInitPoolLog2Size, &ui32InitPoolLog2Size);
 	OSFreeAppHintState(pvAppHintState);
+#endif
 
 	if (ui32MaxPoolLog2Size > 0)
 	{
@@ -1067,7 +1189,7 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	PVR_LOG_GOTO_IF_NOMEM(psContext, eError, fail_alloc); /* Sets OOM error code */
 
 	/* psContextCtl includes allocation for the sync checkpoint pool) */
-	psContextCtl = OSAllocMem(sizeof(*psContextCtl) + (sizeof(SYNC_CHECKPOINT*) * ui32MaxPoolSize));
+	psContextCtl = OSAllocMem(sizeof(*psContextCtl) + IMG_FLEX_ARRAY_SIZE(sizeof(SYNC_CHECKPOINT*), ui32MaxPoolSize));
 	PVR_LOG_GOTO_IF_NOMEM(psContextCtl, eError, fail_alloc2); /* Sets OOM error code */
 
 	eError = OSSpinLockCreate(&psContextCtl->hDeferredCleanupListLock);
@@ -1083,6 +1205,10 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	psContextCtl->ui32SyncCheckpointPoolCount = 0;
 	psContextCtl->ui32SyncCheckpointPoolWp = 0;
 	psContextCtl->ui32SyncCheckpointPoolRp = 0;
+#if defined(PDUMP)
+	psContextCtl->psSyncCheckpointPoolBlock = NULL;
+	psContextCtl->bAllocateFromCheckpointPool = IMG_FALSE;
+#endif
 	psContextCtl->ui8PoolStateFlags = SYNC_CHECKPOINT_POOL_VALID;
 #endif
 	psContextCtl->psDeviceNode = (SHARED_DEV_CONNECTION)psDevNode;
@@ -1099,7 +1225,7 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	psContext->psSubAllocRA = RA_Create(azTempName,
 	                                    /* Params for imports */
 	                                    _Log2(sizeof(IMG_UINT32)),
-	                                    RA_LOCKCLASS_2,
+	                                    RA_LOCKCLASS_3,
 	                                    _SyncCheckpointBlockImport,
 	                                    _SyncCheckpointBlockUnimport,
 	                                    psContext,
@@ -1161,6 +1287,8 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 
 	psContextCtl->ui32CurrentInUseSyncCheckpoints = 0;
 	psContextCtl->ui32MaxInUseSyncCheckpoints = 0;
+	psContextCtl->ui32CurrentInUseMirroringSyncCPs = 0;
+	psContextCtl->ui32MaxInUseMirroringSyncCPs = 0;
 	eError = OSSpinLockCreate(&psContextCtl->hSyncCheckpointStatsLock);
 	PVR_GOTO_IF_ERROR(eError, fail_span_stat);
 
@@ -1214,11 +1342,9 @@ fail_span:
 fail_suballoc:
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
 	OSSpinLockDestroy(psContextCtl->hSyncCheckpointPoolLock);
-	psContextCtl->hSyncCheckpointPoolLock = NULL;
 fail_create_pool_lock:
 #endif
 	OSSpinLockDestroy(psContextCtl->hDeferredCleanupListLock);
-	psContextCtl->hDeferredCleanupListLock = NULL;
 fail_create_deferred_cleanup_lock:
 	OSFreeMem(psContextCtl);
 fail_alloc2:
@@ -1271,7 +1397,7 @@ PVRSRV_ERROR SyncCheckpointContextDestroy(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpo
 
 	if (iRf != 0)
 	{
-		OS_SPINLOCK_FLAGS uiFlags;
+		OS_SPINLOCK_FLAGS uiFlags = 0;
 
 		/* Note, this is not a permanent error as the caller may retry later */
 		PVR_DPF((PVR_DBG_WARNING,
@@ -1308,7 +1434,7 @@ PVRSRV_ERROR SyncCheckpointContextDestroy(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpo
 								"PVRSRV_SYNC_CHECKPOINT_SIGNALLED" :
 								ui32State == PVRSRV_SYNC_CHECKPOINT_ACTIVE ?
 										"PVRSRV_SYNC_CHECKPOINT_ACTIVE" : "PVRSRV_SYNC_CHECKPOINT_ERRORED",
-						psSyncCheckpoint->ui32FWAddr,
+						PVRSRV_UFO_GET_FWADDR(psSyncCheckpoint->ui32FWAddr),
 						OSAtomicRead(&psSyncCheckpoint->hEnqueuedCCBCount),
 						psSyncCheckpoint->psSyncCheckpointFwObj->ui32FwRefCount,
 						bDeferredFree ? "(deferred free)" : ""));
@@ -1338,7 +1464,7 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 	SYNC_CHECKPOINT *psNewSyncCheckpoint = NULL;
 	_SYNC_CHECKPOINT_CONTEXT *psSyncContextInt = (_SYNC_CHECKPOINT_CONTEXT*)psSyncContext;
 	PVRSRV_DEVICE_NODE *psDevNode;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 	PVRSRV_ERROR eError;
 
 	PVR_LOG_RETURN_IF_FALSE((psSyncContext != NULL), "psSyncContext invalid", PVRSRV_ERROR_INVALID_PARAMS);
@@ -1366,6 +1492,21 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 	{
 		eError = _AllocSyncCheckpoint(psSyncContextInt, &psNewSyncCheckpoint);
 		PVR_LOG_GOTO_IF_NOMEM(psNewSyncCheckpoint, eError, fail_alloc); /* Sets OOM error code */
+
+#if (SYNC_CHECKPOINT_POOL_LIMIT > 0) && defined(PDUMP)
+		/* If the pool is not yet enabled and we allocated all the block, then the pool is ready to use. */
+		if (!psSyncContextInt->psContextCtl->bAllocateFromCheckpointPool)
+		{
+			RA_USAGE_STATS  sRAUsageStats;
+
+			RA_Get_Usage_Stats(psSyncContextInt->psSubAllocRA, &sRAUsageStats);
+
+			if (sRAUsageStats.ui64FreeArenaSize < sizeof(SYNC_CHECKPOINT_FW_OBJ))
+			{
+				psSyncContextInt->psContextCtl->bAllocateFromCheckpointPool = IMG_TRUE;
+			}
+		}
+#endif
 	}
 
 	OSSpinLockAcquire(psSyncContextInt->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
@@ -1373,7 +1514,17 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 	{
 		psSyncContextInt->psContextCtl->ui32MaxInUseSyncCheckpoints = psSyncContextInt->psContextCtl->ui32CurrentInUseSyncCheckpoints;
 	}
+	if ((hTimeline == SYNC_CHECKPOINT_MIRRORED_CHECKPOINT) &&
+	    ++psSyncContextInt->psContextCtl->ui32CurrentInUseMirroringSyncCPs > psSyncContextInt->psContextCtl->ui32MaxInUseMirroringSyncCPs)
+	{
+		psSyncContextInt->psContextCtl->ui32MaxInUseMirroringSyncCPs = psSyncContextInt->psContextCtl->ui32CurrentInUseMirroringSyncCPs;
+	}
 	OSSpinLockRelease(psSyncContextInt->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
+
+	if (hTimeline == SYNC_CHECKPOINT_MIRRORED_CHECKPOINT)
+	{
+		PVRSRV_UFO_TYPE_SET(psNewSyncCheckpoint->ui32FWAddr, PVRSRV_UFO_TYPE_MIRRORED_SYNC_CP);
+	}
 
 	psNewSyncCheckpoint->hTimeline = hTimeline;
 	OSAtomicWrite(&psNewSyncCheckpoint->hRefCount, 1);
@@ -1386,7 +1537,7 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 	if (pszCheckpointName)
 	{
 		/* Copy over the checkpoint name annotation */
-		OSStringLCopy(psNewSyncCheckpoint->azName, pszCheckpointName, PVRSRV_SYNC_NAME_LENGTH);
+		OSStringSafeCopy(psNewSyncCheckpoint->azName, pszCheckpointName, PVRSRV_SYNC_NAME_LENGTH);
 	}
 	else
 	{
@@ -1410,9 +1561,9 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 	RGXSRV_HWPERF_ALLOC_SYNC_CP(psDevNode, psNewSyncCheckpoint->hTimeline,
 	                            OSGetCurrentClientProcessIDKM(),
 	                            hFence,
-	                            psNewSyncCheckpoint->ui32FWAddr,
+	                            PVRSRV_UFO_GET_FWADDR(psNewSyncCheckpoint->ui32FWAddr),
 	                            psNewSyncCheckpoint->azName,
-	                            sizeof(psNewSyncCheckpoint->azName));
+	                            OSStringLength(psNewSyncCheckpoint->azName));
 
 	if (GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED)
 	{
@@ -1421,7 +1572,7 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 		if (pszCheckpointName)
 		{
 			/* Copy the checkpoint name annotation into a fixed-size array */
-			OSStringLCopy(szChkptName, pszCheckpointName, PVRSRV_SYNC_NAME_LENGTH);
+			OSStringSafeCopy(szChkptName, pszCheckpointName, PVRSRV_SYNC_NAME_LENGTH);
 		}
 		else
 		{
@@ -1434,7 +1585,7 @@ SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
 		                                 psNewSyncCheckpoint->psSyncCheckpointBlock->ui32FirmwareAddr,
 		                                 _SyncCheckpointGetOffset(psNewSyncCheckpoint),
 		                                 psNewSyncCheckpoint->ui32UID,
-		                                 OSStringNLength(szChkptName, PVRSRV_SYNC_NAME_LENGTH),
+		                                 OSStringNLength(szChkptName, PVRSRV_SYNC_NAME_LENGTH-1)+1,
 		                                 szChkptName, (PSYNC_CHECKPOINT)psNewSyncCheckpoint);
 		if (eError != PVRSRV_OK)
 		{
@@ -1468,11 +1619,107 @@ fail_alloc:
 	return eError;
 }
 
+/*************************************************************************/ /*!
+@Function       SyncCheckpointInjectFFToken
+
+@Description    Takes a pre-allocated SYNC_CHECKPOINT and stores the FF token
+                within the SYNC_CHECKPOINT_FW_OBJ.
+
+
+@Input          psSyncContext           The context the sync checkpoint belongs to.
+@Input          psSyncCheckpoint        The sync checkpoint to inject the FFToken
+                                        into.
+@Input          hEnvFenceObjPtr         The environment fence that is used to
+                                        retrieve the FF token.
+
+@Return         void
+*/
+/*****************************************************************************/
+static void SyncCheckpointInjectFFToken(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
+                                        PSYNC_CHECKPOINT psSyncCheckpoint,
+                                        IMG_HANDLE hEnvFenceObjPtr)
+{
+#if defined(SUPPORT_NATIVE_FENCE_SYNC)
+	PVRSRV_DEVICE_NODE *psDevNode;
+	PVRSRV_DEVICE_CONFIG *psDevCfg;
+	volatile IMG_UINT32 *pui32UserData;
+	IMG_UINT16 ui16FFToken;
+
+	PVR_ASSERT(psSyncContext != NULL);
+	PVR_ASSERT(psSyncCheckpoint != NULL);
+	PVR_ASSERT(hEnvFenceObjPtr != NULL);
+
+	psDevNode = psSyncContext->psContextCtl->psDeviceNode;
+	PVR_ASSERT(psDevNode != NULL);
+
+	psDevCfg = psDevNode->psDevConfig;
+	PVR_ASSERT(psDevCfg != NULL);
+
+	pui32UserData = &psSyncCheckpoint->psSyncCheckpointFwObj->ui32UserData;
+	if (psDevCfg->pfnSysDevExtractFFToken != NULL)
+	{
+		if (psDevCfg->pfnSysDevExtractFFToken(psDevCfg->hSysData, hEnvFenceObjPtr, &ui16FFToken))
+		{
+			/* Set FF token and mark as valid */
+			*pui32UserData |= SYNC_CHECKPOINT_FW_UD_FF_TOKEN_VALID_EN | ui16FFToken;
+			return;
+		}
+	}
+
+	/* Ensure FF token is marked as invalid */
+	*pui32UserData &= ~SYNC_CHECKPOINT_FW_UD_FF_TOKEN_VALID_EN;
+#else
+	PVR_UNREFERENCED_PARAMETER(psSyncContext);
+	PVR_UNREFERENCED_PARAMETER(psSyncCheckpoint);
+	PVR_UNREFERENCED_PARAMETER(hEnvFenceObjPtr);
+#endif
+}
+
+PVRSRV_ERROR SyncCheckpointAllocProxy(PSYNC_CHECKPOINT_CONTEXT psSyncContext,
+                                      PVRSRV_FENCE hFence,
+                                      IMG_HANDLE hEnvFenceObjPtr,
+                                      IMG_BOOL bIsPVRSWFence,
+                                      const IMG_CHAR *pszCheckpointName,
+                                      PSYNC_CHECKPOINT *ppsSyncCheckpoint)
+{
+	IMG_BOOL bInjectToken = IMG_FALSE;
+	PVRSRV_ERROR eError;
+
+	PVR_ASSERT(psSyncContext != NULL);
+	PVR_ASSERT(hEnvFenceObjPtr != NULL);
+	PVR_ASSERT(ppsSyncCheckpoint != NULL);
+
+	/* No asserts needed for pszCheckpointName and hFence. SyncCheckpointAlloc
+	 * will handle a NULL pszCheckpointName, and hFence determines if the
+	 * foreign fence should have a token injected into the sync checkpoint. */
+
+	eError = SyncCheckpointAlloc(psSyncContext,
+	                             SYNC_CHECKPOINT_FOREIGN_CHECKPOINT,
+	                             hFence,
+	                             pszCheckpointName,
+	                             ppsSyncCheckpoint);
+	PVR_LOG_RETURN_IF_ERROR(eError, "SyncCheckpointAlloc");
+
+#if defined(SUPPORT_SW_FENCE_TOKEN_WORKAROUND)
+	bInjectToken = hFence != PVRSRV_NO_FENCE;
+#else
+	bInjectToken = !bIsPVRSWFence && hFence != PVRSRV_NO_FENCE;
+#endif
+
+	if (bInjectToken)
+	{
+		SyncCheckpointInjectFFToken(psSyncContext, *ppsSyncCheckpoint, hEnvFenceObjPtr);
+	}
+
+	return eError;
+}
+
+
 static void SyncCheckpointUnref(SYNC_CHECKPOINT *psSyncCheckpointInt)
 {
 	_SYNC_CHECKPOINT_CONTEXT *psContext;
 	PVRSRV_DEVICE_NODE *psDevNode;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	psContext = psSyncCheckpointInt->psSyncCheckpointBlock->psContext;
 	psDevNode = (PVRSRV_DEVICE_NODE *)psContext->psContextCtl->psDeviceNode;
@@ -1498,12 +1745,14 @@ static void SyncCheckpointUnref(SYNC_CHECKPOINT *psSyncCheckpointInt)
 		if (psSyncCheckpointInt->psSyncCheckpointFwObj->ui32FwRefCount ==
 				(IMG_UINT32)(OSAtomicRead(&psSyncCheckpointInt->hEnqueuedCCBCount)))
 		{
+			PVRSRV_ERROR eError;
+
 #if (ENABLE_SYNC_CHECKPOINT_ALLOC_AND_FREE_DEBUG == 1)
 			PVR_DPF((PVR_DBG_WARNING,
 					"%s No outstanding FW ops and hRef is zero, deleting SyncCheckpoint..",
 					__func__));
 #endif
-			PVRSRV_ERROR eError;
+
 			if ((GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED)
 				&& psSyncCheckpointInt->hRecord)
 			{
@@ -1517,10 +1766,14 @@ static void SyncCheckpointUnref(SYNC_CHECKPOINT *psSyncCheckpointInt)
 			dllist_remove_node(&psSyncCheckpointInt->sListNode);
 			OSSpinLockRelease(psDevNode->hSyncCheckpointListLock, uiFlags);
 
-			RGXSRV_HWPERF_FREE(psDevNode, SYNC_CP, psSyncCheckpointInt->ui32FWAddr);
+			RGXSRV_HWPERF_FREE(psDevNode, SYNC_CP, PVRSRV_UFO_GET_FWADDR(psSyncCheckpointInt->ui32FWAddr));
 
 			OSSpinLockAcquire(psContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
 			psContext->psContextCtl->ui32CurrentInUseSyncCheckpoints--;
+			if (psSyncCheckpointInt->hTimeline == SYNC_CHECKPOINT_MIRRORED_CHECKPOINT)
+			{
+				psContext->psContextCtl->ui32CurrentInUseMirroringSyncCPs--;
+			}
 			OSSpinLockRelease(psContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
 
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
@@ -1553,7 +1806,7 @@ static void SyncCheckpointUnref(SYNC_CHECKPOINT *psSyncCheckpointInt)
 		}
 		else
 		{
-			OS_SPINLOCK_FLAGS uiFlags;
+			OS_SPINLOCK_FLAGS uiFlags = 0;
 #if ((ENABLE_SYNC_CHECKPOINT_DEFERRED_CLEANUP_DEBUG == 1) || (ENABLE_SYNC_CHECKPOINT_ALLOC_AND_FREE_DEBUG == 1))
 			PVR_DPF((PVR_DBG_WARNING,
 					"%s Outstanding FW ops hEnqueuedCCBCount=%d != FwObj->ui32FwRefCount=%d "
@@ -1779,14 +2032,14 @@ IMG_BOOL SyncCheckpointIsSignalled(PSYNC_CHECKPOINT psSyncCheckpoint, IMG_UINT32
 				{
 					PVR_DPF((PVR_DBG_ERROR, "%s: PCI error - state=0x%x, ID=%d, %s, fwaddr=%#08x",
 							 __func__, ui32State, psSyncCheckpoint->ui32UID,
-							 psSyncCheckpoint->azName, psSyncCheckpoint->ui32FWAddr));
+							 psSyncCheckpoint->azName, PVRSRV_UFO_GET_FWADDR(psSyncCheckpoint->ui32FWAddr)));
 					bRet = IMG_TRUE;
 				}
 				else
 				{
 					PVR_DPF((PVR_DBG_ERROR, "%s: unknown state (0x%x) - ID=%d, %s, fwaddr=%#08x",
 							 __func__, ui32State, psSyncCheckpoint->ui32UID,
-							 psSyncCheckpoint->azName, psSyncCheckpoint->ui32FWAddr));
+							 psSyncCheckpoint->azName, PVRSRV_UFO_GET_FWADDR(psSyncCheckpoint->ui32FWAddr)));
 				}
 				break;
 			}
@@ -2055,7 +2308,7 @@ IMG_UINT32 SyncCheckpointStateFromUFO(PPVRSRV_DEVICE_NODE psDevNode,
 	SYNC_CHECKPOINT *psSyncCheckpointInt;
 	PDLLIST_NODE psNode, psNext;
 	IMG_UINT32 ui32State = 0;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	OSSpinLockAcquire(psDevNode->hSyncCheckpointListLock, uiFlags);
 	dllist_foreach_node(&psDevNode->sSyncCheckpointSyncsList, psNode, psNext)
@@ -2076,13 +2329,13 @@ void SyncCheckpointErrorFromUFO(PPVRSRV_DEVICE_NODE psDevNode,
 {
 	SYNC_CHECKPOINT *psSyncCheckpointInt;
 	PDLLIST_NODE psNode, psNext;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 #if (ENABLE_SYNC_CHECKPOINT_UFO_DEBUG == 1)
 	PVR_DPF((PVR_DBG_WARNING,
 			"%s called to error UFO with ui32FWAddr=%d",
 			__func__,
-			ui32FwAddr));
+			PVRSRV_UFO_GET_FWADDR(ui32FwAddr)));
 #endif
 
 	OSSpinLockAcquire(psDevNode->hSyncCheckpointListLock, uiFlags);
@@ -2111,13 +2364,13 @@ void SyncCheckpointRollbackFromUFO(PPVRSRV_DEVICE_NODE psDevNode, IMG_UINT32 ui3
 	PVR_DPF((PVR_DBG_WARNING,
 			"%s called to rollback UFO with ui32FWAddr=0x%x",
 			__func__,
-			ui32FwAddr));
+			PVRSRV_UFO_GET_FWADDR(ui32FwAddr)));
 #endif
 #if !defined(NO_HARDWARE)
 	{
 		SYNC_CHECKPOINT *psSyncCheckpointInt = NULL;
 		PDLLIST_NODE psNode = NULL, psNext = NULL;
-		OS_SPINLOCK_FLAGS uiFlags;
+		OS_SPINLOCK_FLAGS uiFlags = 0;
 
 		OSSpinLockAcquire(psDevNode->hSyncCheckpointListLock, uiFlags);
 		dllist_foreach_node(&psDevNode->sSyncCheckpointSyncsList, psNode, psNext)
@@ -2142,6 +2395,34 @@ void SyncCheckpointRollbackFromUFO(PPVRSRV_DEVICE_NODE psDevNode, IMG_UINT32 ui3
 #endif
 }
 
+PVRSRV_ERROR SyncCheckpointRollbackExportFence(PVRSRV_FENCE hExportFence)
+{
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	if (unlikely(!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnExportFenceRollback))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		        "%s: ERROR (eError=PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED)",
+		        __func__));
+		eError = PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED;
+		PVR_LOG_ERROR(eError, "pfnExportFenceRollback is NULL");
+		return eError;
+	}
+
+	if (hExportFence != PVRSRV_NO_FENCE)
+	{
+		eError = g_psSyncCheckpointPfnStruct->pfnExportFenceRollback(hExportFence);
+	}
+	else
+	{
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	PVR_LOG_RETURN_IF_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnExportFenceRollback");
+
+	return eError;
+}
+
 static void _SyncCheckpointState(PDLLIST_NODE psNode,
 					DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 					void *pvDumpDebugFile)
@@ -2150,14 +2431,16 @@ static void _SyncCheckpointState(PDLLIST_NODE psNode,
 
 	if (psSyncCheckpoint->psSyncCheckpointFwObj->ui32State == PVRSRV_SYNC_CHECKPOINT_ACTIVE)
 	{
-		PVR_DUMPDEBUG_LOG("\t- ID = %d, FWAddr = 0x%08x, r%d:e%d:f%d: %s",
-		                   psSyncCheckpoint->ui32UID,
-		                   psSyncCheckpoint->psSyncCheckpointBlock->ui32FirmwareAddr +
-		                   _SyncCheckpointGetOffset(psSyncCheckpoint),
-		                   OSAtomicRead(&psSyncCheckpoint->hRefCount),
-		                   OSAtomicRead(&psSyncCheckpoint->hEnqueuedCCBCount),
-		                   psSyncCheckpoint->psSyncCheckpointFwObj->ui32FwRefCount,
-		                   psSyncCheckpoint->azName);
+		PVR_DUMPDEBUG_LOG("\t- ID = %d, FWAddr = 0x%08x, r%d:e%d:f%d: %s%s, FW User Data = 0x%08X",
+		                  psSyncCheckpoint->ui32UID,
+		                  psSyncCheckpoint->psSyncCheckpointBlock->ui32FirmwareAddr +
+		                  _SyncCheckpointGetOffset(psSyncCheckpoint),
+		                  OSAtomicRead(&psSyncCheckpoint->hRefCount),
+		                  OSAtomicRead(&psSyncCheckpoint->hEnqueuedCCBCount),
+		                  psSyncCheckpoint->psSyncCheckpointFwObj->ui32FwRefCount,
+		                  PVRSRV_UFO_IS_MIRROR_FWADDR(psSyncCheckpoint->ui32FWAddr) ? "(M) " : "",
+		                  psSyncCheckpoint->azName,
+		                  psSyncCheckpoint->psSyncCheckpointFwObj->ui32UserData);
 	}
 }
 
@@ -2168,7 +2451,7 @@ static void _SyncCheckpointDebugRequest(PVRSRV_DBGREQ_HANDLE hDebugRequestHandle
 {
 	PVRSRV_DEVICE_NODE *psDevNode = (PVRSRV_DEVICE_NODE *)hDebugRequestHandle;
 	DLLIST_NODE *psNode, *psNext;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	if (psDevNode->hSyncCheckpointContext == NULL) return;
 
@@ -2180,6 +2463,9 @@ static void _SyncCheckpointDebugRequest(PVRSRV_DBGREQ_HANDLE hDebugRequestHandle
 		PVR_DUMPDEBUG_LOG("(SyncCP Counts: InUse:%d Max:%d)",
 		                  psDevNode->hSyncCheckpointContext->psContextCtl->ui32CurrentInUseSyncCheckpoints,
 		                  psDevNode->hSyncCheckpointContext->psContextCtl->ui32MaxInUseSyncCheckpoints);
+		PVR_DUMPDEBUG_LOG("(SyncCP Mirroring Counts: InUse:%d Max:%d)",
+		                  psDevNode->hSyncCheckpointContext->psContextCtl->ui32CurrentInUseMirroringSyncCPs,
+		                  psDevNode->hSyncCheckpointContext->psContextCtl->ui32MaxInUseMirroringSyncCPs);
 		OSSpinLockRelease(psDevNode->hSyncCheckpointContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
 
 		OSSpinLockAcquire(psDevNode->hSyncCheckpointListLock, uiFlags);
@@ -2222,7 +2508,6 @@ SyncCheckpointInit(PPVRSRV_DEVICE_NODE psDevNode)
 	eError = OSSpinLockCreate(&psDevInfo->hSyncCheckpointSignalSpinLock);
 	if (eError != PVRSRV_OK)
 	{
-		psDevInfo->hSyncCheckpointSignalSpinLock = NULL;
 		goto e1;
 	}
 
@@ -2286,13 +2571,11 @@ e3:
 	psDevNode->hSyncCheckpointSignalLock = NULL;
 e2:
 	OSSpinLockDestroy(psDevInfo->hSyncCheckpointSignalSpinLock);
-	psDevInfo->hSyncCheckpointSignalSpinLock = NULL;
 e1:
 	_SyncCheckpointRecordListDeinit(psDevNode);
 #endif
 e0:
 	OSSpinLockDestroy(psDevNode->hSyncCheckpointListLock);
-	psDevNode->hSyncCheckpointListLock = NULL;
 
 	return eError;
 }
@@ -2328,17 +2611,14 @@ void SyncCheckpointDeinit(PPVRSRV_DEVICE_NODE psDevNode)
 		OSLockDestroy(psDevNode->hSyncCheckpointSignalLock);
 		psDevNode->hSyncCheckpointSignalLock = NULL;
 	}
-	if (psDevInfo->hSyncCheckpointSignalSpinLock)
-	{
-		OSSpinLockDestroy(psDevInfo->hSyncCheckpointSignalSpinLock);
-		psDevInfo->hSyncCheckpointSignalSpinLock = NULL;
-	}
+
+	OSSpinLockDestroy(psDevInfo->hSyncCheckpointSignalSpinLock);
 #endif
 
 	PVRSRVUnregisterDeviceDbgRequestNotify(psDevNode->hSyncCheckpointNotify);
 	psDevNode->hSyncCheckpointNotify = NULL;
 	OSSpinLockDestroy(psDevNode->hSyncCheckpointListLock);
-	psDevNode->hSyncCheckpointListLock = NULL;
+
 	if (GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED)
 	{
 		_SyncCheckpointRecordListDeinit(psDevNode);
@@ -2363,24 +2643,26 @@ void SyncCheckpointRecordLookup(PPVRSRV_DEVICE_NODE psDevNode, IMG_UINT32 ui32Fw
 	{
 		struct SYNC_CHECKPOINT_RECORD *psSyncCheckpointRec =
 				IMG_CONTAINER_OF(psNode, struct SYNC_CHECKPOINT_RECORD, sNode);
-		if ((psSyncCheckpointRec->ui32FwBlockAddr + psSyncCheckpointRec->ui32SyncOffset + 1) == ui32FwAddr)
+		if ((psSyncCheckpointRec->ui32FwBlockAddr + psSyncCheckpointRec->ui32SyncOffset) ==
+		    PVRSRV_UFO_GET_FWADDR(ui32FwAddr))
 		{
 			SYNC_CHECKPOINT_BLOCK *psSyncCheckpointBlock = psSyncCheckpointRec->psSyncCheckpointBlock;
 			if (psSyncCheckpointBlock && psSyncCheckpointBlock->pui32LinAddr)
 			{
 				void *pSyncCheckpointAddr = IMG_OFFSET_ADDR(psSyncCheckpointBlock->pui32LinAddr,
 													psSyncCheckpointRec->ui32SyncOffset);
-				OSSNPrintf(pszSyncInfo, len, "%s Checkpoint:%05u (%s)",
+				OSSNPrintf(pszSyncInfo, len, "%s Checkpoint:%05u %s(%s)",
 				           (*(IMG_UINT32*)pSyncCheckpointAddr == PVRSRV_SYNC_CHECKPOINT_SIGNALLED) ?
 				                   "SIGNALLED" :
 				                   ((*(IMG_UINT32*)pSyncCheckpointAddr == PVRSRV_SYNC_CHECKPOINT_ERRORED) ?
 				                           "ERRORED" : "ACTIVE"),
-				                           psSyncCheckpointRec->uiPID,
-				                           psSyncCheckpointRec->szClassName);
+				           psSyncCheckpointRec->uiPID,
+				           PVRSRV_UFO_IS_MIRROR_FWADDR(ui32FwAddr) ? "(M) " : "",
+				           psSyncCheckpointRec->szClassName);
 			}
 			else
 			{
-				OSSNPrintf(pszSyncInfo, len, "Checkpoint:%05u (%s)",
+				OSSNPrintf(pszSyncInfo, len, " Checkpoint:%05u (%s)",
 				           psSyncCheckpointRec->uiPID,
 				           psSyncCheckpointRec->szClassName);
 			}
@@ -2431,7 +2713,7 @@ _SyncCheckpointRecordAdd(
 		if (ui32ClassNameSize >= PVRSRV_SYNC_NAME_LENGTH)
 			ui32ClassNameSize = PVRSRV_SYNC_NAME_LENGTH;
 		/* Copy over the class name annotation */
-		OSStringLCopy(psSyncRec->szClassName, pszClassName, ui32ClassNameSize);
+		OSStringSafeCopy(psSyncRec->szClassName, pszClassName, ui32ClassNameSize);
 	}
 	else
 	{
@@ -2529,7 +2811,8 @@ static void _SyncCheckpointRecordPrint(struct SYNC_CHECKPOINT_RECORD *psSyncChec
 		pSyncCheckpointAddr = IMG_OFFSET_ADDR(psSyncCheckpointBlock->pui32LinAddr,
 											psSyncCheckpointRec->ui32SyncOffset);
 
-		PVR_DUMPDEBUG_LOG("\t%05u %05" IMG_UINT64_FMTSPEC ".%09u %010u FWAddr=0x%08x (r%d:e%d:f%d) State=%s (%s)",
+		PVR_DUMPDEBUG_LOG("\t%05u %05" IMG_UINT64_FMTSPEC ".%09u %010u "
+		                  "FWAddr=0x%08x (r%d:e%d:f%d) State=%s %s(%s)",
 		                  psSyncCheckpointRec->uiPID,
 		                  ui64DeltaS, ui32DeltaF, psSyncCheckpointRec->ui32UID,
 		                  (psSyncCheckpointRec->ui32FwBlockAddr+psSyncCheckpointRec->ui32SyncOffset),
@@ -2540,7 +2823,8 @@ static void _SyncCheckpointRecordPrint(struct SYNC_CHECKPOINT_RECORD *psSyncChec
 		                          "SIGNALLED" :
 		                          ((*(IMG_UINT32*)pSyncCheckpointAddr == PVRSRV_SYNC_CHECKPOINT_ERRORED) ?
 		                                  "ERRORED" : "ACTIVE"),
-		                                  psSyncCheckpointRec->szClassName);
+		                  PVRSRV_UFO_IS_MIRROR_FWADDR(psSyncCheckpoint->ui32FWAddr) ? "(M) " : "",
+		                  psSyncCheckpointRec->szClassName);
 	}
 	else
 	{
@@ -2733,7 +3017,7 @@ _SyncCheckpointUpdatePDump(PPVRSRV_DEVICE_NODE psDevNode, SYNC_CHECKPOINT *psSyn
 	else
 	{
 		_SYNC_CHECKPOINT_DEFERRED_SIGNAL *psSyncData;
-		OS_SPINLOCK_FLAGS uiFlags;
+		OS_SPINLOCK_FLAGS uiFlags = 0;
 		IMG_UINT16 ui16NewWriteIdx;
 
 		OSSpinLockAcquire(psDevInfo->hSyncCheckpointSignalSpinLock, uiFlags);
@@ -2765,7 +3049,7 @@ static void
 MISRHandler_PdumpDeferredSyncSignalPoster(void *pvData)
 {
 	PPVRSRV_DEVICE_NODE psDevNode = (PPVRSRV_DEVICE_NODE) pvData;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 	IMG_UINT16 ui16ReadIdx, ui16WriteIdx;
 	_SYNC_CHECKPOINT_DEFERRED_SIGNAL *psSyncData;
 	PVRSRV_RGXDEV_INFO *psDevInfo;
@@ -2812,9 +3096,6 @@ PVRSRV_ERROR PVRSRVSyncCheckpointSignalledPDumpPolKM(PVRSRV_FENCE hFence)
 	SYNC_CHECKPOINT *psSyncCheckpoint = NULL;
 	IMG_UINT32 i, uiNumCheckpoints = 0;
 	_SYNC_CHECKPOINT_CONTEXT *psContext;
-#if defined(SUPPORT_VALIDATION) && defined(SUPPORT_SOC_TIMER) && defined(NO_HARDWARE) && defined(PDUMP)
-	PVRSRV_RGXDEV_INFO *psDevInfo;
-#endif
 
 	if (hFence != PVRSRV_NO_FENCE)
 	{
@@ -2833,6 +3114,8 @@ PVRSRV_ERROR PVRSRVSyncCheckpointSignalledPDumpPolKM(PVRSRV_FENCE hFence)
 		psSyncCheckpoint = (SYNC_CHECKPOINT *)apsCheckpoints[0];
 		psContext = (_SYNC_CHECKPOINT_CONTEXT*)psSyncCheckpoint->psSyncCheckpointBlock->psContext;
 		MISRHandler_PdumpDeferredSyncSignalPoster(psContext->psContextCtl->psDeviceNode);
+
+
 	}
 
 	for (i=0; i < uiNumCheckpoints; i++)
@@ -2855,21 +3138,12 @@ PVRSRV_ERROR PVRSRVSyncCheckpointSignalledPDumpPolKM(PVRSRV_FENCE hFence)
 								psSyncCheckpoint->ui32PDumpFlags);
 			PVR_LOG_IF_ERROR(eError, "DevmemPDumpDevmemPol32");
 		}
+		/* Drop the reference taken in pfnSyncFenceGetCheckpoints() here as
+		 * we are done with the checkpoint
+		 */
+		SyncCheckpointDropRef(psSyncCheckpoint);
 	}
 
-#if defined(SUPPORT_VALIDATION) && defined(SUPPORT_SOC_TIMER) && defined(NO_HARDWARE) && defined(PDUMP)
-	/* Sampling of USC timers can only be done after synchronisation for a 3D kick is over */
-	if (uiNumCheckpoints)
-	{
-		psSyncCheckpoint = (SYNC_CHECKPOINT *)apsCheckpoints[0];
-		psContext = (_SYNC_CHECKPOINT_CONTEXT*)psSyncCheckpoint->psSyncCheckpointBlock->psContext;
-		psDevInfo = psContext->psContextCtl->psDeviceNode->pvDevice;
-		if (psDevInfo->psRGXFWIfFwSysData->ui32ConfigFlags & RGXFWIF_INICFG_VALIDATE_SOCUSC_TIMER)
-		{
-			RGXValidateSOCUSCTimer(psDevInfo, PDUMP_CONT, 0, 0, NULL);
-		}
-	}
-#endif
 
 	/* Free the memory that was allocated for the sync checkpoint list returned */
 	if (apsCheckpoints)
@@ -2921,7 +3195,7 @@ static void _CheckDeferredCleanupList(_SYNC_CHECKPOINT_CONTEXT *psContext)
 	PVRSRV_DEVICE_NODE *psDevNode = (PVRSRV_DEVICE_NODE*)psCtxCtl->psDeviceNode;
 	DECLARE_DLLIST(sCleanupList);
 	DLLIST_NODE *psNode, *psNext;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 	PVRSRV_ERROR eError;
 
 #if (ENABLE_SYNC_CHECKPOINT_DEFERRED_CLEANUP_DEBUG == 1)
@@ -2987,11 +3261,15 @@ static void _CheckDeferredCleanupList(_SYNC_CHECKPOINT_CONTEXT *psContext)
 		dllist_remove_node(&psSyncCheckpointInt->sListNode);
 		OSSpinLockRelease(psDevNode->hSyncCheckpointListLock, uiFlags);
 
-		RGXSRV_HWPERF_FREE(psDevNode, SYNC_CP, psSyncCheckpointInt->ui32FWAddr);
+		RGXSRV_HWPERF_FREE(psDevNode, SYNC_CP, PVRSRV_UFO_GET_FWADDR(psSyncCheckpointInt->ui32FWAddr));
 
 		/* Unref the checkpoint in use */
 		OSSpinLockAcquire(psContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
 		psContext->psContextCtl->ui32CurrentInUseSyncCheckpoints--;
+		if (psSyncCheckpointInt->hTimeline == SYNC_CHECKPOINT_MIRRORED_CHECKPOINT)
+		{
+			psContext->psContextCtl->ui32CurrentInUseMirroringSyncCPs--;
+		}
 		OSSpinLockRelease(psContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
 #if (SYNC_CHECKPOINT_POOL_LIMIT > 0)
 #if (ENABLE_SYNC_CHECKPOINT_DEFERRED_CLEANUP_DEBUG == 1)
@@ -3035,7 +3313,7 @@ static SYNC_CHECKPOINT *_GetCheckpointFromPool(_SYNC_CHECKPOINT_CONTEXT *psConte
 {
 	_SYNC_CHECKPOINT_CONTEXT_CTL *const psCtxCtl = psContext->psContextCtl;
 	SYNC_CHECKPOINT *psSyncCheckpoint = NULL;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	if (psCtxCtl->ui32SyncCheckpointPoolSize == 0)
 	{
@@ -3047,7 +3325,10 @@ static SYNC_CHECKPOINT *_GetCheckpointFromPool(_SYNC_CHECKPOINT_CONTEXT *psConte
 
 	/* Check if we can allocate from the pool */
 	if (CHECKPOINT_POOL_VALID(psCtxCtl) &&
-	    (psCtxCtl->ui32SyncCheckpointPoolCount > SYNC_CHECKPOINT_POOL_SEDIMENT))
+#if defined(PDUMP)
+	    psCtxCtl->bAllocateFromCheckpointPool &&
+#endif
+	    (psCtxCtl->ui32SyncCheckpointPoolCount > 0))
 	{
 		/* Get the next sync checkpoint from the pool */
 		psSyncCheckpoint = psCtxCtl->apsSyncCheckpointPool[psCtxCtl->ui32SyncCheckpointPoolRp];
@@ -3083,7 +3364,7 @@ static IMG_BOOL _PutCheckpointInPool(SYNC_CHECKPOINT *psSyncCheckpoint)
 	_SYNC_CHECKPOINT_CONTEXT *psContext = psSyncCheckpoint->psSyncCheckpointBlock->psContext;
 	_SYNC_CHECKPOINT_CONTEXT_CTL *const psCtxCtl = psContext->psContextCtl;
 	IMG_BOOL bReturnedToPool = IMG_FALSE;
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	if (psCtxCtl->ui32SyncCheckpointPoolSize == 0)
 	{
@@ -3094,7 +3375,11 @@ static IMG_BOOL _PutCheckpointInPool(SYNC_CHECKPOINT *psSyncCheckpoint)
 	OSSpinLockAcquire(psCtxCtl->hSyncCheckpointPoolLock, uiFlags);
 
 	/* Check if pool has space */
-	if (CHECKPOINT_POOL_VALID(psCtxCtl) && !(CHECKPOINT_POOL_FULL(psCtxCtl)))
+	if (CHECKPOINT_POOL_VALID(psCtxCtl) &&
+#if defined(PDUMP)
+			(psSyncCheckpoint->psSyncCheckpointBlock == psCtxCtl->psSyncCheckpointPoolBlock) &&
+#endif
+			!(CHECKPOINT_POOL_FULL(psCtxCtl)))
 	{
 		/* Put the sync checkpoint into the next write slot in the pool */
 		psCtxCtl->apsSyncCheckpointPool[psCtxCtl->ui32SyncCheckpointPoolWp] = psSyncCheckpoint;
@@ -3105,6 +3390,10 @@ static IMG_BOOL _PutCheckpointInPool(SYNC_CHECKPOINT *psSyncCheckpoint)
 		if (psCtxCtl->ui32SyncCheckpointPoolWp == psCtxCtl->ui32SyncCheckpointPoolRp)
 		{
 			SET_CHECKPOINT_POOL_FULL(psCtxCtl);
+#if defined(PDUMP)
+			/* The pool is now fully allocated and ready to use. */
+			psCtxCtl->bAllocateFromCheckpointPool = IMG_TRUE;
+#endif
 		}
 		bReturnedToPool = IMG_TRUE;
 		psSyncCheckpoint->psSyncCheckpointFwObj->ui32State = PVRSRV_SYNC_CHECKPOINT_UNDEF;
@@ -3134,8 +3423,13 @@ static IMG_UINT32 _CleanCheckpointPool(_SYNC_CHECKPOINT_CONTEXT *psContext)
 	SYNC_CHECKPOINT *psCheckpoint = NULL;
 	DECLARE_DLLIST(sCleanupList);
 	DLLIST_NODE *psThis, *psNext;
-	OS_SPINLOCK_FLAGS uiFlags;
-	IMG_UINT32 ui32ItemsFreed = 0, ui32NullScpCount = 0;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
+	IMG_UINT32 ui32ItemsFreed = 0;
+#if (ENABLE_SYNC_CHECKPOINT_POOL_DEBUG == 1)
+#if (defined(PVRSRV_NEED_PVR_DPF) && defined(DEBUG)) || defined(DOXYGEN)
+	IMG_UINT32 ui32NullScpCount = 0;
+#endif
+#endif
 
 	/* Acquire sync checkpoint pool lock */
 	OSSpinLockAcquire(psCtxCtl->hSyncCheckpointPoolLock, uiFlags);
@@ -3158,10 +3452,14 @@ static IMG_UINT32 _CleanCheckpointPool(_SYNC_CHECKPOINT_CONTEXT *psContext)
 			 * from the list so it's safe to use sListNode here */
 			dllist_add_to_head(&sCleanupList, &psCheckpoint->sListNode);
 		}
+#if (ENABLE_SYNC_CHECKPOINT_POOL_DEBUG == 1)
+#if (defined(PVRSRV_NEED_PVR_DPF) && defined(DEBUG)) || defined(DOXYGEN)
 		else
 		{
 			ui32NullScpCount++;
 		}
+#endif
+#endif
 	}
 
 	/* Release sync checkpoint pool lock */
@@ -3174,11 +3472,13 @@ static IMG_UINT32 _CleanCheckpointPool(_SYNC_CHECKPOINT_CONTEXT *psContext)
 	        "uiSyncCheckpointPoolCount=%d", __func__, (void *) psContext,
 	        psCtxCtl->ui8PoolStateFlags, psCtxCtl->ui32SyncCheckpointPoolCount));
 
+#if (defined(PVRSRV_NEED_PVR_DPF) && defined(DEBUG)) || defined(DOXYGEN)
 	if (ui32NullScpCount > 0)
 	{
 		PVR_DPF((PVR_DBG_WARNING, "%s pool contained %u NULL entries", __func__,
 		        ui32NullScpCount));
 	}
+#endif
 #endif
 
 	dllist_foreach_node(&sCleanupList, psThis, psNext)
@@ -3234,3 +3534,79 @@ static IMG_UINT32 _CleanCheckpointPool(_SYNC_CHECKPOINT_CONTEXT *psContext)
 	return ui32ItemsFreed;
 }
 #endif /* (SYNC_CHECKPOINT_POOL_LIMIT > 0) */
+
+IMG_BOOL SyncCheckpointCommonDeviceIDs(PSYNC_CHECKPOINT_CONTEXT psContext,
+									   IMG_HANDLE hDevRef)
+{
+	PVRSRV_DEVICE_NODE *psDevNode = (PVRSRV_DEVICE_NODE *)hDevRef;
+
+	if (unlikely((hDevRef == NULL) || (psContext == NULL)))
+	{
+		return IMG_TRUE;
+	}
+
+	return (psContext->psContextCtl->psDeviceNode->sDevId.i32KernelDeviceID ==
+	        psDevNode->sDevId.i32KernelDeviceID) ? IMG_TRUE : IMG_FALSE;
+}
+
+PVRSRV_ERROR SyncCheckpointGetCounters(PPVRSRV_DEVICE_NODE psDevNode,
+                                       IMG_UINT32 *puiInUse,
+                                       IMG_UINT32 *puiMax,
+                                       IMG_UINT32 *puiXDInUse,
+                                       IMG_UINT32 *puiXDMax)
+{
+	PSYNC_CHECKPOINT_CONTEXT psSyncContext;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
+
+	PVR_LOG_RETURN_IF_FALSE((psDevNode != NULL), "psDevNode invalid",
+	                        PVRSRV_ERROR_INVALID_PARAMS);
+
+	PVR_RETURN_IF_FALSE((psDevNode->hSyncCheckpointContext != NULL), PVRSRV_OK);
+
+	psSyncContext = (PSYNC_CHECKPOINT_CONTEXT)psDevNode->hSyncCheckpointContext;
+
+	PVR_LOG_RETURN_IF_FALSE((psSyncContext != NULL), "psSyncContext invalid",
+	                        PVRSRV_ERROR_INVALID_PARAMS);
+	PVR_LOG_RETURN_IF_FALSE((puiInUse != NULL), "puiInUse invalid",
+	                        PVRSRV_ERROR_INVALID_PARAMS);
+	PVR_LOG_RETURN_IF_FALSE((puiMax != NULL), "puiMax invalid",
+	                        PVRSRV_ERROR_INVALID_PARAMS);
+	PVR_LOG_RETURN_IF_FALSE((puiXDInUse != NULL), "puiXDInUse invalid",
+	                        PVRSRV_ERROR_INVALID_PARAMS);
+	PVR_LOG_RETURN_IF_FALSE((puiXDMax != NULL), "puiXDMax invalid",
+	                        PVRSRV_ERROR_INVALID_PARAMS);
+
+	OSSpinLockAcquire(psSyncContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
+	*puiInUse = psSyncContext->psContextCtl->ui32CurrentInUseSyncCheckpoints;
+	*puiMax = psSyncContext->psContextCtl->ui32MaxInUseSyncCheckpoints;
+	*puiXDInUse = psSyncContext->psContextCtl->ui32CurrentInUseMirroringSyncCPs;
+	*puiXDMax = psSyncContext->psContextCtl->ui32MaxInUseMirroringSyncCPs;
+	OSSpinLockRelease(psSyncContext->psContextCtl->hSyncCheckpointStatsLock, uiFlags);
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR SyncCheckpointGetDevIDs(PSYNC_CHECKPOINT psSyncCheckpoint,
+                                     IMG_INT32 *piKernelDevId,
+                                     IMG_UINT32 *puiInternalDevId)
+{
+	SYNC_CHECKPOINT_BLOCK *psBlock;
+	_PSYNC_CHECKPOINT_CONTEXT_CTL psContextCtl;
+
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psSyncCheckpoint != NULL, "psSyncCheckpoint");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psSyncCheckpoint->psSyncCheckpointBlock != NULL,
+	                                "psSyncCheckpointBlock");
+
+	psBlock = psSyncCheckpoint->psSyncCheckpointBlock;
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psBlock->psContext != NULL, "psContext");
+
+	psContextCtl = psBlock->psContext->psContextCtl;
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psContextCtl != NULL, "psContextCtl");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(piKernelDevId != NULL, "piKernelDevId");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(puiInternalDevId != NULL, "puiInternalDevId");
+
+	*piKernelDevId = psContextCtl->psDeviceNode->sDevId.i32KernelDeviceID;
+	*puiInternalDevId = psContextCtl->psDeviceNode->sDevId.ui32InternalID;
+
+	return PVRSRV_OK;
+}

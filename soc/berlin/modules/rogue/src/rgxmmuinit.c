@@ -52,35 +52,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_debug.h"
 #include "pvrsrv_error.h"
 #include "rgx_memallocflags.h"
-#include "rgx_heaps.h"
+#include "rgx_heaps_server.h"
 #include "pdump_km.h"
-
-#if defined(PVRSRV_TEST_FW_PREMAP_MMU)
-struct _MMUx_CONTEXT_;
-
-#if defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
-extern IMG_UINT32 PVRSRVMMU4GetPageSizeFromVirtAddr(IMG_DEV_VIRTADDR sDevVAddr,
-                                      IMG_UINT64 *pui64MMU4PageSizeRegAddr,
-                                      IMG_UINT32 ui32MMU4PageSizeRegRange);
-#endif
-
-extern PVRSRV_ERROR PVRSRVConfigureMMU(struct _MMUx_CONTEXT_ *psMMUContext,
-              IMG_DEV_VIRTADDR sDevVAddrStart,
-              IMG_DEV_VIRTADDR sDevVAddrEnd,
-              IMG_UINT32 ui32Log2PageSize);
-
-#endif
+#include "allocmem.h"
 
 /* useful macros */
 /* units represented in a bitfield */
 #define UNITS_IN_BITFIELD(Mask, Shift)	((Mask >> Shift) + 1)
-
 
 /*
  * Bits of PT, PD and PC not involving addresses
  */
 
 #if defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
+#if !defined(RGX_MMUCTRL_PT_DATA_ENTRY_PENDING_EN)
+#define RGX_MMUCTRL_PT_DATA_ENTRY_PENDING_EN (0U)
+#endif
+
 /* protection bits for MMU_VERSION <= 3 */
 #define RGX_MMUCTRL_PTE_PROTMASK	(RGX_MMUCTRL_PT_DATA_PM_META_PROTECT_EN | \
 		~RGX_MMUCTRL_PT_DATA_AXCACHE_CLRMSK | \
@@ -227,30 +215,44 @@ static PVRSRV_ERROR RGXGetPageSizeFromPDE8(IMG_UINT64 ui64PDE, IMG_UINT32 *pui32
 
 static MMU_DEVICEATTRIBS sRGXMMUDeviceAttributes;
 
-#if defined(PVRSRV_TEST_FW_PREMAP_MMU)
-
-static PVRSRV_ERROR RGXPreMapFWConfigureMMU(PVRSRV_DEVICE_NODE *psDevNode,
-		MMU_CONTEXT *psMMUContext,
-		IMG_DEV_VIRTADDR sDevVAddrStart,
-		IMG_DEV_VIRTADDR sDevVAddrEnd,
-		IMG_UINT32 ui32Log2PageSize)
-{
-	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
-	PVR_LOG(("%s: Stand alone MMU driver Log2 Page size set to %d",
-			__func__, PVRSRVMMU4GetPageSizeFromVirtAddr(sDevVAddrStart,
-			&psDevInfo->aui64MMUPageSizeRangeValue[0],
-			ARRAY_SIZE(psDevInfo->aui64MMUPageSizeRangeValue))));
-
-	return PVRSRVConfigureMMU((struct _MMUx_CONTEXT_ *) psMMUContext, sDevVAddrStart,
-			sDevVAddrEnd, ui32Log2PageSize);
-}
-
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+/* This is a basis for a pattern of parity bit values for consecutive VAs.
+   For each PT with 512 entries we'd get either this pattern or its reverse. */
+static const IMG_UINT8 ui8ParityPTPattern[512] = {
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1,
+    1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0,
+    0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0,
+    0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1,
+    0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1,
+    1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1,
+    1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1,
+    0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1,
+    1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0,
+    0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0,
+    0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0,
+    0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0,
+    0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1,
+    1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1};
 #endif
 
 PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
-#if defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
+
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK) || defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
 	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+#endif
+
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	IMG_BOOL bHaveParity = RGX_IS_FEATURE_SUPPORTED(psDevInfo, MH_PARITY);
+#endif
+
+#if defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
 	IMG_BOOL bHaveMMU4 = (RGX_GET_FEATURE_VALUE(psDevInfo, MMU_VERSION) >= 4);
 #define RGX_GET_MMUCTRL_PROTMASK(entry) \
 	(bHaveMMU4 ? RGX_MMU4CTRL_##entry##_PROTMASK : RGX_MMUCTRL_##entry##_PROTMASK)
@@ -379,6 +381,14 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUPTEConfig_4KBDP.uiValidEnMask = RGX_MMUCTRL_PT_DATA_VALID_EN;
 	sRGXMMUPTEConfig_4KBDP.uiValidEnShift = RGX_MMUCTRL_PT_DATA_VALID_SHIFT;
 
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	if (bHaveParity)
+	{
+		sRGXMMUPTEConfig_4KBDP.uiParityBitMask = RGX_MMUCTRL_PT_DATA_PT_PARITY_EN;
+		sRGXMMUPTEConfig_4KBDP.uiParityBitShift = RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+	}
+#endif
+
 	/*
 	 * Setup sRGXMMUDevVAddrConfig_4KBDP
 	 */
@@ -457,6 +467,14 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	sRGXMMUPTEConfig_16KBDP.uiValidEnMask = RGX_MMUCTRL_PT_DATA_VALID_EN;
 	sRGXMMUPTEConfig_16KBDP.uiValidEnShift = RGX_MMUCTRL_PT_DATA_VALID_SHIFT;
+
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	if (bHaveParity)
+	{
+		sRGXMMUPTEConfig_16KBDP.uiParityBitMask = RGX_MMUCTRL_PT_DATA_PT_PARITY_EN;
+		sRGXMMUPTEConfig_16KBDP.uiParityBitShift = RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+	}
+#endif
 
 	/*
 	 * Setup sRGXMMUDevVAddrConfig_16KBDP
@@ -539,6 +557,14 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUPTEConfig_64KBDP.uiValidEnMask = RGX_MMUCTRL_PT_DATA_VALID_EN;
 	sRGXMMUPTEConfig_64KBDP.uiValidEnShift = RGX_MMUCTRL_PT_DATA_VALID_SHIFT;
 
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	if (bHaveParity)
+	{
+		sRGXMMUPTEConfig_64KBDP.uiParityBitMask = RGX_MMUCTRL_PT_DATA_PT_PARITY_EN;
+		sRGXMMUPTEConfig_64KBDP.uiParityBitShift = RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+	}
+#endif
+
 	/*
 	 * Setup sRGXMMUDevVAddrConfig_64KBDP
 	 */
@@ -620,6 +646,14 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	sRGXMMUPTEConfig_256KBDP.uiValidEnMask = RGX_MMUCTRL_PT_DATA_VALID_EN;
 	sRGXMMUPTEConfig_256KBDP.uiValidEnShift = RGX_MMUCTRL_PT_DATA_VALID_SHIFT;
+
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	if (bHaveParity)
+	{
+		sRGXMMUPTEConfig_256KBDP.uiParityBitMask = RGX_MMUCTRL_PT_DATA_PT_PARITY_EN;
+		sRGXMMUPTEConfig_256KBDP.uiParityBitShift = RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+	}
+#endif
 
 	/*
 	 * Setup sRGXMMUDevVAddrConfig_256KBDP
@@ -706,6 +740,14 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUPTEConfig_1MBDP.uiValidEnMask = RGX_MMUCTRL_PT_DATA_VALID_EN;
 	sRGXMMUPTEConfig_1MBDP.uiValidEnShift = RGX_MMUCTRL_PT_DATA_VALID_SHIFT;
 
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	if (bHaveParity)
+	{
+		sRGXMMUPTEConfig_1MBDP.uiParityBitMask = RGX_MMUCTRL_PT_DATA_PT_PARITY_EN;
+		sRGXMMUPTEConfig_1MBDP.uiParityBitShift = RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+	}
+#endif
+
 	/*
 	 * Setup sRGXMMUDevVAddrConfig_1MBDP
 	 */
@@ -774,6 +816,14 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUPDEConfig_2MBDP.uiValidEnMask = RGX_MMUCTRL_PD_DATA_VALID_EN;
 	sRGXMMUPDEConfig_2MBDP.uiValidEnShift = RGX_MMUCTRL_PD_DATA_VALID_SHIFT;
 
+#if defined(RGX_FEATURE_MH_PARITY_BIT_MASK)
+	if (bHaveParity)
+	{
+		sRGXMMUPTEConfig_2MBDP.uiParityBitMask = RGX_MMUCTRL_PT_DATA_PT_PARITY_EN;
+		sRGXMMUPTEConfig_2MBDP.uiParityBitShift = RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+	}
+#endif
+
 	/*
 	 * Setup sRGXMMUPTEConfig_2MBDP
 	 */
@@ -833,16 +883,39 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUDeviceAttributes.psBaseConfig = &sRGXMMUPCEConfig;
 	sRGXMMUDeviceAttributes.psTopLevelDevVAddrConfig = &sRGXMMUTopLevelDevVAddrConfig;
 
-#if defined(PVRSRV_TEST_FW_PREMAP_MMU) && defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
-	if (bHaveMMU4)
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
 	{
-		sRGXMMUDeviceAttributes.pfnTestPremapConfigureMMU = RGXPreMapFWConfigureMMU;
+		IMG_UINT32 i;
+
+		PVR_ASSERT(sRGXMMUDevVAddrConfig_4KBDP.uiNumEntriesPT   <= 512);
+		PVR_ASSERT(sRGXMMUDevVAddrConfig_16KBDP.uiNumEntriesPT  <= 512);
+		PVR_ASSERT(sRGXMMUDevVAddrConfig_64KBDP.uiNumEntriesPT  <= 512);
+		PVR_ASSERT(sRGXMMUDevVAddrConfig_256KBDP.uiNumEntriesPT <= 512);
+		PVR_ASSERT(sRGXMMUDevVAddrConfig_1MBDP.uiNumEntriesPT   <= 512);
+		PVR_ASSERT(sRGXMMUDevVAddrConfig_2MBDP.uiNumEntriesPT   <= 512);
+
+		PVR_ASSERT(sRGXMMUPTEConfig_4KBDP.uiBytesPerEntry   == 8);
+		PVR_ASSERT(sRGXMMUPTEConfig_16KBDP.uiBytesPerEntry  == 8);
+		PVR_ASSERT(sRGXMMUPTEConfig_64KBDP.uiBytesPerEntry  == 8);
+		PVR_ASSERT(sRGXMMUPTEConfig_256KBDP.uiBytesPerEntry == 8);
+		PVR_ASSERT(sRGXMMUPTEConfig_1MBDP.uiBytesPerEntry   == 8);
+		PVR_ASSERT(sRGXMMUPTEConfig_2MBDP.uiBytesPerEntry   == 8);
+
+		sRGXMMUDeviceAttributes.pui64PrecomputedAllocParity[0] =
+		    OSAllocZMem(sRGXMMUDevVAddrConfig_4KBDP.uiNumEntriesPT * sRGXMMUPTEConfig_4KBDP.uiBytesPerEntry);
+		sRGXMMUDeviceAttributes.pui64PrecomputedAllocParity[1] =
+		    OSAllocZMem(sRGXMMUDevVAddrConfig_4KBDP.uiNumEntriesPT * sRGXMMUPTEConfig_4KBDP.uiBytesPerEntry);
+
+		/* Generate two precomputed pages in host memory for zero-initialised PTs with parity bits set. */
+		for (i=0; i<sRGXMMUDevVAddrConfig_4KBDP.uiNumEntriesPT; i++)
+		{
+			sRGXMMUDeviceAttributes.pui64PrecomputedAllocParity[0][i] =
+			    ((IMG_UINT64)(ui8ParityPTPattern[i]))         << RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+			sRGXMMUDeviceAttributes.pui64PrecomputedAllocParity[1][i] =
+			    ((IMG_UINT64)(ui8ParityPTPattern[i] ? 0 : 1)) << RGX_MMUCTRL_PT_DATA_PT_PARITY_SHIFT;
+		}
 	}
-	else
 #endif
-	{
-		sRGXMMUDeviceAttributes.pfnTestPremapConfigureMMU = NULL;
-	}
 
 	/* Functions for deriving page table/dir/cat protection bits */
 	sRGXMMUDeviceAttributes.pfnDerivePCEProt8 = RGXDerivePCEProt8;
@@ -870,6 +943,8 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 		sRGXMMUDeviceAttributes.pfnGetPageSizeFromVirtAddr = RGXMMU4GetPageSizeFromVirtAddr;
 	}
 #endif
+
+	sRGXMMUDeviceAttributes.ui32ValidPageSizeMask = RGXGetValidHeapPageSizeMask();
 
 	psDeviceNode->psMMUDevAttrs = &sRGXMMUDeviceAttributes;
 
@@ -928,64 +1003,6 @@ PVRSRV_ERROR RGXMMUInit_Unregister(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	return eError;
 }
-
-
-#if defined(RGX_FEATURE_MMU_VERSION_MAX_VALUE_IDX)
-/*************************************************************************/ /*!
-@Function       RGXMMUInit_GetConfigRangeValue
-@Description    Helper Function
-				For a given virtual address range and page size, return the
-				value to load into an MMU_PAGE_SIZE_RANGE config register.
-@Return         64-bit register value
-*/ /**************************************************************************/
-IMG_UINT64 RGXMMUInit_GetConfigRangeValue(IMG_UINT32 ui32DataPageSize, IMG_UINT64 ui64BaseAddress, IMG_UINT64 ui64RangeSize)
-{
-	/* end address of range is inclusive */
-	IMG_UINT64 ui64EndAddress = ui64BaseAddress + ui64RangeSize - (1 << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_END_ADDR_ALIGNSHIFT);
-	IMG_UINT64 ui64RegValue = 0;
-
-	switch (ui32DataPageSize)
-	{
-		case 16*1024:
-			ui64RegValue = 1;
-			break;
-		case 64*1024:
-			ui64RegValue = 2;
-			break;
-		case 256*1024:
-			ui64RegValue = 3;
-			break;
-		case 1024*1024:
-			ui64RegValue = 4;
-			break;
-		case 2*1024*1024:
-			ui64RegValue = 5;
-			break;
-		case 4*1024:
-			/* fall through */
-		default:
-			/* anything we don't support, use 4K */
-			break;
-    }
-
-	/* check that the range is defined by valid 40 bit virtual addresses */
-	PVR_ASSERT((ui64BaseAddress & ~((1ULL << 40) - 1)) == 0);
-	PVR_ASSERT((ui64EndAddress  & ~((1ULL << 40) - 1)) == 0);
-
-	/* the range config register addresses are in 2MB chunks so check 21 lsb are zero */
-	PVR_ASSERT((ui64BaseAddress & ((1 << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_BASE_ADDR_ALIGNSHIFT) - 1)) == 0);
-	PVR_ASSERT((ui64EndAddress  & ((1 << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_END_ADDR_ALIGNSHIFT)  - 1)) == 0);
-
-	ui64BaseAddress >>= RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_BASE_ADDR_ALIGNSHIFT;
-	ui64EndAddress  >>= RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_END_ADDR_ALIGNSHIFT;
-
-	ui64RegValue = (ui64RegValue << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_PAGE_SIZE_SHIFT) |
-				   (ui64EndAddress  << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_END_ADDR_SHIFT) |
-				   (ui64BaseAddress << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_BASE_ADDR_SHIFT);
-	return ui64RegValue;
-}
-#endif
-
 
 /*************************************************************************/ /*!
 @Function       RGXDerivePCEProt4

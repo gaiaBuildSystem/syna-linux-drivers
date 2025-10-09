@@ -43,6 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "rgxlayer_impl.h"
 #include "pdump_km.h"
+#include "power.h"
 #include "rgxfwutils.h"
 #include "rgxfwimageutils.h"
 
@@ -67,6 +68,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #else
 #define RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr) ((psDevInfo)->pvRegsBaseKM)
 #endif
+
 
 void RGXMemCopy(const void *hPrivate,
                 void *pvDst,
@@ -153,7 +155,7 @@ IMG_INT32 RGXDeviceGetFeatureValue(const void *hPrivate, IMG_UINT64 ui64Feature)
 	return i32Ret;
 }
 
-IMG_BOOL RGXDeviceHasFeature(const void *hPrivate, IMG_UINT64 ui64Feature)
+IMG_BOOL RGXDeviceHasFeature(const void *hPrivate, IMG_UINT16 ui16FeatureIndex, IMG_UINT64 ui64Feature)
 {
 	RGX_LAYER_PARAMS *psParams;
 	PVRSRV_RGXDEV_INFO *psDevInfo;
@@ -163,7 +165,7 @@ IMG_BOOL RGXDeviceHasFeature(const void *hPrivate, IMG_UINT64 ui64Feature)
 	psParams = (RGX_LAYER_PARAMS*)hPrivate;
 	psDevInfo = psParams->psDevInfo;
 
-	return (psDevInfo->sDevFeatureCfg.ui64Features & ui64Feature) != 0;
+	return (psDevInfo->sDevFeatureCfg.paui64Features[ui16FeatureIndex] & ui64Feature) != 0;
 }
 
 IMG_UINT32 RGXGetFWCorememSize(const void *hPrivate)
@@ -196,6 +198,14 @@ void RGXWriteReg32(const void *hPrivate, IMG_UINT32 ui32RegAddr, IMG_UINT32 ui32
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
 
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return;
+	}
+#endif
+
 #if defined(PDUMP)
 	if (!(psParams->ui32PdumpFlags & PDUMP_FLAGS_NOHW))
 #endif
@@ -217,6 +227,14 @@ void RGXWriteReg64(const void *hPrivate, IMG_UINT32 ui32RegAddr, IMG_UINT64 ui64
 	psParams = (RGX_LAYER_PARAMS*)hPrivate;
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
+
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return;
+	}
+#endif
 
 #if defined(PDUMP)
 	if (!(psParams->ui32PdumpFlags & PDUMP_FLAGS_NOHW))
@@ -240,6 +258,14 @@ IMG_UINT32 RGXReadReg32(const void *hPrivate, IMG_UINT32 ui32RegAddr)
 	psParams = (RGX_LAYER_PARAMS*)hPrivate;
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
+
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return 0xcafef00dUL;
+	}
+#endif
 
 #if defined(PDUMP)
 	if (psParams->ui32PdumpFlags & PDUMP_FLAGS_NOHW)
@@ -269,6 +295,14 @@ IMG_UINT64 RGXReadReg64(const void *hPrivate, IMG_UINT32 ui32RegAddr)
 	psParams = (RGX_LAYER_PARAMS*)hPrivate;
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
+
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return 0xcafef00dcafef00dULL;
+	}
+#endif
 
 #if defined(PDUMP)
 	if (psParams->ui32PdumpFlags & PDUMP_FLAGS_NOHW)
@@ -303,6 +337,14 @@ IMG_UINT32 RGXReadModifyWriteReg64(const void *hPrivate,
 	psParams = (RGX_LAYER_PARAMS*)hPrivate;
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
+
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return PVRSRV_ERROR_SYSTEM_STATE_POWERED_OFF;
+	}
+#endif
 
 	/* only use the new values for bits we update according to the keep mask */
 	uiRegValueNew &= ~uiRegKeepMask;
@@ -355,6 +397,14 @@ PVRSRV_ERROR RGXPollReg32(const void *hPrivate,
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
 
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return PVRSRV_ERROR_SYSTEM_STATE_POWERED_OFF;
+	}
+#endif
+
 #if defined(PDUMP)
 	if (!(psParams->ui32PdumpFlags & PDUMP_FLAGS_NOHW))
 #endif
@@ -401,6 +451,14 @@ PVRSRV_ERROR RGXPollReg64(const void *hPrivate,
 	psParams = (RGX_LAYER_PARAMS*)hPrivate;
 	psDevInfo = psParams->psDevInfo;
 	pvRegsBase = RGX_GET_REGS_BASE(psDevInfo, ui32RegAddr);
+
+#if defined(SUPPORT_REG_CHECK_PWR)
+	if (! PVRSRVIsSystemPowered(psDevInfo->psDeviceNode))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Illegal access to reg 0x%x while powered off!", ui32RegAddr));
+		return PVRSRV_ERROR_SYSTEM_STATE_POWERED_OFF;
+	}
+#endif
 
 #if defined(PDUMP)
 	if (!(psParams->ui32PdumpFlags & PDUMP_FLAGS_NOHW))
@@ -461,7 +519,7 @@ void RGXSetPoweredState(const void *hPrivate, IMG_BOOL bPowered)
 
 void RGXWaitCycles(const void *hPrivate, IMG_UINT32 ui32Cycles, IMG_UINT32 ui32TimeUs)
 {
-	PVRSRV_RGXDEV_INFO *psDevInfo;
+	__maybe_unused PVRSRV_RGXDEV_INFO *psDevInfo;
 
 	PVR_ASSERT(hPrivate != NULL);
 	psDevInfo = ((RGX_LAYER_PARAMS*)hPrivate)->psDevInfo;
@@ -872,32 +930,9 @@ void RGXAcquireBootDataAddr(const void *hPrivate, IMG_DEV_VIRTADDR *psBootDataAd
 
 void *RGXCalculateHostFWDataAddress(const void *hPrivate, void *pvHostFWDataAddr)
 {
-#if defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX)
-	RGX_LAYER_PARAMS *psParams;
-	PVRSRV_RGXDEV_INFO *psDevInfo;
-	IMG_UINT8 *ui8HostFWDataAddr = (IMG_UINT8*)pvHostFWDataAddr;
-	IMG_UINT32 ui32Offset = 0U;
-
-	PVR_ASSERT(hPrivate != NULL);
-	psParams = (RGX_LAYER_PARAMS*)hPrivate;
-	psDevInfo = psParams->psDevInfo;
-
-	if (RGX_GET_FEATURE_VALUE(psDevInfo, HOST_SECURITY_VERSION) >= 4)
-	{
-		ui32Offset =
-			PVR_ALIGN(RGXGetFWImageSectionAllocSize(hPrivate, RISCV_UNCACHED_CODE),
-			          RGXRISCVFW_REMAP_CONFIG_DEVVADDR_ALIGN) +
-			PVR_ALIGN(RGXGetFWImageSectionAllocSize(hPrivate, RISCV_CACHED_CODE),
-			          RGXRISCVFW_REMAP_CONFIG_DEVVADDR_ALIGN);
-	}
-
-	ui8HostFWDataAddr -= ui32Offset;
-	return (void*)ui8HostFWDataAddr;
-#else
 	PVR_UNREFERENCED_PARAMETER(hPrivate);
 
 	return pvHostFWDataAddr;
-#endif
 }
 
 IMG_BOOL RGXDeviceAckIrq(const void *hPrivate)

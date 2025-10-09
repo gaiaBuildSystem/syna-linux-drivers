@@ -49,28 +49,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "img_types.h"
 #include "pvrsrv_error.h"
 
-/*
- *  Supported log2 page size values for RGX_GENERAL_NON_4K_HEAP_ID
- */
-#define RGX_HEAP_PAGE_SHIFTS_DEF \
-	X(4KB, 12U) \
-	X(16KB, 14U) \
-	X(64KB, 16U) \
-	X(256KB, 18U) \
-	X(1MB, 20U) \
-	X(2MB, 21U)
-
-typedef enum RGX_HEAP_PAGE_SHIFTS_TAG
-{
-#define X(_name, _shift) RGX_HEAP_ ## _name ## _PAGE_SHIFT = _shift,
-	RGX_HEAP_PAGE_SHIFTS_DEF
-#undef X
-} RGX_HEAP_PAGE_SHIFTS;
-
-/* Base and size alignment 2MB */
-#define RGX_HEAP_BASE_SIZE_ALIGN 0x200000UL
-#define RGX_GENERAL_SVM_BASE_SIZE_ALIGNMENT 0x8000UL
-
 struct _PVRSRV_DEVICE_NODE_;
 struct _CONNECTION_DATA_;
 struct _DEVMEMINT_HEAP_;

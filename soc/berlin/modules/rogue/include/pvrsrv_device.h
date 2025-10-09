@@ -71,9 +71,10 @@ typedef enum _DRIVER_MODE_
 /* Do not use these enumerations directly, to query the
    current driver mode, use the PVRSRV_VZ_MODE_IS()
    macro */
-	DRIVER_MODE_NATIVE	= -1,
-	DRIVER_MODE_HOST	=  0,
-	DRIVER_MODE_GUEST
+	DRIVER_MODE_NATIVE	= 0,
+	DRIVER_MODE_HOST	= 1,
+	DRIVER_MODE_GUEST	= 2,
+	DRIVER_MODE_DEFAULT	= 3,
 } PVRSRV_DRIVER_MODE;
 
 typedef enum
@@ -118,6 +119,15 @@ typedef PVRSRV_ERROR
 						  PVRSRV_SYS_POWER_STATE eNewPowerState,
 						  PVRSRV_SYS_POWER_STATE eCurrentPowerState,
 						  PVRSRV_POWER_FLAGS ePwrFlags);
+
+typedef PVRSRV_ERROR
+(*PFN_SYS_READ_REG)(IMG_HANDLE hSysData,
+					IMG_UINT32 ui32Offset);
+
+typedef void
+(*PFN_SYS_WRITE_REG)(IMG_HANDLE hSysData,
+					 IMG_UINT32 ui32Offset,
+					 IMG_UINT32 ui32Value);
 
 /*************************************************************************/ /*!
 @Brief          Callback function type PFN_SYS_GET_POWER
@@ -175,18 +185,24 @@ typedef void
 							   IMG_BOOL);
 
 
-#if defined(SUPPORT_TRUSTED_DEVICE)
-
-typedef struct _PVRSRV_TD_FW_PARAMS_
+typedef struct _PVRSRV_FW_PARAMS_
 {
 	const void *pvFirmware;
 	IMG_UINT32 ui32FirmwareSize;
+	const void *pvSignature;
+	IMG_UINT32 ui32SignatureSize;
 	PVRSRV_FW_BOOT_PARAMS uFWP;
-} PVRSRV_TD_FW_PARAMS;
+} PVRSRV_FW_PARAMS;
+
+typedef PVRSRV_ERROR
+(*PFN_PREPARE_FW_IMAGE)(IMG_HANDLE hSysData,
+						PVRSRV_FW_PARAMS *psFWParams);
+
+#if defined(SUPPORT_TRUSTED_DEVICE)
 
 typedef PVRSRV_ERROR
 (*PFN_TD_SEND_FW_IMAGE)(IMG_HANDLE hSysData,
-						PVRSRV_TD_FW_PARAMS *psTDFWParams);
+						PVRSRV_FW_PARAMS *psTDFWParams);
 
 typedef struct _PVRSRV_TD_POWER_PARAMS_
 {
@@ -222,7 +238,7 @@ typedef PVRSRV_ERROR
 #endif /* defined(SUPPORT_TRUSTED_DEVICE) */
 
 #if defined(SUPPORT_GPUVIRT_VALIDATION)
-typedef void (*PFN_SYS_DEV_VIRT_INIT)(IMG_HANDLE hSysData,
+typedef void (*PFN_SYS_INIT_FIREWALL)(IMG_HANDLE hSysData,
                                       IMG_UINT64[GPUVIRT_VALIDATION_NUM_REGIONS][GPUVIRT_VALIDATION_NUM_OS],
                                       IMG_UINT64[GPUVIRT_VALIDATION_NUM_REGIONS][GPUVIRT_VALIDATION_NUM_OS]);
 #endif /* defined(SUPPORT_GPUVIRT_VALIDATION) */
@@ -259,6 +275,12 @@ typedef struct _PVRSRV_ROBUSTNESS_NOTIFY_DATA_
 typedef void
 (*PFN_SYS_DEV_ERROR_NOTIFY)(IMG_HANDLE hSysData,
 						    PVRSRV_ROBUSTNESS_NOTIFY_DATA *psRobustnessErrorData);
+
+#if defined(SUPPORT_NATIVE_FENCE_SYNC)
+typedef IMG_BOOL (*PFN_SYS_DEV_EXTRACT_FF_TOKEN)(IMG_HANDLE hSysData,
+                                                 IMG_HANDLE hEnvFenceObjPtr,
+                                                 SYNC_CHECKPOINT_FF_TOKEN *pui16FFToken);
+#endif
 
 struct _PVRSRV_DEVICE_CONFIG_
 {
@@ -323,12 +345,21 @@ struct _PVRSRV_DEVICE_CONFIG_
 	PFN_SYS_DEV_SOC_TIMER_READ	pfnSoCTimerRead;
 #endif
 
+
 	/*!
 	 *! Callback to perform host CPU cache maintenance. Might be needed for
 	 *! architectures which allow extensions such as RISC-V (optional).
 	 */
 	PFN_SYS_DEV_HOST_CACHE_MAINTENANCE pfnHostCacheMaintenance;
 	IMG_BOOL bHasPhysicalCacheMaintenance;
+
+	/*!
+	 *! Callback to prepare FW image after it has been loaded.  This may
+	 *! be used to separate a signature/header from the firmware proper,
+	 *! potentially modifying pvFirmware and ui32FirmwareSize to point to the
+	 *! actual firmware to be loaded.
+	 */
+	PFN_PREPARE_FW_IMAGE pfnPrepareFWImage;
 
 #if defined(SUPPORT_TRUSTED_DEVICE)
 	/*!
@@ -371,13 +402,28 @@ struct _PVRSRV_DEVICE_CONFIG_
 	 */
 	IMG_BOOL bDevicePA0IsValid;
 
-	/*!
-	 *! Function to initialize System-specific virtualization. If not supported
-	 *! this should be a NULL reference. Only present if
-	 *! SUPPORT_GPUVIRT_VALIDATION is defined.
-	 */
 #if defined(SUPPORT_GPUVIRT_VALIDATION)
-	PFN_SYS_DEV_VIRT_INIT		pfnSysDevVirtInit;
+	/*!
+	 *! System-specific function to initialise firewall mechanism needed to
+	 *! validate the correctness of memory accesses tagged with OSIDs.
+	 *! Used for hardware validation of virtualization features only.
+	 */
+	PFN_SYS_INIT_FIREWALL		pfnSysInitFirewall;
+#endif
+
+#if defined(SUPPORT_NATIVE_FENCE_SYNC)
+	/*!
+	 *! A callback to extract a foreign fence (FF) token from the fence's user data.
+	 *! It is valid for this pfn to be NULL, in which case the FF token will be
+	 *! marked as invalid in the syncCP user data.
+	 *!
+	 *! @Input  hSysData        A system data handle.
+	 *! @Input  hEnvFenceObjPtr A pointer to a 'environment' fence object struct.
+	 *! @Output pui16FFToken    The fence token extracted from the hEnvFenceObjPtr.
+	 *!
+	 *! @Return IMG_BOOL, IMG_TRUE if a valid FF token is returned, IMG_FALSE otherwise.
+	 */
+	PFN_SYS_DEV_EXTRACT_FF_TOKEN pfnSysDevExtractFFToken;
 #endif
 
 	/*!
@@ -413,11 +459,15 @@ struct _PVRSRV_DEVICE_CONFIG_
 	 */
 	IMG_BOOL bHasDma;
 
-	/* modified for synaptics */
-	/* Workaround for sky 3g */
-	unsigned int ui32NeedAllocFromDMAZone;
-	/* end for synaptics */
+	/*!
+	 *!  DriverMode required
+	 */
+	PVRSRV_DRIVER_MODE eDriverMode;
 
+   /* modified for synaptics */
+   /* Workaround for sky 3g */
+   unsigned int ui32NeedAllocFromDMAZone;
+   /* end for synaptics */
 };
 
 #endif /* PVRSRV_DEVICE_H*/

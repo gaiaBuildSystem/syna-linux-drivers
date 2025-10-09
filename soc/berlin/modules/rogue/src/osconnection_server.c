@@ -51,25 +51,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <linux/sched.h>
 
-#if defined(SUPPORT_ION)
-#include <linux/err.h>
-#include PVR_ANDROID_ION_HEADER
-
-/*
-	The ion device (the base object for all requests)
-	gets created by the system and we acquire it via
-	Linux specific functions provided by the system layer
-*/
-#include "ion_sys.h"
-#endif
-
 PVRSRV_ERROR OSConnectionPrivateDataInit(IMG_HANDLE *phOsPrivateData, void *pvOSData)
 {
 	ENV_CONNECTION_PRIVATE_DATA *psPrivData = pvOSData;
 	ENV_CONNECTION_DATA *psEnvConnection;
-#if defined(SUPPORT_ION) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-	ENV_ION_CONNECTION_DATA *psIonConnection;
-#endif
 
 	*phOsPrivateData = OSAllocZMem(sizeof(ENV_CONNECTION_DATA));
 
@@ -90,32 +75,6 @@ PVRSRV_ERROR OSConnectionPrivateDataInit(IMG_HANDLE *phOsPrivateData, void *pvOS
 	psEnvConnection->pvPvrSyncPrivateData = NULL;
 #endif
 
-#if defined(SUPPORT_ION) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-	psIonConnection = (ENV_ION_CONNECTION_DATA *)OSAllocZMem(sizeof(ENV_ION_CONNECTION_DATA));
-	if (psIonConnection == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: OSAllocMem failed", __func__));
-		return PVRSRV_ERROR_OUT_OF_MEMORY;
-	}
-
-	psEnvConnection->psIonData = psIonConnection;
-	/*
-		We can have more than one connection per process, so we need
-		more than the PID to have a unique name.
-	*/
-	psEnvConnection->psIonData->psIonDev = IonDevAcquire();
-	OSSNPrintf(psEnvConnection->psIonData->azIonClientName, ION_CLIENT_NAME_SIZE, "pvr_ion_client-%p-%d", *phOsPrivateData, OSGetCurrentClientProcessIDKM());
-	psEnvConnection->psIonData->psIonClient =
-		ion_client_create(psEnvConnection->psIonData->psIonDev,
-						  psEnvConnection->psIonData->azIonClientName);
-
-	if (IS_ERR_OR_NULL(psEnvConnection->psIonData->psIonClient))
-	{
-		PVR_DPF((PVR_DBG_ERROR, "OSConnectionPrivateDataInit: Couldn't create "
-								"ion client for per connection data"));
-		return PVRSRV_ERROR_OUT_OF_MEMORY;
-	}
-#endif /* SUPPORT_ION && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) */
 	return PVRSRV_OK;
 }
 
@@ -126,19 +85,6 @@ PVRSRV_ERROR OSConnectionPrivateDataDeInit(IMG_HANDLE hOsPrivateData)
 		return PVRSRV_OK;
 	}
 
-#if defined(SUPPORT_ION) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-	{
-		ENV_CONNECTION_DATA *psEnvConnection = hOsPrivateData;
-
-		PVR_ASSERT(psEnvConnection->psIonData != NULL);
-
-		PVR_ASSERT(psEnvConnection->psIonData->psIonClient != NULL);
-		ion_client_destroy(psEnvConnection->psIonData->psIonClient);
-
-		IonDevRelease(psEnvConnection->psIonData->psIonDev);
-		OSFreeMem(psEnvConnection->psIonData);
-	}
-#endif
 
 	OSFreeMem(hOsPrivateData);
 	/*not nulling pointer, copy on stack*/

@@ -6,7 +6,6 @@
 
 #include "tee_client_api.h"
 #include "gpu_tz.h"
-#include "ion_support.h"
 //#include "vz_support.h"
 #include "interrupt_support.h"
 #include "rgx_bvnc_defs_km.h"
@@ -20,6 +19,7 @@
 #include <linux/dma-heap.h>
 #endif
 #ifdef CONFIG_ION
+#include "ion_support.h"
 #include <linux/ion.h>
 #endif
 
@@ -359,7 +359,7 @@ cleanupContext:
 	return res;
 }
 
-PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_TD_FW_PARAMS *psTDFWParams)
+PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParams)
 {
 	TEEC_Operation operation;
 	TEEC_SharedMemory srcShm;

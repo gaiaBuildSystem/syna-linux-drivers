@@ -101,7 +101,6 @@ PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate)
 	IMG_DEVMEM_ALIGN_T uiFabricCohTestBlockAlign = sizeof(IMG_UINT64);
 	IMG_UINT32 ui32SLCCTRL = 0;
 	IMG_UINT32 ui32OddEven;
-	IMG_BOOL   bFeatureS7 = RGX_DEVICE_HAS_FEATURE(hPrivate, S7_TOP_INFRASTRUCTURE);
 	IMG_UINT32 ui32OddEvenSeed = 1;
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	IMG_BOOL bFullTestPassed = IMG_TRUE;
@@ -119,15 +118,6 @@ PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate)
 
 	PVR_LOG(("Starting fabric coherency test ....."));
 
-	if (bFeatureS7)
-	{
-		IMG_UINT64 ui64SegOutAddrTopUncached = RGXFW_SEGMMU_OUTADDR_TOP_VIVT_SLC_UNCACHED(MMU_CONTEXT_MAPPING_FWIF);
-
-		/* Configure META to use SLC force-linefill for the bootloader segment */
-		RGXWriteMetaRegThroughSP(hPrivate, META_CR_MMCU_SEGMENTn_OUTA1(6),
-				(ui64SegOutAddrTopUncached | RGXFW_BOOTLDR_DEVV_ADDR) >> 32);
-	}
-	else
 	{
 		/* Bypass the SLC when IO coherency is enabled */
 		ui32SLCCTRL = RGXReadReg32(hPrivate, RGX_CR_SLC_CTRL_BYPASS);
@@ -207,7 +197,7 @@ PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate)
 
 		/* Acquire underlying PMR CpuPA in preparation for cache maintenance */
 		(void) DevmemLocalGetImportHandle(psFabricCohTestBufferMemDesc, (void**)&psPMR);
-		eError = PMR_CpuPhysAddr(psPMR, OSGetPageShift(), 1, 0, &sCpuPhyAddr, &bValid);
+		eError = PMR_CpuPhysAddr(psPMR, OSGetPageShift(), 1, 0, &sCpuPhyAddr, &bValid, CPU_USE);
 		if (eError != PVRSRV_OK || bValid == IMG_FALSE)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
@@ -275,7 +265,7 @@ PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate)
 							(IMG_CHAR *)pui32FabricCohTestBufferCpuVA + ui32Offset + sizeof(IMG_UINT32),
 							sCpuPhyAddrStart,
 							sCpuPhyAddrEnd,
-							PVRSRV_CACHE_OP_CLEAN);
+							PVRSRV_CACHE_OP_FLUSH);
 
 					/* Calculate a new value to write */
 					ui32FWValue = i + ui32OddEvenSeed;
@@ -315,21 +305,18 @@ PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate)
 						continue;
 					}
 
-					if (!PVRSRVSystemSnoopingOfDeviceCache(psDevInfo->psDeviceNode->psDevConfig))
-					{
-						/* Invalidate dcache to ensure that any prefetched data by the CPU from this memory
-						   region is discarded before we read (i.e. next read must trigger a cache miss).
-						   If there is snooping of device cache, then any prefetching done by the CPU
-						   will reflect the most up to date datum writing by GPU into said location,
-						   that is to say prefetching must be coherent so CPU d-flush is not needed */
-						sCpuPhyAddrEnd.uiAddr += sizeof(IMG_UINT32);
-						CacheOpExec(psDevInfo->psDeviceNode,
-								(IMG_CHAR *)pui32FabricCohTestBufferCpuVA + ui32Offset,
-								(IMG_CHAR *)pui32FabricCohTestBufferCpuVA + ui32Offset + sizeof(IMG_UINT32),
-								sCpuPhyAddrStart,
-								sCpuPhyAddrEnd,
-								PVRSRV_CACHE_OP_INVALIDATE);
-					}
+					/* Invalidate dcache to ensure that any prefetched data by the CPU from this memory
+					   region is discarded before we read (i.e. next read must trigger a cache miss).
+					   Previously there was snooping of device cache, where prefetching done by the CPU
+					   would reflect the most up to date datum writing by GPU into said location,
+					   that is to say prefetching was coherent so CPU d-flush was not needed */
+					sCpuPhyAddrEnd.uiAddr += sizeof(IMG_UINT32);
+					CacheOpExec(psDevInfo->psDeviceNode,
+							(IMG_CHAR *)pui32FabricCohTestBufferCpuVA + ui32Offset,
+							(IMG_CHAR *)pui32FabricCohTestBufferCpuVA + ui32Offset + sizeof(IMG_UINT32),
+							sCpuPhyAddrStart,
+							sCpuPhyAddrEnd,
+							PVRSRV_CACHE_OP_INVALIDATE);
 				}
 				else
 				{
@@ -469,14 +456,6 @@ e1:
 	DevmemFwUnmapAndFree(psDevInfo, psFabricCohTestBufferMemDesc);
 
 e0:
-	if (bFeatureS7)
-	{
-		/* Restore bootloader segment settings */
-		IMG_UINT64 ui64SegOutAddrTopCached   = RGXFW_SEGMMU_OUTADDR_TOP_VIVT_SLC_CACHED(MMU_CONTEXT_MAPPING_FWIF);
-		RGXWriteMetaRegThroughSP(hPrivate, META_CR_MMCU_SEGMENTn_OUTA1(6),
-				(ui64SegOutAddrTopCached | RGXFW_BOOTLDR_DEVV_ADDR) >> 32);
-	}
-	else
 	{
 		/* Restore SLC bypass settings */
 		RGXWriteReg32(hPrivate, RGX_CR_SLC_CTRL_BYPASS, ui32SLCCTRL);
@@ -497,30 +476,6 @@ e0:
 	return eError;
 }
 
-#if defined(SUPPORT_VALIDATION)
-/*!
- *******************************************************************************
-
- @Function		RGXStartValidation
-
- @Description	Called from RGXStart for validation builds
- ******************************************************************************/
-PVRSRV_ERROR RGXStartValidation(const void *hPrivate)
-{
-	PVR_UNREFERENCED_PARAMETER(hPrivate);
-	return PVRSRV_OK;
-}
-
-/*!
- *******************************************************************************
-
- @Function		RGXStopValidation
-
- @Description	Called from RGXStop for validation builds
- ******************************************************************************/
-PVRSRV_ERROR RGXStopValidation(const void *hPrivate)
-{
-	PVR_UNREFERENCED_PARAMETER(hPrivate);
-	return PVRSRV_OK;
-}
-#endif /* SUPPORT_VALIDATION */
+/******************************************************************************
+ End of file (rgxlayer_impl.c)
+******************************************************************************/

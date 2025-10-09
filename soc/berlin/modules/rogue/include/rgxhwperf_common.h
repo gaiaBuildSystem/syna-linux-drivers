@@ -157,12 +157,10 @@ PVRSRV_ERROR PVRSRVRGXCtrlHWPerfFW(
 	IMG_UINT64               ui64Mask,
 	HWPERF_FILTER_OPERATION  eMaskOp);
 
-#if defined(PVRSRV_FORCE_HWPERF_TO_SCHED_CLK)
 PVRSRV_ERROR PVRSRVRGXGetHWPerfTimeStampKM(
 		CONNECTION_DATA         *psConnection,
 		PVRSRV_DEVICE_NODE      *psDeviceNode,
 		IMG_UINT64              *pui64TimeStamp);
-#endif
 
 PVRSRV_ERROR PVRSRVRGXControlHWPerfBlocksKM(
 	CONNECTION_DATA       * psConnection,

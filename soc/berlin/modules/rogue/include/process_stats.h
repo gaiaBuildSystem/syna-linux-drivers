@@ -118,6 +118,14 @@ void PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 									 IMG_UINT64 ui64Key,
 									 IMG_PID uiPid);
 
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+void PVRSRVStatsTransferMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eCurrentType,
+                                       PVRSRV_MEM_ALLOC_TYPE eTargetType,
+                                       IMG_UINT64 ui64Key,
+                                       IMG_PID currentPid
+                                       DEBUG_MEMSTATS_PARAMS);
+#endif
+
 void PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 								 size_t uiBytes,
 								 IMG_PID uiPid);

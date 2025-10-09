@@ -99,7 +99,6 @@ typedef struct _CONNECTION_DATA_
 #if defined(SUPPORT_DMA_TRANSFER)
 	IMG_BOOL            bAcceptDmaRequests;
 	ATOMIC_T            ui32NumDmaTransfersInFlight;
-	POS_LOCK            hDmaReqLock;
 	IMG_HANDLE          hDmaEventObject;
 #endif
 	/* Structure which is hooked into the cleanup thread work list */

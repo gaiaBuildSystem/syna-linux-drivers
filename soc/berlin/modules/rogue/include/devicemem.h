@@ -138,12 +138,6 @@ IMG_INTERNAL void
 DevmemGetAnnotation(DEVMEM_MEMDESC *psMemDesc,
 			        IMG_CHAR **pszAnnotation);
 
-IMG_INTERNAL IMG_BOOL
-DevmemIsReservationV2Enabled(void);
-
-IMG_INTERNAL void
-DevmemDisableReservationV2(void);
-
 /*
  * DevmemCreateContext()
  *

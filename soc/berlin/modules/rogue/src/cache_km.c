@@ -260,7 +260,7 @@ static void CacheOpStatsExecLogWrite(CACHEOP_WORK_ITEM *psCacheOpWorkItem)
 		PVR_GOTO_IF_ERROR(eError, e0);
 
 		/* (Re)lock here as some PMR might have not been locked */
-		eLockError = PMRLockSysPhysAddresses(psCacheOpWorkItem->psPMR);
+		eLockError = PMRLockPhysAddresses(psCacheOpWorkItem->psPMR);
 		PVR_GOTO_IF_ERROR(eLockError, e0);
 
 		eError = PMR_CpuPhysAddr(psCacheOpWorkItem->psPMR,
@@ -268,10 +268,11 @@ static void CacheOpStatsExecLogWrite(CACHEOP_WORK_ITEM *psCacheOpWorkItem)
 								 1,
 								 gsCwq.asStatsExecuted[i32WriteOffset].uiOffset,
 								 &sDevPAddr,
-								 &bValid);
+								 &bValid,
+								 CPU_USE);
 
-		eLockError = PMRUnlockSysPhysAddresses(psCacheOpWorkItem->psPMR);
-		PVR_LOG_IF_ERROR(eLockError, "PMRUnlockSysPhysAddresses");
+		eLockError = PMRUnlockPhysAddresses(psCacheOpWorkItem->psPMR);
+		PVR_LOG_IF_ERROR(eLockError, "PMRUnlockPhysAddresses");
 
 		PVR_GOTO_IF_ERROR(eError, e0);
 
@@ -829,6 +830,8 @@ static INLINE PVRSRV_ERROR CacheOpValidateUMVA(PMR *psPMR,
 
 
 #if !defined(__linux__) || defined(CACHEFLUSH_NO_KMRBF_USING_UMVA)
+	PVR_UNREFERENCED_PARAMETER(uiOffset);
+	PVR_UNREFERENCED_PARAMETER(uiSize);
 	pvAddr = NULL;
 #else
 	/* Validate VA, assume most basic address limit access_ok() check */
@@ -897,7 +900,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 	OS_CACHE_OP_ADDR_TYPE eCacheOpAddrType;
 
 	psDevNode = PMR_DeviceNode(psPMR);
-	eCacheOpAddrType = OSCPUCacheOpAddressType(psDevNode);
+
+	eCacheOpAddrType = OSCPUCacheOpAddressType(psDevNode,
+	                                           PhysHeapGetType(PMR_PhysHeap(psPMR)));
 
 	if (uiCacheOp == PVRSRV_CACHE_OP_NONE || uiCacheOp == PVRSRV_CACHE_OP_TIMELINE)
 	{
@@ -907,12 +912,20 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 	if (! bIsRequestValidated)
 	{
 		/* Need to validate parameters before proceeding */
+		/* Check for size + offset overflow */
+		PVR_LOG_RETURN_IF_FALSE(((uiOffset + uiSize) >= uiSize),
+		                        "Overflow detected on offset + size parameters",
+		                        PVRSRV_ERROR_INVALID_PARAMS);
+		/* Since size + offset is later aligned to page size check for overflow with alignment */
+		PVR_LOG_RETURN_IF_FALSE((((uiOffset + uiSize) + gsCwq.uiPageSize - 1) >= (uiOffset + uiSize)),
+		                        "Overflow detected on offset + size parameters with applied alignment",
+		                        PVRSRV_ERROR_INVALID_PARAMS);
 		PVR_LOG_RETURN_IF_FALSE(((uiOffset+uiSize) <= PMR_PhysicalSize(psPMR)),
 		                        CACHEOP_DEVMEM_OOR_ERROR_STRING,
 		                        PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE);
 
-		eError = PMRLockSysPhysAddresses(psPMR);
-		PVR_LOG_RETURN_IF_ERROR(eError, "PMRLockSysPhysAddresses");
+		eError = PMRLockPhysAddresses(psPMR);
+		PVR_LOG_RETURN_IF_ERROR(eError, "PMRLockPhysAddresses");
 	}
 
 	/* Fast track the request if a CPU VA is provided and CPU ISA supports VA only maintenance */
@@ -927,8 +940,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 
 			if (!bIsRequestValidated)
 			{
-				eError = PMRUnlockSysPhysAddresses(psPMR);
-				PVR_LOG_IF_ERROR(eError, "PMRUnlockSysPhysAddresses");
+				eError = PMRUnlockPhysAddresses(psPMR);
+				PVR_LOG_IF_ERROR(eError, "PMRUnlockPhysAddresses");
 			}
 #if defined(CACHEOP_DEBUG)
 			gsCwq.ui32ServerOpUsedUMVA += 1;
@@ -1090,6 +1103,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 		}
 	}
 
+	/* Lock the PMR while we are obtaining and using phys addrs */
+	PMRLockPMR(psPMR);
+
 	/* We always retrieve PMR data in bulk, up-front if number of pages is within
 	   PMR_MAX_TRANSLATION_STACK_ALLOC limits else we check to ensure that a
 	   dynamic buffer has been allocated to satisfy requests outside limits */
@@ -1103,7 +1119,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 									 ui32NumOfPages,
 									 uiPgAlignedStartOffset,
 									 psCpuPhyAddr,
-									 pbValid);
+									 pbValid,
+									 CPU_USE | MAPPING_USE);
 			if (eError == PVRSRV_OK)
 			{
 				bIsPMRInfoValid = IMG_TRUE;
@@ -1139,8 +1156,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 										 1,
 										 uiPgAlignedOffset,
 										 psCpuPhyAddr,
-										 pbValid);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_CpuPhysAddr", e0);
+										 pbValid,
+										 CPU_USE | MAPPING_USE);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_CpuPhysAddr", ErrUnlockPMR);
 			}
 			else
 			{
@@ -1149,7 +1167,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 										  1,
 										  uiPgAlignedOffset,
 										  pbValid);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_IsOffsetValid", e0);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_IsOffsetValid", ErrUnlockPMR);
 			}
 		}
 
@@ -1178,7 +1196,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 													  (void **)&pbCpuVirtAddr,
 													  &uiOutSize,
 													  &hPrivOut);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireSparseKernelMappingData", e0);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireSparseKernelMappingData", ErrUnlockPMR);
 			}
 			else
 			{
@@ -1189,7 +1207,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 												(void **)&pbCpuVirtAddr,
 												&uiOutSize,
 												&hPrivOut);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireKernelMappingData", e0);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireKernelMappingData", ErrUnlockPMR);
 			}
 		}
 
@@ -1214,6 +1232,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 		}
 	}
 
+ErrUnlockPMR:
+	PMRUnlockPMR(psPMR);
 e0:
 	if (psCpuPhyAddr != asCpuPhyAddr)
 	{
@@ -1227,8 +1247,8 @@ e0:
 
 	if (! bIsRequestValidated)
 	{
-		eError = PMRUnlockSysPhysAddresses(psPMR);
-		PVR_LOG_IF_ERROR(eError, "PMRUnlockSysPhysAddresses");
+		eError = PMRUnlockPhysAddresses(psPMR);
+		PVR_LOG_IF_ERROR(eError, "PMRUnlockPhysAddresses");
 	}
 
 	return eError;

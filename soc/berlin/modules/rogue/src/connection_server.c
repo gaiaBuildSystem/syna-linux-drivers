@@ -53,7 +53,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pdump_km.h"
 #include "osfunc.h"
 #include "tlstream.h"
+#include "tlintern.h"
 #include "rgxhwperf_common.h"
+#if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
+#include "ri_server.h"
+#endif
+
+/* Set the maximum time the CleanupThread should retry destroying resources
+ * associated with a connection before giving up.
+ * This value is derived from MAX_HW_TIME_US which on a normal system is
+ * usually between 500 to 1000ms, so the below formula should give us time
+ * between 2 to 4 minutes on most of the systems. */
+#define CONNECTION_CLEANUP_RETRY_TIMEOUT_MS (MAX_HW_TIME_US / 1000 * 240)
 
 /* PID associated with Connection currently being purged by Cleanup thread */
 static IMG_PID gCurrentPurgeConnectionPid;
@@ -88,6 +99,12 @@ static PVRSRV_ERROR ConnectionDataDestroy(CONNECTION_DATA *psConnection)
 		PVR_DPF((PVR_DBG_MESSAGE, "Destroyed private stream."));
 	}
 
+	if (psConnection->ui32ClientFlags & SRV_FLAGS_HWPERF_DEFERRED_DESTROY)
+	{
+		TLDeactivateDeferredFree();
+	}
+
+	/* Get process handle base to decrement the refcount */
 	/* Get process handle base to decrement the refcount */
 	psProcessHandleBase = psConnection->psProcessHandleBase;
 
@@ -100,7 +117,7 @@ static PVRSRV_ERROR ConnectionDataDestroy(CONNECTION_DATA *psConnection)
 		 * doesn't even call pfnReleaseData() callback.
 		 * Process handles can potentially return RETRY hence additional check
 		 * below. */
-		eError = PVRSRVReleaseProcessHandleBase(psProcessHandleBase, psConnection->pid,
+		eError = PVRSRVReleaseProcessHandleBase(psProcessHandleBase,
 		                                        ui64MaxBridgeTime);
 		if (PVRSRVIsRetryError(eError))
 		{
@@ -229,20 +246,11 @@ PVRSRV_ERROR PVRSRVCommonConnectionConnect(void **ppvPrivData, void *pvOSData)
 	psConnection->pid = OSGetCurrentClientProcessIDKM();
 	psConnection->vpid = OSGetCurrentVirtualProcessID();
 	psConnection->tid = (IMG_UINT32)OSGetCurrentClientThreadIDKM();
-	OSStringLCopy(psConnection->pszProcName, OSGetCurrentClientProcessNameKM(), PVRSRV_CONNECTION_PROCESS_NAME_LEN);
+	OSStringSafeCopy(psConnection->pszProcName, OSGetCurrentClientProcessNameKM(), PVRSRV_CONNECTION_PROCESS_NAME_LEN);
 
 #if defined(SUPPORT_DMA_TRANSFER)
-	OSLockCreate(&psConnection->hDmaReqLock);
-
-	eError = OSEventObjectCreate("Dma transfer cleanup event object",
-															 &psConnection->hDmaEventObject);
-	PVR_LOG_GOTO_IF_ERROR(eError, "OSEventObjectCreate", failure);
-
-	PVRSRVInitialiseDMA(psDevNode);
+	eError = PVRSRVInitialiseDMA(psDevNode, psConnection);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVInitialiseDMA", failure);
-
-	OSAtomicWrite(&psConnection->ui32NumDmaTransfersInFlight, 0);
-	psConnection->bAcceptDmaRequests = IMG_TRUE;
 #endif
 
 	/* Register this connection with the sync core */
@@ -264,8 +272,8 @@ PVRSRV_ERROR PVRSRVCommonConnectionConnect(void **ppvPrivData, void *pvOSData)
 	                               PVRSRV_HANDLE_BASE_TYPE_CONNECTION);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVAllocHandleBase", failure);
 
-	/* get process handle base (if it doesn't exist it will be allocated) */
-	eError = PVRSRVAcquireProcessHandleBase(psConnection->pid, &psProcessHandleBase);
+	/* get process handle base for the current process (if it doesn't exist it will be allocated) */
+	eError = PVRSRVAcquireProcessHandleBase(&psProcessHandleBase);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVAcquireProcessHandleBase", failure);
 
 	/* hConnectionsLock now resides in PVRSRV_DEVICE_NODE */
@@ -286,7 +294,7 @@ PVRSRV_ERROR PVRSRVCommonConnectionConnect(void **ppvPrivData, void *pvOSData)
 #endif
 		OSLockRelease(psDevNode->hConnectionsLock);
 
-		if (!PVRSRV_VZ_MODE_IS(GUEST))
+		if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDevNode))
 		{
 			psRgxDevInfo = _RGX_DEVICE_INFO_FROM_NODE(psDevNode);
 
@@ -348,50 +356,6 @@ static PVRSRV_ERROR _CleanupThreadPurgeConnectionData(void *pvConnectionData)
 	return eErrorConnection;
 }
 
-#if defined(SUPPORT_DMA_TRANSFER)
-static void WaitForOutstandingDma(CONNECTION_DATA *psConnectionData)
-{
-
-	PVRSRV_ERROR eError;
-	IMG_HANDLE hEvent;
-	IMG_UINT32 ui32Tries = 100;
-
-#if defined(DMA_VERBOSE)
-	PVR_DPF((PVR_DBG_ERROR,
-					"Waiting on %d DMA transfers in flight...", OSAtomicRead(&psConnectionData->ui32NumDmaTransfersInFlight)));
-#endif
-
-	eError = OSEventObjectOpen(psConnectionData->hDmaEventObject, &hEvent);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to open event object", __func__));
-		return;
-	}
-
-	while (OSAtomicRead(&psConnectionData->ui32NumDmaTransfersInFlight) != 0)
-	{
-		/*
-		#define DMA_TRANSFER_TIMEOUT_US (5000000ULL)
-
-		This currently doesn't work properly. Wait time is not as requested.
-		Using OSSleepms instead
-
-		OSEventObjectWaitKernel(hEvent, DMA_TRANSFER_TIMEOUT_US);
-		*/
-		OSSleepms(50);
-		if (!ui32Tries)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Timeout while waiting on outstanding DMA transfers!", __func__));
-			break;
-		}
-
-		ui32Tries--;
-	}
-
-	OSEventObjectClose(hEvent);
-}
-#endif
-
 void PVRSRVCommonConnectionDisconnect(void *pvDataPtr)
 {
 	CONNECTION_DATA *psConnectionData = pvDataPtr;
@@ -408,7 +372,7 @@ void PVRSRVCommonConnectionDisconnect(void *pvDataPtr)
 	}
 
 	/* Add a HOST_CLIENT_INFO event to match the one on connection */
-	if (!PVRSRV_VZ_MODE_IS(GUEST))
+	if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDevNode))
 	{
 		IMG_BOOL bHostStreamIsNull;
 		PVRSRV_RGXDEV_INFO  *psRgxDevInfo;
@@ -429,19 +393,13 @@ void PVRSRVCommonConnectionDisconnect(void *pvDataPtr)
 		}
 	}
 
+#if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
+	/* Mark remaining resources for driver to free */
+	RIConnectionClosed(psConnectionData);
+#endif
+
 #if defined(SUPPORT_DMA_TRANSFER)
-	OSLockAcquire(psConnectionData->hDmaReqLock);
-
-	psConnectionData->bAcceptDmaRequests = IMG_FALSE;
-
-	OSLockRelease(psConnectionData->hDmaReqLock);
-
-	WaitForOutstandingDma(psConnectionData);
-
-	PVRSRVDeInitialiseDMA(psDevNode);
-
-	OSEventObjectDestroy(psConnectionData->hDmaEventObject);
-	OSLockDestroy(psConnectionData->hDmaReqLock);
+	PVRSRVDeInitialiseDMA(psDevNode, psConnectionData);
 #endif
 
 #if defined(DEBUG) || defined(PDUMP)
@@ -461,8 +419,8 @@ void PVRSRVCommonConnectionDisconnect(void *pvDataPtr)
 		 * signalled by the device MISR */
 		psConnectionData->sCleanupThreadFn.bDependsOnHW = IMG_TRUE;
 		psConnectionData->sCleanupThreadFn.eCleanupType = PVRSRV_CLEANUP_TYPE_CONNECTION;
-		CLEANUP_THREAD_SET_RETRY_COUNT(&psConnectionData->sCleanupThreadFn,
-		                               CLEANUP_THREAD_RETRY_COUNT_DEFAULT);
+		CLEANUP_THREAD_SET_RETRY_TIMEOUT(&psConnectionData->sCleanupThreadFn,
+		                                 CONNECTION_CLEANUP_RETRY_TIMEOUT_MS);
 		PVRSRVCleanupThreadAddWork(psDevNode, &psConnectionData->sCleanupThreadFn);
 	}
 }
@@ -516,7 +474,7 @@ void PVRSRVConnectionDebugNotify(PVRSRV_DEVICE_NODE *psDevNode,
 					   CONNECTIONS_PREFIX,
 					   (unsigned char)psDevNode->sDevId.ui32InternalID,
 					   (unsigned char)psDevNode->sDevId.i32KernelDeviceID);
-		OSStringLCopy(sActiveConnections+uiPos, szTmpConBuff, uiSize);
+		OSStringSafeCopy(sActiveConnections+uiPos, szTmpConBuff, uiSize);
 
 		/* Move the write offset to the end of the current string */
 		uiPos += i;
@@ -533,7 +491,7 @@ void PVRSRVConnectionDebugNotify(PVRSRV_DEVICE_NODE *psDevNode,
 			i = MIN(MAX_DEBUG_DUMP_CONNECTION_STR_LEN, i);
 			bPrinted = IMG_FALSE;
 
-			OSStringLCopy(sActiveConnections+uiPos, sTmpBuff, uiSize);
+			OSStringSafeCopy(sActiveConnections+uiPos, sTmpBuff, uiSize);
 
 			/* Move the write offset to the end of the current string */
 			uiPos += i;

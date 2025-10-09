@@ -213,7 +213,7 @@ TLFreeSharedMem(IMG_HANDLE hStream);
 				it is no longer required.
  @Output        phStream        Pointer to handle to store the new stream.
  @Input         szStreamName    Name of stream, maximum length:
-                                PRVSRVTL_MAX_STREAM_NAME_SIZE.
+                                PVRSRVTL_MAX_STREAM_NAME_SIZE.
                                 If a longer string is provided,creation fails.
  @Input         ui32Size        Desired buffer size in bytes.
  @Input         ui32StreamFlags Used to configure buffer behaviour. See above.
@@ -591,7 +591,7 @@ IMG_BOOL TLStreamOutOfData(IMG_HANDLE hStream);
  @Function      TLStreamResetProducerByteCount
  @Description   Reset the producer byte counter on the specified stream.
  @Input         hStream         Stream handle.
- @Input         IMG_UINT32      Value to reset counter to, often 0.
+ @Input         ui32Value       Value to reset counter to, often 0.
  @Return        PVRSRV_OK                   Success.
  @Return        PVRSRV_ERROR_STREAM_MISUSE  Success but the read and write
                                             positions did not match,
@@ -605,7 +605,7 @@ TLStreamResetProducerByteCount(IMG_HANDLE hStream, IMG_UINT32 ui32Value);
  @Function      TLStreamGetMaxTransfer
  @Description   Obtain the maximum number of bytes that can be submitted to
                  a given stream.
- @Input         IMG_UINT32         Requested transfer size from producer.
+ @Input         uiXferSize         Requested transfer size from producer.
  @Input         hConsumerStream    Stream handle for consumer.
  @Return        IMG_UINT32         Amount of data that can be submitted to
                                     the consumer stream.

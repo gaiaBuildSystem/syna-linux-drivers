@@ -331,6 +331,8 @@ static INLINE void DevmemFwUnmapAndFree(PVRSRV_RGXDEV_INFO *psDevInfo,
 {
 	PVR_DPF_ENTERED1(psMemDesc);
 
+	PVR_UNREFERENCED_PARAMETER(psDevInfo);
+
 	DevmemReleaseDevVirtAddr(psMemDesc);
 	DevmemFree(psMemDesc);
 
@@ -376,6 +378,7 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                       PVRSRV_MEMALLOCFLAG_CPU_UNCACHED_WC | \
                                       PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE | \
                                       PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
+                                      PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC | \
                                       PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_MAIN))
 
 #define RGX_FWCODEDATA_ALLOCFLAGS    (PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT) | \
@@ -385,6 +388,7 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                       PVRSRV_MEMALLOCFLAG_CPU_READABLE | \
                                       PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE | \
                                       PVRSRV_MEMALLOCFLAG_GPU_CACHE_INCOHERENT | \
+                                      PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC | \
                                       PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE)
 
 #define RGX_FWSHAREDMEM_MAIN_ALLOCFLAGS (PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT) | \
@@ -396,6 +400,7 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                          PVRSRV_MEMALLOCFLAG_CPU_UNCACHED_WC | \
                                          PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE | \
                                          PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
+                                         PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC | \
                                          PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_MAIN))
 
 #define RGX_FWSHAREDMEM_CONFIG_ALLOCFLAGS (PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT) | \
@@ -407,6 +412,7 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                            PVRSRV_MEMALLOCFLAG_CPU_UNCACHED_WC | \
                                            PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE | \
                                            PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
+                                           PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC | \
                                            PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_CONFIG))
 
 #define RGX_FWSHAREDMEM_GPU_RO_ALLOCFLAGS (PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT) | \
@@ -417,6 +423,7 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                            PVRSRV_MEMALLOCFLAG_CPU_UNCACHED_WC | \
                                            PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE | \
                                            PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
+                                           PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC | \
                                            PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_MAIN))
 
 /* Firmware memory that is not accessible by the CPU. */
@@ -424,7 +431,8 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                              PVRSRV_MEMALLOCFLAG_GPU_READABLE | \
                                              PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE | \
                                              PVRSRV_MEMALLOCFLAG_GPU_UNCACHED | \
-                                             PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC)
+                                             PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
+                                             PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC)
 
 /* Firmware shared memory that is supposed to be read-only to the CPU.
  * In reality it isn't due to ZERO_ON_ALLOC which enforces CPU_WRITEABLE
@@ -437,7 +445,8 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
                                            PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE | \
                                            PVRSRV_MEMALLOCFLAG_GPU_UNCACHED | \
                                            PVRSRV_MEMALLOCFLAG_CPU_UNCACHED_WC | \
-                                           PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC)
+                                           PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
+                                           PVRSRV_MEMALLOCFLAG_RI_FWKMD_ALLOC)
 
 /* data content being kept from previous boot cycles from physical memory must not be cleared during allocation */
 #define RGX_AUTOVZ_KEEP_FW_DATA_MASK(bKeepMem) ((bKeepMem) ? (~PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC) : (~0ULL))
@@ -449,11 +458,74 @@ static INLINE IMG_UINT64 RGXReadHWTimerReg(PVRSRV_RGXDEV_INFO *psDevInfo)
 #define RFW_FWADDR_NOREF_FLAG		(1U << 0)	/*!< It is safe to immediately release the reference to the pointer,
 												  otherwise RGXUnsetFirmwareAddress() must be call when finished. */
 
-IMG_BOOL RGXTraceBufferIsInitRequired(PVRSRV_RGXDEV_INFO *psDevInfo);
+/*************************************************************************/ /*!
+@Function       RGXTraceBufferIsInitRequired
+
+@Description    Returns true if the firmware trace buffer is not allocated and
+                might be required by the firmware soon. Trace buffer allocated
+                on-demand to reduce RAM footprint on systems not needing
+                firmware trace.
+
+@Input          psDevInfo RGX device info
+
+@Return         IMG_BOOL  Whether on-demand allocation(s) is/are needed or not
+*/ /**************************************************************************/
+FORCE_INLINE IMG_BOOL RGXTraceBufferIsInitRequired(PVRSRV_RGXDEV_INFO *psDevInfo)
+{
+	RGXFWIF_TRACEBUF*  psTraceBufCtl = psDevInfo->psRGXFWIfTraceBufCtl;
+
+	RGXFwSharedMemCacheOpValue(psTraceBufCtl->ui32LogType, INVALIDATE);
+
+	/* The firmware expects a trace buffer only when:
+	 *	- Logtype is "trace" AND
+	 *	- at least one LogGroup is configured
+	 *	- the Driver Mode is not Guest
+	 */
+	if ((psDevInfo->psRGXFWIfTraceBufferMemDesc[0] == NULL)
+		&& (psTraceBufCtl->ui32LogType & RGXFWIF_LOG_TYPE_TRACE)
+		&& (psTraceBufCtl->ui32LogType & RGXFWIF_LOG_TYPE_GROUP_MASK)
+		&& !PVRSRV_VZ_MODE_IS(GUEST, DEVINFO, psDevInfo))
+	{
+		return IMG_TRUE;
+	}
+
+	return IMG_FALSE;
+}
+
 PVRSRV_ERROR RGXTraceBufferInitOnDemandResources(PVRSRV_RGXDEV_INFO* psDevInfo, PVRSRV_MEMALLOCFLAGS_T uiAllocFlags);
 
 #if defined(SUPPORT_TBI_INTERFACE)
-IMG_BOOL RGXTBIBufferIsInitRequired(PVRSRV_RGXDEV_INFO *psDevInfo);
+/*************************************************************************/ /*!
+@Function       RGXTBIBufferIsInitRequired
+
+@Description    Returns true if the firmware tbi buffer is not allocated and
+                might be required by the firmware soon. TBI buffer allocated
+                on-demand to reduce RAM footprint on systems not needing
+                tbi.
+
+@Input          psDevInfo RGX device info
+
+@Return         IMG_BOOL  Whether on-demand allocation(s) is/are needed or not
+*/ /**************************************************************************/
+FORCE_INLINE IMG_BOOL RGXTBIBufferIsInitRequired(PVRSRV_RGXDEV_INFO *psDevInfo)
+{
+	RGXFWIF_TRACEBUF*  psTraceBufCtl = psDevInfo->psRGXFWIfTraceBufCtl;
+
+	RGXFwSharedMemCacheOpValue(psTraceBufCtl->ui32LogType, INVALIDATE);
+
+	/* The firmware expects a tbi buffer only when:
+	 *	- Logtype is "tbi"
+	 */
+	if ((psDevInfo->psRGXFWIfTBIBufferMemDesc == NULL)
+		 && (psTraceBufCtl->ui32LogType & ~RGXFWIF_LOG_TYPE_TRACE)
+		 && (psTraceBufCtl->ui32LogType & RGXFWIF_LOG_TYPE_GROUP_MASK))
+	{
+		return IMG_TRUE;
+	}
+
+	return IMG_FALSE;
+}
+
 PVRSRV_ERROR RGXTBIBufferInitOnDemandResources(PVRSRV_RGXDEV_INFO *psDevInfo);
 #endif
 
@@ -550,26 +622,6 @@ void RGXUnsetFirmwareAddress(DEVMEM_MEMDESC *psSrc);
 ******************************************************************************/
 void RGXScheduleProcessQueuesKM(PVRSRV_CMDCOMP_HANDLE hCmdCompHandle);
 
-#if defined(SUPPORT_VALIDATION)
-/*!
-*******************************************************************************
-@Function       RGXScheduleRgxRegCommand
-
-@Input          psDevInfo       Device Info struct
-@Input          ui64RegVal      Value to write into FW register
-@Input          ui64Size        Register size
-@Input          ui32Offset      Register Offset
-@Input          bWriteOp        Register Write or Read toggle
-
-@Return         PVRSRV_ERROR
-******************************************************************************/
-PVRSRV_ERROR RGXScheduleRgxRegCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
-									  IMG_UINT64 ui64RegVal,
-									  IMG_UINT64 ui64Size,
-									  IMG_UINT32 ui32Offset,
-									  IMG_BOOL bWriteOp);
-
-#endif
 
 /*!
 *******************************************************************************
@@ -1155,21 +1207,6 @@ PVRSRV_ERROR RGXGetFwMapping(PVRSRV_RGXDEV_INFO *psDevInfo,
                                     IMG_DEV_PHYADDR *psDevPA,
                                     IMG_UINT64 *pui64RawPTE);
 
-#if defined(SUPPORT_WORKLOAD_ESTIMATION)
-/*!
-*******************************************************************************
-@Function       RGXIsValidWorkloadEstCCBCommand
-
-@Description    Checks if command type can be used for workload estimation
-
-@Input          eType       Command type to check
-
-@Return        IMG_BOOL
-******************************************************************************/
-IMG_BOOL RGXIsValidWorkloadEstCCBCommand(RGXFWIF_CCB_CMD_TYPE eType);
-
-#endif
-
 /*!
 *******************************************************************************
 @Function       RGXFWInjectFault
@@ -1194,6 +1231,13 @@ PVRSRV_ERROR RGXFWInjectFault(PVRSRV_RGXDEV_INFO *psDevInfo);
 PVRSRV_ERROR
 RGXFWSetVzConnectionCooldownPeriod(PVRSRV_RGXDEV_INFO *psDevInfo,
 				   IMG_UINT32 ui32VzConnectionCooldownPeriodInSec);
+
+#if defined(PVR_AUTOVZ_WDG_PERIOD_MS)
+/* The Firmware checks the watchdog tokens every 'PVR_AUTOVZ_WDG_PERIOD_MS'
+ * milliseconds. The driver should handle the watchdog at least 3 times as
+ * often to ensure watchdog is handled despite the occasional drift */
+#define PVR_AUTOVZ_WDG_KICK_PERIOD_MS (PVR_AUTOVZ_WDG_PERIOD_MS / 3)
+#endif
 
 #if defined(SUPPORT_AUTOVZ_HW_REGS) && !defined(SUPPORT_AUTOVZ)
 #error "VZ build configuration error: use of OS scratch registers supported only in AutoVz drivers."
@@ -1226,8 +1270,8 @@ RGXFWSetVzConnectionCooldownPeriod(PVRSRV_RGXDEV_INFO *psDevInfo,
 													                           CacheOp);
 #endif /* defined(SUPPORT_AUTOVZ) */
 
-#if !defined(NO_HARDWARE) && (defined(RGX_VZ_STATIC_CARVEOUT_FW_HEAPS) || (!defined(RGX_NUM_DRIVERS_SUPPORTED) || (RGX_NUM_DRIVERS_SUPPORTED == 1)))
-/* native, static-vz and AutoVz using shared memory */
+#if !defined(NO_HARDWARE) && defined(RGX_NUM_DRIVERS_SUPPORTED) && (RGX_NUM_DRIVERS_SUPPORTED > 1)
+/* static, dynamic and AutoVz DDKs using shared memory */
 #define KM_GET_FW_CONNECTION(psDevInfo)			(psDevInfo->psRGXFWIfConnectionCtl->eConnectionFwState)
 #define KM_GET_OS_CONNECTION(psDevInfo)			(psDevInfo->psRGXFWIfConnectionCtl->eConnectionOsState)
 #define KM_SET_OS_CONNECTION(val, psDevInfo)	do { \
@@ -1238,7 +1282,7 @@ RGXFWSetVzConnectionCooldownPeriod(PVRSRV_RGXDEV_INFO *psDevInfo,
 #define KM_CONNECTION_CACHEOP(Target, CacheOp)  RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfConnectionCtl->eConnection##Target##State, \
 												                           CacheOp);
 #else
-/* dynamic-vz & nohw */
+/* nohw & native */
 #define KM_GET_FW_CONNECTION(psDevInfo)			(RGXFW_CONNECTION_FW_ACTIVE)
 #define KM_GET_OS_CONNECTION(psDevInfo)			(RGXFW_CONNECTION_OS_ACTIVE)
 #define KM_SET_OS_CONNECTION(val, psDevInfo)

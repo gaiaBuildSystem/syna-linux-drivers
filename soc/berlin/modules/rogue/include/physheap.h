@@ -184,16 +184,6 @@ typedef IMG_BOOL (*PFN_GET_HEAP_SPANS_STR_ITER)(PHEAP_IMPL_DATA, IMG_CHAR *, IMG
 */ /**************************************************************************/
 typedef void (*PFN_GET_HEAP_DLM_BACKING)(PHEAP_IMPL_DATA, PHYS_HEAP **);
 
-/*************************************************************************/ /*!
-@Function       Callback function PFN_GET_HEAP_PMB_SIZE
-@Description    Get PMB supported by the DLM heap.
-@Input          PHEAP_IMPL_DATA    Pointer to implementation data.
-@Return         IMG_UINT64         Size of PMB associated with DLM heap
-                                   in bytes.
-                                   Zero if unsupported or error occurred.
-*/ /**************************************************************************/
-typedef IMG_UINT64 (*PFN_GET_HEAP_PMB_SIZE)(PHEAP_IMPL_DATA);
-
 #if defined(SUPPORT_GPUVIRT_VALIDATION)
 typedef PVRSRV_ERROR (*PFN_PAGES_ALLOC_GPV)(PHYS_HEAP *psPhysHeap, size_t uiSize,
                                             PG_HANDLE *psMemHandle, IMG_DEV_PHYADDR *psDevPAddr,
@@ -281,7 +271,6 @@ typedef struct PHEAP_IMPL_FUNCS_TAG
 	PFN_GET_MEM_STATS pfnGetFactoryMemStats;
 	PFN_GET_HEAP_SPANS_STR_ITER pfnGetHeapSpansStringIter;
 	PFN_GET_HEAP_DLM_BACKING pfnGetHeapDLMBacking;
-	PFN_GET_HEAP_PMB_SIZE pfnGetHeapPMBSize;
 	PFN_CREATE_PMR pfnCreatePMR;
 	PFN_CREATE_PMB pfnCreatePMB;
 #if defined(SUPPORT_GPUVIRT_VALIDATION)
@@ -342,7 +331,7 @@ PVRSRV_ERROR PhysHeapCreate(PPVRSRV_DEVICE_NODE psDevNode,
 							PHYS_HEAP_CONFIG *psConfig,
 							PHYS_HEAP_POLICY uiPolicy,
 							PHEAP_IMPL_DATA pvImplData,
-							PHEAP_IMPL_FUNCS *psImplFuncs,
+							const PHEAP_IMPL_FUNCS *psImplFuncs,
 							PHYS_HEAP **ppsPhysHeap);
 
 /*************************************************************************/ /*!
@@ -400,7 +389,7 @@ PHYS_HEAP_USAGE_FLAGS PhysHeapGetFlags(PHYS_HEAP *psPhysHeap);
 
 IMG_BOOL PhysHeapValidateDefaultHeapExists(PPVRSRV_DEVICE_NODE psDevNode);
 
-#if defined(PVRSRV_SUPPORT_IPA_FEATURE)
+#if defined(SUPPORT_STATIC_IPA)
 IMG_UINT32 PhysHeapGetIPAValue(PHYS_HEAP *psPhysHeap);
 
 IMG_UINT32 PhysHeapGetIPAMask(PHYS_HEAP *psPhysHeap);
@@ -489,14 +478,6 @@ PVRSRV_ERROR PhysHeapCreatePMB(PHYS_HEAP *psPhysHeap,
 PPVRSRV_DEVICE_NODE PhysHeapDeviceNode(PHYS_HEAP *psPhysHeap);
 
 /*************************************************************************/ /*!
-@Function       PhysHeapPMBSize
-@Description    Get PMB size of the DLM heap given.
-@Input          psPhysHeap          Pointer to physical heap.
-@Ouput          IMG_UINT64          PMB Size in Bytes.
-*/ /**************************************************************************/
-IMG_UINT64 PhysHeapPMBSize(PHYS_HEAP *psPhysHeap);
-
-/*************************************************************************/ /*!
 @Function       PhysHeapInitByPVRLayer
 @Description    Is phys heap to be initialised in PVR layer?
 @Input          ePhysHeap           phys heap
@@ -565,5 +546,19 @@ IMG_UINT32 PhysHeapGetPageShift(PHYS_HEAP *psPhysHeap);
 PVRSRV_ERROR PhysHeapFreeMemCheck(PHYS_HEAP *psPhysHeap,
                                   IMG_UINT64 ui64MinRequiredMem,
                                   IMG_UINT64 *pui64FreeMem);
+
+
+#if defined(PVRSRV_ENABLE_XD_MEM)
+/*************************************************************************/ /*!
+@Function       PhysHeapSpasWithDevice
+@Description    Check to see if the device can "see" the SPAS region of the heap.
+                Or in other words, check if any physheap exists
+                in the same SPAS region as `psFromPhysHeap` and is tied to `psToDevNode`.
+@Input          psFromPhysHeap  The physheap whose SPAS region to match.
+@Input          psToDevNode     The device node the other physheap must be tied to.
+@Return         PVRSRV_ERROR    PVRSRV_OK on success, error code otherwise.
+*/ /**************************************************************************/
+PVRSRV_ERROR PhysHeapSpasWithDevice(PHYS_HEAP* psFromPhysHeap, PPVRSRV_DEVICE_NODE psToDevNode);
+#endif
 
 #endif /* PHYSHEAP_H */

@@ -100,8 +100,12 @@ Let's keep this graph up-to-date:
 #define MMU_OBJ_DBG(x)
 #endif
 
-#define SCRATCH_PAGE              "SCRATCH_PAGE"
-#define DEV_ZERO_PAGE             "DEV_ZERO_PAGE"
+#define SCRATCH_PAGE 1
+#define DEV_ZERO_PAGE 2
+#if defined(PDUMP)
+#define SCRATCH_PAGE_STR "SCRATCH_PAGE"
+#define DEV_ZERO_PAGE_STR "DEV_ZERO_PAGE"
+#endif
 #define PVR_SCRATCH_PAGE_INIT_VALUE 0
 #define PVR_ZERO_PAGE_INIT_VALUE  0
 
@@ -261,7 +265,7 @@ typedef struct _MMU_Levelx_INFO_
 	MMU_MEMORY_DESC sMemDesc;
 
 	/*! Array of infos for the next level. Must be last member in structure */
-	struct _MMU_Levelx_INFO_ *apsNextLevel[1];
+	struct _MMU_Levelx_INFO_ *apsNextLevel[IMG_FLEX_ARRAY_MEMBER];
 } MMU_Levelx_INFO;
 
 /*!
@@ -315,7 +319,7 @@ struct _MMU_CONTEXT_
  * Used to determine if the MMU Ctx provided is the FWKM memory context
  * and if it belongs to the VZ Guest.
  */
-#define _MMU_IS_FWKM_CTX_VZGUEST(_ctx) (PVRSRV_VZ_MODE_IS(GUEST) && _MMU_IS_FWKM_CTX(_ctx))
+#define _MMU_IS_FWKM_CTX_VZGUEST(_ctx) (PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, _ctx->psPhysMemCtx->psDevNode) && _MMU_IS_FWKM_CTX(_ctx))
 
 static const IMG_DEV_PHYADDR gsBadDevPhyAddr = {MMU_BAD_PHYS_ADDR};
 
@@ -323,10 +327,20 @@ static const IMG_DEV_PHYADDR gsBadDevPhyAddr = {MMU_BAD_PHYS_ADDR};
 #include "log2.h"
 #endif
 
-#if defined(DEBUG) && defined(SUPPORT_VALIDATION) && defined(__linux__)
-static IMG_UINT32 g_ui32MMULeakCounter = 0;
-static DEFINE_MUTEX(g_sMMULeakMutex);
-#endif
+
+static PVRSRV_ERROR
+MMU_UnmapPagesUnlocked(MMU_CONTEXT *psMMUContext,
+                       PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
+                       IMG_DEV_VIRTADDR sDevVAddrBase,
+                       IMG_UINT32 ui32PageCount,
+                       IMG_UINT32 *pai32FreeIndices,
+                       IMG_UINT32 uiLog2PageSize);
+
+static PVRSRV_ERROR
+MMU_UnmapPMRFastUnlocked(MMU_CONTEXT *psMMUContext,
+                         IMG_DEV_VIRTADDR sDevVAddrBase,
+                         IMG_UINT32 ui32PageCount,
+                         IMG_UINT32 uiLog2PageSize);
 
 /*****************************************************************************
  *                          Utility functions                                *
@@ -404,11 +418,20 @@ _CleanupThread_FreeMMUMapping(void* pvData)
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_OK, e0);
 	}
 
+	/* Has there been a power off since the cleanup item was queued? */
+	bFreeNow = PVRSRVHasCounter32Advanced(psDevNode->uiPowerOffCounter,
+	                                      psCleanup->uiRequiredPowerOffCounter);
+	if (bFreeNow)
+	{
+		goto freeNow;
+	}
+
 	if (psCleanup->psSync == NULL)
 	{
+		IMG_UINT32 uiSyncVal;
 		/* Kick to invalidate the MMU caches and get sync info */
 		eError = psDevNode->pfnMMUCacheInvalidateKick(psDevNode,
-		                                     &psCleanup->uiRequiredSyncVal);
+		                                              &uiSyncVal);
 		if (eError != PVRSRV_OK)
 		{
 			OSLockRelease(psMMUCtxCleanupData->hCleanupLock);
@@ -431,10 +454,6 @@ _CleanupThread_FreeMMUMapping(void* pvData)
 	 * the invalidate)? */
 	bFreeNow = PVRSRVHasCounter32Advanced(OSReadDeviceMem32(psCleanup->psSync->pui32LinAddr),
 	                                      psCleanup->uiRequiredSyncVal);
-
-	/* Has there been a power off? */
-	bFreeNow = bFreeNow || PVRSRVHasCounter32Advanced(psDevNode->uiPowerOffCounter,
-	                                                  psCleanup->uiRequiredPowerOffCounter);
 
 #if defined(NO_HARDWARE)
 	/* In NOHW the syncs will never be updated so just free the tables */
@@ -550,7 +569,7 @@ _SetupCleanup_FreeMMUMapping(MMU_PHYSMEM_CONTEXT *psPhysMemCtx)
 	 * the FW yet. Kicking off an MMU cache invalidate should
 	 * be done in the cleanup thread to not waste time here. */
 	psCleanupItem->psSync = NULL;
-	psCleanupItem->uiRequiredSyncVal = 0;
+	psCleanupItem->uiRequiredSyncVal = psDevNode->ui32NextMMUInvalidateUpdate;
 	psCleanupItem->uiRequiredPowerOffCounter = psDevNode->uiPowerOffCounterNext;
 	psCleanupItem->psDevNode = psDevNode;
 	psCleanupItem->psMMUCtxCleanupData = psCleanupData;
@@ -701,6 +720,27 @@ static IMG_UINT32 _CalcPTEIdx(IMG_DEV_VIRTADDR sDevVAddr,
 	return ui32RetVal;
 }
 
+/*************************************************************************/ /*!
+@Function       _GetParityBit
+
+@Description    Calculate parity bit
+
+@Input          uiSrc           Value to calculate the parity bit from.
+
+@Return         The parity bit
+ */
+/*****************************************************************************/
+static inline IMG_UINT64 _GetParityBit(IMG_UINT64 uiSrc)
+{
+	uiSrc ^= uiSrc >> 32U;
+	uiSrc ^= uiSrc >> 16U;
+	uiSrc ^= uiSrc >> 8U;
+	uiSrc ^= uiSrc >> 4U;
+	uiSrc ^= uiSrc >> 2U;
+	uiSrc ^= uiSrc >> 1U;
+
+	return (uiSrc & 1U);
+}
 
 /*****************************************************************************
  *         MMU memory allocation/management functions (mem desc)             *
@@ -737,9 +777,7 @@ static PVRSRV_ERROR _MMU_PhysMem_RAImportAlloc(RA_PERARENA_HANDLE hArenaHandle,
                                                RA_FLAGS_T uiFlags,
                                                RA_LENGTH_T uBaseAlignment,
                                                const IMG_CHAR *pszAnnotation,
-                                               RA_BASE_T *puiBase,
-                                               RA_LENGTH_T *puiActualSize,
-                                               RA_PERISPAN_HANDLE *phPriv)
+                                               RA_IMPORT *psImport)
 {
 	MMU_PHYSMEM_CONTEXT *psPhysMemCtx = (MMU_PHYSMEM_CONTEXT *)hArenaHandle;
 	PVRSRV_DEVICE_NODE *psDevNode = (PVRSRV_DEVICE_NODE *)psPhysMemCtx->psDevNode;
@@ -795,11 +833,11 @@ static PVRSRV_ERROR _MMU_PhysMem_RAImportAlloc(RA_PERARENA_HANDLE hArenaHandle,
 
 	psMapping->uiCpuVAddrRefCount = 0;
 
-	*phPriv = (RA_PERISPAN_HANDLE) psMapping;
+	psImport->hPriv = (RA_PERISPAN_HANDLE) psMapping;
 
 	/* Note: This assumes this memory never gets paged out */
-	*puiBase = (RA_BASE_T)psMapping->sDevPAddr.uiAddr;
-	*puiActualSize = uiSize;
+	psImport->base = (RA_BASE_T)psMapping->sDevPAddr.uiAddr;
+	psImport->uSize = uiSize;
 
 	return PVRSRV_OK;
 
@@ -872,7 +910,7 @@ static PVRSRV_ERROR _MMU_PhysMemAlloc(MMU_PHYSMEM_CONTEXT *psPhysMemCtx,
 
 	eError = RA_Alloc(psPhysMemCtx->psPhysMemRA,
 	                  uiBytes,
-	                  RA_NO_IMPORT_MULTIPLIER,
+	                  MMU_PT_ALLOC_MULTIPLIER,
 	                  0, /* flags */
 	                  uiAlignment,
 	                  "",
@@ -912,7 +950,7 @@ static PVRSRV_ERROR _MMU_PhysMemAlloc(MMU_PHYSMEM_CONTEXT *psPhysMemCtx,
 /*************************************************************************/ /*!
 @Function       _MMU_PhysMemFree
 
-@Description    Allocates physical memory for MMU objects
+@Description    Frees physical memory for MMU objects
 
 @Input          psPhysMemCtx    Physmem context to do the free on
 
@@ -978,7 +1016,7 @@ static INLINE PVRSRV_ERROR _MMU_ConvertDevMemFlags(IMG_BOOL bInvalidate,
 		*puiMMUProtFlags |= MMU_PROTFLAGS_WRITEABLE;
 	}
 
-	eError = DevmemDeviceCacheMode(psDevNode, uiMappingFlags, &uiGPUCacheMode);
+	eError = DevmemDeviceCacheMode(uiMappingFlags, &uiGPUCacheMode);
 	PVR_RETURN_IF_ERROR(eError);
 
 	switch (uiGPUCacheMode)
@@ -1033,6 +1071,10 @@ static PVRSRV_ERROR _PxMemAlloc(MMU_CONTEXT *psMMUContext,
                                 const MMU_PxE_CONFIG *psConfig,
                                 MMU_LEVEL eMMULevel,
                                 MMU_MEMORY_DESC *psMemDesc,
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+                                IMG_DEV_VIRTADDR* psRunningDevVAddr,
+                                IMG_UINT32 uiLog2DataPageSize,
+#endif
                                 IMG_UINT32 uiLog2Align)
 {
 	PVRSRV_ERROR eError;
@@ -1068,14 +1110,31 @@ static PVRSRV_ERROR _PxMemAlloc(MMU_CONTEXT *psMMUContext,
 		PVR_LOG_GOTO_WITH_ERROR("_MMU_PhysMemAlloc", eError, PVRSRV_ERROR_OUT_OF_MEMORY, e0);
 	}
 
-	/*
-		Clear the object
-		Note: if any MMUs are cleared with non-zero values then will need a
-		custom clear function
-		Note: 'Cached' is wrong for the LMA + ARM64 combination, but this is
-		unlikely
-	 */
-	OSCachedMemSet(psMemDesc->pvCpuVAddr, 0, uiBytes);
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	/* If parity bit is needed, set it accordingly to avoid parity errors along with page-faults. */
+	if (psConfig->uiParityBitMask && eMMULevel == MMU_LEVEL_1 && psRunningDevVAddr != NULL)
+	{
+		IMG_UINT32 uiParity = (IMG_UINT32)_GetParityBit(psRunningDevVAddr->uiAddr ^ 0ULL);
+
+		/* Only calculate parity for first address in the PT.
+		   This tells us which of the two patterns to use for the rest of the PT. */
+		OSCachedMemCopy(psMemDesc->pvCpuVAddr, psMMUContext->psDevAttrs->pui64PrecomputedAllocParity[uiParity], uiBytes);
+
+		/* Increment running dev virtual address */
+		psRunningDevVAddr->uiAddr += (1 << uiLog2DataPageSize) * uiNumEntries;
+	}
+	else
+#endif
+	{
+		/*
+			Clear the object
+			Note: if any MMUs are cleared with non-zero values then will need a
+			custom clear function
+			Note: 'Cached' is wrong for the LMA + ARM64 combination, but this is
+			unlikely
+		*/
+		OSCachedMemSet(psMemDesc->pvCpuVAddr, 0, uiBytes);
+	}
 
 	eError = PhysHeapPagesClean(psDevNode->psMMUPhysHeap,
 	                            &psMemDesc->psMapping->sMemHandle,
@@ -1109,7 +1168,12 @@ static PVRSRV_ERROR _PxMemAlloc(MMU_CONTEXT *psMMUContext,
 	                      psConfig->uiProtMask,
 	                      psConfig->uiValidEnMask,
 	                      0,
+	                      0, /* Unused - Parity bit values are taken directly from PTE memory when PTE is 0-initialised or invalid */
+	                      0, /* Unused */
+	                      0, /* Unused */
 	                      psMMUContext->psDevAttrs->eMMUType);
+#else
+	PVR_UNREFERENCED_PARAMETER(eMMULevel);
 #endif
 
 	return PVRSRV_OK;
@@ -1170,6 +1234,7 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
                                      IMG_UINT32 uiIndex,
                                      const MMU_PxE_CONFIG *psConfig,
                                      const IMG_DEV_PHYADDR *psDevPAddr,
+                                     const IMG_DEV_VIRTADDR *psDevVAddr,
                                      IMG_BOOL bUnmap,
 #if defined(PDUMP)
                                      const IMG_CHAR *pszMemspaceName,
@@ -1182,6 +1247,15 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
 	IMG_UINT64 ui64PxE64;
 	IMG_UINT64 uiAddr = psDevPAddr->uiAddr;
 	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psPhysMemCtx->psDevNode;
+
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	IMG_BOOL bParity = psConfig->uiParityBitMask;
+#else
+	IMG_BOOL bParity = psConfig->uiParityBitMask && !bUnmap;
+#if !defined(PDUMP)
+	PVR_UNREFERENCED_PARAMETER(bParity);
+#endif
+#endif
 
 	if (psDevNode->pfnValidateOrTweakPhysAddrs)
 	{
@@ -1197,7 +1271,14 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
 			>> psConfig->uiAddrLog2Align /* Shift away the useless bits, because the alignment is very coarse and we address by alignment */
 			<< psConfig->uiAddrShift /* Shift back to fit address in the Px entry */
 			& psConfig->uiAddrMask; /* Delete unused bits */
+
 	ui64PxE64 |= uiProtFlags;
+
+	/* Add parity */
+	if (bParity)
+	{
+		ui64PxE64 |= _GetParityBit(psDevVAddr->uiAddr ^ psDevPAddr->uiAddr) << psConfig->uiParityBitShift;
+	}
 
 	/* Set the entry */
 	if (psConfig->uiBytesPerEntry == 8)
@@ -1213,6 +1294,7 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
 		/* assert that the result fits into 32 bits before writing
 		   it into the 32-bit array with a cast */
 		PVR_ASSERT(ui64PxE64 == (ui64PxE64 & 0xffffffffU));
+		PVR_ASSERT(!bParity);
 
 		pui32Px[uiIndex] = (IMG_UINT32) ui64PxE64;
 	}
@@ -1221,13 +1303,14 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
 		return PVRSRV_ERROR_MMU_CONFIG_IS_WRONG;
 	}
 
-
 	/* Log modification */
 	HTBLOGK(HTB_SF_MMU_PAGE_OP_TABLE,
 	        HTBLOG_PTR_BITS_HIGH(psLevel), HTBLOG_PTR_BITS_LOW(psLevel),
 	        uiIndex, MMU_LEVEL_1,
 	        HTBLOG_U64_BITS_HIGH(ui64PxE64), HTBLOG_U64_BITS_LOW(ui64PxE64),
 	        !bUnmap);
+
+	PVR_UNREFERENCED_PARAMETER(bUnmap); /* when HTBLOGK is disabled */
 
 #if defined(PDUMP)
 	PDumpMMUDumpPxEntries(psDevNode,
@@ -1247,6 +1330,9 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
 	                      psConfig->uiProtMask,
 	                      psConfig->uiValidEnMask,
 	                      0,
+	                      bParity ? _GetParityBit(psDevVAddr->uiAddr ^ 0) : 0,
+	                      psConfig->uiParityBitShift,
+	                      bParity ? psConfig->uiParityBitMask : 0,
 	                      psMMUContext->psDevAttrs->eMMUType);
 #endif /*PDUMP*/
 
@@ -1278,23 +1364,21 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
                                 point to
 
 @Input          uiProtFlags     MMU protection flags
-
-@Return         PVRSRV_OK if the setup was successful
  */
 /*****************************************************************************/
-static PVRSRV_ERROR _SetupPxE(MMU_CONTEXT *psMMUContext,
-                              MMU_Levelx_INFO *psLevel,
-                              IMG_UINT32 uiIndex,
-                              const MMU_PxE_CONFIG *psConfig,
-                              MMU_LEVEL eMMULevel,
-                              const IMG_DEV_PHYADDR *psDevPAddr,
+static void _SetupPxE(MMU_CONTEXT *psMMUContext,
+                      MMU_Levelx_INFO *psLevel,
+                      IMG_UINT32 uiIndex,
+                      const MMU_PxE_CONFIG *psConfig,
+                      MMU_LEVEL eMMULevel,
+                      const IMG_DEV_PHYADDR *psDevPAddr,
 #if defined(PDUMP)
-                              const IMG_CHAR *pszMemspaceName,
-                              const IMG_CHAR *pszSymbolicAddr,
-                              IMG_DEVMEM_OFFSET_T uiSymbolicAddrOffset,
+                      const IMG_CHAR *pszMemspaceName,
+                      const IMG_CHAR *pszSymbolicAddr,
+                      IMG_DEVMEM_OFFSET_T uiSymbolicAddrOffset,
 #endif
-                              MMU_PROTFLAGS_T uiProtFlags,
-                              IMG_UINT32 uiLog2DataPageSize)
+                      MMU_PROTFLAGS_T uiProtFlags,
+                      IMG_UINT32 uiLog2DataPageSize)
 {
 	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psPhysMemCtx->psDevNode;
 	MMU_MEMORY_DESC *psMemDesc = &psLevel->sMemDesc;
@@ -1340,7 +1424,8 @@ static PVRSRV_ERROR _SetupPxE(MMU_CONTEXT *psMMUContext,
 
 		default:
 			PVR_DPF((PVR_DBG_ERROR, "%s: invalid MMU level", __func__));
-			return PVRSRV_ERROR_INVALID_PARAMS;
+			PVR_ASSERT(0);
+			return;
 	}
 
 	/* How big is a PxE in bytes? */
@@ -1400,8 +1485,8 @@ static PVRSRV_ERROR _SetupPxE(MMU_CONTEXT *psMMUContext,
 		default:
 			PVR_DPF((PVR_DBG_ERROR, "%s: PxE size not supported (%d) for level %d",
 					__func__, psConfig->uiBytesPerEntry, eMMULevel));
-
-			return PVRSRV_ERROR_MMU_CONFIG_IS_WRONG;
+			PVR_ASSERT(0);
+			return;
 	}
 
 #if defined(PDUMP)
@@ -1422,6 +1507,9 @@ static PVRSRV_ERROR _SetupPxE(MMU_CONTEXT *psMMUContext,
 	                      psConfig->uiProtMask,
 	                      psConfig->uiValidEnMask,
 	                      0,
+	                      0, /* Unused */
+	                      0, /* Unused */
+	                      0, /* Unused */
 	                      psMMUContext->psDevAttrs->eMMUType);
 #endif
 
@@ -1429,7 +1517,7 @@ static PVRSRV_ERROR _SetupPxE(MMU_CONTEXT *psMMUContext,
 	                                 eMMULevel,
 	                                 uiProtFlags & MMU_PROTFLAGS_INVALID);
 
-	return PVRSRV_OK;
+	return;
 }
 
 /*****************************************************************************
@@ -1507,9 +1595,10 @@ static IMG_BOOL _MMU_FreeLevel(MMU_CONTEXT *psMMUContext,
 	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psPhysMemCtx->psDevNode;
 
 	/* Call before parameter check for debugging purposes. */
-	MMU_OBJ_DBG((PVR_DBG_ERROR, "_MMU_FreeLevel: level = %d, range %d - %d, refcount = %d",
-			aeMMULevel[uiThisLevel], uiStartIndex,
-			uiEndIndex, psLevel->ui32RefCount));
+	MMU_OBJ_DBG((PVR_DBG_ERROR,
+	             "_MMU_FreeLevel: level = %u, range %u - %u, refcount = %u",
+	             aeMMULevel[uiThisLevel], uiStartIndex, uiEndIndex,
+	             (psLevel != NULL ? psLevel->ui32RefCount : IMG_UINT32_MAX)));
 
 	/* Parameter checks */
 	PVR_ASSERT(*pui32CurrentLevel < MMU_MAX_LEVEL);
@@ -1562,24 +1651,20 @@ static IMG_BOOL _MMU_FreeLevel(MMU_CONTEXT *psMMUContext,
 			                   uiNextStartIndex, uiNextEndIndex,
 			                   bNextFirst, bNextLast, uiLog2DataPageSize))
 			{
-				PVRSRV_ERROR eError;
-
 				/* Un-wire the entry */
-				eError = _SetupPxE(psMMUContext,
-				                   psLevel,
-				                   i,
-				                   psConfig,
-				                   aeMMULevel[uiThisLevel],
-				                   NULL,
+				_SetupPxE(psMMUContext,
+				          psLevel,
+				          i,
+				          psConfig,
+				          aeMMULevel[uiThisLevel],
+				          NULL,
 #if defined(PDUMP)
-				                   NULL,	/* Only required for data page */
-				                   NULL,	/* Only required for data page */
-				                   0,      /* Only required for data page */
+				          NULL,	/* Only required for data page */
+				          NULL,	/* Only required for data page */
+				          0,      /* Only required for data page */
 #endif
-				                   MMU_PROTFLAGS_INVALID,
-				                   uiLog2DataPageSize);
-
-				PVR_ASSERT(eError == PVRSRV_OK);
+				          MMU_PROTFLAGS_INVALID,
+				          uiLog2DataPageSize);
 
 				/* Free table of the level below, pointed to by this table entry.
 				 * We don't destroy the table inside the above _MMU_FreeLevel call because we
@@ -1690,6 +1775,10 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
                                     IMG_UINT32 *pui32CurrentLevel,
                                     IMG_UINT32 uiStartIndex,
                                     IMG_UINT32 uiEndIndex,
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+                                    IMG_DEV_VIRTADDR* psRunningDevVAddr,
+                                    IMG_BOOL bSetParity,
+#endif
                                     IMG_BOOL bFirst,
                                     IMG_BOOL bLast,
                                     IMG_UINT32 uiLog2DataPageSize)
@@ -1704,9 +1793,10 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 	/* Parameter check */
 	PVR_ASSERT(*pui32CurrentLevel < MMU_MAX_LEVEL);
 
-	MMU_OBJ_DBG((PVR_DBG_ERROR, "_MMU_AllocLevel: level = %d, range %d - %d, refcount = %d",
-			aeMMULevel[uiThisLevel], uiStartIndex,
-			uiEndIndex, psLevel->ui32RefCount));
+	MMU_OBJ_DBG((PVR_DBG_ERROR,
+	             "_MMU_AllocLevel: level = %u, range %u - %u, refcount = %u",
+	             aeMMULevel[uiThisLevel], uiStartIndex, uiEndIndex,
+	             psLevel != NULL ? psLevel->ui32RefCount : IMG_UINT32_MAX));
 
 	/* Go from uiStartIndex to uiEndIndex through the Px */
 	for (i = uiStartIndex;i < uiEndIndex;i++)
@@ -1732,7 +1822,7 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 				ui32AllocSize = sizeof(MMU_Levelx_INFO);
 				if (aeMMULevel[uiThisLevel + 1] != MMU_LEVEL_1)
 				{
-					ui32AllocSize += sizeof(MMU_Levelx_INFO *) * (uiNextEntries - 1);
+					ui32AllocSize += IMG_FLEX_ARRAY_SIZE(sizeof(MMU_Levelx_INFO *), uiNextEntries);
 				}
 				psNextLevel = OSAllocZMem(ui32AllocSize);
 				if (psNextLevel == NULL)
@@ -1750,7 +1840,12 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 				eError = _PxMemAlloc(psMMUContext, uiNextEntries, apsConfig[uiThisLevel + 1],
 				                     aeMMULevel[uiThisLevel + 1],
 				                     &psNextLevel->sMemDesc,
-				                     psConfig->uiAddrLog2Align);
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+				                     psRunningDevVAddr,
+				                     uiLog2DataPageSize,
+#endif
+				                     psConfig->uiAddrLog2Align
+);
 				if (eError != PVRSRV_OK)
 				{
 					uiAllocState = 1;
@@ -1758,28 +1853,33 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 				}
 
 				/* Wire up the entry */
-				eError = _SetupPxE(psMMUContext,
-				                   psLevel,
-				                   i,
-				                   psConfig,
-				                   aeMMULevel[uiThisLevel],
-				                   &psNextLevel->sMemDesc.sDevPAddr,
+				_SetupPxE(psMMUContext,
+				          psLevel,
+				          i,
+				          psConfig,
+				          aeMMULevel[uiThisLevel],
+				          &psNextLevel->sMemDesc.sDevPAddr,
 #if defined(PDUMP)
-				                   NULL, /* Only required for data page */
-				                   NULL, /* Only required for data page */
-				                   0,    /* Only required for data page */
+				          NULL, /* Only required for data page */
+				          NULL, /* Only required for data page */
+				          0,    /* Only required for data page */
 #endif
-				                   0,
-				                   uiLog2DataPageSize);
-
-				if (eError != PVRSRV_OK)
-				{
-					uiAllocState = 2;
-					goto e0;
-				}
+				          0,
+				          uiLog2DataPageSize);
 
 				psLevel->ui32RefCount++;
 			}
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+			else
+			{
+				/* The level structure already exists, increment running device virtual address
+				   This is necessary for correct parity bit calculation on further allocated page tables */
+				if (bSetParity && aeMMULevel[uiThisLevel+1] == MMU_LEVEL_1)
+				{
+					psRunningDevVAddr->uiAddr += psLevel->apsNextLevel[i]->ui32NumOfEntries * (1 << uiLog2DataPageSize);
+				}
+			}
+#endif
 
 			/* If we're crossing a Px then the start index changes */
 			if (bFirst && (i == uiStartIndex))
@@ -1816,6 +1916,11 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 			                         pui32CurrentLevel,
 			                         uiNextStartIndex,
 			                         uiNextEndIndex,
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+
+			                         psRunningDevVAddr,
+			                         bSetParity,
+#endif
 			                         bNextFirst,
 			                         bNextLast,
 			                         uiLog2DataPageSize);
@@ -1854,8 +1959,8 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 		PVR_GOTO_IF_ERROR(eError, e1);
 	}
 
-	MMU_OBJ_DBG((PVR_DBG_ERROR, "_MMU_AllocLevel end: level = %d, refcount = %d",
-			aeMMULevel[uiThisLevel], psLevel->ui32RefCount));
+	MMU_OBJ_DBG((PVR_DBG_ERROR, "_MMU_AllocLevel end: level = %u, refcount = %u",
+	             aeMMULevel[uiThisLevel], psLevel->ui32RefCount));
 	return PVRSRV_OK;
 
 e0:
@@ -2054,7 +2159,7 @@ static void _MMU_GetLevelData(MMU_CONTEXT *psMMUContext,
 	                                                 &psMMUPTEConfig,
 	                                                 ppsMMUDevVAddrConfig,
 	                                                 phPriv);
-	PVR_ASSERT(eError == PVRSRV_OK);
+	PVR_LOG_RETURN_VOID_IF_ERROR(eError, "GetPageSizeConfiguration");
 
 	psDevVAddrConfig = *ppsMMUDevVAddrConfig;
 
@@ -2158,6 +2263,10 @@ _AllocPageTables(MMU_CONTEXT *psMMUContext,
 	const MMU_DEVVADDR_CONFIG	*psDevVAddrConfig;
 	IMG_HANDLE hPriv;
 	IMG_UINT32 ui32CurrentLevel = 0;
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	IMG_DEV_VIRTADDR sRunningDevVAddrStart;
+	IMG_BOOL bSetParity;
+#endif
 
 	PVR_DPF((PVR_DBG_ALLOC,
 			"_AllocPageTables: vaddr range: "IMG_DEV_VIRTADDR_FMTSPEC":"IMG_DEV_VIRTADDR_FMTSPEC,
@@ -2179,6 +2288,27 @@ _AllocPageTables(MMU_CONTEXT *psMMUContext,
 	                  auiEntriesPerPx, apsConfig, aeMMULevel,
 	                  &psDevVAddrConfig, &hPriv);
 
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	{
+		IMG_UINT32 i, uiPTLevelIdx=0;
+		for (i=0; i<MMU_MAX_LEVEL; i++)
+		{
+			if (aeMMULevel[i] == MMU_LEVEL_1)
+			{
+				uiPTLevelIdx = i;
+				break;
+			}
+		}
+
+		bSetParity = apsConfig[uiPTLevelIdx]->uiParityBitMask != 0;
+		if (bSetParity)
+		{
+			/* If parity bit needs to be written for PTEs save the first VA of the PT */
+			sRunningDevVAddrStart.uiAddr = sDevVAddrStart.uiAddr & ~((IMG_UINT64)(auiEntriesPerPx[uiPTLevelIdx] * (1 << uiLog2DataPageSize)) - 1);
+		}
+	}
+#endif
+
 	HTBLOGK(HTB_SF_MMU_PAGE_OP_ALLOC,
 	        HTBLOG_U64_BITS_HIGH(sDevVAddrStart.uiAddr), HTBLOG_U64_BITS_LOW(sDevVAddrStart.uiAddr),
 	        HTBLOG_U64_BITS_HIGH(sDevVAddrEnd.uiAddr), HTBLOG_U64_BITS_LOW(sDevVAddrEnd.uiAddr));
@@ -2187,7 +2317,18 @@ _AllocPageTables(MMU_CONTEXT *psMMUContext,
 	                         auiStartArray, auiEndArray, auiEntriesPerPx,
 	                         apsConfig, aeMMULevel, &ui32CurrentLevel,
 	                         auiStartArray[0], auiEndArray[0],
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	                         &sRunningDevVAddrStart,
+	                         bSetParity,
+#endif
 	                         IMG_TRUE, IMG_TRUE, uiLog2DataPageSize);
+
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP) && defined(DEBUG)
+	if (bSetParity)
+	{
+		PVR_ASSERT(sRunningDevVAddrStart.uiAddr >= sDevVAddrEnd.uiAddr);
+	}
+#endif
 
 	_MMU_PutLevelData(psMMUContext, hPriv);
 
@@ -2273,17 +2414,18 @@ static void _FreePageTables(MMU_CONTEXT *psMMUContext,
 
 @Output         pui32PTEIndex           Index into the PT the address corresponds to
 
-@Return         None
+@Return         IMG_TRUE if the operation was successful and IMG_FALSE otherwise
  */
 /*****************************************************************************/
-static INLINE void _MMU_GetPTInfo(MMU_CONTEXT                *psMMUContext,
-                                  IMG_DEV_VIRTADDR            sDevVAddr,
-                                  const MMU_DEVVADDR_CONFIG  *psDevVAddrConfig,
-                                  MMU_Levelx_INFO           **ppsLevel,
-                                  IMG_UINT32                 *pui32PTEIndex)
+static INLINE IMG_BOOL _MMU_GetPTInfo(MMU_CONTEXT                *psMMUContext,
+                                      IMG_DEV_VIRTADDR            sDevVAddr,
+                                      const MMU_DEVVADDR_CONFIG  *psDevVAddrConfig,
+                                      MMU_Levelx_INFO           **ppsLevel,
+                                      IMG_UINT32                 *pui32PTEIndex)
 {
 	MMU_Levelx_INFO *psLocalLevel = NULL;
 	MMU_LEVEL eMMULevel = psMMUContext->psDevAttrs->psBaseConfig->ePxLevel;
+	const MMU_LEVEL eMMUBaseLevel = eMMULevel;
 	IMG_UINT32 uiPCEIndex;
 	IMG_UINT32 uiPDEIndex;
 
@@ -2297,7 +2439,7 @@ static INLINE void _MMU_GetPTInfo(MMU_CONTEXT                *psMMUContext,
 	{
 		if (eMMULevel == MMU_LEVEL_3)
 		{
-			/* find the page directory containing the PCE */
+			/* find the page directory pointed by the PCE */
 			uiPCEIndex = _CalcPCEIdx (sDevVAddr, psDevVAddrConfig,
 			                          IMG_FALSE);
 			psLocalLevel = psMMUContext->sBaseLevelInfo.apsNextLevel[uiPCEIndex];
@@ -2305,32 +2447,39 @@ static INLINE void _MMU_GetPTInfo(MMU_CONTEXT                *psMMUContext,
 
 		if (eMMULevel == MMU_LEVEL_2)
 		{
-			/* find the page table containing the PDE */
-			uiPDEIndex = _CalcPDEIdx (sDevVAddr, psDevVAddrConfig,
-			                          IMG_FALSE);
-			if (psLocalLevel != NULL)
+			/* find the page table pointed by the PDE */
+			uiPDEIndex = _CalcPDEIdx(sDevVAddr, psDevVAddrConfig, IMG_FALSE);
+			if (psLocalLevel == NULL)
 			{
-				psLocalLevel = psLocalLevel->apsNextLevel[uiPDEIndex];
+				return IMG_FALSE;
 			}
-			else
-			{
-				psLocalLevel =
-						psMMUContext->sBaseLevelInfo.apsNextLevel[uiPDEIndex];
-			}
+
+			psLocalLevel = psLocalLevel->apsNextLevel[uiPDEIndex];
 		}
 
 		if (eMMULevel == MMU_LEVEL_1)
 		{
 			/* find PTE index into page table */
-			*pui32PTEIndex = _CalcPTEIdx (sDevVAddr, psDevVAddrConfig,
-			                              IMG_FALSE);
+			*pui32PTEIndex = _CalcPTEIdx(sDevVAddr, psDevVAddrConfig, IMG_FALSE);
+
 			if (psLocalLevel == NULL)
 			{
-				psLocalLevel = &psMMUContext->sBaseLevelInfo;
+				if (eMMUBaseLevel == eMMULevel)
+				{
+					/* if the MMU only supports one level return the base level */
+					psLocalLevel = &psMMUContext->sBaseLevelInfo;
+				}
+				else
+				{
+					return IMG_FALSE;
+				}
 			}
 		}
 	}
+
 	*ppsLevel = psLocalLevel;
+
+	return IMG_TRUE;
 }
 
 /*************************************************************************/ /*!
@@ -2412,14 +2561,56 @@ static INLINE void _MMU_PutPTConfig(MMU_CONTEXT *psMMUContext,
 
 /* scratch / zero pages */
 
-static PVRSRV_ERROR _MMU_GetBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
-                                        PVRSRV_DEF_PAGE *psDefPage,
-                                        IMG_INT uiInitValue,
-                                        IMG_CHAR *pcDefPageName,
-                                        IMG_BOOL bInitPage)
+static INLINE PVRSRV_ERROR _MMU_GetDefPage(PVRSRV_DEVICE_NODE *psDevNode,
+                                           IMG_INT uiDefPage,
+                                           PVRSRV_DEF_PAGE **ppsDefPage,
+                                           IMG_CHAR **ppcDefPageName)
+{
+#if !defined(PDUMP)
+	PVR_UNREFERENCED_PARAMETER(ppcDefPageName);
+#endif
+
+	switch (uiDefPage)
+	{
+		case SCRATCH_PAGE:
+		{
+			*ppsDefPage = &psDevNode->sScratchPage;
+#if defined(PDUMP)
+			*ppcDefPageName = SCRATCH_PAGE_STR;
+#endif
+			break;
+		}
+		case DEV_ZERO_PAGE:
+		{
+			*ppsDefPage = &psDevNode->sDevZeroPage;
+#if defined(PDUMP)
+			*ppcDefPageName = DEV_ZERO_PAGE_STR;
+#endif
+			break;
+		}
+		default:
+		{
+			/* Invalid pcDefPageName */
+			return PVRSRV_ERROR_INVALID_PARAMS;
+		}
+	}
+	return PVRSRV_OK;
+}
+
+static PVRSRV_ERROR _MMU_AllocBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
+                                          IMG_INT uiInitValue,
+                                          IMG_INT uiDefPage)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	IMG_DEV_PHYADDR	sDevPAddr = {0};
+	PVRSRV_DEF_PAGE *psDefPage;
+	IMG_CHAR *pcDefPageName;
+
+	eError = _MMU_GetDefPage(psDevNode,
+	                         uiDefPage,
+	                         &psDefPage,
+	                         &pcDefPageName);
+	PVR_RETURN_IF_ERROR(eError);
 
 	OSLockAcquire(psDefPage->psPgLock);
 
@@ -2439,7 +2630,7 @@ static PVRSRV_ERROR _MMU_GetBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
 	                         (1 << psDefPage->ui32Log2PgSize),
 	                         0,
 	                         uiInitValue,
-	                         bInitPage,
+	                         IMG_TRUE,
 #if defined(PDUMP)
 	                         psDevNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
 	                         pcDefPageName,
@@ -2448,7 +2639,6 @@ static PVRSRV_ERROR _MMU_GetBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
 	                         PVR_SYS_ALLOC_PID,
 	                         &psDefPage->sPageHandle,
 	                         &sDevPAddr);
-	PVR_GOTO_IF_ERROR(eError, UnlockAndReturn);
 
 	psDefPage->ui64PgPhysAddr = sDevPAddr.uiAddr;
 
@@ -2458,10 +2648,53 @@ UnlockAndReturn:
 	return eError;
 }
 
-static void _MMU_FreeBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
-                                 PVRSRV_DEF_PAGE *psDefPage,
-                                 IMG_CHAR *pcDefPageName)
+static PVRSRV_ERROR _MMU_GetBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
+                                        IMG_UINT64 *pui64PgPhysAddr,
+                                        IMG_INT uiDefPage)
 {
+	PVRSRV_ERROR eError = PVRSRV_OK;
+	PVRSRV_DEF_PAGE *psDefPage;
+	IMG_CHAR *pcDefPageName;
+
+	eError = _MMU_GetDefPage(psDevNode,
+	                         uiDefPage,
+	                         &psDefPage,
+	                         &pcDefPageName);
+	PVR_RETURN_IF_ERROR(eError);
+
+	OSLockAcquire(psDefPage->psPgLock);
+
+	if (psDefPage->ui64PgPhysAddr == MMU_BAD_PHYS_ADDR)
+	{
+		eError = PVRSRV_ERROR_NOT_FOUND;
+		PVR_DPF((PVR_DBG_ERROR,"%s: %s (uiDefPage=%d)",
+		         __func__, PVRSRVGetErrorString(eError), uiDefPage));
+		goto UnlockAndReturn;
+	}
+
+	if (pui64PgPhysAddr)
+		*pui64PgPhysAddr = psDefPage->ui64PgPhysAddr;
+
+UnlockAndReturn:
+	OSLockRelease(psDefPage->psPgLock);
+
+	return eError;
+}
+
+static void _MMU_FreeBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
+                                 IMG_INT uiDefPage)
+{
+	PVRSRV_DEF_PAGE *psDefPage;
+	IMG_CHAR *pcDefPageName;
+	PVRSRV_ERROR eErr;
+
+	eErr = _MMU_GetDefPage(psDevNode,
+	                       uiDefPage,
+	                       &psDefPage,
+	                       &pcDefPageName);
+	if (eErr != PVRSRV_OK)
+		return;
+
 	OSLockAcquire(psDefPage->psPgLock);
 
 	if (psDefPage->ui64PgPhysAddr == MMU_BAD_PHYS_ADDR)
@@ -2533,31 +2766,25 @@ PVRSRV_ERROR MMU_InitDevice(struct _PVRSRV_DEVICE_NODE_ *psDevNode)
 #ifdef PDUMP
 	psDevNode->sScratchPage.hPdumpPg = NULL;
 	psDevNode->sDevZeroPage.hPdumpPg = NULL;
-
-	eError = _MMU_GetBackingPage(psDevNode,
-	                             &psDevNode->sScratchPage,
-	                             PVR_SCRATCH_PAGE_INIT_VALUE,
-	                             SCRATCH_PAGE,
-	                             IMG_TRUE);
-	PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage.Scratch", ErrFreeZeroPageLock);
-
-	eError = _MMU_GetBackingPage(psDevNode,
-	                             &psDevNode->sDevZeroPage,
-	                             PVR_ZERO_PAGE_INIT_VALUE,
-	                             DEV_ZERO_PAGE,
-	                             IMG_TRUE);
-	PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage.Zero", ErrFreeScratchPage);
 #endif /* PDUMP */
+
+	eError = _MMU_AllocBackingPage(psDevNode,
+	                               PVR_SCRATCH_PAGE_INIT_VALUE,
+	                               SCRATCH_PAGE);
+	PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_AllocBackingPage.Scratch", ErrFreeZeroPageLock);
+
+	eError = _MMU_AllocBackingPage(psDevNode,
+	                               PVR_ZERO_PAGE_INIT_VALUE,
+	                               DEV_ZERO_PAGE);
+	PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_AllocBackingPage.Zero", ErrFreeScratchPage);
 
 	return PVRSRV_OK;
 
-#ifdef PDUMP
 ErrFreeScratchPage:
-	_MMU_FreeBackingPage(psDevNode, &psDevNode->sScratchPage, SCRATCH_PAGE);
+	_MMU_FreeBackingPage(psDevNode, SCRATCH_PAGE);
 ErrFreeZeroPageLock:
 	OSLockDestroy(psDevNode->sDevZeroPage.psPgLock);
 	psDevNode->sDevZeroPage.psPgLock = NULL;
-#endif /* PDUMP */
 ErrFreeScratchPageLock:
 	OSLockDestroy(psDevNode->sScratchPage.psPgLock);
 	psDevNode->sScratchPage.psPgLock = NULL;
@@ -2572,7 +2799,7 @@ void MMU_DeInitDevice(struct _PVRSRV_DEVICE_NODE_ *psDevNode)
 {
 	if (psDevNode->sScratchPage.psPgLock != NULL)
 	{
-		_MMU_FreeBackingPage(psDevNode, &psDevNode->sScratchPage, SCRATCH_PAGE);
+		_MMU_FreeBackingPage(psDevNode, SCRATCH_PAGE);
 
 		OSLockDestroy(psDevNode->sScratchPage.psPgLock);
 		psDevNode->sScratchPage.psPgLock = NULL;
@@ -2580,7 +2807,7 @@ void MMU_DeInitDevice(struct _PVRSRV_DEVICE_NODE_ *psDevNode)
 
 	if (psDevNode->sDevZeroPage.psPgLock)
 	{
-		_MMU_FreeBackingPage(psDevNode, &psDevNode->sDevZeroPage, DEV_ZERO_PAGE);
+		_MMU_FreeBackingPage(psDevNode, DEV_ZERO_PAGE);
 
 
 		OSLockDestroy(psDevNode->sDevZeroPage.psPgLock);
@@ -2679,12 +2906,12 @@ MMU_ContextCreate(CONNECTION_DATA *psConnection,
 	psPhysMemCtx->pszPhysMemRAName = OSAllocMem(psPhysMemCtx->uiPhysMemRANameAllocSize);
 	PVR_LOG_GOTO_IF_NOMEM(psPhysMemCtx->pszPhysMemRAName, eError, e2);
 
-	OSStringLCopy(psPhysMemCtx->pszPhysMemRAName, sBuf, psPhysMemCtx->uiPhysMemRANameAllocSize);
+	OSStringSafeCopy(psPhysMemCtx->pszPhysMemRAName, sBuf, psPhysMemCtx->uiPhysMemRANameAllocSize);
 
 	psPhysMemCtx->psPhysMemRA = RA_Create(psPhysMemCtx->pszPhysMemRAName,
 	                                      /* subsequent import */
 	                                      PhysHeapGetPageShift(psDevNode->psMMUPhysHeap),
-	                                      RA_LOCKCLASS_1,
+	                                      RA_LOCKCLASS_2,
 	                                      _MMU_PhysMem_RAImportAlloc,
 	                                      _MMU_PhysMem_RAImportFree,
 	                                      psPhysMemCtx, /* priv */
@@ -2717,16 +2944,26 @@ MMU_ContextCreate(CONNECTION_DATA *psConnection,
 	         might request the base object address so we allocate
 	         it up front.
 	         In VZ we only need to allocate the FW/KM ctx on the
-	         Host machine as all Guest tables are alloc'd and pre-mapped into
-	         the host FW Memory Context.
+	         Host Driver as all Guest tables are allocated and
+	         pre-mapped into the host FW Memory Context.
+	         Drivers with security support and premapped heaps
+	         rely on the TEE to manage the Firmware mappings.
 	 */
+#if defined(SUPPORT_TRUSTED_DEVICE) && defined(RGX_PREMAP_FW_HEAPS)
+	if (!_MMU_IS_FWKM_CTX(psMMUContext))
+#else
 	if (!_MMU_IS_FWKM_CTX_VZGUEST(psMMUContext))
+#endif
 	{
 		if (_PxMemAlloc(psMMUContext,
 						ui32BaseObjects,
 						psConfig,
 						psDevAttrs->psBaseConfig->ePxLevel,
 						&psMMUContext->sBaseLevelInfo.sMemDesc,
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+						NULL,
+						0U,
+#endif
 						psDevAttrs->ui32BaseAlign))
 		{
 			PVR_LOG_GOTO_WITH_ERROR("_PxMemAlloc", eError, PVRSRV_ERROR_OUT_OF_MEMORY, e5);
@@ -2809,7 +3046,12 @@ MMU_ContextDestroy (MMU_CONTEXT *psMMUContext)
 	/* Free the top level MMU object - will be put on defer free list.
 	 * This has to be done before the step below that will empty the
 	 * defer-free list. */
+
+#if defined(SUPPORT_TRUSTED_DEVICE) && defined(RGX_PREMAP_FW_HEAPS)
+	if (!_MMU_IS_FWKM_CTX(psMMUContext))
+#else
 	if (!_MMU_IS_FWKM_CTX_VZGUEST(psMMUContext))
+#endif
 	{
 		_PxMemFree(psMMUContext,
 		           &psMMUContext->sBaseLevelInfo.sMemDesc,
@@ -2871,7 +3113,6 @@ MMU_ContextDestroy (MMU_CONTEXT *psMMUContext)
 PVRSRV_ERROR
 MMU_Alloc (MMU_CONTEXT *psMMUContext,
            IMG_DEVMEM_SIZE_T uSize,
-           IMG_DEVMEM_SIZE_T *puActualSize,
            IMG_UINT32 uiProtFlags,
            IMG_DEVMEM_SIZE_T uDevVAddrAlignment,
            IMG_DEV_VIRTADDR *psDevVAddr,
@@ -2888,6 +3129,7 @@ MMU_Alloc (MMU_CONTEXT *psMMUContext,
 	IMG_HANDLE hPriv;
 
 #if !defined(DEBUG)
+	PVR_UNREFERENCED_PARAMETER(uiProtFlags);
 	PVR_UNREFERENCED_PARAMETER(uDevVAddrAlignment);
 #endif
 
@@ -2899,7 +3141,6 @@ MMU_Alloc (MMU_CONTEXT *psMMUContext,
 	/* check params */
 	PVR_LOG_RETURN_IF_INVALID_PARAM(psMMUContext, "psMMUContext");
 	PVR_LOG_RETURN_IF_INVALID_PARAM(psDevVAddr, "psDevVAddr");
-	PVR_LOG_RETURN_IF_INVALID_PARAM(puActualSize, "puActualSize");
 
 	psDevAttrs = psMMUContext->psDevAttrs;
 
@@ -2926,17 +3167,13 @@ MMU_Alloc (MMU_CONTEXT *psMMUContext,
 	OSLockAcquire(psMMUContext->hLock);
 
 
-	/* This is to divert generation of firmware pre-mapped page
-	 * tables to a stand alone MMU driver. */
-	if ((psDevAttrs->pfnTestPremapConfigureMMU != NULL) &&
-			_MMU_IS_FWKM_CTX(psMMUContext))
+#if defined(SUPPORT_TRUSTED_DEVICE) && defined(RGX_PREMAP_FW_HEAPS)
+	if (_MMU_IS_FWKM_CTX(psMMUContext))
 	{
-		eError = psDevAttrs->pfnTestPremapConfigureMMU(
-				psMMUContext->psPhysMemCtx->psDevNode, psMMUContext,
-				*psDevVAddr, sDevVAddrEnd,
-				uiLog2PageSize);
+		PVR_DPF((PVR_DBG_MESSAGE, "%s: Driver relying on firmware mappings created by the TEE.", __func__));
 	}
 	else
+#endif
 	{
 		eError = _AllocPageTables(psMMUContext, *psDevVAddr, sDevVAddrEnd, uiLog2PageSize);
 	}
@@ -2969,27 +3206,6 @@ MMU_Free (MMU_CONTEXT *psMMUContext,
 	PVRSRV_ERROR eError;
 #endif
 
-#if defined(DEBUG) && defined(SUPPORT_VALIDATION) && defined(__linux__)
-	PVRSRV_DATA *psPVRSRVData = PVRSRVGetPVRSRVData();
-	IMG_UINT32 ui32MMULeakMax = psPVRSRVData->sMemLeakIntervals.ui32MMU;
-
-	mutex_lock(&g_sMMULeakMutex);
-
-	g_ui32MMULeakCounter++;
-	if (ui32MMULeakMax && g_ui32MMULeakCounter >= ui32MMULeakMax)
-	{
-		g_ui32MMULeakCounter = 0;
-		mutex_unlock(&g_sMMULeakMutex);
-
-		PVR_DPF((PVR_DBG_WARNING,
-		         "%s: Skipped MMU free for address 0x%016" IMG_UINT64_FMTSPECx " to trigger memory leak.",
-		         __func__,
-		         sDevVAddr.uiAddr));
-		return;
-	}
-
-	mutex_unlock(&g_sMMULeakMutex);
-#endif
 
 	PVR_ASSERT(psMMUContext != NULL);
 	PVR_LOG_RETURN_VOID_IF_FALSE(psMMUContext != NULL, "psMMUContext");
@@ -3010,10 +3226,15 @@ MMU_Free (MMU_CONTEXT *psMMUContext,
 
 	OSLockAcquire(psMMUContext->hLock);
 
-	_FreePageTables(psMMUContext,
-	                sDevVAddr,
-	                sDevVAddrEnd,
-	                uiLog2DataPageSize);
+#if defined(SUPPORT_TRUSTED_DEVICE) && defined(RGX_PREMAP_FW_HEAPS)
+	if (!_MMU_IS_FWKM_CTX(psMMUContext))
+#endif
+	{
+		_FreePageTables(psMMUContext,
+		                sDevVAddr,
+		                sDevVAddrEnd,
+		                uiLog2DataPageSize);
+	}
 
 #if defined(SUPPORT_MMU_DEFERRED_FREE)
 	eError = PVRSRVGetDevicePowerState(psPhysMemCtx->psDevNode, &ePowerState);
@@ -3056,13 +3277,11 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	IMG_HANDLE hPriv;
 
 	MMU_Levelx_INFO *psLevel = NULL;
-
 	MMU_Levelx_INFO *psPrevLevel = NULL;
 
 	IMG_UINT32 uiPTEIndex = 0;
 	IMG_UINT32 uiPageSize = (1 << uiLog2HeapPageSize);
 	IMG_UINT32 uiLoop = 0;
-	IMG_UINT32 ui32MappedCount = 0;
 	IMG_DEVMEM_OFFSET_T uiPgOffset = 0;
 	IMG_UINT32 uiFlushEnd = 0, uiFlushStart = 0;
 
@@ -3081,10 +3300,10 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	IMG_BOOL *pbValid;
 	IMG_BOOL bValid;
 	IMG_BOOL bScratchBacking = IMG_FALSE, bZeroBacking = IMG_FALSE;
-	IMG_BOOL bNeedBacking = IMG_FALSE;
 	PVRSRV_DEVICE_NODE *psDevNode;
 
 #if defined(PDUMP)
+	IMG_UINT32 ui32MappedCount = 0;
 	IMG_CHAR aszMemspaceName[PHYSMEM_PDUMP_MEMSPACE_MAX_LENGTH];
 	IMG_CHAR aszSymbolicAddress[PHYSMEM_PDUMP_SYMNAME_MAX_LENGTH];
 	IMG_DEVMEM_OFFSET_T uiSymbolicAddrOffset;
@@ -3117,6 +3336,8 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 
 	/* Get the Device physical addresses of the pages we are trying to map
 	 * In the case of non indexed mapping we can get all addresses at once */
+
+	/* DevmemX callers */
 	if (NULL == paui32MapIndices)
 	{
 		eError = PMR_DevPhysAddr(psPMR,
@@ -3125,7 +3346,12 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 		                         ((IMG_DEVMEM_OFFSET_T) ui32PhysPgOffset << uiLog2HeapPageSize),
 		                         psDevPAddr,
 		                         pbValid,
-		                         DEVICE_USE);
+		                         DEVICE_USE | MAPPING_USE);
+		/* Since offsets are always used and never indices, we are safe to
+		 * receive retry here as this path won't have performed any mappings
+		 * or overwrites thus far. Retry may be returned due to the combination of
+		 * DEVICE_USE | MAPPING_USE
+		 */
 		PVR_GOTO_IF_ERROR(eError, ErrFreeValidArray);
 	}
 
@@ -3164,27 +3390,16 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	if (PMR_IsSparse(psPMR))
 	{
 		/* We know there will not be 4G number of PMR's */
-		bScratchBacking = PVRSRV_IS_SPARSE_SCRATCH_BACKING_REQUIRED(PMR_Flags(psPMR));
+		bScratchBacking = PVRSRV_IS_SPARSE_SCRATCH_BACKING_REQUIRED(uiMappingFlags);
 		if (bScratchBacking)
 		{
-			bZeroBacking = PVRSRV_IS_ZERO_BACKING_REQUIRED(PMR_Flags(psPMR));
-		}
-
-		if (PVRSRV_CHECK_GPU_CACHE_COHERENT(uiMappingFlags))
-		{
-			/* Obtain non-coherent protection flags as we cannot have multiple coherent
-			   virtual pages pointing to the same physical page so all scratch page
-			   mappings have to be non-coherent even in a coherent allocation */
-			eError = _MMU_ConvertDevMemFlags(IMG_FALSE,
-									uiMappingFlags & ~PVRSRV_MEMALLOCFLAG_GPU_CACHE_COHERENT,
-									&uiMMUProtFlags,
-									psMMUContext);
-			PVR_GOTO_IF_ERROR(eError, ErrPutPTConfig);
-
-			/* We've already validated possible values of uiBytesPerEntry at the start of this function */
-			PVR_ASSERT(psConfig->uiBytesPerEntry == 4 || psConfig->uiBytesPerEntry == 8);
+			bZeroBacking = PVRSRV_IS_ZERO_BACKING_REQUIRED(uiMappingFlags);
 		}
 	}
+
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	PMRMarkForDeferFree(psPMR);
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 	OSLockAcquire(psMMUContext->hLock);
 
@@ -3195,6 +3410,7 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 		IMG_DEVMEM_OFFSET_T uiNextSymName;
 #endif /*PDUMP*/
 
+		/* Devmem Map/Change sparse callers */
 		if (NULL != paui32MapIndices)
 		{
 			uiPgOffset = paui32MapIndices[uiLoop];
@@ -3209,7 +3425,12 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 			                         uiPgOffset * uiPageSize,
 			                         &sDevPAddr,
 			                         &bValid,
-			                         DEVICE_USE);
+			                         DEVICE_USE | MAPPING_USE);
+			/* PVRSRV_ERROR_RETRY with SUPPORT_LINUX_OSPAGE_MIGRATION feature
+			 * enabled will not be returned here even with the use of
+			 * DEVICE_USE | MAPPING_USE because the feature does not
+			 * support migratable sparse PMRs.
+			 */
 			PVR_GOTO_IF_ERROR(eError, ErrUnlockAndUnmapPages);
 		}
 		else
@@ -3231,28 +3452,21 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 				if (bZeroBacking)
 				{
 					eError = _MMU_GetBackingPage(psDevNode,
-					                             &psDevNode->sDevZeroPage,
-					                             PVR_ZERO_PAGE_INIT_VALUE,
-					                             DEV_ZERO_PAGE,
-					                             IMG_TRUE);
+					                             &sDevPAddr.uiAddr,
+					                             DEV_ZERO_PAGE);
 					PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage",
 					                      ErrUnlockAndUnmapPages);
 
-					sDevPAddr.uiAddr = psDevNode->sDevZeroPage.ui64PgPhysAddr;
 					/* Ensure the zero back page PTE is read only */
 					uiDefProtFlags = uiProtFlagsReadOnly;
 				}
 				else
 				{
 					eError = _MMU_GetBackingPage(psDevNode,
-					                             &psDevNode->sScratchPage,
-					                             PVR_SCRATCH_PAGE_INIT_VALUE,
-					                             SCRATCH_PAGE,
-					                             IMG_TRUE);
+					                             &sDevPAddr.uiAddr,
+					                             SCRATCH_PAGE);
 					PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage",
 					                      ErrUnlockAndUnmapPages);
-
-					sDevPAddr.uiAddr = psDevNode->sScratchPage.ui64PgPhysAddr;
 				}
 			}
 			else
@@ -3273,14 +3487,14 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 					if (0 > i32FeatureVal)
 						break;
 
-					if (ui32BitLength > i32FeatureVal)
+					if (ui32BitLength > (IMG_UINT32) i32FeatureVal)
 					{
 						PVR_DPF((PVR_DBG_ERROR,
-								"%s Failed. The physical address bitlength (%d)"
+								"%s Failed. The physical address bitlength (%u)"
 								" is greater than the chip can handle (%d).",
 								__func__, ui32BitLength, i32FeatureVal));
 
-						PVR_ASSERT(ui32BitLength <= i32FeatureVal);
+						PVR_ASSERT(ui32BitLength <= (IMG_UINT32) i32FeatureVal);
 						eError = PVRSRV_ERROR_INVALID_PARAMS;
 						goto ErrUnlockAndUnmapPages;
 					}
@@ -3296,14 +3510,18 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 				                               sizeof(aszSymbolicAddress), &aszSymbolicAddress[0],
 				                               &uiSymbolicAddrOffset,
 				                               &uiNextSymName);
-				PVR_ASSERT(eError == PVRSRV_OK);
+				PVR_LOG_IF_ERROR(eError, "PMR_PDumpSymbolicAddr");
 			}
 #endif /*PDUMP*/
 
 			psPrevLevel = psLevel;
 			/* Calculate PT index and get new table descriptor */
-			_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
-			               &psLevel, &uiPTEIndex);
+			if (!_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
+			                    &psLevel, &uiPTEIndex))
+			{
+				PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MAPPING_NOT_FOUND,
+				                    ErrUnlockAndUnmapPages);
+			}
 
 			if (psPrevLevel == psLevel)
 			{
@@ -3343,10 +3561,11 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 			                   uiPTEIndex,
 			                   psConfig,
 			                   &sDevPAddr,
+			                   &sDevVAddr,
 			                   IMG_FALSE,
 #if defined(PDUMP)
 			                   (bValid)?aszMemspaceName:(psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName),
-			                          ((bValid)?aszSymbolicAddress:((bZeroBacking)?DEV_ZERO_PAGE:SCRATCH_PAGE)),
+			                          ((bValid)?aszSymbolicAddress:((bZeroBacking)?DEV_ZERO_PAGE_STR:SCRATCH_PAGE_STR)),
 			                          (bValid)?uiSymbolicAddrOffset:0,
 #endif /*PDUMP*/
 			                    uiDefProtFlags);
@@ -3362,7 +3581,9 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 						sDevVAddr.uiAddr,
 						uiPgOffset * uiPageSize));
 
+#if defined(PDUMP)
 				ui32MappedCount++;
+#endif /*PDUMP*/
 			}
 		}
 
@@ -3379,6 +3600,19 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 		PVR_GOTO_IF_ERROR(eError, ErrUnlockAndUnmapPages);
 	}
 
+	/* Flush TLB for PTs*/
+	psDevNode->pfnMMUCacheInvalidate(psDevNode,
+	                                 psMMUContext,
+	                                 MMU_LEVEL_1,
+	                                 IMG_FALSE);
+
+	if (PVRSRV_CHECK_KICK_PT_INVALIDATE(uiMappingFlags) &&
+	    psDevNode->pfnMMUCacheInvalidateKickAndWait != NULL)
+	{
+		eError = psDevNode->pfnMMUCacheInvalidateKickAndWait(psDevNode);
+		PVR_LOG_GOTO_IF_ERROR(eError, "pfnMMUCacheInvalidateKickAndWait", ErrUnlockAndUnmapPages);
+	}
+
 	OSLockRelease(psMMUContext->hLock);
 
 	_MMU_PutPTConfig(psMMUContext, hPriv);
@@ -3389,12 +3623,6 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 		OSFreeMem(psDevPAddr);
 	}
 
-	/* Flush TLB for PTs*/
-	psDevNode->pfnMMUCacheInvalidate(psDevNode,
-	                                 psMMUContext,
-	                                 MMU_LEVEL_1,
-	                                 IMG_FALSE);
-
 #if defined(PDUMP)
 	PDUMPCOMMENT(psDevNode, "Wired up %d Page Table entries (out of %d)", ui32MappedCount, ui32MapPageCount);
 #endif /*PDUMP*/
@@ -3402,20 +3630,15 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	return PVRSRV_OK;
 
 ErrUnlockAndUnmapPages:
+	(void) MMU_UnmapPagesUnlocked(psMMUContext,
+	                              /* In the case of change sparse, it may want a scratch backing. */
+	                              PMR_IsSparse(psPMR) ? uiMappingFlags : 0,
+	                              sDevVAddrBase,
+	                              uiLoop,
+	                              paui32MapIndices,
+	                              uiLog2HeapPageSize);
+
 	OSLockRelease(psMMUContext->hLock);
-
-	if (PMR_IsSparse(psPMR) && PVRSRV_IS_SPARSE_SCRATCH_BACKING_REQUIRED(uiMappingFlags))
-	{
-		bNeedBacking = IMG_TRUE;
-	}
-
-	MMU_UnmapPages(psMMUContext,
-	               (bNeedBacking) ? uiMappingFlags : 0,
-	               sDevVAddrBase,
-	               uiLoop,
-	               paui32MapIndices,
-	               uiLog2HeapPageSize,
-	               uiMappingFlags);
 ErrPutPTConfig:
 	_MMU_PutPTConfig(psMMUContext, hPriv);
 ErrFreeValidArray:
@@ -3432,18 +3655,17 @@ ErrReturnError:
 	return eError;
 }
 
-/*
-	MMU_UnmapPages
- */
-void
-MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
-               PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
-               IMG_DEV_VIRTADDR sDevVAddrBase,
-               IMG_UINT32 ui32PageCount,
-               IMG_UINT32 *pai32FreeIndices,
-               IMG_UINT32 uiLog2PageSize,
-               PVRSRV_MEMALLOCFLAGS_T uiMemAllocFlags)
+/* Unmap the pages or map them to the backing pages
+ * if the `uiMappingFlags` request it. */
+static PVRSRV_ERROR
+MMU_UnmapPagesUnlocked(MMU_CONTEXT *psMMUContext,
+                       PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
+                       IMG_DEV_VIRTADDR sDevVAddrBase,
+                       IMG_UINT32 ui32PageCount,
+                       IMG_UINT32 *pai32FreeIndices,
+                       IMG_UINT32 uiLog2PageSize)
 {
+	PVRSRV_ERROR eError;
 	IMG_UINT32 uiPTEIndex = 0, ui32Loop=0;
 	IMG_UINT32 uiPageSize = 1 << uiLog2PageSize;
 	IMG_UINT32 uiFlushEnd = 0, uiFlushStart = 0;
@@ -3468,37 +3690,47 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 	             (IMG_UINT64)sDevVAddr.uiAddr,
 	             ((IMG_UINT64)sDevVAddr.uiAddr) + (uiPageSize*ui32PageCount)-1);
 #endif
-	bScratchBacking = PVRSRV_IS_SPARSE_SCRATCH_BACKING_REQUIRED(uiMemAllocFlags);
-	bZeroBacking = PVRSRV_IS_ZERO_BACKING_REQUIRED(uiMemAllocFlags);
+
+	PVR_ASSERT(OSLockIsLocked(psMMUContext->hLock));
+
+	bScratchBacking = PVRSRV_IS_SPARSE_SCRATCH_BACKING_REQUIRED(uiMappingFlags);
+	bZeroBacking = PVRSRV_IS_ZERO_BACKING_REQUIRED(uiMappingFlags);
 
 	if (bZeroBacking)
 	{
-		sBackingPgDevPhysAddr.uiAddr = psDevNode->sDevZeroPage.ui64PgPhysAddr;
+		/* Ensure the zero backing page has been created */
+		eError = _MMU_GetBackingPage(psDevNode,
+		                             &sBackingPgDevPhysAddr.uiAddr,
+		                             DEV_ZERO_PAGE);
+		PVR_LOG_RETURN_IF_ERROR(eError, "_MMU_GetBackingPage (zero)");
 	}
 	else
 	{
-		sBackingPgDevPhysAddr.uiAddr = psDevNode->sScratchPage.ui64PgPhysAddr;
+		/* Ensure the scratch backing page has been created */
+		eError = _MMU_GetBackingPage(psDevNode,
+		                             &sBackingPgDevPhysAddr.uiAddr,
+		                             SCRATCH_PAGE);
+		PVR_LOG_RETURN_IF_ERROR(eError, "_MMU_GetBackingPage (scratch)");
 	}
 
 #if defined(PDUMP)
 	if (bScratchBacking)
 	{
-		pcBackingPageName = bZeroBacking ? DEV_ZERO_PAGE : SCRATCH_PAGE;
+		pcBackingPageName = bZeroBacking ? DEV_ZERO_PAGE_STR : SCRATCH_PAGE_STR;
 	}
 #endif
 
 	bUnmap = (uiMappingFlags)? !bScratchBacking : IMG_TRUE;
+
+	eError = _MMU_ConvertDevMemFlags(bUnmap,
+	                                 uiMappingFlags,
+	                                 &uiMMUProtFlags,
+	                                 psMMUContext);
+	PVR_RETURN_IF_ERROR(eError);
+
 	/* Get PT and address configs */
 	_MMU_GetPTConfig(psMMUContext, (IMG_UINT32) uiLog2PageSize,
 	                 &psConfig, &hPriv, &psDevVAddrConfig);
-
-	if (_MMU_ConvertDevMemFlags(bUnmap,
-	                            uiMappingFlags,
-	                            &uiMMUProtFlags,
-	                            psMMUContext) != PVRSRV_OK)
-	{
-		return;
-	}
 
 	uiMMUReadOnlyProtFlags = (uiMMUProtFlags & ~MMU_PROTFLAGS_WRITEABLE) | MMU_PROTFLAGS_READABLE;
 
@@ -3514,9 +3746,6 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 		uiProtFlagsReadOnly = psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUReadOnlyProtFlags, uiLog2PageSize);
 	}
 
-
-	OSLockAcquire(psMMUContext->hLock);
-
 	/* Unmap page by page */
 	while (ui32Loop < ui32PageCount)
 	{
@@ -3529,8 +3758,11 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 
 		psPrevLevel = psLevel;
 		/* Calculate PT index and get new table descriptor */
-		_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
-		               &psLevel, &uiPTEIndex);
+		if (!_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
+		                    &psLevel, &uiPTEIndex))
+		{
+			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MAPPING_NOT_FOUND, e0);
+		}
 
 		if (psPrevLevel == psLevel)
 		{
@@ -3565,21 +3797,20 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 		        HTBLOG_U64_BITS_HIGH(sDevVAddr.uiAddr), HTBLOG_U64_BITS_LOW(sDevVAddr.uiAddr));
 
 		/* Set the PT entry to invalid and poison it with a bad address */
-		if (_SetupPTE(psMMUContext,
-		              psLevel,
-		              uiPTEIndex,
-		              psConfig,
-		              (bScratchBacking)? &sBackingPgDevPhysAddr : &gsBadDevPhyAddr,
-		              bUnmap,
+		eError = _SetupPTE(psMMUContext,
+		                   psLevel,
+		                   uiPTEIndex,
+		                   psConfig,
+		                   (bScratchBacking)? &sBackingPgDevPhysAddr : &gsBadDevPhyAddr,
+		                   &sDevVAddr,
+		                   bUnmap,
 #if defined(PDUMP)
-		              (bScratchBacking)? (psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName): NULL,
-		              pcBackingPageName,
-		              0U,
+		                   (bScratchBacking)? (psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName): NULL,
+		                   pcBackingPageName,
+		                   0U,
 #endif
-		              (bZeroBacking)? uiProtFlagsReadOnly: uiProtFlags) != PVRSRV_OK)
-		{
-			goto e0;
-		}
+		                   (bZeroBacking)? uiProtFlagsReadOnly: uiProtFlags);
+		PVR_GOTO_IF_ERROR(eError, e0);
 
 		/* Check we haven't wrapped around */
 		PVR_ASSERT(psLevel->ui32RefCount <= psLevel->ui32NumOfEntries);
@@ -3598,8 +3829,6 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 		PVR_LOG_IF_ERROR(eError, "PhysHeapPagesClean");
 	}
 
-	OSLockRelease(psMMUContext->hLock);
-
 	_MMU_PutPTConfig(psMMUContext, hPriv);
 
 	/* Flush TLB for PTs*/
@@ -3608,14 +3837,41 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 	                                 MMU_LEVEL_1,
 	                                 IMG_TRUE);
 
-	return;
+	return PVRSRV_OK;
 
 e0:
 	_MMU_PutPTConfig(psMMUContext, hPriv);
-	PVR_DPF((PVR_DBG_ERROR, "MMU_UnmapPages: Failed to map/unmap page table"));
-	PVR_ASSERT(0);
+	PVR_DPF((PVR_DBG_ERROR, "%s: Failed to map/unmap page table "
+	         "with error %u", __func__, eError));
+
+	return eError;
+}
+
+/*
+	MMU_UnmapPages
+ */
+PVRSRV_ERROR
+MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
+               PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
+               IMG_DEV_VIRTADDR sDevVAddrBase,
+               IMG_UINT32 ui32PageCount,
+               IMG_UINT32 *pai32FreeIndices,
+               IMG_UINT32 uiLog2PageSize)
+{
+	PVRSRV_ERROR eError;
+
+	OSLockAcquire(psMMUContext->hLock);
+
+	eError = MMU_UnmapPagesUnlocked(psMMUContext,
+	                                uiMappingFlags,
+	                                sDevVAddrBase,
+	                                ui32PageCount,
+	                                pai32FreeIndices,
+	                                uiLog2PageSize);
+
 	OSLockRelease(psMMUContext->hLock);
-	return;
+
+	return eError;
 }
 
 PVRSRV_ERROR
@@ -3681,42 +3937,21 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 		PVR_LOG_GOTO_WITH_ERROR("psConfig->uiBytesPerEntry", eError, PVRSRV_ERROR_INVALID_PARAMS, ErrPutPTConfig);
 	}
 
-	if (PVRSRV_CHECK_GPU_CACHE_COHERENT(uiMappingFlags))
-	{
-		/* Obtain non-coherent protection flags as we cannot have multiple coherent
-		   virtual pages pointing to the same physical page so all scratch page
-		   mappings have to be non-coherent even in a coherent allocation */
-		eError = _MMU_ConvertDevMemFlags(IMG_FALSE,
-								uiMappingFlags & ~PVRSRV_MEMALLOCFLAG_GPU_CACHE_COHERENT,
-								&uiMMUProtFlags,
-								psMMUContext);
-		PVR_GOTO_IF_ERROR(eError, ErrPutPTConfig);
-
-		/* We've already validated possible values of uiBytesPerEntry at the start of this function */
-		PVR_ASSERT(psConfig->uiBytesPerEntry == 4 || psConfig->uiBytesPerEntry == 8);
-	}
-
 	if (bZeroBacking)
 	{
 		eError = _MMU_GetBackingPage(psDevNode,
-		                             &psDevNode->sDevZeroPage,
-		                             PVR_ZERO_PAGE_INIT_VALUE,
-		                             DEV_ZERO_PAGE,
-		                             IMG_TRUE);
+		                             &sDevPAddr.uiAddr,
+		                             DEV_ZERO_PAGE);
 		PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage",
 		                      ErrPutPTConfig);
-		sDevPAddr.uiAddr = psDevNode->sDevZeroPage.ui64PgPhysAddr;
 	}
 	else
 	{
 		eError = _MMU_GetBackingPage(psDevNode,
-									 &psDevNode->sScratchPage,
-									 PVR_SCRATCH_PAGE_INIT_VALUE,
-									 SCRATCH_PAGE,
-									 IMG_TRUE);
+									 &sDevPAddr.uiAddr,
+									 SCRATCH_PAGE);
 		PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage",
 							  ErrPutPTConfig);
-		sDevPAddr.uiAddr = psDevNode->sScratchPage.ui64PgPhysAddr;
 	}
 
 #if defined(DEBUG)
@@ -3731,14 +3966,14 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 			if (0 > i32FeatureVal)
 				break;
 
-			if (ui32BitLength > i32FeatureVal)
+			if (ui32BitLength > (IMG_UINT32) i32FeatureVal)
 			{
 				PVR_DPF((PVR_DBG_ERROR,
-						"%s Failed. The physical address bitlength (%d)"
+						"%s Failed. The physical address bitlength (%u)"
 						" is greater than the chip can handle (%d).",
 						__func__, ui32BitLength, i32FeatureVal));
 
-				PVR_ASSERT(ui32BitLength <= i32FeatureVal);
+				PVR_ASSERT(ui32BitLength <= (IMG_UINT32) i32FeatureVal);
 				eError = PVRSRV_ERROR_INVALID_PARAMS;
 				goto ErrPutPTConfig;
 			}
@@ -3752,8 +3987,12 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 	{
 		psPrevLevel = psLevel;
 		/* Calculate PT index and get new table descriptor */
-		_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
-		               &psLevel, &uiPTEIndex);
+		if (!_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
+		                    &psLevel, &uiPTEIndex))
+		{
+			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MAPPING_NOT_FOUND,
+			                    ErrUnlockAndUnmapPages);
+		}
 
 		if (psPrevLevel == psLevel)
 		{
@@ -3793,10 +4032,11 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 		                   uiPTEIndex,
 		                   psConfig,
 		                   &sDevPAddr,
+		                   &sDevVAddr,
 		                   IMG_FALSE,
 #if defined(PDUMP)
 		                   psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-		                   bZeroBacking ? DEV_ZERO_PAGE : SCRATCH_PAGE,
+		                   bZeroBacking ? DEV_ZERO_PAGE_STR : SCRATCH_PAGE_STR,
 		                   0,
 #endif /*PDUMP*/
 		                   bZeroBacking ? uiProtFlagsReadOnly : uiProtFlags);
@@ -3828,15 +4068,14 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 	return PVRSRV_OK;
 
 ErrUnlockAndUnmapPages:
-	OSLockRelease(psMMUContext->hLock);
+	(void) MMU_UnmapPagesUnlocked(psMMUContext,
+	                              0,
+	                              sDevVAddrBase,
+	                              uiLoop,
+	                              NULL,
+	                              uiLog2HeapPageSize);
 
-	MMU_UnmapPages(psMMUContext,
-				   0,
-				   sDevVAddrBase,
-				   uiLoop,
-				   NULL,
-				   uiLog2HeapPageSize,
-				   uiMappingFlags);
+	OSLockRelease(psMMUContext->hLock);
 ErrPutPTConfig:
 	_MMU_PutPTConfig(psMMUContext, hPriv);
 	return eError;
@@ -3845,10 +4084,11 @@ ErrPutPTConfig:
 PVRSRV_ERROR
 MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
                IMG_DEV_VIRTADDR sDevVAddrBase,
-               const PMR *psPMR,
+               PMR *psPMR,
                IMG_DEVMEM_SIZE_T uiSizeBytes,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
-               IMG_UINT32 uiLog2HeapPageSize)
+               IMG_UINT32 uiLog2HeapPageSize,
+               MMU_PTE_REMAP_POLICY eRemapPolicy)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
@@ -3860,9 +4100,12 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 	IMG_UINT32 i, uiChunkStart, uiLastPTEIndex, uiNumEntriesToWrite;
 	IMG_UINT32 ui32PagesDone=0, uiPTEIndex=0;
 
-	IMG_UINT8 uiAddrLog2Align, uiAddrShift;
+	IMG_UINT8 uiAddrLog2Align, uiAddrShift, uiParityShift;
 	IMG_UINT64 uiAddrMask, uiProtFlags;
 	IMG_UINT32 uiBytesPerEntry;
+	IMG_UINT64 uiParityBit = 0;
+	IMG_BOOL bSetParity = IMG_FALSE;
+	IMG_DEV_VIRTADDR sDevVAddrRunning, sDevVAddrBaseCopy = sDevVAddrBase;
 
 	IMG_UINT64* pui64LevelBase;
 	IMG_UINT32* pui32LevelBase;
@@ -3872,6 +4115,7 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 	IMG_DEV_PHYADDR asDevPAddr[PMR_MAX_TRANSLATION_STACK_ALLOC];
 	IMG_BOOL abValid[PMR_MAX_TRANSLATION_STACK_ALLOC];
 	IMG_UINT32 uiNumPages = uiSizeBytes >> uiLog2HeapPageSize;
+
 
 #if defined(PVRSRV_ENABLE_HTB)
 	IMG_BOOL bHTBLog =
@@ -3886,6 +4130,7 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 	IMG_CHAR aszSymbolicAddress[PHYSMEM_PDUMP_SYMNAME_MAX_LENGTH];
 	IMG_DEVMEM_OFFSET_T uiSymbolicAddrOffset;
 	IMG_UINT32 ui32MappedCount = 0;
+	IMG_DEV_VIRTADDR sDevVAddrRunningPdump;
 	PDUMPCOMMENT(psDevNode, "Wire up Page Table entries to point to the Data Pages (%d bytes)", uiNumPages << uiLog2HeapPageSize);
 #endif /*PDUMP*/
 
@@ -3908,6 +4153,13 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 	uiAddrMask = psConfig->uiAddrMask;
 	uiBytesPerEntry = psConfig->uiBytesPerEntry;
 
+	bSetParity = psConfig->uiParityBitMask;
+	uiParityShift = psConfig->uiParityBitShift;
+
+	sDevVAddrRunning.uiAddr = sDevVAddrBase.uiAddr;
+#if defined(PDUMP)
+	sDevVAddrRunningPdump.uiAddr = sDevVAddrBase.uiAddr;
+#endif
 	if (uiBytesPerEntry == 8)
 	{
 		uiProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUProtFlags , uiLog2HeapPageSize);
@@ -3921,12 +4173,21 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 		PVR_LOG_GOTO_WITH_ERROR("psConfig->uiBytesPerEntry", eError, PVRSRV_ERROR_MMU_CONFIG_IS_WRONG, put_mmu_context);
 	}
 
+
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	PMRMarkForDeferFree(psPMR);
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+
 	OSLockAcquire(psMMUContext->hLock);
 
 	do
 	{
-		_MMU_GetPTInfo(psMMUContext, sDevVAddrBase, psDevVAddrConfig,
-		               &psLevel, &uiPTEIndex);
+		if (!_MMU_GetPTInfo(psMMUContext, sDevVAddrBase, psDevVAddrConfig,
+		                    &psLevel, &uiPTEIndex))
+		{
+			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MAPPING_NOT_FOUND,
+			                    unlock_mmu_context);
+		}
 
 		pui64LevelBase = (IMG_UINT64*)psLevel->sMemDesc.pvCpuVAddr;
 		pui32LevelBase = (IMG_UINT32*)psLevel->sMemDesc.pvCpuVAddr;
@@ -3938,13 +4199,20 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 		{
 			IMG_UINT32 uiNumPagesInBlock = MIN(uiNumEntriesToWrite - uiChunkStart, PMR_MAX_TRANSLATION_STACK_ALLOC);
 
+			/* With feature SUPPORT_LINUX_OSPAGE_MIGRATION:
+			 * This call is allowed to fail with retry part way through mapping.
+			 * Since this path is only used in Devicemem for fully contiguous PMR mappings
+			 * we know a PMR is always either fully mapped or not at all and cannot be
+			 * overwritten. On failure due to migrate we can unmap our progress and retry later.
+			 * Retry may be returned due to the combination of DEVICE_USE | MAPPING_USE.
+			 */
 			eError = PMR_DevPhysAddr(psPMR,
 			                         uiLog2HeapPageSize,
 			                         uiNumPagesInBlock,
 			                         (IMG_UINT64) (ui32PagesDone + uiChunkStart) << uiLog2HeapPageSize,
 			                         asDevPAddr,
 			                         abValid,
-			                         DEVICE_USE);
+			                         DEVICE_USE | MAPPING_USE);
 			PVR_GOTO_IF_ERROR(eError, unlock_mmu_context);
 
 			if (bValidateOrTweak)
@@ -3968,14 +4236,14 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 					{
 						IMG_UINT32 ui32BitLength = FloorLog2(asDevPAddr[i].uiAddr);
 
-						if (ui32BitLength > i32FeatureVal)
+						if (ui32BitLength > (IMG_UINT32) i32FeatureVal)
 						{
 							PVR_DPF((PVR_DBG_ERROR,
-							        "%s Failed. The physical address bitlength (%d)"
+							        "%s Failed. The physical address bitlength (%u)"
 							        " is greater than the chip can handle (%d).",
 							        __func__, ui32BitLength, i32FeatureVal));
 
-							PVR_ASSERT(ui32BitLength <= i32FeatureVal);
+							PVR_ASSERT(ui32BitLength <= (IMG_UINT32) i32FeatureVal);
 							PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, unlock_mmu_context);
 						}
 					}
@@ -3987,8 +4255,23 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 			{
 				for (i=0; i<uiNumPagesInBlock; i++)
 				{
+					if (bSetParity)
+					{
+						uiParityBit = _GetParityBit(sDevVAddrRunning.uiAddr ^ asDevPAddr[i].uiAddr);
+						uiParityBit <<= uiParityShift;
+
+						sDevVAddrRunning.uiAddr += (IMG_UINT64_C(1) << uiLog2HeapPageSize);
+					}
+
+					if (eRemapPolicy == MMU_PTE_REMAP_POLICY_BLOCK &&
+					    pui64LevelBase[uiPTEIndex + uiChunkStart + i] & psConfig->uiValidEnMask &&
+					    (uiProtFlags & psConfig->uiValidEnMask))
+					{
+						/* Don't remap */
+						PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MMU_REMAP_BLOCKED, unlock_mmu_context);
+					}
 					pui64LevelBase[uiPTEIndex + uiChunkStart + i] =
-					    (((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags;
+						(((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags | uiParityBit;
 				}
 			}
 			else if (uiBytesPerEntry == 4)
@@ -4001,8 +4284,15 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 					IMG_UINT64 ui64PxE64 =
 					    (((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags;
 					PVR_ASSERT(ui64PxE64 == (ui64PxE64 & 0xffffffffU));
+					PVR_ASSERT(!bSetParity);
 #endif
-
+					if (eRemapPolicy == MMU_PTE_REMAP_POLICY_BLOCK &&
+					    pui32LevelBase[uiPTEIndex + uiChunkStart + i] & (IMG_UINT32)psConfig->uiValidEnMask &&
+					    (uiProtFlags & (IMG_UINT32)psConfig->uiValidEnMask))
+					{
+						/* Don't remap */
+						PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MMU_REMAP_BLOCKED, unlock_mmu_context);
+					}
 					pui32LevelBase[uiPTEIndex + uiChunkStart + i] =
 					    (((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags;
 				}
@@ -4012,13 +4302,14 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 			for (i=0; i<uiNumPagesInBlock; i++)
 			{
 				IMG_DEVMEM_OFFSET_T uiNextSymName;
+				IMG_UINT64 uiParityBit = psConfig->uiParityBitMask ? _GetParityBit(sDevVAddrRunningPdump.uiAddr ^ 0ULL) : 0;
 
 				eError = PMR_PDumpSymbolicAddr(psPMR, (ui32PagesDone + uiChunkStart + i) << uiLog2HeapPageSize,
 				                               sizeof(aszMemspaceName), &aszMemspaceName[0],
 				                               sizeof(aszSymbolicAddress), &aszSymbolicAddress[0],
 				                               &uiSymbolicAddrOffset,
 				                               &uiNextSymName);
-				PVR_ASSERT(eError == PVRSRV_OK);
+				PVR_LOG_IF_ERROR(eError, "PMR_PDumpSymbolicAddr");
 				ui32MappedCount++;
 
 				PDumpMMUDumpPxEntries(psDevNode,
@@ -4038,7 +4329,12 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 				                      psConfig->uiProtMask,
 				                      psConfig->uiValidEnMask,
 				                      0,
+				                      uiParityBit,
+				                      psConfig->uiParityBitShift,
+				                      psConfig->uiParityBitMask,
 				                      psMMUContext->psDevAttrs->eMMUType);
+
+				sDevVAddrRunningPdump.uiAddr += (1 << uiLog2HeapPageSize);
 			}
 #endif /*PDUMP*/
 
@@ -4050,6 +4346,11 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 					IMG_DEV_VIRTADDR sDevVAddr;
 					IMG_UINT64 ui64PxE64 = (((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags;
 					sDevVAddr.uiAddr = sDevVAddrBase.uiAddr + (ui32PagesDone + uiChunkStart + i)  * (1 << uiLog2HeapPageSize);
+
+					if (bSetParity)
+					{
+						ui64PxE64 |= _GetParityBit(sDevVAddr.uiAddr ^ asDevPAddr[i].uiAddr) << uiParityShift;
+					}
 
 					HTBLOGK(HTB_SF_MMU_PAGE_OP_PMRMAP,
 					        HTBLOG_U64_BITS_HIGH(sDevVAddr.uiAddr), HTBLOG_U64_BITS_LOW(sDevVAddr.uiAddr),
@@ -4093,25 +4394,26 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 	return PVRSRV_OK;
 
 unlock_mmu_context:
+	if (eError != PVRSRV_ERROR_MMU_REMAP_BLOCKED)
+	{
+		/* Unmap starting from the address passed as an argument. */
+		(void) MMU_UnmapPMRFastUnlocked(psMMUContext,
+		                                sDevVAddrBaseCopy,
+		                                uiNumPages,
+		                                uiLog2HeapPageSize);
+	}
 	OSLockRelease(psMMUContext->hLock);
-	MMU_UnmapPMRFast(psMMUContext,
-	                 sDevVAddrBase,
-	                 uiNumPages,
-	                 uiLog2HeapPageSize);
 put_mmu_context:
 	_MMU_PutPTConfig(psMMUContext, hPriv);
-	PVR_ASSERT(eError == PVRSRV_OK);
+
 	return eError;
 }
 
-/*
-    MMU_UnmapPMRFast
- */
-void
-MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
-                 IMG_DEV_VIRTADDR sDevVAddrBase,
-                 IMG_UINT32 ui32PageCount,
-                 IMG_UINT32 uiLog2PageSize)
+static PVRSRV_ERROR
+MMU_UnmapPMRFastUnlocked(MMU_CONTEXT *psMMUContext,
+                         IMG_DEV_VIRTADDR sDevVAddrBase,
+                         IMG_UINT32 ui32PageCount,
+                         IMG_UINT32 uiLog2PageSize)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	IMG_UINT32 uiPTEIndex = 0, uiLastPTEIndex = 0, ui32PagesDone=0, i, uiNumEntriesToWrite;
@@ -4125,35 +4427,58 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 	IMG_UINT64 uiProtFlags = 0;
 	MMU_PROTFLAGS_T uiMMUProtFlags = 0;
 	IMG_UINT64 uiEntry = 0;
+
+	IMG_UINT64 uiParityBit = 0;
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	IMG_DEV_VIRTADDR sDevVAddrStartOfTable;
+	IMG_UINT32 uiParityPatternIdx;
+	IMG_BOOL bSetParity = IMG_FALSE;
+	IMG_DEV_VIRTADDR sDevVAddrRunning;
+	IMG_UINT64 ui64BadPhysAddrParity = 0;
+#endif
+	IMG_UINT64 ui64BadPhysAddr = 0;
+
+#if defined(PVRSRV_ENABLE_HTB)
 	IMG_BOOL bLog;
+#endif
 
 	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psPhysMemCtx->psDevNode;
+
+	PVR_ASSERT(OSLockIsLocked(psMMUContext->hLock));
+
+	eError = _MMU_ConvertDevMemFlags(IMG_TRUE,
+	                                 0,
+	                                 &uiMMUProtFlags,
+	                                 psMMUContext);
+	PVR_RETURN_IF_ERROR(eError);
 
 	/* Get PT and address configs */
 	_MMU_GetPTConfig(psMMUContext, (IMG_UINT32) uiLog2PageSize,
 	                 &psConfig, &hPriv, &psDevVAddrConfig);
 
-	if (_MMU_ConvertDevMemFlags(IMG_TRUE,
-	                            0,
-	                            &uiMMUProtFlags,
-	                            psMMUContext) != PVRSRV_OK)
-	{
-		return;
-	}
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	bSetParity = psConfig->uiParityBitMask != 0;
+	sDevVAddrRunning.uiAddr = sDevVAddrBase.uiAddr;
+#endif
 
 	/* Callback to get device specific protection flags */
 
 	if (psConfig->uiBytesPerEntry == 8)
 	{
 		uiProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUProtFlags , uiLog2PageSize);
-
-		/* Fill the entry with a bad address but leave space for protection flags */
-		uiEntry = (gsBadDevPhyAddr.uiAddr & ~psConfig->uiProtMask) | uiProtFlags;
+		ui64BadPhysAddr = gsBadDevPhyAddr.uiAddr & ~(psConfig->uiProtMask | psConfig->uiParityBitMask);
+		/* Fill the entry with a bad address but leave space for protection flags and parity bit */
+		uiEntry = ui64BadPhysAddr | uiProtFlags;
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+		ui64BadPhysAddrParity = _GetParityBit(ui64BadPhysAddr) << psConfig->uiParityBitShift;
+#endif
 	}
 	else if (psConfig->uiBytesPerEntry == 4)
 	{
 		uiProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt4(uiMMUProtFlags);
-
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+		PVR_ASSERT(!bSetParity);
+#endif
 		/* Fill the entry with a bad address but leave space for protection flags */
 		uiEntry = (((IMG_UINT32) gsBadDevPhyAddr.uiAddr) & ~psConfig->uiProtMask) | (IMG_UINT32) uiProtFlags;
 	}
@@ -4165,16 +4490,23 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 		goto e0;
 	}
 
+#if defined(PVRSRV_ENABLE_HTB)
 	bLog = HTB_GROUP_ENABLED(HTB_SF_MMU_PAGE_OP_UNMAP) ||
 		   HTB_GROUP_ENABLED(HTB_SF_MMU_PAGE_OP_TABLE);
-
-	OSLockAcquire(psMMUContext->hLock);
+#endif
 
 	do
 	{
-		_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
-					   &psLevel, &uiPTEIndex);
+		if (!_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
+		                    &psLevel, &uiPTEIndex))
+		{
+			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MAPPING_NOT_FOUND, e0);
+		}
 
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+		sDevVAddrStartOfTable.uiAddr = sDevVAddr.uiAddr - uiPTEIndex * (IMG_UINT64_C(1) << uiLog2PageSize);
+		uiParityPatternIdx = _GetParityBit(sDevVAddrStartOfTable.uiAddr);
+#endif
 		pvPTStart = psLevel->sMemDesc.pvCpuVAddr;
 
 		uiLastPTEIndex = MIN(uiPTEIndex + ui32PageCount - ui32PagesDone, psDevVAddrConfig->uiNumEntriesPT);
@@ -4184,13 +4516,23 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 		{
 			for (i=uiPTEIndex; i<uiLastPTEIndex; i++)
 			{
-				((IMG_UINT64*)pvPTStart)[i] = uiEntry;
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+				if (bSetParity)
+				{
+					uiParityBit = psMMUContext->psDevAttrs->pui64PrecomputedAllocParity[uiParityPatternIdx][i] ^ ui64BadPhysAddrParity;
+					sDevVAddrRunning.uiAddr += IMG_UINT64_C(1) << uiLog2PageSize;
+				}
+#endif
+				((IMG_UINT64*)pvPTStart)[i] = uiEntry | uiParityBit;
 			}
 		}
 		else
 		{
 #if defined(PVRSRV_NEED_PVR_ASSERT)
 			PVR_ASSERT(psConfig->uiBytesPerEntry == 4);
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+			PVR_ASSERT(!bSetParity);
+#endif
 #endif
 			for (i=uiPTEIndex; i<uiLastPTEIndex; i++)
 			{
@@ -4198,6 +4540,7 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 			}
 		}
 
+#if defined(PVRSRV_ENABLE_HTB)
 		/* Log separately to avoid polluting the fast path */
 		if (bLog)
 		{
@@ -4217,6 +4560,7 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 						IMG_FALSE);
 			}
 		}
+#endif
 
 #if defined(PDUMP)
 		PDumpMMUDumpPxEntries(psDevNode,
@@ -4236,6 +4580,9 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 		                      psConfig->uiProtMask,
 		                      psConfig->uiValidEnMask,
 		                      0,
+		                      0, /* Unused - Parity bit values are taken directly from PTE memory when bad phys addr is used */
+		                      0, /* Unused */
+		                      0, /* Unused */
 		                      psMMUContext->psDevAttrs->eMMUType);
 #endif /*PDUMP*/
 
@@ -4250,8 +4597,6 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 
 	} while (ui32PagesDone < ui32PageCount);
 
-	OSLockRelease(psMMUContext->hLock);
-
 	_MMU_PutPTConfig(psMMUContext, hPriv);
 
 	/* Flush TLB for PTs*/
@@ -4260,13 +4605,178 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 	                                 MMU_LEVEL_1,
 	                                 IMG_TRUE);
 
-	return;
+	return PVRSRV_OK;
 
 e0:
-	PVR_DPF((PVR_DBG_ERROR, "%s: Failed to map/unmap page table", __func__));
-	PVR_ASSERT(0);
-	return;
+	PVR_DPF((PVR_DBG_ERROR, "%s: Failed to map/unmap page table with error %u",
+	         __func__, eError));
+
+	return eError;
 }
+
+/*
+    MMU_UnmapPMRFast
+ */
+PVRSRV_ERROR
+MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
+                 IMG_DEV_VIRTADDR sDevVAddrBase,
+                 IMG_UINT32 ui32PageCount,
+                 IMG_UINT32 uiLog2PageSize)
+{
+	PVRSRV_ERROR eError;
+
+	OSLockAcquire(psMMUContext->hLock);
+
+	eError = MMU_UnmapPMRFastUnlocked(psMMUContext,
+                                      sDevVAddrBase,
+                                      ui32PageCount,
+                                      uiLog2PageSize);
+
+	OSLockRelease(psMMUContext->hLock);
+
+	return eError;
+}
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+PVRSRV_ERROR
+MMU_RemapPage(MMU_CONTEXT *psMMUContext,
+              PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
+              IMG_DEV_VIRTADDR sDevVAddr,
+              IMG_UINT32 uiLog2HeapPageSize,
+              PMR *psOriginPMR,
+              IMG_UINT32 ui32LogicalPgOffset)
+{
+	PVRSRV_ERROR eError;
+	PVRSRV_DEVICE_NODE *psDevNode;
+	const MMU_PxE_CONFIG *psConfig;
+	IMG_HANDLE hPriv;
+	const MMU_DEVVADDR_CONFIG *psDevVAddrConfig;
+	IMG_UINT32 uiPTEIndex = 0;
+	MMU_Levelx_INFO *psLevel = NULL;
+	MMU_PROTFLAGS_T uiMMUProtFlags = 0;
+
+	IMG_UINT64 uiProtFlags = 0;
+	IMG_UINT64 ui64PrevPxE64;
+	IMG_UINT32 ui32PrevPxE32;
+
+	IMG_DEV_PHYADDR sTargetDevPAddr;
+	IMG_BOOL bValid = IMG_FALSE;
+
+	/* Validate the most essential parameters */
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psMMUContext != NULL, "psMMUContext");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psOriginPMR != NULL, "psPMR");
+
+	psDevNode = psMMUContext->psPhysMemCtx->psDevNode;
+
+	eError = _MMU_ConvertDevMemFlags(IMG_FALSE,
+	                                 uiMappingFlags,
+	                                 &uiMMUProtFlags,
+	                                 psMMUContext);
+	PVR_RETURN_IF_ERROR(eError);
+
+	_MMU_GetPTConfig(psMMUContext, uiLog2HeapPageSize, &psConfig, &hPriv, &psDevVAddrConfig);
+
+	if (!_MMU_GetPTInfo(psMMUContext, sDevVAddr, psDevVAddrConfig,
+	                    &psLevel, &uiPTEIndex))
+	{
+		PVR_LOG_GOTO_WITH_ERROR("_MMU_GetPTInfo", eError, PVRSRV_ERROR_MAPPING_NOT_FOUND,
+		                        ErrPutPTConfig);
+	}
+
+	if (psConfig->uiBytesPerEntry == 4)
+	{
+		IMG_UINT32 *pui32Px = psLevel->sMemDesc.pvCpuVAddr;
+		ui32PrevPxE32 = pui32Px[uiPTEIndex];
+
+		uiProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt4(uiMMUProtFlags);
+	}
+	else if (psConfig->uiBytesPerEntry == 8)
+	{
+		IMG_UINT64 *pui64Px = psLevel->sMemDesc.pvCpuVAddr;
+		ui64PrevPxE64 = pui64Px[uiPTEIndex];
+
+		uiProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUProtFlags , uiLog2HeapPageSize);
+	}
+
+	OSLockAcquire(psMMUContext->hLock);
+
+	eError = PMR_DevPhysAddr(psOriginPMR,
+	                         uiLog2HeapPageSize,
+	                         1,
+	                         ((IMG_DEVMEM_OFFSET_T) ui32LogicalPgOffset << uiLog2HeapPageSize),
+	                         &sTargetDevPAddr,
+	                         &bValid,
+	                         DEVICE_USE);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PMR_DevPhysAddr", ErrUnlockContext);
+
+	if (!bValid)
+	{
+		PVR_LOG_GOTO_WITH_ERROR("PMR_DevPhysAddr",
+		                        eError,
+		                        PVRSRV_ERROR_MMU_FAILED_TO_MAP_PAGE_TABLE,
+		                        ErrUnlockContext);
+	}
+
+	/* Set the PT entry with the specified address and protection flags */
+	eError = _SetupPTE(psMMUContext,
+	                   psLevel,
+	                   uiPTEIndex,
+	                   psConfig,
+	                   &sTargetDevPAddr,
+	                   &sDevVAddr,
+	                   IMG_FALSE,
+#if defined(PDUMP)
+	                   /*PDUMP Not supported for remap */
+	                   NULL,
+	                   NULL,
+	                   0,
+#endif /*PDUMP*/
+	                   uiProtFlags);
+	PVR_LOG_GOTO_IF_ERROR(eError, "_SetupPTE", ErrUnlockContext);
+
+	eError = PhysHeapPagesClean(psDevNode->psMMUPhysHeap,
+	                            &psLevel->sMemDesc.psMapping->sMemHandle,
+	                            uiPTEIndex * psConfig->uiBytesPerEntry + psLevel->sMemDesc.uiOffset,
+	                            psConfig->uiBytesPerEntry);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PhysHeapPagesClean", ErrUnlockAndUnmapPages);
+
+	OSLockRelease(psMMUContext->hLock);
+
+	_MMU_PutPTConfig(psMMUContext, hPriv);
+
+	/* Flush TLB for PTs, this queues invalidation, actioning of this
+	 * should be ensured complete by the caller before further GPU
+	 * workloads continue.
+	 */
+	psDevNode->pfnMMUCacheInvalidate(psDevNode,
+	                                 psMMUContext,
+	                                 MMU_LEVEL_1,
+	                                 IMG_FALSE);
+
+	return PVRSRV_OK;
+
+ErrUnlockAndUnmapPages:
+	/* Reset old PTE in place */
+	if (psConfig->uiBytesPerEntry == 4)
+	{
+		IMG_UINT32 *pui32Px = psLevel->sMemDesc.pvCpuVAddr;
+		pui32Px[uiPTEIndex] = ui32PrevPxE32;
+	}
+	else if (psConfig->uiBytesPerEntry == 8)
+	{
+		IMG_UINT64 *pui64Px = psLevel->sMemDesc.pvCpuVAddr;
+		pui64Px[uiPTEIndex] = ui64PrevPxE64;
+	}
+
+ErrUnlockContext:
+	OSLockRelease(psMMUContext->hLock);
+
+ErrPutPTConfig:
+	_MMU_PutPTConfig(psMMUContext, hPriv);
+
+	return eError;
+}
+#endif
 
 /*
 	MMU_AcquireBaseAddr
@@ -4637,7 +5147,6 @@ void MMU_CheckFaultAddress(MMU_CONTEXT *psMMUContext,
 static IMG_UINT64 MMU_GetVDevAddrPTE(MMU_CONTEXT *psMMUContext,
                                      const MMU_PxE_CONFIG *psConfig,
                                      const MMU_DEVVADDR_CONFIG *psDevVAddrConfig,
-                                     IMG_UINT32 uiLog2PageSize,
                                      IMG_DEV_VIRTADDR sDevVAddr,
                                      IMG_BOOL *pbStatusOut)
 {
@@ -4705,7 +5214,6 @@ IMG_BOOL MMU_IsVDevAddrValid(MMU_CONTEXT *psMMUContext,
 	MMU_GetVDevAddrPTE(psMMUContext,
 	                   psConfig,
 	                   psDevVAddrConfig,
-	                   uiLog2PageSize,
 	                   sDevVAddr,
 	                   &bStatus);
 

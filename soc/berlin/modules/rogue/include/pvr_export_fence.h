@@ -43,17 +43,43 @@
 #if !defined(__PVR_EXPORT_FENCES_H__)
 #define __PVR_EXPORT_FENCES_H__
 
-#include "pvr_linux_fence.h"
+#include <linux/dma-fence.h>
+#include "services_kernel_client.h"
 
 struct pvr_exp_fence_context;
+struct pvr_exp_fence;
+
+enum export_fence_resolve_type {
+	EXPORT_FENCE_RESOLVE_FOR_CHECK,
+	EXPORT_FENCE_RESOLVE_FOR_UPDATE
+};
 
 struct pvr_exp_fence_context *pvr_exp_fence_context_create(const char *name,
 				const char *driver_name);
 void pvr_exp_fence_context_destroy(struct pvr_exp_fence_context *fence_context);
-struct dma_fence *pvr_exp_fence_create(struct pvr_exp_fence_context *fence_context);
+struct dma_fence *pvr_exp_fence_create(struct pvr_exp_fence_context *fence_context,
+				       int fd,
+				       u64 *sync_pt_idx);
 
 const char *pvr_exp_fence_context_name(struct pvr_exp_fence_context *fctx);
 void pvr_exp_fence_context_value_str(struct pvr_exp_fence_context *fctx,
 				    char *str, int size);
+
+enum PVRSRV_ERROR_TAG pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_resolve,
+						      struct dma_fence *fence,
+						      enum export_fence_resolve_type resolve_use,
+						      PSYNC_CHECKPOINT_CONTEXT checkpoint_context,
+						      PSYNC_CHECKPOINT *assigned_checkpoint);
+
+enum PVRSRV_ERROR_TAG pvr_exp_fence_rollback(struct dma_fence *fence);
+
+enum PVRSRV_ERROR_TAG pvr_exp_fence_finalise(struct dma_fence *fence);
+
+bool pvr_is_exp_fence(struct dma_fence *fence);
+
+struct pvr_exp_fence *to_pvr_exp_fence(struct dma_fence *fence);
+
+struct SYNC_CHECKPOINT_TAG *
+pvr_exp_fence_get_checkpoint(struct pvr_exp_fence *export_fence);
 
 #endif /* !defined(__PVR_EXPORT_FENCES_H__) */

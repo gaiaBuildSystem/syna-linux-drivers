@@ -89,8 +89,8 @@ PVRSRV_ERROR PVRSRVRGXCreateComputeContextKM(CONNECTION_DATA			*psConnection,
 											 IMG_UINT32					ui32FrameworkCommandSize,
 											 IMG_PBYTE					pabyFrameworkCommand,
 											 IMG_HANDLE					hMemCtxPrivData,
-											 IMG_UINT32					ui32StaticComputeContextStateSize,
-											 IMG_PBYTE					pStaticComputeContextState,
+											 IMG_UINT32					ui32CompContextDataSize,
+											 IMG_PBYTE					pCompData,
 											 IMG_UINT32					ui32PackedCCBSizeU88,
 											 IMG_UINT32					ui32ContextFlags,
 											 IMG_UINT64					ui64RobustnessAddress,
@@ -107,7 +107,6 @@ PVRSRV_ERROR PVRSRVRGXCreateComputeContextKM(CONNECTION_DATA			*psConnection,
  @Return   PVRSRV_ERROR
 ******************************************************************************/
 PVRSRV_ERROR PVRSRVRGXDestroyComputeContextKM(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext);
-
 
 /*!
 *******************************************************************************
@@ -127,6 +126,7 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 								PVRSRV_TIMELINE				iUpdateTimeline,
 								PVRSRV_FENCE				*piUpdateFence,
 								IMG_CHAR					pcszUpdateFenceName[PVRSRV_SYNC_NAME_LENGTH],
+								PVRSRV_FENCE				iExportFenceToSignal,
 								IMG_UINT32					ui32CmdSize,
 								IMG_PBYTE					pui8DMCmd,
 								IMG_UINT32					ui32PDumpFlags,
@@ -189,22 +189,11 @@ PVRSRV_ERROR PVRSRVRGXSetComputeContextPriorityKM(CONNECTION_DATA *psConnection,
 												  RGX_SERVER_COMPUTE_CONTEXT *psComputeContext,
 												  IMG_INT32 i32Priority);
 
-PVRSRV_ERROR PVRSRVRGXSetComputeContextPropertyKM(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext,
-												  RGX_CONTEXT_PROPERTY eContextProperty,
-												  IMG_UINT64 ui64Input,
-												  IMG_UINT64 *pui64Output);
-
 PVRSRV_ERROR PVRSRVRGXGetLastDeviceErrorKM(CONNECTION_DATA    *psConnection,
                                            PVRSRV_DEVICE_NODE *psDeviceNode,
                                            IMG_UINT32         *ui32Error);
 
 PVRSRV_ERROR PVRSRVRGXKickTimestampQueryKM(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext,
-                                           PVRSRV_FENCE iCheckFence,
-                                           IMG_UINT32 ui32CmdSize,
-                                           IMG_PBYTE pui8DMCmd,
-                                           IMG_UINT32 ui32ExtJobRef);
-
-PVRSRV_ERROR PVRSRVRGXKickTimestampQueryKM2(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext,
                                            PVRSRV_FENCE iCheckFence,
 										   PVRSRV_TIMELINE iUpdateTimeline,
 										   PVRSRV_FENCE *piUpdateFence,
@@ -221,5 +210,12 @@ void DumpComputeCtxtsInfo(PVRSRV_RGXDEV_INFO *psDevInfo,
 
 /* Debug/Watchdog - check if client compute contexts are stalled */
 IMG_UINT32 CheckForStalledClientComputeCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
+
+PVRSRV_ERROR PVRSRVRGXCDMGetSharedMemoryKM(
+	CONNECTION_DATA           * psConnection,
+	PVRSRV_DEVICE_NODE        * psDeviceNode,
+	PMR                      ** ppsCLIPMRMem);
+
+PVRSRV_ERROR PVRSRVRGXCDMReleaseSharedMemoryKM(PMR * psUSCPMRMem);
 
 #endif /* RGXCOMPUTE_H */

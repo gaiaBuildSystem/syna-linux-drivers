@@ -316,34 +316,46 @@ PVRSRV_ERROR RGXMipsMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUPDEConfig_16KBDP.uiBytesPerEntry = 0;
 
 	sRGXMMUPDEConfig_16KBDP.uiAddrMask = 0;
-	sRGXMMUPDEConfig_16KBDP.uiAddrShift = 0; /* These are for a page directory ENTRY, meaning the address of a PT cropped to suit the PD */
-	sRGXMMUPDEConfig_16KBDP.uiAddrLog2Align = 0; /* Alignment of the page tables NOT directories */
+	sRGXMMUPDEConfig_16KBDP.uiAddrShift = 0;
+	sRGXMMUPDEConfig_16KBDP.uiAddrLog2Align = 0;
 
 	sRGXMMUPDEConfig_16KBDP.uiVarCtrlMask = 0;
 	sRGXMMUPDEConfig_16KBDP.uiVarCtrlShift = 0;
 
-	sRGXMMUPDEConfig_16KBDP.uiProtMask = 0;
+	sRGXMMUPDEConfig_16KBDP.uiProtMask = RGX_MIPS_MMUCTRL_PDE_PROTMASK;
 	sRGXMMUPDEConfig_16KBDP.uiProtShift = 0;
 
-	sRGXMMUPDEConfig_16KBDP.uiValidEnMask = 0;
-	sRGXMMUPDEConfig_16KBDP.uiValidEnShift = 0;
+	sRGXMMUPDEConfig_16KBDP.uiValidEnMask = RGX_MIPS_MMUCTRL_PD_DATA_VALID_EN;
+	sRGXMMUPDEConfig_16KBDP.uiValidEnShift = RGX_MIPS_MMUCTRL_PD_DATA_VALID_SHIFT;
 
 	/*
-	 * Setup sRGXMMUPTEConfig_16KBDP. Not supported yet
+	 * Setup sRGXMMUPTEConfig_16KBDP.
 	 */
-	sRGXMMUPTEConfig_16KBDP.ePxLevel = MMU_LEVEL_LAST;
-	sRGXMMUPTEConfig_16KBDP.pszPxLevelStr = "UnD";
-	sRGXMMUPTEConfig_16KBDP.uiBytesPerEntry = 0;
+	sRGXMMUPTEConfig_16KBDP.ePxLevel = MMU_LEVEL_1;
+	sRGXMMUPTEConfig_16KBDP.pszPxLevelStr = "PT";
+	sRGXMMUPTEConfig_16KBDP.uiBytesPerEntry = 1 << RGXMIPSFW_LOG2_PTE_ENTRY_SIZE;
 
-	sRGXMMUPTEConfig_16KBDP.uiAddrMask = 0;
-	sRGXMMUPTEConfig_16KBDP.uiAddrShift = 0; /* These are for a page table ENTRY, meaning the address of a PAGE cropped to suit the PD */
-	sRGXMMUPTEConfig_16KBDP.uiAddrLog2Align = 0; /* Alignment of the pages NOT tables */
+	if (bPhysBusAbove32Bit)
+	{
+		sRGXMMUPTEConfig_16KBDP.uiAddrMask = RGXMIPSFW_ENTRYLO_PFN_MASK_ABOVE_32BIT;
+		gui32CachedPolicy = RGXMIPSFW_CACHED_POLICY_ABOVE_32BIT;
+	}
+	else
+	{
+		sRGXMMUPTEConfig_16KBDP.uiAddrMask = RGXMIPSFW_ENTRYLO_PFN_MASK;
+		gui32CachedPolicy = RGXMIPSFW_CACHED_POLICY;
+	}
 
-	sRGXMMUPTEConfig_16KBDP.uiProtMask = 0;
+	/* Even while using 16K pages, MIPS still aligns addresses to 4K */
+	sRGXMMUPTEConfig_16KBDP.uiAddrShift = RGXMIPSFW_ENTRYLO_PFN_SHIFT;
+	sRGXMMUPTEConfig_16KBDP.uiAddrLog2Align = (IMG_UINT32)RGXMIPSFW_LOG2_PAGE_SIZE_4K;
+
+	sRGXMMUPTEConfig_16KBDP.uiProtMask = RGXMIPSFW_ENTRYLO_DVG | ~RGXMIPSFW_ENTRYLO_CACHE_POLICY_CLRMSK |
+	                                     RGXMIPSFW_ENTRYLO_READ_INHIBIT_EN | RGXMIPSFW_ENTRYLO_EXEC_INHIBIT_EN;
 	sRGXMMUPTEConfig_16KBDP.uiProtShift = 0;
 
-	sRGXMMUPTEConfig_16KBDP.uiValidEnMask = 0;
-	sRGXMMUPTEConfig_16KBDP.uiValidEnShift = 0;
+	sRGXMMUPTEConfig_16KBDP.uiValidEnMask = RGXMIPSFW_ENTRYLO_VALID_EN;
+	sRGXMMUPTEConfig_16KBDP.uiValidEnShift = RGXMIPSFW_ENTRYLO_VALID_SHIFT;
 
 	/*
 	 * Setup sRGXMMUDevVAddrConfig_16KBDP
@@ -356,13 +368,13 @@ PVRSRV_ERROR RGXMipsMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUDevVAddrConfig_16KBDP.uiPDIndexShift = 0;
 	sRGXMMUDevVAddrConfig_16KBDP.uiNumEntriesPD = 0;
 
-	sRGXMMUDevVAddrConfig_16KBDP.uiPTIndexMask = 0;
-	sRGXMMUDevVAddrConfig_16KBDP.uiPTIndexShift = 0;
-	sRGXMMUDevVAddrConfig_16KBDP.uiNumEntriesPT = 0;
+	sRGXMMUDevVAddrConfig_16KBDP.uiPTIndexMask = IMG_UINT64_C(0x00ffffc000);
+	sRGXMMUDevVAddrConfig_16KBDP.uiPTIndexShift = (IMG_UINT32)RGXMIPSFW_LOG2_PAGE_SIZE_16K;
+	sRGXMMUDevVAddrConfig_16KBDP.uiNumEntriesPT = (RGX_NUM_DRIVERS_SUPPORTED << RGXMIPSFW_LOG2_PAGETABLE_SIZE_16K) >> RGXMIPSFW_LOG2_PTE_ENTRY_SIZE;
 
-	sRGXMMUDevVAddrConfig_16KBDP.uiPageOffsetMask = 0;
+	sRGXMMUDevVAddrConfig_16KBDP.uiPageOffsetMask = IMG_UINT64_C(0x0000003fff);
 	sRGXMMUDevVAddrConfig_16KBDP.uiPageOffsetShift = 0;
-	sRGXMMUDevVAddrConfig_16KBDP.uiOffsetInBytes = 0;
+	sRGXMMUDevVAddrConfig_16KBDP.uiOffsetInBytes = RGX_FIRMWARE_RAW_HEAP_BASE & IMG_UINT64_C(0x00ffffffff);
 
 	/*
 	 * Setup gsPageSizeConfig16KB
@@ -394,11 +406,11 @@ PVRSRV_ERROR RGXMipsMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sRGXMMUPDEConfig_64KBDP.uiVarCtrlMask = 0;
 	sRGXMMUPDEConfig_64KBDP.uiVarCtrlShift = 0;
 
-	sRGXMMUPDEConfig_64KBDP.uiProtMask = 0;
+	sRGXMMUPDEConfig_64KBDP.uiProtMask = RGX_MIPS_MMUCTRL_PDE_PROTMASK;
 	sRGXMMUPDEConfig_64KBDP.uiProtShift = 0;
 
-	sRGXMMUPDEConfig_64KBDP.uiValidEnMask = 0;
-	sRGXMMUPDEConfig_64KBDP.uiValidEnShift = 0;
+	sRGXMMUPDEConfig_64KBDP.uiValidEnMask = RGX_MIPS_MMUCTRL_PD_DATA_VALID_EN;
+	sRGXMMUPDEConfig_64KBDP.uiValidEnShift = RGX_MIPS_MMUCTRL_PD_DATA_VALID_SHIFT;
 
 	/*
 	 * Setup sRGXMMUPTEConfig_64KBDP.
@@ -727,7 +739,7 @@ static PVRSRV_ERROR RGXCheckTrampolineAddrs(struct _PVRSRV_DEVICE_NODE_ *psDevNo
 				*pui64Addr = psDevice->psTrampoline->sPhysAddr.uiAddr + RGXMIPSFW_TRAMPOLINE_OFFSET(*pui64Addr);
 			}
 			/* FIX_HW_BRN_63553 is mainlined for all MIPS cores */
-			else if (*pui64Addr == 0x0 && !psDevice->sLayerParams.bDevicePA0IsValid)
+			else if (*pui64Addr == 0x0 && !psDevNode->psDevConfig->bDevicePA0IsValid)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "%s attempt to map addr 0x0 in the FW but 0x0 is not considered valid.", __func__));
 				return PVRSRV_ERROR_MMU_FAILED_TO_MAP_PAGE_TABLE;
@@ -943,6 +955,9 @@ static PVRSRV_ERROR RGXGetPageSizeConfigCB(IMG_UINT32 uiLog2DataPageSize,
 	case RGXMIPSFW_LOG2_PAGE_SIZE_64K:
 		psPageSizeConfig = &gsPageSizeConfig64KB;
 		break;
+	case RGXMIPSFW_LOG2_PAGE_SIZE_16K:
+		psPageSizeConfig = &gsPageSizeConfig16KB;
+		break;
 	case RGXMIPSFW_LOG2_PAGE_SIZE_4K:
 		psPageSizeConfig = &gsPageSizeConfig4KB;
 		break;
@@ -996,6 +1011,9 @@ static PVRSRV_ERROR RGXPutPageSizeConfigCB(IMG_HANDLE hPriv)
 	{
 	case RGXMIPSFW_LOG2_PAGE_SIZE_64K:
 		psPageSizeConfig = &gsPageSizeConfig64KB;
+		break;
+	case RGXMIPSFW_LOG2_PAGE_SIZE_16K:
+		psPageSizeConfig = &gsPageSizeConfig16KB;
 		break;
 	case RGXMIPSFW_LOG2_PAGE_SIZE_4K:
 		psPageSizeConfig = &gsPageSizeConfig4KB;

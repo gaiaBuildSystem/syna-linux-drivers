@@ -75,10 +75,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ospvr_gputrace.h"
 
-#include "km_apphint.h"
+#include "os_apphintkm.h"
 #include "srvinit.h"
 
 #include "pvr_ion_stats.h"
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+#include "physmem_osmem_linux.h"
+#endif
+#endif
+
+#include "dkf_server.h"
 
 #if defined(SUPPORT_DISPLAY_CLASS)
 /* Display class interface */
@@ -154,6 +162,7 @@ CONNECTION_DATA *LinuxServicesConnectionFromFile(struct file *pFile)
 
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv != NULL, "psConnectionPriv is NULL", NULL);
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SERVICES, "psConnectionPriv is not DKF_CONNECTION_FLAG_SERVICES", NULL);
 
 		return (CONNECTION_DATA*)psConnectionPriv->pvConnectionData;
 	}
@@ -165,8 +174,15 @@ CONNECTION_DATA *LinuxSyncConnectionFromFile(struct file *pFile)
 {
 	if (pFile)
 	{
-		struct drm_file *psDRMFile = pFile->private_data;
-		PVRSRV_CONNECTION_PRIV *psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+		struct drm_file *psDRMFile;
+		PVRSRV_CONNECTION_PRIV *psConnectionPriv;
+
+		psDRMFile = pFile->private_data;
+		PVR_LOG_RETURN_IF_FALSE(psDRMFile != NULL, "psDRMFile is NULL", NULL);
+
+		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv != NULL, "psConnectionPriv is NULL", NULL);
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SYNC, "psConnectionPriv is not DKF_CONNECTION_FLAG_SYNC", NULL);
 
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
 		return (CONNECTION_DATA*)psConnectionPriv->pvConnectionData;
@@ -193,6 +209,14 @@ int PVRSRVDriverInit(void)
 	{
 		return -ENOMEM;
 	}
+
+#if defined(SUPPORT_LINUX_FDINFO)
+	error = PVRDKFInit();
+	if (error != PVRSRV_OK)
+	{
+		return -ENODEV;
+	}
+#endif	/* SUPPORT_LINUX_FDINFO */
 
 	error = PVRSRVCommonDriverInit();
 	if (error != PVRSRV_OK)
@@ -297,6 +321,10 @@ void PVRSRVDriverDeinit(void)
 
 	PVRSRVCommonDriverDeInit();
 
+#if defined(SUPPORT_LINUX_FDINFO)
+	PVRDKFDeInit();
+#endif	/* SUPPORT_LINUX_FDINFO */
+
 	PVROSFuncDeInit();
 }
 
@@ -353,7 +381,9 @@ void PVRSRVDeviceDeinit(PVRSRV_DEVICE_NODE *psDeviceNode)
 	pvr_sync_device_deinit(psDeviceNode->psDevConfig->pvOSDevice);
 #endif
 
+#if defined(SUPPORT_NATIVE_FENCE_SYNC) || defined(SUPPORT_BUFFER_SYNC)
 	pvr_fence_cleanup();
+#endif
 }
 
 /**************************************************************************/ /*!
@@ -493,23 +523,44 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 		goto out;
 	}
 
-	if (psDRMFile->driver_priv == NULL)
-	{
-		/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
-		psConnectionPriv = kzalloc(sizeof(*psConnectionPriv), GFP_KERNEL);
-		if (!psConnectionPriv)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: No memory to allocate driver_priv data", __func__));
-			iErr = -ENOMEM;
-			mutex_unlock(&sDeviceInitMutex);
-			goto fail_alloc_connection_priv;
-		}
-	}
-	else
+	if (psDRMFile->driver_priv != NULL)
 	{
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+
+		PVR_ASSERT(psConnectionPriv->ui32Type != DKF_CONNECTION_FLAG_INVALID);
+		PVR_ASSERT(psConnectionPriv->ui32Type <= DKF_CONNECTION_FLAG_SERVICES);
+
+		/* If there is already a valid connection, we can reuse it */
+		if (psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SERVICES)
+		{
+			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing services connection", __func__));
+			iErr = 0;
+			mutex_unlock(&sDeviceInitMutex);
+			goto out;
+		}
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Connection has already been initialised",
+			         __func__));
+			iErr = -EINVAL;
+			mutex_unlock(&sDeviceInitMutex);
+			goto out;
+		}
 	}
 
+	/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
+	psConnectionPriv = kzalloc(sizeof(*psConnectionPriv), GFP_KERNEL);
+	if (!psConnectionPriv)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: No memory to allocate driver_priv data", __func__));
+		iErr = -ENOMEM;
+		mutex_unlock(&sDeviceInitMutex);
+		goto fail_alloc_connection_priv;
+	}
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SERVICES;
+
+	PVRSRVDeviceInitPvzLock(psDeviceNode);
 	if (psDeviceNode->eDevState == PVRSRV_DEVICE_STATE_CREATED)
 	{
 		eError = PVRSRVCommonDeviceInitialise(psDeviceNode);
@@ -518,6 +569,7 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 			PVR_DPF((PVR_DBG_ERROR, "%s: Failed to initialise device (%s)",
 					 __func__, PVRSRVGetErrorString(eError)));
 			iErr = -ENODEV;
+			PVRSRVDeviceInitPvzUnlock(psDeviceNode);
 			mutex_unlock(&sDeviceInitMutex);
 			goto fail_device_init;
 		}
@@ -526,6 +578,7 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 		PVRGpuTraceInitIfEnabled(psDeviceNode);
 #endif
 	}
+	PVRSRVDeviceInitPvzUnlock(psDeviceNode);
 	mutex_unlock(&sDeviceInitMutex);
 
 	sPrivData.psDevNode = psDeviceNode;
@@ -549,19 +602,11 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 #endif
 	psDRMFile->driver_priv = (void*)psConnectionPriv;
 
-#if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
-	eError = PVRSRVGpuTraceWorkPeriodEventStatsRegister(
-			&psConnectionPriv->pvGpuWorkPeriodEventStats);
-	if (eError != PVRSRV_OK)
-	{
-		iErr = -ENOMEM;
-		goto fail_connect;
-	}
-#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD) */
 	goto out;
 
 fail_connect:
 fail_device_init:
+	psDRMFile->driver_priv = NULL;
 	kfree(psConnectionPriv);
 fail_alloc_connection_priv:
 out:
@@ -595,7 +640,38 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 		goto out;
 	}
 
-	if (psDRMFile->driver_priv == NULL)
+	if (psDRMFile->driver_priv != NULL)
+	{
+		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+
+		PVR_ASSERT(psConnectionPriv->ui32Type != DKF_CONNECTION_FLAG_INVALID);
+		PVR_ASSERT(psConnectionPriv->ui32Type <= DKF_CONNECTION_FLAG_SERVICES);
+
+		/* If there is already a valid connection, we can reuse it */
+		if (psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SYNC)
+		{
+			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing sync connection", __func__));
+			iErr = 0;
+			goto out;
+		}
+#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Connection has already been initialised",
+			         __func__));
+			iErr = -EINVAL;
+			goto out;
+		}
+#else
+		/* It's valid for the driver_priv to point to a services connection allocation,
+		 * when PVRSRV_DEVICE_INIT_MODE != PVRSRV_LINUX_DEV_INIT_ON_CONNECT. This
+		 * function will extend the driver_priv with further initialisation to
+		 * `psConnectionPriv->pvSyncConnectionData`.
+		 */
+#endif
+	}
+	else
 	{
 		/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
 		psConnectionPriv = kzalloc(sizeof(*psConnectionPriv), GFP_KERNEL);
@@ -605,10 +681,6 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 			iErr = -ENOMEM;
 			goto out;
 		}
-	}
-	else
-	{
-		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 	}
 
 	/* Allocate connection data area, no stats since process not registered yet */
@@ -624,6 +696,7 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 #else
 	psConnectionPriv->pvSyncConnectionData = (void*)psConnection;
 #endif
+
 
 	sPrivData.psDevNode = psDeviceNode;
 	sPrivData.psDRMFile = psDRMFile;
@@ -656,6 +729,7 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	psConnectionPriv->pfDeviceRelease = pvr_sync_close;
 #endif
 #endif
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
 	psDRMFile->driver_priv = psConnectionPriv;
 	goto out;
 
@@ -666,7 +740,18 @@ fail_pvr_sync_open:
 fail_private_data_init:
 	kfree(psConnection);
 fail_alloc_connection:
+#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
+	psDRMFile->driver_priv = NULL;
 	kfree(psConnectionPriv);
+#else
+	/* We can't completely destroy the connection because the services
+	 * connection continues to exist, and it could be in use right now!
+	 * It will all be freed once the fd is closed.
+	 *
+	 * The connection type will revert back to being a services connection.
+	 */
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SERVICES;
+#endif
 out:
 	return iErr;
 #else /* if defined(SUPPORT_NATIVE_FENCE_SYNC) */
@@ -695,15 +780,6 @@ void PVRSRVDeviceRelease(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 		if (psConnectionPriv->pvConnectionData)
 		{
-#if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
-			if (psConnectionPriv->pvGpuWorkPeriodEventStats)
-			{
-				PVRSRVGpuTraceWorkPeriodEventStatsUnregister(
-						psConnectionPriv->pvGpuWorkPeriodEventStats);
-				psConnectionPriv->pvGpuWorkPeriodEventStats = NULL;
-			}
-#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD) */
-
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
 			if (psConnectionPriv->pfDeviceRelease)
 			{
@@ -720,6 +796,12 @@ void PVRSRVDeviceRelease(PVRSRV_DEVICE_NODE *psDeviceNode,
 #endif
 		}
 
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+		LinuxDeregisterMigrateCallbacks(psDRMFile->filp);
+#endif
+#endif
+
 		kfree(psDRMFile->driver_priv);
 		psDRMFile->driver_priv = NULL;
 	}
@@ -730,7 +812,10 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 {
 	struct drm_pvr_srvkm_init_data *data = arg;
 	struct pvr_drm_private *priv = dev->dev_private;
+	static DEFINE_MUTEX(sInitMutex);
 	int iErr = 0;
+
+	mutex_lock(&sInitMutex);
 
 	switch (data->init_module)
 	{
@@ -742,8 +827,26 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 		case PVR_SRVKM_SERVICES_INIT:
 		{
 			iErr = PVRSRVDeviceServicesOpen(priv->dev_node, psDRMFile);
+			if (iErr)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: PVRSRVDeviceServicesOpen() failed(%d)",
+						__func__, iErr));
+				break;
+			}
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+			iErr = LinuxRegisterMigrateCallbacks(psDRMFile->filp);
+#endif
+#endif
 			break;
 		}
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+		case PVR_SRVKM_SERVICES_PAGE_MIGRATE_INIT:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+			iErr = LinuxRegisterMigrateCallbacks(psDRMFile->filp);
+#endif
+#endif
+			break;
 		default:
 		{
 			PVR_DPF((PVR_DBG_ERROR, "%s: invalid init_module (%d)",
@@ -751,6 +854,8 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 			iErr = -EINVAL;
 		}
 	}
+
+	mutex_unlock(&sInitMutex);
 
 	return iErr;
 }

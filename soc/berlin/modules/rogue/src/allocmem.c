@@ -49,9 +49,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "allocmem.h"
 #include "pvr_debug.h"
 #include "process_stats.h"
-#if defined(DEBUG) && defined(SUPPORT_VALIDATION)
-#include "pvrsrv.h"
-#endif
 #include "osfunc.h"
 
 
@@ -85,10 +82,6 @@ static IMG_UINT32 g_ui32kmallocThreshold = PVR_LINUX_KMALLOC_ALLOCATION_THRESHOL
 /* Spinlock used so that the global variables above may not be modified by more than 1 thread at a time */
 static DEFINE_SPINLOCK(kmalloc_lock);
 
-#if defined(DEBUG) && defined(SUPPORT_VALIDATION)
-static DEFINE_SPINLOCK(kmalloc_leak_lock);
-static IMG_UINT32 g_ui32kmallocLeakCounter = 0;
-#endif
 
 static inline void OSTryDecreaseKmallocThreshold(void)
 {
@@ -143,7 +136,7 @@ static inline void _pvr_kfree(const void* pvAddr)
 	kfree(pvAddr);
 }
 
-static inline void *_pvr_alloc_stats_add(void *pvAddr, IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
+static inline void *_pvr_alloc_stats_add(void *pvAddr, size_t uiSize DEBUG_MEMSTATS_PARAMS)
 {
 #if !defined(PVRSRV_ENABLE_PROCESS_STATS)
 	PVR_UNREFERENCED_PARAMETER(pvAddr);
@@ -181,12 +174,12 @@ static inline void *_pvr_alloc_stats_add(void *pvAddr, IMG_UINT32 ui32Size DEBUG
 		PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_VMALLOC,
 									  pvAddr,
 									  sCpuPAddr,
-									  PVR_ALIGN(ui32Size, PAGE_SIZE),
+									  PVR_ALIGN(uiSize, PAGE_SIZE),
 									  OSGetCurrentClientProcessIDKM()
 									  DEBUG_MEMSTATS_ARGS);
 #else
 		PVRSRVStatsIncrMemAllocStatAndTrack(PVRSRV_MEM_ALLOC_TYPE_VMALLOC,
-		                                    PVR_ALIGN(ui32Size, PAGE_SIZE),
+		                                    PVR_ALIGN(uiSize, PAGE_SIZE),
 		                                    (IMG_UINT64)(uintptr_t) pvAddr,
 		                                    OSGetCurrentClientProcessIDKM());
 #endif /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
@@ -233,13 +226,26 @@ static inline void *_pvr_alloc_stats_remove(void *pvAddr)
 	return pvAddr;
 }
 
-void *(OSAllocMem)(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
+void *(OSAllocMem)(size_t uiSize DEBUG_MEMSTATS_PARAMS)
 {
 	void *pvRet = NULL;
+	size_t uiAllocSize = uiSize + ALLOCMEM_PID_SIZE_PADDING;
 
-	if ((ui32Size + ALLOCMEM_PID_SIZE_PADDING) <= g_ui32kmallocThreshold)
+	if (uiSize == 0)
 	{
-		pvRet = kmalloc(ui32Size + ALLOCMEM_PID_SIZE_PADDING, GFP_KERNEL);
+		return IMG_ZERO_SIZE_PTR;
+	}
+
+	// Check for overflow.
+	PVR_ASSERT(uiAllocSize >= uiSize);
+	if (uiAllocSize < uiSize)
+	{
+		return NULL;
+	}
+
+	if (uiAllocSize <= g_ui32kmallocThreshold)
+	{
+		pvRet = kmalloc(uiAllocSize, GFP_KERNEL);
 		if (pvRet == NULL)
 		{
 			OSTryDecreaseKmallocThreshold();
@@ -252,24 +258,37 @@ void *(OSAllocMem)(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
 
 	if (pvRet == NULL)
 	{
-		pvRet = vmalloc(ui32Size);
+		pvRet = vmalloc(uiAllocSize);
 	}
 
 	if (pvRet != NULL)
 	{
-		pvRet = _pvr_alloc_stats_add(pvRet, ui32Size DEBUG_MEMSTATS_ARGS);
+		pvRet = _pvr_alloc_stats_add(pvRet, uiSize DEBUG_MEMSTATS_ARGS);
 	}
 
 	return pvRet;
 }
 
-void *(OSAllocZMem)(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
+void *(OSAllocZMem)(size_t uiSize DEBUG_MEMSTATS_PARAMS)
 {
 	void *pvRet = NULL;
+	size_t uiAllocSize = uiSize + ALLOCMEM_PID_SIZE_PADDING;
 
-	if ((ui32Size + ALLOCMEM_PID_SIZE_PADDING) <= g_ui32kmallocThreshold)
+	if (uiSize == 0)
 	{
-		pvRet = kzalloc(ui32Size + ALLOCMEM_PID_SIZE_PADDING, GFP_KERNEL);
+		return IMG_ZERO_SIZE_PTR;
+	}
+
+	// Check for overflow.
+	PVR_ASSERT(uiAllocSize >= uiSize);
+	if (uiAllocSize < uiSize)
+	{
+		return NULL;
+	}
+
+	if (uiAllocSize <= g_ui32kmallocThreshold)
+	{
+		pvRet = kzalloc(uiAllocSize, GFP_KERNEL);
 		if (pvRet == NULL)
 		{
 			OSTryDecreaseKmallocThreshold();
@@ -282,12 +301,12 @@ void *(OSAllocZMem)(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
 
 	if (pvRet == NULL)
 	{
-		pvRet = vzalloc(ui32Size);
+		pvRet = vzalloc(uiAllocSize);
 	}
 
 	if (pvRet != NULL)
 	{
-		pvRet = _pvr_alloc_stats_add(pvRet, ui32Size DEBUG_MEMSTATS_ARGS);
+		pvRet = _pvr_alloc_stats_add(pvRet, uiSize DEBUG_MEMSTATS_ARGS);
 	}
 
 	return pvRet;
@@ -299,32 +318,13 @@ void *(OSAllocZMem)(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
  */
 void (OSFreeMem)(void *pvMem)
 {
-#if defined(DEBUG) && defined(SUPPORT_VALIDATION)
-	unsigned long flags;
-	PVRSRV_DATA *psPVRSRVData = PVRSRVGetPVRSRVData();
-
-	if (psPVRSRVData)
+	PVR_ASSERT(pvMem != IMG_ZERO_SIZE_PTR);
+	if (pvMem == IMG_ZERO_SIZE_PTR)
 	{
-		IMG_UINT32 ui32kmallocLeakMax = psPVRSRVData->sMemLeakIntervals.ui32OSAlloc;
-
-		spin_lock_irqsave(&kmalloc_leak_lock, flags);
-
-		g_ui32kmallocLeakCounter++;
-		if (ui32kmallocLeakMax && (g_ui32kmallocLeakCounter >= ui32kmallocLeakMax))
-		{
-			g_ui32kmallocLeakCounter = 0;
-			spin_unlock_irqrestore(&kmalloc_leak_lock, flags);
-
-			PVR_DPF((PVR_DBG_WARNING,
-			         "%s: Skipped freeing of pointer 0x%p to trigger memory leak.",
-			         __func__,
-			         pvMem));
-			return;
-		}
-
-		spin_unlock_irqrestore(&kmalloc_leak_lock, flags);
+		return;
 	}
-#endif
+
+
 	if (pvMem != NULL)
 	{
 		pvMem = _pvr_alloc_stats_remove(pvMem);
@@ -340,13 +340,17 @@ void (OSFreeMem)(void *pvMem)
 	}
 }
 
-void *OSAllocMemNoStats(IMG_UINT32 ui32Size)
+void *OSAllocMemNoStats(size_t uiSize)
 {
 	void *pvRet = NULL;
 
-	if (ui32Size <= g_ui32kmallocThreshold)
+	PVR_ASSERT(uiSize != 0);
+
+	if (uiSize <= g_ui32kmallocThreshold)
 	{
-		pvRet = kmalloc(ui32Size, GFP_KERNEL);
+		/* Unlike OSAllocMem we don't add extra length to the allocation so,
+		 * we'll let kzalloc handle the `uiSize = 0` case. */
+		pvRet = kmalloc(uiSize, GFP_KERNEL);
 		if (pvRet == NULL)
 		{
 			OSTryDecreaseKmallocThreshold();
@@ -359,19 +363,23 @@ void *OSAllocMemNoStats(IMG_UINT32 ui32Size)
 
 	if (pvRet == NULL)
 	{
-		pvRet = vmalloc(ui32Size);
+		pvRet = vmalloc(uiSize);
 	}
 
 	return pvRet;
 }
 
-void *OSAllocZMemNoStats(IMG_UINT32 ui32Size)
+void *OSAllocZMemNoStats(size_t uiSize)
 {
 	void *pvRet = NULL;
 
-	if (ui32Size <= g_ui32kmallocThreshold)
+	PVR_ASSERT(uiSize != 0);
+
+	if (uiSize <= g_ui32kmallocThreshold)
 	{
-		pvRet = kzalloc(ui32Size, GFP_KERNEL);
+		/* Unlike OSAllocZMem we don't add extra length to the allocation so,
+		 * we'll let kzalloc handle the `uiSize = 0` case. */
+		pvRet = kzalloc(uiSize, GFP_KERNEL);
 		if (pvRet == NULL)
 		{
 			OSTryDecreaseKmallocThreshold();
@@ -384,7 +392,7 @@ void *OSAllocZMemNoStats(IMG_UINT32 ui32Size)
 
 	if (pvRet == NULL)
 	{
-		pvRet = vzalloc(ui32Size);
+		pvRet = vzalloc(uiSize);
 	}
 
 	return pvRet;
@@ -396,32 +404,13 @@ void *OSAllocZMemNoStats(IMG_UINT32 ui32Size)
  */
 void (OSFreeMemNoStats)(void *pvMem)
 {
-#if defined(DEBUG) && defined(SUPPORT_VALIDATION)
-	unsigned long flags;
-	PVRSRV_DATA *psPVRSRVData = PVRSRVGetPVRSRVData();
-
-	if (psPVRSRVData)
+	PVR_ASSERT(pvMem != IMG_ZERO_SIZE_PTR);
+	if (pvMem == IMG_ZERO_SIZE_PTR)
 	{
-		IMG_UINT32 ui32kmallocLeakMax = psPVRSRVData->sMemLeakIntervals.ui32OSAlloc;
-
-		spin_lock_irqsave(&kmalloc_leak_lock, flags);
-
-		g_ui32kmallocLeakCounter++;
-		if (ui32kmallocLeakMax && (g_ui32kmallocLeakCounter >= ui32kmallocLeakMax))
-		{
-			g_ui32kmallocLeakCounter = 0;
-			spin_unlock_irqrestore(&kmalloc_leak_lock, flags);
-
-			PVR_DPF((PVR_DBG_WARNING,
-			         "%s: Skipped freeing of pointer 0x%p to trigger memory leak.",
-			         __func__,
-			         pvMem));
-			return;
-		}
-
-		spin_unlock_irqrestore(&kmalloc_leak_lock, flags);
+		return;
 	}
-#endif
+
+
 	if (pvMem != NULL)
 	{
 		if (!is_vmalloc_addr(pvMem))

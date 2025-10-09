@@ -95,8 +95,8 @@ static const struct kernel_param_ops pvr_num_devices_ops = {
 	.get = param_get_uint,
 };
 
-#define STR(s) #s
-#define STRINGIFY(s) STR(s)
+#define STR_MACRO(s) #s
+#define STRINGIFY(s) STR_MACRO(s)
 
 module_param_cb(num_devices, &pvr_num_devices_ops, &pvr_num_devices, 0444);
 MODULE_PARM_DESC(num_devices,
@@ -105,11 +105,30 @@ MODULE_PARM_DESC(num_devices,
 #endif /* defined(NO_HARDWARE) */
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
 
+static struct platform_device_id pvr_platform_ids[] = {
+#if defined(SYS_RGX_DEV_NAME)
+	{ SYS_RGX_DEV_NAME, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_0)
+	{ SYS_RGX_DEV_NAME_0, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_1)
+	{ SYS_RGX_DEV_NAME_1, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_2)
+	{ SYS_RGX_DEV_NAME_2, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_3)
+	{ SYS_RGX_DEV_NAME_3, 0 },
+#endif
+	{ }
+};
+
 static int pvr_devices_register(void)
 {
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 	struct platform_device_info pvr_dev_info = {
-		.name = SYS_RGX_DEV_NAME,
+		.name = NULL,
 		.id = -2,
 #if defined(NO_HARDWARE)
 		/* Not all cores have 40 bit physical support, but this
@@ -131,6 +150,15 @@ static int pvr_devices_register(void)
 		return -ENOMEM;
 
 	for (i = 0; i < pvr_num_devices; i++) {
+		if (i < ARRAY_SIZE(pvr_platform_ids) && pvr_platform_ids[i].name[0])
+		{
+			pvr_dev_info.name = pvr_platform_ids[i].name;
+		}
+		else
+		{
+			pvr_dev_info.name = pvr_platform_ids[0].name;
+		}
+		pvr_dev_info.id = i;
 		pvr_devices[i] = platform_device_register_full(&pvr_dev_info);
 		if (IS_ERR(pvr_devices[i])) {
 			DRM_ERROR("unable to register device %u (err=%ld)\n",
@@ -167,18 +195,9 @@ static int pvr_probe(struct platform_device *pdev)
 	DRM_DEBUG_DRIVER("device %p\n", &pdev->dev);
 
 	ddev = drm_dev_alloc(&pvr_drm_platform_driver, &pdev->dev);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
 	if (IS_ERR(ddev))
 		return PTR_ERR(ddev);
-#else
-	if (!ddev)
-		return -ENOMEM;
-#endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))
-	/* Needed by drm_platform_set_busid */
-	ddev->platformdev = pdev;
-#endif
 
 	/*
 	 * The load callback, called from drm_dev_register, is deprecated,
@@ -194,15 +213,6 @@ static int pvr_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_drm_dev_unload;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
-		pvr_drm_platform_driver.name,
-		pvr_drm_platform_driver.major,
-		pvr_drm_platform_driver.minor,
-		pvr_drm_platform_driver.patchlevel,
-		pvr_drm_platform_driver.date,
-		ddev->primary->index);
-#endif
 	return 0;
 
 err_drm_dev_unload:
@@ -212,7 +222,11 @@ err_drm_dev_put:
 	return	ret;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
 static int pvr_remove(struct platform_device *pdev)
+#else
+static void pvr_remove(struct platform_device *pdev)
+#endif
 {
 	struct drm_device *ddev = platform_get_drvdata(pdev);
 
@@ -227,7 +241,9 @@ static int pvr_remove(struct platform_device *pdev)
 	pvr_drm_unload(ddev);
 
 	drm_dev_put(ddev);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
 	return 0;
+#endif
 }
 
 static void pvr_shutdown(struct platform_device *pdev)
@@ -243,31 +259,15 @@ static const struct of_device_id pvr_of_ids[] = {
 #if defined(SYS_RGX_OF_COMPATIBLE)
 	{ .compatible = SYS_RGX_OF_COMPATIBLE, },
 #endif
+#if defined(SYS_RGX_OF_COMPATIBLE2)
+	{ .compatible = SYS_RGX_OF_COMPATIBLE2, },
+#endif
 	{},
 };
 
 #if !defined(CHROMIUMOS_KERNEL)
 MODULE_DEVICE_TABLE(of, pvr_of_ids);
 #endif
-
-static struct platform_device_id pvr_platform_ids[] = {
-#if defined(SYS_RGX_DEV_NAME)
-	{ SYS_RGX_DEV_NAME, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_0)
-	{ SYS_RGX_DEV_NAME_0, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_1)
-	{ SYS_RGX_DEV_NAME_1, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_2)
-	{ SYS_RGX_DEV_NAME_2, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_3)
-	{ SYS_RGX_DEV_NAME_3, 0 },
-#endif
-	{ }
-};
 
 #if !defined(CHROMIUMOS_KERNEL)
 MODULE_DEVICE_TABLE(platform, pvr_platform_ids);
@@ -292,9 +292,6 @@ static int __init pvr_init(void)
 	DRM_DEBUG_DRIVER("\n");
 
 	pvr_drm_platform_driver = pvr_drm_generic_driver;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))
-	pvr_drm_platform_driver.set_busid = drm_platform_set_busid;
-#endif
 
 	err = PVRSRVDriverInit();
 	if (err)
@@ -318,5 +315,5 @@ static void __exit pvr_exit(void)
 	DRM_DEBUG_DRIVER("done\n");
 }
 
-late_initcall(pvr_init);
+module_init(pvr_init);
 module_exit(pvr_exit);

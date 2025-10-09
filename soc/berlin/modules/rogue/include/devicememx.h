@@ -116,7 +116,8 @@ DevmemXMapVirtualRange(IMG_UINT32 ui32PageCount,
                       DEVMEMX_PHYSDESC *psPhysDesc,
                       IMG_UINT32 ui32PhysOffset,
                       DEVMEMX_VIRTDESC *psVirtDesc,
-                      IMG_UINT32 ui32VirtOffset);
+                      IMG_UINT32 ui32VirtOffset,
+                      IMG_BOOL bExecuteCacheInvalidate);
 
 /* DevmemXUnmapVirtualRange()
  *

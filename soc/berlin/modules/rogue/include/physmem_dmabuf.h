@@ -69,6 +69,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
                                 struct dma_buf_attachment *psAttachment,
                                 PFN_DESTROY_DMABUF_PMR pfnDestroy,
                                 PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                                IMG_PID uiPid,
                                 IMG_DEVMEM_SIZE_T uiChunkSize,
                                 IMG_UINT32 ui32NumPhysChunks,
                                 IMG_UINT32 ui32NumVirtChunks,
@@ -82,6 +83,14 @@ PhysmemGetDmaBuf(PMR *psPMR);
 
 struct dma_resv *
 PhysmemGetDmaResv(PMR *psPMR);
+
+#if defined(SUPPORT_SECURE_ALLOC_KM) && defined(PVR_ANDROID_HAS_DMA_HEAP_FIND)
+struct dma_heap *
+PhysmemGetDmaHeap(PMR *psPMR);
+
+void
+PhysmemSetDmaHeap(PMR *psPMR, struct dma_heap *psDmaHeap);
+#endif /* #if defined(SUPPORT_SECURE_ALLOC_KM) && defined(PVR_ANDROID_HAS_DMA_HEAP_FIND) */
 
 PVRSRV_ERROR
 PhysmemExportDmaBuf(CONNECTION_DATA *psConnection,
@@ -120,5 +129,15 @@ PhysmemImportSparseDmaBuf(CONNECTION_DATA *psConnection,
                           PMR **ppsPMRPtr,
                           IMG_DEVMEM_SIZE_T *puiSize,
                           IMG_DEVMEM_ALIGN_T *puiAlign);
+
+#if defined(ANDROID)
+PVRSRV_ERROR
+PhysmemRequestFBC(CONNECTION_DATA *psConnection, PVRSRV_DEVICE_NODE *psDevNode,
+                  IMG_INT fd);
+
+void
+PhysmemFreeFBC(CONNECTION_DATA *psConnection, PVRSRV_DEVICE_NODE *psDevNode,
+                  struct dma_buf *psDmaBuf);
+#endif
 
 #endif /* !defined(PHYSMEM_DMABUF_H) */

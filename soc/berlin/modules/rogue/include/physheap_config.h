@@ -48,6 +48,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "img_types.h"
 #include "pvr_debug.h"
+#include "lock_types.h"
+#include "dllist.h"
 #include "pvrsrv_error.h"
 #include "pvrsrv_memallocflags.h"
 #include "pvrsrv_memalloc_physheap.h"
@@ -131,6 +133,21 @@ typedef struct _IPA_CONFIG_
 	IMG_UINT8             ui8IPAPolicyReserved;
 } IPA_CONFIG;
 
+#if defined(PVRSRV_ENABLE_XD_MEM)
+/* A Shared Physical Address Space (SPAS) region represents a group of physheaps
+ * that have this SPAS property. If 2 physheaps on separate devices are linked with
+ * the same SPAS region, the devices would be able to share one another's memory.
+ *
+ * The region is a list of physheaps.
+ * If a heap is in the list, it's in the region.
+ *
+ * Spas regions outlive the devices they are connected too.
+ * The lifetime can be protected by the PVRSRV_DATA::hDeviceNodeListLock */
+typedef struct _PHYS_HEAP_SPAS_REGION_ PHYS_HEAP_SPAS_REGION;
+PVRSRV_ERROR PhysHeapSpasCreate(PHYS_HEAP_SPAS_REGION **ppsSpasRegion);
+void PhysHeapSpasDestroy(PHYS_HEAP_SPAS_REGION *psSpasRegion);
+#endif /* defined(PVRSRV_ENABLE_XD_MEM) */
+
 typedef struct _PHYS_HEAP_CONFIG_LMA_
 {
 	IMG_CHAR*             pszPDumpMemspaceName; /*!< Name given to the heap's symbolic memory
@@ -143,6 +160,10 @@ typedef struct _PHYS_HEAP_CONFIG_LMA_
 	IMG_UINT64            uiSize;               /*!< Size of memory region in bytes */
 	IMG_HANDLE            hPrivData;            /*!< System layer private data shared with
 													 psMemFuncs */
+#if defined(PVRSRV_ENABLE_XD_MEM)
+	PHYS_HEAP_SPAS_REGION *psSpasRegion;        /*!< Physheaps with the same SpasRegion are seen
+	                                                 to share the physical address space. */
+#endif
 } PHYS_HEAP_CONFIG_LMA;
 
 typedef struct _PHYS_HEAP_CONFIG_UMA_
@@ -155,16 +176,24 @@ typedef struct _PHYS_HEAP_CONFIG_UMA_
 													 region as seen from the PoV of the GPU */
 	IMG_HANDLE            hPrivData;            /*!< System layer private data shared with
 													 psMemFuncs */
+#if defined(PVRSRV_ENABLE_XD_MEM)
+	PHYS_HEAP_SPAS_REGION *psSpasRegion;        /*!< Physheaps with the same SpasRegion are seen
+	                                                 to share the physical address space. */
+#endif
 } PHYS_HEAP_CONFIG_UMA;
 
 typedef struct _PHYS_HEAP_CONFIG_DLM_
 {
 	IMG_CHAR*             pszHeapName;          /*!< Name given to the heap */
-	IMG_UINT32            ui32DLMHeapPMBSizeMB; /*!< PMB (Physical Memory Block) size for DLM heap */
+	IMG_UINT32            ui32Log2PMBSize;      /*!< PMB (Physical Memory Block) Log 2 size in bytes
+	                                                 for DLM heap. */
+	PHYS_HEAP_FUNCTIONS*  psMemFuncs;           /*!< Physical address translation functions */
 	IMG_CPU_PHYADDR       sStartAddr;           /*!< CPU Physical base address of memory region */
 	IMG_DEV_PHYADDR       sCardBase;            /*!< Device physical base address of memory
 	                                                 region as seen from the PoV of the GPU */
 	IMG_UINT64            uiSize;               /*!< Size of memory region in bytes */
+	IMG_HANDLE            hPrivData;            /*!< System layer private data shared with
+                                                     psMemFuncs */
 } PHYS_HEAP_CONFIG_DLM;
 
 typedef struct _PHYS_HEAP_CONFIG_IMA_
@@ -177,6 +206,8 @@ typedef struct _PHYS_HEAP_CONFIG_IMA_
 	                                                 psMemFuncs */
 	IMG_UINT32            ui32PMBStartingMultiple; /*!< Multiple of PMB size defined in DLM heap
 	                                                    to be allocated on creation */
+	IMG_UINT32            uiDLMHeapIdx;         /*!< The index in the array of physheaps to a
+	                                                 DLM heap to import PMBs from. */
 } PHYS_HEAP_CONFIG_IMA;
 
 /*! Structure used to describe a physical Heap supported by a system. A
@@ -221,16 +252,14 @@ static INLINE IMG_UINT64 PhysHeapConfigGetSize(PHYS_HEAP_CONFIG *psConfig)
 	{
 	case PHYS_HEAP_TYPE_LMA:
 		return psConfig->uConfig.sLMA.uiSize;
-	case PHYS_HEAP_TYPE_IMA_BAR:
-	case PHYS_HEAP_TYPE_IMA_PRIV:
+	case PHYS_HEAP_TYPE_IMA:
 		PVR_ASSERT(!"IMA Config has no size member");
 		return 0;
 #if defined(__KERNEL__)
 	case PHYS_HEAP_TYPE_DMA:
 		return psConfig->uConfig.sDMA.uiSize;
 #endif
-	case PHYS_HEAP_TYPE_DLM_BAR:
-	case PHYS_HEAP_TYPE_DLM_PRIV:
+	case PHYS_HEAP_TYPE_DLM:
 		return psConfig->uConfig.sDLM.uiSize;
 	case PHYS_HEAP_TYPE_UMA:
 		PVR_ASSERT(!"UMA Config has no size member");
@@ -248,16 +277,14 @@ static INLINE IMG_CPU_PHYADDR PhysHeapConfigGetStartAddr(PHYS_HEAP_CONFIG *psCon
 	{
 	case PHYS_HEAP_TYPE_LMA:
 		return psConfig->uConfig.sLMA.sStartAddr;
-	case PHYS_HEAP_TYPE_IMA_BAR:
-	case PHYS_HEAP_TYPE_IMA_PRIV:
+	case PHYS_HEAP_TYPE_IMA:
 		PVR_ASSERT(!"IMA Config has no StartAddr member");
 		return sUnsupportedPhyAddr;
 #if defined(__KERNEL__)
 	case PHYS_HEAP_TYPE_DMA:
 		return psConfig->uConfig.sDMA.sStartAddr;
 #endif
-	case PHYS_HEAP_TYPE_DLM_BAR:
-	case PHYS_HEAP_TYPE_DLM_PRIV:
+	case PHYS_HEAP_TYPE_DLM:
 		return psConfig->uConfig.sDLM.sStartAddr;
 	case PHYS_HEAP_TYPE_UMA:
 		PVR_ASSERT(!"UMA Config has no StartAddr member");
@@ -275,8 +302,7 @@ static INLINE IMG_DEV_PHYADDR PhysHeapConfigGetCardBase(PHYS_HEAP_CONFIG *psConf
 	{
 	case PHYS_HEAP_TYPE_LMA:
 		return psConfig->uConfig.sLMA.sCardBase;
-	case PHYS_HEAP_TYPE_IMA_BAR:
-	case PHYS_HEAP_TYPE_IMA_PRIV:
+	case PHYS_HEAP_TYPE_IMA:
 		PVR_ASSERT(!"IMA Config has no CardBase member");
 		return sUnsupportedPhyAddr;
 #if defined(__KERNEL__)
@@ -285,8 +311,7 @@ static INLINE IMG_DEV_PHYADDR PhysHeapConfigGetCardBase(PHYS_HEAP_CONFIG *psConf
 #endif
 	case PHYS_HEAP_TYPE_UMA:
 		return psConfig->uConfig.sUMA.sCardBase;
-	case PHYS_HEAP_TYPE_DLM_BAR:
-	case PHYS_HEAP_TYPE_DLM_PRIV:
+	case PHYS_HEAP_TYPE_DLM:
 		return psConfig->uConfig.sDLM.sCardBase;
 	default:
 		PVR_ASSERT(!"Not Implemented for Config Type");

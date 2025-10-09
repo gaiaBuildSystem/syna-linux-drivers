@@ -112,25 +112,20 @@ IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntHeapCreate(IMG_HANDLE hBridge,
 						    IMG_HANDLE hDevmemCtx,
 						    IMG_UINT32 ui32HeapConfigIndex,
 						    IMG_UINT32 ui32HeapIndex,
-						    IMG_DEV_VIRTADDR sHeapBaseAddr,
-						    IMG_UINT32 ui32Log2DataPageSize,
 						    IMG_HANDLE * phDevmemHeapPtr);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntHeapDestroy(IMG_HANDLE hBridge, IMG_HANDLE hDevmemHeap);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntMapPMR(IMG_HANDLE hBridge,
-						IMG_HANDLE hDevmemServerHeap,
-						IMG_HANDLE hReservation,
-						IMG_HANDLE hPMR,
-						PVRSRV_MEMALLOCFLAGS_T uiMapFlags,
-						IMG_HANDLE * phMapping);
+						IMG_HANDLE hReservation, IMG_HANDLE hPMR);
 
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnmapPMR(IMG_HANDLE hBridge, IMG_HANDLE hMapping);
+IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnmapPMR(IMG_HANDLE hBridge, IMG_HANDLE hReservation);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRange(IMG_HANDLE hBridge,
 						      IMG_HANDLE hDevmemServerHeap,
 						      IMG_DEV_VIRTADDR sAddress,
 						      IMG_DEVMEM_SIZE_T uiLength,
+						      PVRSRV_MEMALLOCFLAGS_T uiFlags,
 						      IMG_HANDLE * phReservation);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRangeAndMapPMR(IMG_HANDLE hBridge,
@@ -138,26 +133,19 @@ IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRangeAndMapPMR(IMG_HANDLE hBridg
 							       IMG_DEV_VIRTADDR sAddress,
 							       IMG_DEVMEM_SIZE_T uiLength,
 							       IMG_HANDLE hPMR,
-							       PVRSRV_MEMALLOCFLAGS_T uiMapFlags,
-							       IMG_HANDLE * phMapping);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnreserveRangeAndUnmapPMR(IMG_HANDLE hBridge,
-								   IMG_HANDLE hMapping);
+							       PVRSRV_MEMALLOCFLAGS_T uiFlags,
+							       IMG_HANDLE * phReservation);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnreserveRange(IMG_HANDLE hBridge,
 							IMG_HANDLE hReservation);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeChangeSparseMem(IMG_HANDLE hBridge,
-						IMG_HANDLE hSrvDevMemHeap,
-						IMG_HANDLE hPMR,
 						IMG_UINT32 ui32AllocPageCount,
 						IMG_UINT32 * pui32AllocPageIndices,
 						IMG_UINT32 ui32FreePageCount,
 						IMG_UINT32 * pui32FreePageIndices,
 						IMG_UINT32 ui32SparseFlags,
-						PVRSRV_MEMALLOCFLAGS_T uiFlags,
-						IMG_DEV_VIRTADDR sDevVAddr,
-						IMG_UINT64 ui64CPUVAddr);
+						IMG_HANDLE hReservation);
 
 IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIsVDevAddrValid(IMG_HANDLE hBridge,
 						      IMG_HANDLE hDevmemCtx,
@@ -238,41 +226,10 @@ IMG_INTERNAL PVRSRV_ERROR BridgeDevmemXIntMapVRangeToBackingPage(IMG_HANDLE hBri
 								 PVRSRV_MEMALLOCFLAGS_T uiFlags,
 								 IMG_UINT32 ui32VirtPageOffset);
 
-IMG_INTERNAL PVRSRV_ERROR BridgeChangeSparseMem2(IMG_HANDLE hBridge,
-						 IMG_HANDLE hSrvDevMemHeap,
-						 IMG_HANDLE hPMR,
-						 IMG_UINT32 ui32AllocPageCount,
-						 IMG_UINT32 * pui32AllocPageIndices,
-						 IMG_UINT32 ui32FreePageCount,
-						 IMG_UINT32 * pui32FreePageIndices,
-						 IMG_UINT32 ui32SparseFlags,
-						 IMG_HANDLE hReservation, IMG_UINT64 ui64CPUVAddr);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRange2(IMG_HANDLE hBridge,
-						       IMG_HANDLE hDevmemServerHeap,
-						       IMG_DEV_VIRTADDR sAddress,
-						       IMG_DEVMEM_SIZE_T uiLength,
-						       PVRSRV_MEMALLOCFLAGS_T uiFlags,
-						       IMG_HANDLE * phReservation);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnreserveRange2(IMG_HANDLE hBridge,
-							 IMG_HANDLE hReservation);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntMapPMR2(IMG_HANDLE hBridge,
-						 IMG_HANDLE hDevmemServerHeap,
-						 IMG_HANDLE hReservation, IMG_HANDLE hPMR);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnmapPMR2(IMG_HANDLE hBridge, IMG_HANDLE hReservation);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRangeAndMapPMR2(IMG_HANDLE hBridge,
-								IMG_HANDLE hDevmemServerHeap,
-								IMG_DEV_VIRTADDR sAddress,
-								IMG_DEVMEM_SIZE_T uiLength,
-								IMG_HANDLE hPMR,
-								PVRSRV_MEMALLOCFLAGS_T uiFlags,
-								IMG_HANDLE * phReservation);
-
-IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntUnreserveRangeAndUnmapPMR2(IMG_HANDLE hBridge,
-								    IMG_HANDLE hReservation);
+IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntFindCPUAddress(IMG_HANDLE hBridge,
+							IMG_HANDLE hDevmemServerHeap,
+							IMG_UINT64 ui64Size,
+							IMG_UINT64 ui64AddrHint,
+							IMG_UINT64 * pui64Addr);
 
 #endif /* CLIENT_MM_BRIDGE_H */

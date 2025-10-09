@@ -142,6 +142,8 @@ typedef struct _MMU_PxE_CONFIG_
 	IMG_UINT64	uiPendingEnMask; /*! Entry pending bit mask */
 	IMG_UINT64	uiValidEnMask;   /*! Entry valid bit mask */
 	IMG_UINT8	uiValidEnShift;  /*! Entry valid bit shift */
+	IMG_UINT64	uiParityBitMask;   /*! Entry parity bit mask */
+	IMG_UINT8	uiParityBitShift;  /*! Entry parity bit shift */
 } MMU_PxE_CONFIG;
 
 /*!
@@ -201,12 +203,12 @@ typedef struct _MMU_DEVICEATTRIBS_
 	/*! Address split for the base object */
 	const struct _MMU_DEVVADDR_CONFIG_ *psTopLevelDevVAddrConfig;
 
-	/* Optional, test feature used to generate the pre-mapped page tables in a stand alone MMU driver.*/
-	PVRSRV_ERROR (*pfnTestPremapConfigureMMU)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
-			MMU_CONTEXT *psMMUContext,
-			IMG_DEV_VIRTADDR sDevVAddrStart,
-			IMG_DEV_VIRTADDR sDevVAddrEnd,
-			IMG_UINT32 ui32Log2PageSize);
+	/*! Supported page sizes validation mask */
+	IMG_UINT32 ui32ValidPageSizeMask;
+
+#if defined(PVRSRV_MMU_PARITY_ON_PTALLOC_AND_PTEUNMAP)
+	IMG_UINT64* pui64PrecomputedAllocParity[2];
+#endif
 
 	/*! Callback for creating protection bits for the page catalogue entry with 8 byte entry */
 	IMG_UINT64 (*pfnDerivePCEProt8)(IMG_UINT32 uiProtFlags, IMG_UINT32 uiLog2DataPageSize);
@@ -349,8 +351,6 @@ MMU_ContextDestroy(MMU_CONTEXT *psMMUContext);
 
 @Input          uSize                   The size of the allocation
 
-@Output         puActualSize            Actual size of allocation
-
 @Input          uiProtFlags             Generic MMU protection flags
 
 @Input          uDevVAddrAlignment      Alignment requirement of the virtual
@@ -365,7 +365,6 @@ MMU_ContextDestroy(MMU_CONTEXT *psMMUContext);
 PVRSRV_ERROR
 MMU_Alloc(MMU_CONTEXT *psMMUContext,
           IMG_DEVMEM_SIZE_T uSize,
-          IMG_DEVMEM_SIZE_T *puActualSize,
           IMG_UINT32 uiProtFlags,
           IMG_DEVMEM_SIZE_T uDevVAddrAlignment,
           IMG_DEV_VIRTADDR *psDevVAddr,
@@ -420,6 +419,13 @@ MMU_Free(MMU_CONTEXT *psMMUContext,
 @Input          uiLog2PageSize          Log2 page size of the pages to map
 
 @Return         PVRSRV_OK if the mapping was successful
+                PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
+                enabled and migrate is in progress. Requests to MMU_MapPages
+                may return retry if the target PMR to map is
+                in migrate state. This is because in order for migrate
+                to complete higher locking primitives are required to give
+                way to the migrate path. Expect PVRSRV_ERROR_RETRY return
+                from this function if this give way is required.
 */
 /*****************************************************************************/
 PVRSRV_ERROR
@@ -439,31 +445,28 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 
 @Input          psMMUContext            MMU context to operate on
 
-@Input          uiMappingFlags          Memalloc flags for the mapping
+@Input          uiMappingFlags          Memalloc flags for the unmapping
+                                        May use the sparse / zero backing pages
+                                        if given the flags, otherwise unmap.
 
 @Input          sDevVAddr               Device virtual address of the 1st page
 
 @Input          ui32PageCount           Number of pages to unmap
 
-@Input          pai32UnmapIndicies      Array of page indices to be unmapped
+@Input          pai32UnmapIndices       Array of page indices to be unmapped
 
 @Input          uiLog2PageSize          log2 size of the page
 
-
-@Input          uiMemAllocFlags         Indicates if the unmapped regions need
-                                        to be backed by dummy or zero page
-
-@Return         None
+@Return         PVRSRV_OK if the unmap operation was successful
 */
 /*****************************************************************************/
-void
+PVRSRV_ERROR
 MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
                IMG_DEV_VIRTADDR sDevVAddr,
                IMG_UINT32 ui32PageCount,
-               IMG_UINT32 *pai32UnmapIndicies,
-               IMG_UINT32 uiLog2PageSize,
-               PVRSRV_MEMALLOCFLAGS_T uiMemAllocFlags);
+               IMG_UINT32 *pai32UnmapIndices,
+               IMG_UINT32 uiLog2PageSize);
 
 /*************************************************************************/ /*!
 @Function       MMUX_MapVRangeToBackingPage
@@ -488,6 +491,12 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
                             IMG_UINT32 ui32MapPageCount,
                             IMG_UINT32 uiLog2HeapPageSize);
 
+/* Guides the MMU when remapping valid entries to other valid entries */
+typedef enum {
+	MMU_PTE_REMAP_POLICY_ALLOW = 0,
+	MMU_PTE_REMAP_POLICY_BLOCK
+} MMU_PTE_REMAP_POLICY;
+
 /*************************************************************************/ /*!
 @Function       MMU_MapPMRFast
 
@@ -506,16 +515,28 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 
 @Input          uiMappingFlags          Memalloc flags for the mapping
 
-@Return         PVRSRV_OK if the PMR was successfully mapped
+@Input          uiLog2PageSize          log2 size of the page
+
+@Input          eRemapPolicy            Policy of remapping PTEs
+
+@Return         PVRSRV_OK if the PMR was successfully mapped.
+                PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
+                enabled and migrate is in progress. Requests to MMU_MapPages
+                may return retry if the target PMR to map is
+                in migrate state. This is because in order for migrate
+                to complete higher locking primitives are required to give
+                way to the migrate path. Expect PVRSRV_ERROR_RETRY return
+                from this function if this give way is required.
 */
 /*****************************************************************************/
 PVRSRV_ERROR
 MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
                IMG_DEV_VIRTADDR sDevVAddr,
-               const PMR *psPMR,
+               PMR *psPMR,
                IMG_DEVMEM_SIZE_T uiSizeBytes,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
-               IMG_UINT32 uiLog2PageSize);
+               IMG_UINT32 uiLog2PageSize,
+               MMU_PTE_REMAP_POLICY eRemapPolicy);
 
 /*************************************************************************/ /*!
 @Function       MMU_UnmapPMRFast
@@ -531,14 +552,45 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 
 @Input          uiLog2PageSize          log2 size of the page
 
-@Return         None
+@Return         PVRSRV_OK if the PMR was successfully unmapped
 */
 /*****************************************************************************/
-void
+PVRSRV_ERROR
 MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
                  IMG_DEV_VIRTADDR sDevVAddrBase,
                  IMG_UINT32 ui32PageCount,
                  IMG_UINT32 uiLog2PageSize);
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+/*************************************************************************/ /*!
+@Function       MMU_RemapPage
+
+@Description    Remap a single page from a PMR in place.
+
+@Input          psMMUContext            MMU context to operate on
+
+@Input          uiMappingFlags          Memalloc flags for the mapping
+
+@Input          sDevVAddr               Device virtual address of the page
+
+@Input          uiLog2HeapPageSize      log2 size of the page
+
+@Input          psOriginPMR             PMR to remap
+
+@Input          ui32LogicalPgOffset     Page offset into the PMR of the page
+                                        to remap.
+
+@Return         PVRSRV_OK if the PMR was successfully re-mapped
+*/
+/*****************************************************************************/
+PVRSRV_ERROR
+MMU_RemapPage(MMU_CONTEXT *psMMUContext,
+              PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
+              IMG_DEV_VIRTADDR sDevVAddr,
+              IMG_UINT32 uiLog2HeapPageSize,
+              PMR *psOriginPMR,
+              IMG_UINT32 ui32LogicalPgOffset);
+#endif
 
 /*************************************************************************/ /*!
 @Function       MMU_AcquireBaseAddr

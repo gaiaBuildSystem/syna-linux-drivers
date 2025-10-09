@@ -53,9 +53,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_debug.h"
 #include "connection_server.h"
 #include "pvr_bridge.h"
-#if defined(SUPPORT_RGX)
-#include "rgx_bridge.h"
-#endif
 #include "srvcore.h"
 #include "handle.h"
 
@@ -72,10 +69,10 @@ static PVRSRV_ERROR _TLOpenStreampsSDIntRelease(void *pvData)
 	return eError;
 }
 
-static_assert(PRVSRVTL_MAX_STREAM_NAME_SIZE <= IMG_UINT32_MAX,
-	      "PRVSRVTL_MAX_STREAM_NAME_SIZE must not be larger than IMG_UINT32_MAX");
+static_assert(PVRSRVTL_MAX_STREAM_NAME_SIZE <= IMG_UINT32_MAX,
+	      "PVRSRVTL_MAX_STREAM_NAME_SIZE must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 			 IMG_UINT8 * psTLOpenStreamIN_UI8,
 			 IMG_UINT8 * psTLOpenStreamOUT_UI8, CONNECTION_DATA * psConnection)
@@ -95,7 +92,7 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 
 	IMG_UINT32 ui32BufferSize = 0;
 	IMG_UINT64 ui64BufferSize =
-	    ((IMG_UINT64) PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) + 0;
+	    ((IMG_UINT64) PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) + 0;
 
 	psTLOpenStreamOUT->hSD = NULL;
 
@@ -137,21 +134,21 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 
 	{
 		uiNameInt = (IMG_CHAR *) IMG_OFFSET_ADDR(pArrayArgsBuffer, ui32NextOffset);
-		ui32NextOffset += PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR);
+		ui32NextOffset += PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR);
 	}
 
 	/* Copy the data over */
-	if (PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR) > 0)
+	if (PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR) > 0)
 	{
 		if (OSCopyFromUser
 		    (NULL, uiNameInt, (const void __user *)psTLOpenStreamIN->puiName,
-		     PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK)
+		     PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK)
 		{
 			psTLOpenStreamOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
 			goto TLOpenStream_exit;
 		}
-		((IMG_CHAR *) uiNameInt)[(PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) - 1] =
+		((IMG_CHAR *) uiNameInt)[(PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) - 1] =
 		    '\0';
 	}
 
@@ -238,10 +235,10 @@ TLOpenStream_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLOPENSTREAM, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLCloseStream(IMG_UINT32 ui32DispatchTableEntry,
 			  IMG_UINT8 * psTLCloseStreamIN_UI8,
 			  IMG_UINT8 * psTLCloseStreamOUT_UI8, CONNECTION_DATA * psConnection)
@@ -273,10 +270,10 @@ PVRSRVBridgeTLCloseStream(IMG_UINT32 ui32DispatchTableEntry,
 
 TLCloseStream_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLCLOSESTREAM, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLAcquireData(IMG_UINT32 ui32DispatchTableEntry,
 			  IMG_UINT8 * psTLAcquireDataIN_UI8,
 			  IMG_UINT8 * psTLAcquireDataOUT_UI8, CONNECTION_DATA * psConnection)
@@ -324,10 +321,10 @@ TLAcquireData_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLACQUIREDATA, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLReleaseData(IMG_UINT32 ui32DispatchTableEntry,
 			  IMG_UINT8 * psTLReleaseDataIN_UI8,
 			  IMG_UINT8 * psTLReleaseDataOUT_UI8, CONNECTION_DATA * psConnection)
@@ -375,15 +372,15 @@ TLReleaseData_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLRELEASEDATA, eError);
 }
 
-static_assert(PRVSRVTL_MAX_STREAM_NAME_SIZE <= IMG_UINT32_MAX,
-	      "PRVSRVTL_MAX_STREAM_NAME_SIZE must not be larger than IMG_UINT32_MAX");
+static_assert(PVRSRVTL_MAX_STREAM_NAME_SIZE <= IMG_UINT32_MAX,
+	      "PVRSRVTL_MAX_STREAM_NAME_SIZE must not be larger than IMG_UINT32_MAX");
 static_assert(PVRSRVTL_MAX_DISCOVERABLE_STREAMS_BUFFER <= IMG_UINT32_MAX,
 	      "PVRSRVTL_MAX_DISCOVERABLE_STREAMS_BUFFER must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 			      IMG_UINT8 * psTLDiscoverStreamsIN_UI8,
 			      IMG_UINT8 * psTLDiscoverStreamsOUT_UI8,
@@ -403,7 +400,7 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 
 	IMG_UINT32 ui32BufferSize = 0;
 	IMG_UINT64 ui64BufferSize =
-	    ((IMG_UINT64) PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) +
+	    ((IMG_UINT64) PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) +
 	    ((IMG_UINT64) psTLDiscoverStreamsIN->ui32Size * sizeof(IMG_CHAR)) + 0;
 
 	if (psTLDiscoverStreamsIN->ui32Size > PVRSRVTL_MAX_DISCOVERABLE_STREAMS_BUFFER)
@@ -454,22 +451,22 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 
 	{
 		uiNamePatternInt = (IMG_CHAR *) IMG_OFFSET_ADDR(pArrayArgsBuffer, ui32NextOffset);
-		ui32NextOffset += PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR);
+		ui32NextOffset += PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR);
 	}
 
 	/* Copy the data over */
-	if (PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR) > 0)
+	if (PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR) > 0)
 	{
 		if (OSCopyFromUser
 		    (NULL, uiNamePatternInt,
 		     (const void __user *)psTLDiscoverStreamsIN->puiNamePattern,
-		     PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK)
+		     PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK)
 		{
 			psTLDiscoverStreamsOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
 			goto TLDiscoverStreams_exit;
 		}
-		((IMG_CHAR *) uiNamePatternInt)[(PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) -
+		((IMG_CHAR *) uiNamePatternInt)[(PVRSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) -
 						1] = '\0';
 	}
 	if (psTLDiscoverStreamsIN->ui32Size != 0)
@@ -513,10 +510,10 @@ TLDiscoverStreams_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLDISCOVERSTREAMS, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLReserveStream(IMG_UINT32 ui32DispatchTableEntry,
 			    IMG_UINT8 * psTLReserveStreamIN_UI8,
 			    IMG_UINT8 * psTLReserveStreamOUT_UI8, CONNECTION_DATA * psConnection)
@@ -566,10 +563,10 @@ TLReserveStream_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLRESERVESTREAM, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLCommitStream(IMG_UINT32 ui32DispatchTableEntry,
 			   IMG_UINT8 * psTLCommitStreamIN_UI8,
 			   IMG_UINT8 * psTLCommitStreamOUT_UI8, CONNECTION_DATA * psConnection)
@@ -615,13 +612,13 @@ TLCommitStream_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLCOMMITSTREAM, eError);
 }
 
 static_assert(PVRSRVTL_MAX_PACKET_SIZE <= IMG_UINT32_MAX,
 	      "PVRSRVTL_MAX_PACKET_SIZE must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 			IMG_UINT8 * psTLWriteDataIN_UI8,
 			IMG_UINT8 * psTLWriteDataOUT_UI8, CONNECTION_DATA * psConnection)
@@ -745,7 +742,7 @@ TLWriteData_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_TLWRITEDATA, eError);
 }
 
 /* ***************************************************************************
