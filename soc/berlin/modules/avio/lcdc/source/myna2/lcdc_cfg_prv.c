@@ -6,6 +6,7 @@
 #include "syna_lcdc_dev.h"
 #include "lcdc_cfg_prv.h"
 #include "avio_io.h"
+#include "syna_lcdc_drv.h"
 
 //BGRA output
 static unsigned char syna_lcdc_bitmap_table[SYNA_LCDC_PIXFMT_MAX][SYNA_LCDC_PIXORDER_MAX][32] = {
