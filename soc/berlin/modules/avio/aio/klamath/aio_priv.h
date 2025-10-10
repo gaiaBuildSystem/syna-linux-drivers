@@ -56,7 +56,7 @@
 #define AVIO_DEFAULT_GBL_CONFIG                                                \
 	_AVIO_GBL_REG_(RA_avioGbl_APLL0_WRAP, 0x260),                          \
 		_AVIO_GBL_REG_(RA_avioGbl_APLL1_WRAP, 0x260),                  \
-		_AVIO_GBL_REG_(RA_avioGbl_CTRL0, 0x2400),
+		_AVIO_GBL_REG_(RA_avioGbl_CTRL0, 0x400),
 
 #define IS_INVALID_ID(id) ((id) >= AIO_ID_I2S_MAX_NUM)
 
@@ -109,7 +109,7 @@ enum aio_ch_xid {
 	AIO_ID_I2S2_RX = 3,
 	AIO_ID_I2S3_TX = 4,
 	AIO_ID_I2S3_RX = 5,
-	AIO_ID_PDM_IN = 6,
+	AIO_ID_PDM_IN = 9,
 	AIO_ID_BCM = 7,
 	AIO_ID_I2S_MAX_NUM,
 };
