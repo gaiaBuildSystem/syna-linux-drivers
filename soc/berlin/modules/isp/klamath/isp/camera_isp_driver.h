@@ -122,6 +122,7 @@ struct camera_isp_dev {
 	void __iomem *core_base_addr;
 	void __iomem *dhub_base_addr;
 	CSIPIPE_HANDLE pipe[MAX_PL];
+	bool pipeline_ready[MAX_PL];
 	WB_CONFIG_t wb_config;
 	void *intr_handle;
 	int irq_num;

@@ -1039,7 +1039,6 @@ static int CSI_PIPE_Irq_Handler(uint32_t intrNum, void *pArgs)
 
 static void CSI_PIPE_RegisterIrq(CSI_PL_CTX_t *ctx, int pipe)
 {
-	//CAM_INSTANCE *inst = (CAM_INSTANCE *)ctx->parent;
 	struct camera_isp_dev *isp_dev = ctx->parent;
 	// TODO: Enable interrupt only as required
 	if (pipe == 0) {
@@ -1071,7 +1070,6 @@ static void CSI_PIPE_RegisterIrq(CSI_PL_CTX_t *ctx, int pipe)
 
 int CSI_PIPE_Init(struct camera_isp_dev *isp_dev)
 {
-	int i;
 	int clock;
 	int reset;
 
@@ -1109,29 +1107,17 @@ int CSI_PIPE_Init(struct camera_isp_dev *isp_dev)
 		isp_dev->intr_thread = NULL;
 	}
 
-	//TODO: Now creating both pipe instance in init, change later to App
-	for (i = 0; i < MAX_PL; i++) {
-		isp_dev->pipe[i] = CSI_PIPE_Create(isp_dev, i);
-	}
-
 	return 0;
 }
 
 void CSI_PIPE_Exit(struct camera_isp_dev *isp_dev)
 {
-	int i;
-
 	/* Stop interrupt processing thread */
 	if (isp_dev->intr_thread) {
 		kthread_stop(isp_dev->intr_thread);
 		isp_dev->intr_thread = NULL;
 	}
 
-	for (i = 0; i < MAX_PL; i++) {
-		if (isp_dev->pipe[i] != NULL) {
-			CSI_PIPE_Destroy(isp_dev->pipe[i]);
-		}
-	}
 	VIP_IntrHandleExit(isp_dev->intr_handle);
 	csi_dhub_exit(0);
 }

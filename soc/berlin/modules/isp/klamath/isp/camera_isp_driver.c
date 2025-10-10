@@ -305,6 +305,7 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 	struct v4l2_subdev *subdev;
 	struct media_pad *pad;
 	int ret = 0;
+	int req_pad = pad_stream->pad - 1;
 
 	//TODO pipe index calculation
 	if (pad_stream->status) {
@@ -315,7 +316,12 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 
 		CSI_PIPE_Start(isp_dev->pipe[pad_stream->pad - 1]);
 	} else {
-		CSI_PIPE_Stop(isp_dev->pipe[pad_stream->pad - 1]);
+		CSI_PIPE_Stop(isp_dev->pipe[req_pad]);
+		if (isp_dev->pipe[req_pad] != NULL) {
+			CSI_PIPE_Destroy(isp_dev->pipe[req_pad]);
+			isp_dev->pipe[req_pad] = NULL;
+			isp_dev->pipeline_ready[req_pad] = false;
+		}
 	}
 
 	if ((!pad_stream->status && !isp_dev->streaming) || pad_stream->status) {
@@ -624,7 +630,6 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 				struct v4l2_subdev_format *format)
 {
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
-	//struct v4l2_mbus_framefmt *fmt;
 	struct camera_isp_mbus_fmt *supported_fmts;
 	int num_fmts;
 	int i;
@@ -636,6 +641,7 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 			.height = format->format.height,
 		}
 	};
+	int req_pad;
 
 	if (format->pad >= CAMERA_ISP_PAD_NR){
 		pr_err("%s %d error !!\n", __func__, __LINE__);
@@ -677,7 +683,13 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 			format->pad, format->format.width, format->format.height,
 			format->format.code);
 
-	CSI_PIPE_Set_Fmt(isp_dev->pipe[format->pad - 1], &format->format);
+	req_pad = format->pad - 1;
+	if (!isp_dev->pipeline_ready[req_pad]) {
+		isp_dev->pipe[req_pad] = CSI_PIPE_Create(isp_dev, req_pad);
+		isp_dev->pipeline_ready[req_pad] = true;
+	}
+
+	CSI_PIPE_Set_Fmt(isp_dev->pipe[req_pad], &format->format);
 
 	// CSI subdev integration
 	struct v4l2_subdev *subdev;
@@ -700,12 +712,12 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 
 
 	// Always set output format for both normal and scaling pipelines
-	CSI_PIPE_Set_Output_Fmt(isp_dev->pipe[format->pad - 1],
+	CSI_PIPE_Set_Output_Fmt(isp_dev->pipe[req_pad],
 			sd_fmt.format.width, sd_fmt.format.height);
 	dev_dbg(isp_dev->dev, "Set output format: %dx%d\n",
 			format->format.width, format->format.height);
 
-	CSI_PIPE_Config(isp_dev->pipe[format->pad - 1], sd_fmt.format.code);
+	CSI_PIPE_Config(isp_dev->pipe[req_pad], sd_fmt.format.code);
 
 	return 0;
 }

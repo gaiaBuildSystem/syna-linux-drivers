@@ -61,8 +61,7 @@ static void shm_release(struct device *dev)
 int isp_shm_init(struct device *dev)
 {
 	int ret = 0;
-	//const char *cma_heap_name = "linux,cma";
-	const char *cma_heap_name = "NonSecure-NC";
+	const char *cma_heap_name = "linux,cma";
 
 	ret = mutex_lock_interruptible(&isp_shm_mutex);
 	if (ret) {
