@@ -722,6 +722,7 @@ static const struct of_device_id dmic_pdm_dt_ids[] = {
 	{.compatible = "syna,platypus-dmic-pdm",},
 	{.compatible = "syna,myna-dmic-pdm",},
 	{.compatible = "syna,myna2-dmic-pdm",},
+	{.compatible = "syna,klamath-dmic-pdm",},
 	{}
 };
 MODULE_DEVICE_TABLE(of, dmic_pdm_dt_ids);
