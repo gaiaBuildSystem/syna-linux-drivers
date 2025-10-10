@@ -28,8 +28,7 @@ obj-$(CONFIG_BERLIN_VPP) := vpp.o
 vpp-objs += source/vpp.o       \
           source/vpp_isr.o      \
           source/vpp_fb.o       \
-          source/vpp_api.o      \
-          source/vpp_boot_config.o
+          source/vpp_api.o
 
 ifeq ($(SYNA_VPP_TYPE), vsxxx)
 vpp-objs += source/$(SYNA_VPP_TYPE)/vpp_api_priv.o
