@@ -308,6 +308,11 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 
 	//TODO pipe index calculation
 	if (pad_stream->status) {
+		/* Apply customized values from user when stream starts. */
+		ret =  v4l2_ctrl_handler_setup(sd->ctrl_handler);
+		if (ret)
+			return ret;
+
 		CSI_PIPE_Start(isp_dev->pipe[pad_stream->pad - 1]);
 	} else {
 		CSI_PIPE_Stop(isp_dev->pipe[pad_stream->pad - 1]);
@@ -897,6 +902,9 @@ static void parse_wb_config_from_dt(struct device_node *node, WB_CONFIG_t *cfg)
 		of_property_read_u32(wb_np, "wb-p11-exponent", &cfg->wb_p11_exponent);
 		of_property_read_u32(wb_np, "input-sel", &cfg->input_sel);
 		of_node_put(wb_np);
+
+		/* Enable WB by default */
+		cfg->wb_en = 1;
 	} else {
 		memset(cfg, 0, sizeof(*cfg));
 	}
