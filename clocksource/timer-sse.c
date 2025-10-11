@@ -21,9 +21,6 @@
 #include <linux/slab.h>
 #include <linux/watchdog.h>
 
-#define CNTCR				0x00
-#define CNTCV				0x08
-
 #define CNTPCT				0x00
 #define CNTP_CVAL			0x20
 #define CNTP_CTL			0x2c
@@ -72,7 +69,6 @@ struct sse_wdt_frame {
 };
 
 struct sse_timer {
-	void __iomem *cntctrl_base;
 	struct clk *cntclk;
 	struct clk *tmrclk;
 	struct clk *wdtclk;
@@ -412,12 +408,6 @@ static int sse_timer_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, sse);
 
-	sse->cntctrl_base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(sse->cntctrl_base)) {
-		dev_err(&pdev->dev, "Can't map registers\n");
-		return PTR_ERR(sse->cntctrl_base);
-	}
-
 	sse->cntclk = devm_clk_get_enabled(&pdev->dev, "counter");
 	if (IS_ERR(sse->cntclk)) {
 		dev_err(&pdev->dev, "Can't get counter clock\n");
@@ -454,10 +444,6 @@ static int sse_timer_probe(struct platform_device *pdev)
 	sse->wdts = devm_kcalloc(&pdev->dev, sse->wdt_num, sizeof(*sse->wdts), GFP_KERNEL);
 	if (!sse->wdts)
 		return -ENOMEM;
-
-	writel_relaxed(0, sse->cntctrl_base + CNTCR);
-	writeq_relaxed(0, sse->cntctrl_base + CNTCV);
-	writel_relaxed(1, sse->cntctrl_base + CNTCR);
 
 	i = j = 0;
 	for_each_available_child_of_node_scoped(np, frame_node) {
