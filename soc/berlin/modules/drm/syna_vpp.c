@@ -1051,8 +1051,14 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 					INIT_DELAYED_WORK(&syna_vpp_fl_clean_work[i].delay_work, syna_vpp_free_fl_frame);
 				} else {
 					syna_push_buildin_frame(i);
+					dev_priv->is_fl_frame_freed[i] = 1;
 				}
 			}
+		} else {
+			/* If frame not pushed, force assume logo display is
+			 * complete and freed to move to next stage/step
+			 */
+			dev_priv->is_fl_frame_freed[i] = 1;
 		}
 	}
 
