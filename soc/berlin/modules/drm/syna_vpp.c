@@ -986,6 +986,10 @@ void __weak syna_push_builtin_frames(void)
 {
 	return;
 }
+void __weak syna_push_default_buildin_frames_for_crtc(int crtc_id)
+{
+	return;
+}
 
 void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 {
@@ -1050,7 +1054,10 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 					syna_vpp_fl_clean_work[i].dev = dev;
 					INIT_DELAYED_WORK(&syna_vpp_fl_clean_work[i].delay_work, syna_vpp_free_fl_frame);
 				} else {
-					syna_push_buildin_frame(i);
+					syna_push_default_buildin_frames_for_crtc(i);
+					VPP_MEM_FreeMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
+						dev_priv->vpp_fastlogo_buf_handle[i]);
+					dev_priv->vpp_fastlogo_buf_handle[i] = NULL;
 					dev_priv->is_fl_frame_freed[i] = 1;
 				}
 			}

@@ -51,6 +51,18 @@ VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id)
 			VPP_BUILD_IN_FRAME_TYPE_GFX);
 }
 
+void syna_push_default_buildin_frames_for_crtc(int crtc_id)
+{
+	if (crtc_id == CPCB_1) {
+		syna_vpp_push_buildin_frame(PLANE_GFX1);
+		syna_vpp_push_buildin_null_frame(PLANE_MAIN);
+	}
+#ifdef USE_DOLPHIN
+	else if (crtc_id == CPCB_2)
+		syna_vpp_push_buildin_null_frame(PLANE_PIP);
+#endif
+}
+
 void syna_push_builtin_frames(void)
 {
         syna_vpp_push_buildin_frame(PLANE_GFX1);

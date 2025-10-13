@@ -40,7 +40,7 @@ typedef enum __VPP_BUILD_IN_FRAME_TYPE__ {
 					(PLANE == PLANE_GFX1)) \
 					INDX = PLANE; \
 			}
-
+void syna_push_default_buildin_frames_for_crtc(int crtc_id);
 void syna_push_buildin_frame(u32 plane);
 void syna_push_builtin_frames(void);
 VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id);
