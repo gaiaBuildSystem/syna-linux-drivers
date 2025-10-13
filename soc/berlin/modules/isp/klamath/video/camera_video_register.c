@@ -29,6 +29,8 @@
 #endif
 
 #define WIDTH_ALIGNMENT 16
+#define MIN_VIDEO_BUFFERS 4
+#define MAX_VIDEO_BUFFERS 32
 
 /**
  * camera_video_s_ctrl - Set V4L2 control value
@@ -989,9 +991,13 @@ static int camera_video_vb2_queue_setup(struct vb2_queue *queue,
 				i, sizes[i], pix_mp->plane_fmt[i].bytesperline);
 	}
 
-	/* Limit maximum number of buffers to prevent memory issues */
-	#define MAX_VIDEO_BUFFERS 32
-	if (*num_buffers > MAX_VIDEO_BUFFERS) {
+	/* Limit minimum and maximum number of buffers to prevent memory issues */
+	if (*num_buffers < MIN_VIDEO_BUFFERS) {
+		dev_dbg(camera_vdev->camera_mdev->dev,
+			"Increasing buffers from %u to %u (minimum)\n",
+			*num_buffers, MIN_VIDEO_BUFFERS);
+		*num_buffers = MIN_VIDEO_BUFFERS;
+	} else if (*num_buffers > MAX_VIDEO_BUFFERS) {
 		dev_warn(camera_vdev->camera_mdev->dev,
 			"Limiting buffers from %u to %u\n",
 			*num_buffers, MAX_VIDEO_BUFFERS);
