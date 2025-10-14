@@ -32,12 +32,15 @@ static ssize_t name##_store(struct device *dev, \
 { \
 	struct camera_isp_dev *isp_dev = dev_get_drvdata(dev); \
 	int val; \
+	int pipe_id = isp_dev->active_pipe_id; \
 	if (kstrtoint(buf, 10, &val) == 0) { \
 		(expr) = val; \
-		if (isp_dev->wb_config.wb_en) { \
+		if (isp_dev->wb_config.wb_en && \
+			pipe_id >= 0 && pipe_id < MAX_PL && \
+			isp_dev->pipe[pipe_id]) { \
 			struct isp_ctrl ctrl = { \
 				.id = CID_WB_CONFIG, \
-				.handler = isp_dev->pipe[0], \
+				.handler = isp_dev->pipe[pipe_id], \
 				.cfg = &isp_dev->wb_config \
 			}; \
 			wb_s_ctrl(&ctrl); \

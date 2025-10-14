@@ -115,6 +115,7 @@ struct camera_isp_dev {
 
 	/* Runtime state */
 	uint8_t streaming;
+	int active_pipe_id;
 	struct mutex lock;
 	struct v4l2_async_notifier notifier;
 	struct v4l2_ctrl_handler ctrl_handler;

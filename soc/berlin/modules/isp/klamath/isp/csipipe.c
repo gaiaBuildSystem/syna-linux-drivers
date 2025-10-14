@@ -717,8 +717,7 @@ static void CSI_PIPE_Reset(CSI_PL_CTX_t *ctx)
 		SET_BIT(reset, 0, LSb32vipGbl_SWRST_CTRL_h2dh2_ipiSyncRstn,
 			bvipGbl_SWRST_CTRL_h2dh2_ipiSyncRstn);
 	}
-	SET_BIT(reset, 0, LSb32vipGbl_SWRST_CTRL_apbCSIHostSyncRstn,
-		bvipGbl_SWRST_CTRL_apbCSIHostSyncRstn);
+
 	CAM_HAL_WriteReg(ctx->dev, NULL, VIP_GBL_OFFSET + RA_vipGbl_SWRST_CTRL, reset);
 	// De-assert reset
 	if (ctx->id == 0) { //CSIPipe1
@@ -728,8 +727,7 @@ static void CSI_PIPE_Reset(CSI_PL_CTX_t *ctx)
 		SET_BIT(reset, 1, LSb32vipGbl_SWRST_CTRL_h2dh2_ipiSyncRstn,
 			bvipGbl_SWRST_CTRL_h2dh2_ipiSyncRstn);
 	}
-	SET_BIT(reset, 1, LSb32vipGbl_SWRST_CTRL_apbCSIHostSyncRstn,
-		bvipGbl_SWRST_CTRL_apbCSIHostSyncRstn);
+
 	CAM_HAL_WriteReg(ctx->dev, NULL, VIP_GBL_OFFSET + RA_vipGbl_SWRST_CTRL, reset);
 }
 
