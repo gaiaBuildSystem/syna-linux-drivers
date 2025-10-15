@@ -8029,14 +8029,14 @@ static int
 wl_cfgvendor_dbg_trigger_mem_dump(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
-	return WIFI_ERROR_NOT_SUPPORTED;
+	return -EOPNOTSUPP;
 }
 
 static int
 wl_cfgvendor_dbg_get_mem_dump(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void *data, int len)
 {
-	return WIFI_ERROR_NOT_SUPPORTED;
+	return -EOPNOTSUPP;
 }
 #endif /* !DEBUGABILITY_DISABLE_MEMDUMP */
 
@@ -9685,7 +9685,7 @@ static int
 wl_cfgvendor_tx_power_scenario(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
-    return WIFI_ERROR_NOT_SUPPORTED;
+    return -EOPNOTSUPP;
 }
 #endif /* WL_SAR_TX_POWER */
 
