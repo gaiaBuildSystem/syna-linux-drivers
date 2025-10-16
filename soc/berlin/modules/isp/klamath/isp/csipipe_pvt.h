@@ -57,6 +57,7 @@ typedef struct CSI_PL_CTX_s {
 	void *parent;
 	struct camera_isp_dev *dev;
 	u32 id;
+	atomic_t active;
 	CAM_HAL_BCMBUF_ITEM p_bcmq[BCM_BUF_RING_NUM];
 	CAM_HAL_BCMBUF_ITEM *p_curr_bcmq;
 	u8 curr_bcm_index;

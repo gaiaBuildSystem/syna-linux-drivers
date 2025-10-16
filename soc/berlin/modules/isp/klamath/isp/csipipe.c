@@ -997,8 +997,16 @@ static int process_interrupt(void *arg)
 static int CSI_PIPE_Irq_Handler(uint32_t intrNum, void *pArgs)
 {
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)pArgs;
-	struct camera_isp_dev *isp_dev = (struct camera_isp_dev *)ctx->parent;
+	struct camera_isp_dev *isp_dev;
 	unsigned long flags;
+
+	if (!ctx || !atomic_read(&ctx->active))
+		return 0;
+
+	isp_dev = (struct camera_isp_dev *)ctx->parent;
+	if (!isp_dev)
+		return 0;
+
 #ifdef DEBUG_INTR
 	static int count = 0;
 
@@ -1169,9 +1177,10 @@ CSIPIPE_HANDLE CSI_PIPE_Create(struct camera_isp_dev *isp_dev, int pipe)
 		ctx->pipe_base_addr + RA_HOST2DHUB_IMAGERESWRAP + RA_IMAGERESWRAP_CTRL);
 	SET_BIT(val, 0, LSb32IMAGERESWRAP_CTRL_enable, bIMAGERESWRAP_CTRL_enable);
 	CAM_HAL_WriteReg(isp_dev, NULL, ctx->pipe_base_addr + RA_HOST2DHUB_IMAGERESWRAP +
-						RA_IMAGERESWRAP_CTRL, val);
+					RA_IMAGERESWRAP_CTRL, val);
 	INIT_LIST_HEAD(&ctx->buf.queue);
 	spin_lock_init(&ctx->buf.lock);
+	atomic_set(&ctx->active, 1);
 	return (CSIPIPE_HANDLE)ctx;
 }
 
@@ -2106,6 +2115,9 @@ void CSI_PIPE_Stop(CSIPIPE_HANDLE handle)
 	CSI_PL_CTX_t *ctx = (CSI_PL_CTX_t *)handle;
 	struct camera_isp_dev *isp_dev = ctx->dev;
 	unsigned long flags;
+
+	/* Mark context as inactive to prevent interrupt handler from accessing it */
+	atomic_set(&ctx->active, 0);
 
 	spin_lock_irqsave(&isp_dev->isr_lock, flags);
 	isp_dev->streaming &= ~(1 << ctx->id);
