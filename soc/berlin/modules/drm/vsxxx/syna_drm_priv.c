@@ -258,16 +258,22 @@ int syna_modeset_createEntries(struct syna_drm_private *dev_priv)
 			dev_priv->connector[vout_id] = syna_dsi_connector_create(dev);
 		}
 
-		if (IS_ERR(dev_priv->connector[vout_id])) {
+		if (IS_ERR_OR_NULL(dev_priv->connector[vout_id])) {
 			DRM_ERROR("failed to create a connector\n");
-			err = PTR_ERR(dev_priv->connector[vout_id]);
+			if (dev_priv->connector[vout_id])
+				err = PTR_ERR(dev_priv->connector[vout_id]);
+			else
+				err = -EINVAL;
 			goto err_syna_modeset_createEntries;
 		}
 
 		dev_priv->encoder[vout_id] = syna_tmds_encoder_create(dev, vout_id, cpcb_id);
-		if (IS_ERR(dev_priv->encoder[vout_id])) {
+		if (IS_ERR_OR_NULL(dev_priv->encoder[vout_id])) {
 			DRM_ERROR("failed to create an encoder\n");
-			err = PTR_ERR(dev_priv->encoder[vout_id]);
+			if (dev_priv->encoder[vout_id])
+				err = PTR_ERR(dev_priv->encoder[vout_id]);
+			else
+				err = -EINVAL;
 			goto err_syna_modeset_createEntries;
 		}
 
