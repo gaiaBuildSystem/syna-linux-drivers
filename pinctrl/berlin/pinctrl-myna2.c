@@ -581,10 +581,15 @@ static int myna2_pinctrl_probe(struct platform_device *pdev)
 	return berlin_pinctrl_probe_regmap(pdev, match->data, regmap, conf);
 }
 
+static const struct dev_pm_ops myna2_pinctrl_pm_ops = {
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(berlin_pinctrl_suspend, berlin_pinctrl_resume)
+};
+
 static struct platform_driver myna2_pinctrl_driver = {
 	.probe	= myna2_pinctrl_probe,
 	.driver	= {
 		.name = "myna2-pinctrl",
+		.pm = &myna2_pinctrl_pm_ops,
 		.of_match_table = myna2_pinctrl_match,
 	},
 };
