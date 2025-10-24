@@ -271,14 +271,6 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 		}
 	}
 
-	if (synaPanelInfo.supply) {
-		if (!regulator_is_enabled(synaPanelInfo.supply)) {
-			err = regulator_enable(synaPanelInfo.supply);
-			if (err < 0)
-				pr_info("failed to enable supply: %d\n", err);
-		}
-	}
-
 	err = avio_module_mipirst_get_gpio_handle(&pdev->dev,
 									of_fwnode_handle(mipi_dev->of_node),
 									GPIOD_ASIS);
