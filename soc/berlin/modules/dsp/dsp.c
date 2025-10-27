@@ -21,6 +21,7 @@
 #include <linux/arm-smccc.h>
 #include <soc/berlin/berlin_sip.h>
 
+#include "kernel_compatibility.h"
 #include "dsp_def.h"
 #include "drv_msg.h"
 #include "tee_client_api.h"
@@ -522,7 +523,7 @@ free_ida:
 	return err;
 }
 
-static int syna_dsp_remove(struct platform_device *pdev)
+static RET_TYPE syna_dsp_remove(struct platform_device *pdev)
 {
 	int err;
 	struct dsp_drv *p_dsp_drv;
@@ -534,11 +535,10 @@ static int syna_dsp_remove(struct platform_device *pdev)
 	ida_simple_remove(&dsp_minors, p_dsp_drv->hw_id);
 
 	err = AMPMsgQ_Destroy(&p_dsp_drv->msg_q);
-	if (unlikely(err != S_OK)) {
-		dev_err(p_dsp_drv->dev, "drv_app_exit: failed, err:%8x\n", err);
-		return err;
-	}
-	return 0;
+	if (unlikely(err != S_OK))
+		dev_err(p_dsp_drv->dev, "failed to destroy msgQ, err:%8x\n", err);
+
+	RETURN_VALUE;
 }
 
 static const struct of_device_id dsp_match[] = {
@@ -570,7 +570,7 @@ static int __init syna_dsp_init(void)
 		pr_err("dsp: failed to allocate char dev region\n");
 		return ret;
 	}
-	dsp_class = class_create(THIS_MODULE, DSP_DEVICE_NAME);
+	dsp_class = SYNA_CLASS_CREATE(DSP_DEVICE_NAME);
 	if (IS_ERR(dsp_class)) {
 		pr_err("dsp: failed to create class\n");
 		ret = PTR_ERR(dsp_class);
