@@ -6,6 +6,7 @@
 #include <linux/cdev.h>
 #include <linux/mm.h>
 #include <linux/of.h>
+#include "kernel_compatibility.h"
 
 #define IFCP_DEVICE_NAME	"ifcp"
 #define IFCP_MAX_DEVS		1
@@ -60,7 +61,7 @@ static int ifcp_device_init(ifcp_device *ifcp_dev)
 		return ret;
 	}
 
-	ifcp_dev->dev_class = class_create(THIS_MODULE, IFCP_DEVICE_NAME);
+	ifcp_dev->dev_class = SYNA_CLASS_CREATE(IFCP_DEVICE_NAME);
 	if (IS_ERR(ifcp_dev->dev_class)) {
 		ret = -ENOMEM;
 		dev_err(dev, "class_create failed %d", ret);
@@ -133,12 +134,12 @@ static int ifcp_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int ifcp_remove(struct platform_device *pdev)
+static RET_TYPE ifcp_remove(struct platform_device *pdev)
 {
 	ifcp_device *ifcp_dev = dev_get_drvdata(&pdev->dev);
 
 	ifcp_device_exit(ifcp_dev);
-	return 0;
+	RETURN_VALUE;
 }
 
 static const struct of_device_id ifcp_match[] = {
