@@ -479,4 +479,35 @@ extern void dhd_coredump_trigger(dhd_pub_t *dhdp);
 #endif /* DEBUGABILITY */
 #endif /* DHD_LOG_DUMP */
 
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+
+#define DHD_DUMP_SEGMENT_MAX 4096
+
+/* each dump segment buf */
+typedef struct dhd_dump_segment {
+	size_t len; /* payload length in each segment */
+	uint8_t *data;
+	struct dhd_dump_segment *next;
+} dhd_dump_segment_t;
+
+/* dump buf segment linked list */
+typedef struct dhd_dump_seg_buf_ctx {
+	dhd_dump_segment_t *head;
+	dhd_dump_segment_t *tail;
+	size_t total;
+} dhd_dump_seg_buf_ctx_t;
+
+dhd_dump_seg_buf_ctx_t* dhd_dump_buf_get_ctx(void);
+void dhd_dump_buf_init(dhd_dump_seg_buf_ctx_t *ctx);
+void dhd_dump_buf_free(dhd_dump_seg_buf_ctx_t *ctx);
+int dhd_dump_buf_append(dhd_dump_seg_buf_ctx_t *ctx,
+				const void* src, size_t len);
+ssize_t dhd_dump_buf_to_user_copy(dhd_dump_seg_buf_ctx_t *ctx,
+				loff_t *ppos,
+				char __user *ubuf,
+				size_t count, bool *isover);
+extern void dhd_d2m_dbgdump_publish(void);
+
+#endif /* DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX */
+
 #endif /* __DHD_LOG_DUMP_H__ */

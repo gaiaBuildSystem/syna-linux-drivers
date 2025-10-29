@@ -543,10 +543,13 @@ typedef nontrans_bssid_profile_subie_t nontrans_BSSID_profile_subie_t;
 
 #define maxBSSID_indicator maxbssid_indicator
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef BWL_PRE_PACKED_STRUCT struct multi_bssid_ie {
 	uint8 id;
 	uint8 len;
 	uint8 maxbssid_indicator;
+
+	/* NOTE: array of structs that contains a flexible array member is non-ISO C compliant. */
 	nontrans_bssid_profile_subie_t profile[1];
 } BWL_POST_PACKED_STRUCT multi_bssid_ie_t;
 typedef multi_bssid_ie_t multi_BSSID_ie_t;
@@ -1260,4 +1263,29 @@ typedef uint8 he_trig_usrinfo_set_t[HE_TRIG_USRINFO_SZ];
 #define HE_BSS_PARMS_CO_AP_POS		6u	/* Co-Located AP */
 #define HE_BSS_PARMS_CO_AP_SZ		1u
 
+/* Different types of BA (802.11 2024 Table 9-37) */
+#define HE_BA_TYPE_EXT_COMPRESSED       1u   /* Ext compressed BA */
+#define HE_BA_TYPE_COMPRESSED           2u   /* Compressed BA */
+#define HE_BA_TYPE_MULTI_TID            3u   /* Multi TID BA */
+#define HE_BA_TYPE_GCR                  6u   /* GCR BA */
+#define HE_BA_TYPE_GLK_GCR              10u  /* GLK-GCR BA */
+#define HE_BA_TYPE_MSTA                 11u  /* Multi-STA BA */
+
+#define HE_BA_CTRL_SZ                   2u
+#define HE_BA_CTRL_BA_TYPE_INDX         1u    /* BA Type  index */
+#define HE_BA_CTRL_BA_TYPE_FSZ          4u    /* BA Type  size  */
+
+/* MSTA BA frame payload len for single STA AID/TID info (wo bitmap) */
+#define DOT11_MSTA_BA_LEN	            6u
+
+/* BA info field for MSTA BA (802.11 2024 9.3.1.8.6) */
+#define HE_BA_INFO_SZ                                  4u
+#define HE_BA_INFO_AID_INDX                            0u   /* AID11 index */
+#define HE_BA_INFO_AID_FSZ                             11u  /* AID11 size */
+#define HE_BA_INFO_ACK_TYPE_INDX                       11u  /* ack type index */
+#define HE_BA_INFO_ACK_TYPE_FSZ                        1u   /* ack type size */
+#define HE_BA_INFO_TID_INDX                            12u  /* TID index */
+#define HE_BA_INFO_TID_FSZ                             4u   /* TID size */
+#define HE_BA_INFO_BA_STARTING_SEQ_CTRL_INDX           16u  /* BA Starting sequence control index */
+#define HE_BA_INFO_BA_STARTING_SEQ_CTRL_FSZ            16u  /* BA Starting sequence control size */
 #endif /* _802_11ax_h_ */

@@ -39,6 +39,8 @@
  *
  * <<Broadcom-WL-IPTag/Dual:>>
  *
+ * Edited with the help of GENAI.
+ *
  * This file by default provides proper behavior on little-endian architectures.
  * On big-endian architectures, IL_BIGENDIAN should be defined.
  */
@@ -207,27 +209,27 @@
  * avoiding the -fno-inline used in ROM builds.
  */
 
-#define bcmswap16(val) ({ \
+#define bcmswap16(val) BCM_EXTENSION ({ \
 	uint16 _val = (val); \
 	BCMSWAP16(_val); \
 })
 
-#define bcmswap32(val) ({ \
+#define bcmswap32(val) BCM_EXTENSION ({ \
 	uint32 _val = (val); \
 	BCMSWAP32(_val); \
 })
 
-#define bcmswap64(val) ({ \
+#define bcmswap64(val) BCM_EXTENSION ({ \
 	uint64 _val = (val); \
 	BCMSWAP64(_val); \
 })
 
-#define bcmswap32by16(val) ({ \
+#define bcmswap32by16(val) BCM_EXTENSION ({ \
 	uint32 _val = (val); \
 	BCMSWAP32BY16(_val); \
 })
 
-#define bcmswap16_buf(buf, len) ({ \
+#define bcmswap16_buf(buf, len) BCM_EXTENSION ({ \
 	uint16 *_buf = (uint16 *)(buf); \
 	uint _wds = (len) / 2; \
 	while (_wds--) { \
@@ -236,7 +238,7 @@
 	} \
 })
 
-#define bcmswap32_buf(buf, len) ({ \
+#define bcmswap32_buf(buf, len) BCM_EXTENSION ({ \
 	uint32 *_buf = (uint32 *)(buf); \
 	uint _wds = (len) / 4; \
 	while (_wds--) { \
@@ -245,7 +247,7 @@
 	} \
 })
 
-#define bcmswap64_buf(buf, len) ({ \
+#define bcmswap64_buf(buf, len) BCM_EXTENSION ({ \
 	uint64 *_buf = (uint64 *)(buf); \
 	uint _wds = (len) / 8; \
 	while (_wds--) { \
@@ -254,14 +256,14 @@
 	} \
 })
 
-#define htol16_ua_store(val, bytes) ({ \
+#define htol16_ua_store(val, bytes) BCM_EXTENSION ({ \
 	uint16 _val = (val); \
 	uint8 *_bytes = (uint8 *)(bytes); \
 	_bytes[0] = _val & 0xff; \
 	_bytes[1] = _val >> 8; \
 })
 
-#define htol32_ua_store(val, bytes) ({ \
+#define htol32_ua_store(val, bytes) BCM_EXTENSION ({ \
 	uint32 _val = (val); \
 	uint8 *_bytes = (uint8 *)(bytes); \
 	_bytes[0] = _val & 0xff; \
@@ -270,7 +272,7 @@
 	_bytes[3] = _val >> 24; \
 })
 
-#define htol64_ua_store(val, bytes) ({ \
+#define htol64_ua_store(val, bytes) BCM_EXTENSION ({ \
 	uint64 _val = (val); \
 	uint8 *_bytes = (uint8 *)(bytes); \
 	int _ii; \
@@ -280,14 +282,14 @@
 	} \
 })
 
-#define hton16_ua_store(val, bytes) ({ \
+#define hton16_ua_store(val, bytes) BCM_EXTENSION ({ \
 	uint16 _val = (val); \
 	uint8 *_bytes = (uint8 *)(bytes); \
 	_bytes[0] = _val >> 8; \
 	_bytes[1] = _val & 0xff; \
 })
 
-#define hton32_ua_store(val, bytes) ({ \
+#define hton32_ua_store(val, bytes) BCM_EXTENSION ({ \
 	uint32 _val = (val); \
 	uint8 *_bytes = (uint8 *)(bytes); \
 	_bytes[0] = _val >> 24; \
@@ -296,32 +298,32 @@
 	_bytes[3] = _val & 0xff; \
 })
 
-#define ltoh16_ua(bytes) ({ \
+#define ltoh16_ua(bytes) BCM_EXTENSION ({ \
 	const uint8 *_bytes = (const uint8 *)(bytes); \
 	_LTOH16_UA(_bytes); \
 })
 
-#define ltoh32_ua(bytes) ({ \
+#define ltoh32_ua(bytes) BCM_EXTENSION ({ \
 	const uint8 *_bytes = (const uint8 *)(bytes); \
 	_LTOH32_UA(_bytes); \
 })
 
-#define ltoh64_ua(bytes) ({ \
+#define ltoh64_ua(bytes) BCM_EXTENSION ({ \
 	const uint8 *_bytes = (const uint8 *)(bytes); \
 	_LTOH64_UA(_bytes); \
 })
 
-#define ntoh16_ua(bytes) ({ \
+#define ntoh16_ua(bytes) BCM_EXTENSION ({ \
 	const uint8 *_bytes = (const uint8 *)(bytes); \
 	_NTOH16_UA(_bytes); \
 })
 
-#define ntoh32_ua(bytes) ({ \
+#define ntoh32_ua(bytes) BCM_EXTENSION ({ \
 	const uint8 *_bytes = (const uint8 *)(bytes); \
 	_NTOH32_UA(_bytes); \
 })
 
-#define ntoh64_ua(bytes) ({ \
+#define ntoh64_ua(bytes) BCM_EXTENSION ({ \
 	const uint8 *_bytes = (const uint8 *)(bytes); \
 	_NTOH64_UA(_bytes); \
 })

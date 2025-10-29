@@ -44,6 +44,11 @@
 #ifndef _802_11s_h_
 #define _802_11s_h_
 
+/* Backwards compatibility for legacy branches. */
+#if !defined(BCM_EXTENSION)
+#define BCM_EXTENSION
+#endif
+
 /* This marks the start of a packed structure section. */
 #include <packed_section_start.h>
 
@@ -116,6 +121,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_mesh_pathsel {
 typedef struct dot11_mesh_pathsel dot11_mesh_pathsel_t;
 
 /*  Mesh PREQ IE */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 BWL_PRE_PACKED_STRUCT struct mesh_preq_ie {
 	uint8   id;
 	uint8   len;

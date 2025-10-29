@@ -63,6 +63,11 @@
 /* This marks the start of a packed structure section. */
 #include <packed_section_start.h>
 
+/* Backwards compatibility for legacy branches. */
+#if !defined(BCM_EXTENSION)
+#define BCM_EXTENSION
+#endif
+
 #define DOT11_TU_TO_US			1024	/* 802.11 Time Unit is 1024 microseconds */
 #define DOT11_SEC_TO_TU			977u	/* 1000000 / DOT11_TU_TO_US = ~977 TU */
 
@@ -626,6 +631,7 @@ typedef struct dot11_meas_req dot11_meas_req_t;
 /* length of Measure Request IE data not including variable len */
 #define DOT11_MNG_IE_MREQ_FIXED_LEN 3	/* d11 measurement request IE fixed length */
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 BWL_PRE_PACKED_STRUCT struct dot11_meas_req_loc {
 	uint8 id;
 	uint8 len;
@@ -1713,6 +1719,11 @@ enum dot11_tag_ids {
 #define EXT_MNG_UHR_CAP_ID			145u	/* UHR Capabilities */
 #define DOT11_MNG_UHR_CAP_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_UHR_CAP_ID)
 
+#define EXT_MNG_SMD_INFO_ID			146u	/* SMD information */
+#define DOT11_MNG_SMD_INFO_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_SMD_INFO_ID)
+#define EXT_MNG_ST_PARAM_ID			147u	/* SMD BSS Transition Parameters */
+#define DOT11_MNG_ST_PARAM_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_ST_PARAM_ID)
+
 /* For RCM see Draft P802.11bh_D1.0.pdf. The RCM extension IDs 250 and 251
  * are chosen temporarily until they get assigned by the ANA.
  */
@@ -1984,6 +1995,8 @@ typedef struct dot11_extcap dot11_extcap_t;
 #define DOT11_ACTION_CAT_EHT		36u	/* EHT action frame */
 #define DOT11_ACTION_CAT_EHTP		37u	/* Protected EHT action frame */
 #define DOT11_ACTION_CAT_RCM		38u	/* RCM action - Draft P802.11bh_D1.0.pdf */
+/* UHR_TBD: Category code to be updated once it is define in spec */
+#define DOT11_ACTION_CAT_UHRP		39u	/* Protected UHR action frame */
 #define DOT11_ACTION_CAT_VSP		126	/* protected vendor specific */
 #define DOT11_ACTION_CAT_VS		127	/* category Vendor Specific */
 
@@ -2155,6 +2168,7 @@ typedef struct dot11_mscs_descr_ie dot11_mscs_descr_ie_t;
 #define DOT11_MSCS_DESCR_IE_HDR_LEN	10u	/* Entire descriptor header length */
 
 /** MSCS Request frame, refer section 9.4.18.6 in the spec P802.11REVmd_D3.1 */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 BWL_PRE_PACKED_STRUCT struct dot11_mscs_req {
 	uint8 category;				/* ACTION_RAV_STREAMING (19) */
 	uint8 robust_action;			/* action: MSCS Req (4), MSCS Res (5), etc. */

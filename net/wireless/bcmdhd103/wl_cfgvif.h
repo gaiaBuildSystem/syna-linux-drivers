@@ -329,6 +329,9 @@ wl_cfg80211_ml_ap_link_add(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev,
 extern bool wl_cfgvif_mlo_is_primary_link(struct bcm_cfg80211 *cfg, u8 ifidx, u8 bsscfgidx);
 #endif /* WL_MLO */
 
+extern s32 wl_cfgvif_process_csi_data(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
+	const wl_event_msg_t *event, void *data);
+
 #if defined(BCN_PROT_AP) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0))
 s32 wl_cfgvif_set_bcnprot_mode(struct net_device *ndev,
 	struct bcm_cfg80211 *cfg, s32 bssidx, u32 bcn_prot);

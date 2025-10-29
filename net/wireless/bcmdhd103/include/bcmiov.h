@@ -185,6 +185,7 @@ struct bcm_iov_batch_subcmd {
 	uint8 data[BCM_FLEX_ARRAY];
 };
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 struct bcm_iov_batch_buf {
 	uint16 version;
 	uint8 count;
@@ -192,6 +193,7 @@ struct bcm_iov_batch_buf {
 #ifdef BCM_NON_ISO_C
 	struct bcm_iov_batch_subcmd cmds[0];
 #else
+	/* NOTE: array of structs that contains a flexible array member is non-ISO C compliant. */
 	struct bcm_iov_batch_subcmd cmds[];
 #endif
 };
@@ -422,11 +424,15 @@ int bcm_iov_pack_xtlvs(const bcm_iov_cmd_digest_t *dig,  bcm_xtlv_opts_t xtlv_op
  * during attach.
  */
 struct wlc_if;
-struct wlc_info;
-extern struct wlc_bsscfg *bcm_iov_bsscfg_find_from_wlcif(struct wlc_info *wlc,
-	struct wlc_if *wlcif);
-int bcm_iov_doiovar(void *parse_ctx, uint32 id, void *params, uint params_len,
-    void *arg, uint arg_len, uint vsize, struct wlc_if *intf);
+struct wlc_bsscfg;
+
+#ifdef LDEV_IOCTL_BSSCFG
+int bcm_iov_doiovar(void *parse_ctx, uint32 id, void *params, uint params_len, void *arg,
+	uint arg_len, uint vsize, struct wlc_if *intf, struct wlc_bsscfg *cfg);
+#else
+int bcm_iov_doiovar(void *parse_ctx, uint32 id, void *params, uint params_len, void *arg,
+	uint arg_len, uint vsize, struct wlc_if *intf);
+#endif /* LDEV_IOCTL_BSSCFG */
 #endif /* BCMDRIVER */
 
 /* parsing context helpers */

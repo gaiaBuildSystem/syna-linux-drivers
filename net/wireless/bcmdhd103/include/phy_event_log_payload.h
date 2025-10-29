@@ -2141,9 +2141,7 @@ typedef struct phy_periodic_counters_v255 {
 	uint32	rxnobuf;		/* Rx error due to no buffer */
 	uint32	rxrunt;			/* Runt frame counter */
 	uint32	rxgiant;		/* rx giant frames */
-	uint32	strmeof_cnt;		/* RX frame got aborted because PHY FIFO did not have
-					* sufficient bytes
-					*/
+	uint32	debug_cnt_05;
 	uint32	ctx_fifo_full;		/* Low Priority Context FIFO is full */
 	uint32	ctx_fifo2_full;		/* High Priority Context FIFO is full */
 	uint32  ctmode_ufc_cnt;		/* Underflow cnt in ctmode */

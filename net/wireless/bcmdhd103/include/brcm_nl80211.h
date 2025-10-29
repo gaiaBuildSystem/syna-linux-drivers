@@ -44,7 +44,7 @@
 #ifndef _brcm_nl80211_h_
 #define _brcm_nl80211_h_
 
-//#ifdef OEM_ANDROID Need proper #ifdef in the referencing code as well
+// #ifdef OEM_ANDROID Need proper #ifdef in the referencing code as well
 #define OUI_BRCM  0x001018
 #define OUI_GOOGLE  0x001A11
 
@@ -87,7 +87,7 @@ struct nl_prv_data {
 	uint len;			/* ioctl return buffer length */
 	struct bcm_nlmsg_hdr *nlioc;	/* bcm_nlmsg_hdr header pointer */
 };
-//#endif /* OEM_ANDROID */
+// #endif /*  OEM_ANDROID */
 
 /* Keep common BCM netlink macros here */
 #define BCM_NL_USER	31

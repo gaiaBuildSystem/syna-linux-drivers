@@ -3042,11 +3042,9 @@ wf_chspec_first_20_sb(chanspec_t chspec)
 	if (chspec == INVCHANSPEC) {
 		return 0;
 	}
-#if defined(BCMWIFI_BW320MHZ)
-	if (CHSPEC_IS320(chspec)) {
+	if (CHSPEC_BW(chspec) == WL_CHANSPEC_BW_320) {
 		return LLLL_20_SB_320(cc);
 	} else
-#endif
 #if defined(BCMWIFI_BW160MHZ)
 	if (CHSPEC_IS160(chspec)) {
 		return LLL_20_SB_160(cc);

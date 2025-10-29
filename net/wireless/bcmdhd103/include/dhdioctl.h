@@ -315,7 +315,7 @@ typedef struct dhd_pktgen {
 
 /* Type of test packets to use */
 #define DHD_PKTGEN_ECHO		1 /* Send echo requests */
-#define DHD_PKTGEN_SEND 	2 /* Send discard packets */
+#define DHD_PKTGEN_SEND		2 /* Send discard packets */
 #define DHD_PKTGEN_RXBURST	3 /* Request dongle send N packets */
 #define DHD_PKTGEN_RECV		4 /* Continuous rx from continuous tx dongle */
 #endif /* SDTEST */
@@ -423,9 +423,9 @@ typedef struct pktts_flow {
 
 #define BCM_TS_MAGIC	0xB055B055
 #define BCM_TS_MAGIC_V2	0xB055B056
-#define BCM_TS_TX	 1u
-#define BCM_TS_RX	 2u
-#define BCM_TS_UTX	 3u /* ucode tx timestamps */
+#define BCM_TS_TX	1u
+#define BCM_TS_RX	2u
+#define BCM_TS_UTX	3u /* ucode tx timestamps */
 
 #define PKTTS_MAX_FWTX		4u
 #define PKTTS_MAX_UCTX		5u

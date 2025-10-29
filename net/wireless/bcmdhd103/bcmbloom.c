@@ -83,8 +83,8 @@ struct bcm_bloom_filter {
 	void *cb_ctx;
 	uint max_hash;
 	bcm_bloom_hash_t *hash;	/* array of hash functions */
-	uint filter_size; 		/* in bytes */
-	uint8 *filter; 			/* can be NULL for validate only */
+	uint filter_size;		/* in bytes */
+	uint8 *filter;			/* can be NULL for validate only */
 };
 
 /* public interface */

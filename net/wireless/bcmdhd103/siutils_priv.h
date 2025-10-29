@@ -180,6 +180,13 @@ typedef struct res_state_info {
 } si_res_state_info_t;
 #endif
 
+typedef struct smb_info {
+	bool present;
+	uint16 rev;
+	uint32 base_addr;
+	uint32 size;
+} smb_info_t;
+
 /** misc si info needed by some of the routines */
 typedef struct si_info {
 	struct si_pub pub;		/**< back plane public state (must be first field) */
@@ -247,6 +254,7 @@ typedef struct si_info {
 #endif
 	bool    rfldo3p3_war;		/**< singing cap war enable from nvram */
 	void    *nci_info;
+	smb_info_t smb;			/**< Info on SMB core */
 } si_info_t;
 
 #define	SI_INFO(sih)	((si_info_t *)(uintptr)sih)

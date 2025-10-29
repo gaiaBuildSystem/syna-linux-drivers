@@ -3175,7 +3175,7 @@ typedef struct wl_pwrstats_query {
 /** This structure is for version 2; version 1 will be deprecated in by FW */
 #include <packed_section_start.h>
 typedef BWL_PRE_PACKED_STRUCT struct wl_pwrstats {
-	uint16 version; 		/**< Version = 2 is TLV format */
+	uint16 version;			/**< Version = 2 is TLV format */
 	uint16 length;			/**< Length of entire structure */
 	uint8 data[BCM_FLEX_ARRAY];	/**< TLV data, a series of structures,
 				       * each starting with type and length.
@@ -7886,4 +7886,565 @@ typedef struct sbi_sc_agg_stats_v1 {
 	uint16 len;
 	sbi_sc_stats_v1_t stats;
 } sbi_sc_agg_stats_v1_t;
+
+/* ucode counters layout change due to 11bn */
+enum {
+	WL_CNT_MCST_BLK_RSVD = 0,
+	WL_CNT_MCST_BLK_EMLSR_0 = 1,	/* Static assignment EMLSR_0 */
+	WL_CNT_MCST_BLK_EMLSR_1 = 2,	/* Static assignment EMLSR_1 */
+	WL_CNT_MCST_BLK_NPCA_0 = 3,	/* Static assignment NPCA_0 */
+	WL_CNT_MCST_BLK_NPCA_1 = 4,	/* Static assignment NPCA_1 */
+	WL_CNT_MCST_BLK_MAX
+};
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16 bit accumulated counters */
+	uint32	rx20s_cnt;		/**< Increments if RXFrame does not include primary 20 */
+	uint32	rxfrmtoolong;		/**< rx'd frame longer than legal limit (2346 bytes) */
+	uint32	rxfrmtooshrt;		/**< rx'd frame not enough bytes for ft */
+	uint32	rxnodelim;		/**< # of not valid delim -> ampdu parser */
+	uint32	rxbad_ampdu;		/**< number of rx'd bad ampdus */
+
+	uint32	rxcgprsqovfl;		/**< Rx Probe Request Que overflow in the AP */
+	uint32	rxdrop20s;		/**< drop secondary cnt */
+	uint32	rxtoolate;		/**< receive too late */
+	uint32	m_pfifo_drop;		/**< # of pfifo dropped frames */
+
+	/* The following need to be contiguous */
+	uint32	phyovfl;		/**< number of phy overflows */
+	uint32	rxf0ovfl;		/**< number of rx fifo 0 overflows */
+	uint32	rxf1ovfl;		/**< number of rx fifo 1 overflows */
+	uint32	lenfovfl;		/**< number of length overflows */
+	uint32	weppeof;		/**< number of weppeof  */
+	uint32	badplcp;		/**< parity check of the PLCP header failed */
+
+	uint32	ctx_fifo_full;		/**< fw not draining frames fast enough */
+	uint32	ctx_fifo2_full;		/**< fw not draining frames fast enough */
+	uint32	missbcn_dbg;		/**< number of beacon missed to receive */
+	uint32	laterx_cnt;		/**< ucode sees frame 30us late */
+	uint32	he_colormiss_cnt;	/**< HE BSS color mismatch counts cnts */
+
+	uint32	bcn_drop_cnt;		/**< number of BCNs dropped in ucode */
+	uint32	bfr_timeout;		/**< number of bfr timeouts */
+	uint32	rxfrmtoolong2_cnt;	/**< # of Rx'd too long pkts */
+	uint32	pmqovfl;		/* Number of PMQ overflows */
+	uint32	inv_punc_usig_cnt;	/**< Number of invalid punctured USIG */
+
+	uint32	rxf0giantovfl;		/**< number of rx fifo 0 overflows */
+	uint32	rxf1giantovfl;		/**< number of rx fifo 1 overflows */
+	uint32	he_rxdefrag;		/**< number of rx'd HE dynamic fragmented pkts */
+	uint32	rxrsptmout;		/**< number of response timeouts for tx'd frames */
+} wl_cnt_mcst_rxerr_v1_t;
+
+/* RX ERR counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_rxerr_v1_t cnt_wrap[];
+} wl_cnt_mcst_rxerr_container_v1_t;
+
+/* full flat structure for reporting u32 counters */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	uint32 rxanyerr;		/**< Any RX error that is not counted by other counters */
+	uint32 rxbadfcs;		/**< # of frames with CRC check failed */
+	uint32 rxcrsglitch;		/**< PHY able to correlate preamble but not the header */
+	uint32 bphy_rxcrsglitch;	/**< PHY count of bphy glitches */
+	uint32 rxbadplcp;		/**< parity check of the PLCP header failed */
+
+	uint32 bphy_badplcp;		/**< number of bad PLCP reception on BPHY rate */
+} wl_cnt_mcst_rxerr_u32_v1_t;
+
+/* RX ERR counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_rxerr_u32_v1_t cnt_wrap[];
+} wl_cnt_mcst_rxerr_u32_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16-bit accumulated counters */
+	uint32	he_rxtrig_myaid;	/**< number of rx'd valid trigger frame with myaid */
+	uint32	he_rxtrig_rand;		/**< number of rx'd valid trigger frame with random aid */
+	uint32	he_rxtrig_basic;	/**< number of rx'd of basic trigger frame */
+	uint32	he_rxtrig_bfm_cnt;	/**< number of rx'd trigger frame with bfm */
+	uint32	he_rxtrig_mubar;	/**< number of rx'd MUBAR trigger frame variant */
+
+	uint32	he_rxtrig_murts;	/**< number of rx'd MU-RTS trigger frame variant */
+	uint32	he_rxtrig_bsrp;		/**< number of rx'd of BSR poll trigger frame variant */
+	uint32	he_rxtrig_gcrmubar;	/**< number of rx'd gcr mu bar trigger frame variant? */
+	uint32	he_rxtrig_bqrp;		/**< number of rx'd bqrp trigger frame variant? */
+	uint32	he_rxtrig_nfrp;		/**< Todo: check on functionality */
+
+	uint32	he_rxtrig_basic_htpack;	/**< triggers received with HTP ack policy */
+	uint32	he_cs_req_tx_cancel;	/**< tx cancelled due to trigger rx or ch sw? */
+	uint32	he_rxtrig_rngpoll;	/**< todo: check functionality */
+	uint32	he_rxtrig_rngsnd;	/**< todo: check functionality */
+	uint32	he_rxtrig_rngssnd;	/**< todo: check functionality */
+
+	uint32	he_rxtrig_rngrpt;	/**< todo: check functionality */
+	uint32	he_rxtrig_rngpasv;	/**< todo: check functionality */
+	uint32	he_rxtrig_invalid_ru;	/**< Rx'd trigger frame with invalid STA20 RU index */
+	uint32	he_rxtrig_inv_ru_cnt;	/**< # of Rx'd trigger frames with invalid RU cnt */
+	uint32	he_rxtrig_drop_cnt;	/**< # of trigger frames dropped */
+
+	uint32	sctrg_rxcrs_drop_cnt;	/**< Number of scan trigger dropped due to rxcrs */
+	uint32	sctrg_drop_cnt;		/**< Number of scan trigger drop */
+	uint32	he_wrong_nss;		/**< Number of triggers with wrong NSS */
+	uint32	he_trig_unsupp_rate;	/**< Number of triggers with unsupported rates */
+	uint32	he_trig_drop_smif_cnt;
+
+	uint32	he_trig_murts_sifs_drop_cnt;	/**< Number of MURTS seen during SIFS */
+	uint32	he_trig_bsrp_wrong_nss_cnt;	/**< Number of BSRPs with incorrect NSS */
+	uint32	he_trig_ru_82_83_bcc_cnt;
+	uint32	he_trig_inv_dcmmcs;	/**< Number of triggers with DCM MCS */
+	uint32	duo_bsrp_rx_cnt;	/**< # BSRPs RXed for DUO */
+} wl_cnt_mcst_rxtb_v1_t;
+
+/* RX TB counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_rxtb_v1_t cnt_wrap[];
+} wl_cnt_mcst_rxtb_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16 bit accumulated counters */
+	uint32	rxstrt;			/**< Number of received frames with a good PLCP
+					 * (i.e. passing parity check)
+					 */
+	uint32	rxctlmcast;		/**< # of RX ctrl mcast frames */
+	uint32	rxmgmcast;		/**< # of rx'd Management mcast frames */
+	uint32	rxbeaconmbss;		/**< beacons rx'd from member of BSS */
+	uint32	rxndpa_m;		/**< number of RX NDPA Multicast */
+
+	uint32	rxrtsucast;		/**< # of ucast RTS (good FCS) */
+	uint32	rxctsucast;		/**< # of ucast CTS (good FCS) */
+	uint32	rxctlucast;		/**< # of rx'd CNTRL frames (good FCS & matching RA) */
+	uint32	rxmgucastmbss;		/**< # of rx'd mgmt frames (good FCS & matching RA) */
+	uint32	rxackucast;		/**< number of ucast ACKS received (good FCS) */
+
+	uint32	rxndpa_u;		/**< number of unicast RX NDPAs */
+	uint32	rxsf;			/**< number of rxsfucast */
+	uint32	rxcwrts;		/**< number of rx'd cw ucast rts */
+	uint32	rxcwcts;		/**< number of rx'd cw ucast cts */
+	uint32	rxbfpoll;		/**< number of rx'd BF ucast poll */
+
+	uint32	rxmgocast;		/**< # of rx'd MGMT frames (good FCS & not matching RA) */
+	uint32	rxctlocast;		/**< # of rx'd CNTRL frame (good FCS & not matching RA) */
+	uint32	rxrtsocast;		/**< # of rx'd RTS not addressed */
+	uint32	rxctsocast;		/**< # of rx'd CTS not addressed */
+	uint32	rxbeaconobss;		/* beacons rx'd from other BSS */
+
+	uint32	he_rxstrt_hesuppdu_cnt;	/**< rx'd HE su PPDU cnt */
+	uint32	he_rxstrt_hesureppdu_cnt; /**< rx'd HE SU RE PPDU cnt */
+	uint32	he_rxtsrt_hemuppdu_cnt;	/**< rx'd HE MU PPDU cnt */
+	uint32	rxbar;			/**< number of rx'd BARs */
+	uint32	rxback;			/**< number of rx'd BARs */
+
+	uint32	he_rxmtid_back;		/**< number of rx'd HE RX MultiTID BAs */
+	uint32	he_rxmsta_back;		/**< number of rx'd HE RX MultiSTA BAs */
+	uint32	bferpt;			/**< number of rx'd BFE report ready cnts */
+	uint32	he_rxdlmu;		/**< number of rx'd DL MU frames */
+	uint32	rxcgprqfrm;		/**< number of received Probe requests that made it into
+					 * the PRQ fifo
+					 */
+	uint32	rx_fp_shm_corrupt_cnt;	/**< SHM corrupt count */
+	uint32	he_physu_rx;		/**< Number of PHY SU Frames received */
+	uint32	he_phyru_rx;		/**< Number of PHY RU Frames received */
+	uint32	be_muppducnt;		/**< EHT BE MU PPDU count */
+	uint32	rx_uhr_elr_ppdu_cnt;	/**< UHR ELR PPDU count */
+} wl_cnt_mcst_rxfrm_v1_t;
+
+/* RXFRM counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_rxfrm_v1_t cnt_wrap[];
+} wl_cnt_mcst_rxfrm_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;	/**< chanspec at the time stats were collected */
+	uint8  blk_id;		/**< stats block id from where stats were collected */
+	uint8  link_idx;	/**< Link idx if infra_sta is associated */
+
+	/* 32 bit accumulated counters */
+	uint32 rxdtucastmbss;	/**< # of rx'd DATA frames (good FCS & matching RA) */
+	uint32 pktengrxducast;	/**< number of rx'd good fcs ucast frames */
+	uint32 pktengrxdmcast;	/**< number of rx'd good fcs mcast frames */
+	uint32 rxdtocast;	/**< # of rx'd DATA frames (good FCS & not matching RA) */
+	uint32 rxdtucastobss;	/**< number of unicast frames addressed to the MAC from
+				 * other BSS (WDS FRAME)
+				 */
+	uint32 goodfcs;		/**< number of rx'd goodfcs cnts */
+	uint32 rxdtmcast;	/**< # of rx'd Data mcast frames */
+} wl_cnt_mcst_rxfrm_u32_v1_t;
+
+/* RX FRM u32 counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_rxfrm_u32_v1_t cnt_wrap[];
+} wl_cnt_mcst_rxfrm_u32_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;			/**< chanspec at the time stats were collected */
+	uint8  blk_id;				/**< stats block id from where stats were taken */
+	uint8  link_idx;			/**< Link idx if infra_sta is associated */
+
+	/* 16-bit accumulated counters */
+	uint32	he_txtbppdu;			/**< increments on transmission of every TB PPDU */
+	uint32	he_txtbppdu_ack;		/**< Number of tx HE TBPPDU acks */
+	uint32	null_txsts_empty;		/**< Number empty null-txstatus' */
+	uint32	he_ulmu_disable;		/**< # of ULMU disables handled in ucode */
+	uint32	he_ulmu_data_disable;		/**< number of UL MU data disable scenarios
+						 * handled in ucode
+						 */
+	uint32	he_rxtrig_suppr_null_tbppdu;	/**<  count of null frame sent because of
+						 * suppression scenarios
+						 */
+	uint32	he_null_zero_agg;		/**< nullAMPDU's transmitted in response to
+						 * basic trigger because of zero aggregation
+						 */
+	uint32	he_null_tbppdu;			/**< null TBPPDU's sent as a response to
+						 * basic trigger frame
+						 */
+	uint32	he_null_bsrp_rsp;		/**< null AMPDU's txed in response to BSR poll */
+	uint32	he_null_fifo_empty;		/**< null AMPDU's in response to basic trigger
+						 * because of no frames in fifo's
+						 */
+	uint32	tx_murts_cnt;			/**< Tx MURTS Count */
+	uint32	tx_null_link_pref;		/**< Null Link Pref */
+	uint32	he_txtrig;			/**< # Tx Trigger Frames */
+} wl_cnt_mcst_txtb_v1_t;
+
+/* RX TB counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_txtb_v1_t cnt_wrap[];
+} wl_cnt_mcst_txtb_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16-bit accumulated counters */
+	uint32	txrtsfail;		/**< # of rts TX fails that reach retry limit */
+	uint32	txcgprsfail;		/**< Tx Probe Response Fail.
+					 * AP sent probe response but did not get ACK.
+					 */
+	uint32	bcntxcancl;		/**< TX bcns canceled due to rx of beacon (IBSS) */
+	uint32	txtplunfl;		/**< Template unfl
+					 *  (mac too slow to tx ACK/CTS or BCN)
+					 */
+	uint32	txphyerror;		/**< TX phyerr - reported in txs for
+					 * driver queued frames
+					 */
+	uint32	rspfrm_ed_txcncl_cnt;	/**< Resp frame TX cancle due to ED */
+	uint32	txfunfl[11];		/**< per-fifo tx underflows */
+	uint32	txfmlunfl[12];		/**< ML fifos underflow cnts */
+	uint32	bferpt_inv_cfg;		/**< Invalid bfe report cfg */
+	uint32	bferpt_drop_cnt1;	/**< bfe rpt drop cnt 1 */
+
+	uint32	bferpt_drop_cnt2;	/**< bfe rpt drop cnt 2 */
+	uint32	bferot_txcrs_high;	/**< bfe rpt tx crs high */
+	uint32	emlsr_tx_nosrt;		/**< # of no TX starts for eMLSR */
+	uint32	txbcn_phyerr_cnt;	/**< # Tx Beacon Phy error */
+	uint32	emlsr_bcndrop;		/**< eMLSR bcn drop count */
+
+	uint32	bferpt_drop_cnt3;	/**< bfe rpt drop cnt 3 */
+} wl_cnt_mcst_txerr_v1_t;
+
+/* RX TB counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_txerr_v1_t cnt_wrap[];
+} wl_cnt_mcst_txerr_container_v1_t;
+
+/* full flat structure for reporting u32 counters */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	uint32	ctmode_ufc_cnt;		/**< Number of UFCs with CT mode enabled */
+} wl_cnt_mcst_txerr_u32_v1_t;
+
+/* RX ERR counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_txerr_u32_v1_t cnt_wrap[];
+} wl_cnt_mcst_txerr_u32_container_v1_t;
+
+/* TX FRM full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16-bit accumulated counters */
+	uint32	txrtsfrm;		/**< number of RTS sent out by the MAC */
+	uint32	txctsfrm;		/**< number of CTS sent out by the MAC */
+	uint32	txackfrm;		/**< number of ACK frames sent out */
+	uint32	txback;			/**< blockack txcnt */
+	uint32	he_txmtid_back;		/**< number of mtid BAs */
+
+	uint32	txdnlfrm;		/**< number of Null-Data tx from template  */
+	uint32	txbcnfrm;		/**< beacons transmitted */
+	uint32	txndpa;			/**< Number of TX NDPAs */
+	uint32	txndp;			/**< Number of TX NDPs */
+	uint32	txbfm;			/**< Number of TX Bfm cnt */
+
+	uint32	txcwrts;		/**< Number of tx cw rts */
+	uint32	txcwcts;		/**< Number of tx cw cts */
+	uint32	txbfpoll;		/**< Number of tx bfpolls */
+	uint32  txfbw;			/**< transmit at fallback bw (dynamic bw) */
+	uint32	txampdu;		/**< number of AMPDUs transmitted */
+
+	uint32	he_txmampdu;		/**< Number of tx m-ampdus */
+	uint32	txucast;		/**< # of ucast tx expecting resp (not cts/cwcts) */
+	uint32	he_txfrag;		/**< Number of tx frags */
+	uint32  txinrtstxop;		/**< number of data frame tx during rts txop */
+	uint32	txcgprssuc;		/**< Tx Probe Response succ cnt */
+
+	uint32	txsf;			/**< # of Tx'd SF */
+	uint32	rts_to_self_cnt;	/**< # of RTS to self */
+	uint32	saqm_sendfrm_agg_cnt;	/**< # SAQM Send frame aggregation */
+	uint32	multista_ba_tx_cnt;	/**< # MBA sent */
+	uint32	bsrp_tx_cnt;		/**< # BSRP sent */
+	uint32	duo_tx_icf_cnt;		/**< # ICFs sent for DUO feature */
+	uint32	duo_tx_icr_cnt;		/**< # ICRs sent for DUO feature */
+	uint32	duo_fw_req_succ_cnt;	/**< # FW DUO reqs successfully handled */
+	uint32	duo_coex_req_succ_cnt;	/**< # COEX DUO reqs successfully handled */
+} wl_cnt_mcst_txfrm_v1_t;
+
+/* RX TB counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_txfrm_v1_t cnt_wrap[];
+} wl_cnt_mcst_txfrm_container_v1_t;
+
+/* full flat structure for reporting u32 counters */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	uint32	txallfrm;		/**< num of frames sent, incl. Data, ACK, RTS, CTS,
+					 * Control Management (includes retransmissions)
+					 */
+	uint32	txmpdu;			/**< number of MPDUs transmitted */
+} wl_cnt_mcst_txfrm_u32_v1_t;
+
+/* TX FRM u32 counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_txfrm_u32_v1_t cnt_wrap[];
+} wl_cnt_mcst_txfrm_u32_container_v1_t;
+
+/* Scan core related structs */
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16 bit accumulated counters */
+	uint32	rx20s_cnt;		/**< Increments if RXFrame does not include primary 20 */
+	uint32	rxfrmtoolong;		/**< rx'd frame longer than legal limit (2346 bytes) */
+	uint32	rxfrmtooshrt;		/**< rx'd frame not enough bytes for ft */
+	uint32	rxnodelim;		/**< # of not valid delim -> ampdu parser */
+	uint32	rxbad_ampdu;		/**< number of rx'd bad ampdus */
+
+	uint32	rxcgprsqovfl;		/**< Rx Probe Request Que overflow in the AP */
+	uint32	bphy_rxcrsglitch;	/**< PHY count of bphy glitches */
+	uint32	rxdrop20s;		/**< drop secondary cnt */
+	uint32	rxtoolate;		/**< receive too late */
+	uint32	m_pfifo_drop;		/**< # of pfifo dropped frames */
+
+	/* The following need to be contiguous */
+	uint32	phyovfl;		/**< number of phy overflows */
+	uint32	rxf0ovfl;		/**< number of rx fifo 0 overflows */
+	uint32	rxf1ovfl;		/**< number of rx fifo 1 overflows */
+	uint32	lenfovfl;		/**< number of length overflows */
+	uint32	weppeof;		/**< number of weppeof  */
+	uint32	badplcp;		/**< parity check of the PLCP header failed */
+
+	uint32	ctx_fifo_full;		/**< fw not draining frames fast enough */
+	uint32	ctx_fifo2_full;		/**< fw not draining frames fast enough */
+	uint32	missbcn_dbg;		/**< number of beacon missed to receive */
+	uint32	laterx_cnt;		/**< ucode sees frame 30us late */
+	uint32	he_colormiss_cnt;	/**< HE BSS color mismatch counts cnts */
+
+	uint32	rxfrmtoolong2_cnt;	/**< # of Rx'd too long pkts */
+	uint32 rxanyerr;	/**< Any RX error that is not counted by other counters */
+	uint32 rxbadfcs;	/**< # of frames with CRC check failed */
+	uint32	rxbadplcp;	/**< parity check of the PLCP header failed */
+	uint32	rxcrsglitch;	/**< PHY was able to correlate the preamble but not the header */
+	uint32  bphy_badplcp;	/**< number of bad PLCP reception on BPHY rate */
+} wl_cnt_mcst_sc_rxerr_v1_t;
+
+/* RX ERR counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_sc_rxerr_v1_t cnt_wrap[];
+} wl_cnt_mcst_sc_rxerr_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16-bit accumulated counters */
+	uint32	he_rxtrig_myaid;	/**< number of rx'd valid trigger frame with myaid */
+	uint32	he_rxtrig_rand;		/**< number of rx'd valid trigger frame with random aid */
+	uint32	he_rxtrig_basic;	/**< number of rx'd of basic trigger frame */
+	uint32	he_rxtrig_bfm_cnt;	/**< number of rx'd trigger frame with bfm */
+	uint32	he_rxtrig_mubar;	/**< number of rx'd MUBAR trigger frame variant */
+
+	uint32	he_rxtrig_murts;	/**< number of rx'd MU-RTS trigger frame variant */
+	uint32	he_rxtrig_bsrp;		/**< number of rx'd of BSR poll trigger frame variant */
+	uint32	he_rxtrig_gcrmubar;	/**< number of rx'd gcr mu bar trigger frame variant? */
+	uint32	he_rxtrig_bqrp;		/**< number of rx'd bqrp trigger frame variant? */
+	uint32	he_rxtrig_nfrp;		/**< Todo: check on functionality */
+
+	uint32	he_rxtrig_invalid_ru;	/**< Rx'd trigger frame with invalid STA20 RU index */
+	uint32	he_rxtrig_inv_ru_cnt;	/**< # of Rx'd trigger frames with invalid RU cnt */
+	uint32	he_rxtrig_drop_cnt;	/**< # of trigger frames dropped */
+	uint32	he_rxtrig_min_len_cnt;
+	uint32	he_rxtrig_drop_nav_active_cnt;
+
+	uint32	he_rxtrig_drop_main_sleep_cnt;
+	uint32	duo_bsrp_rx_cnt;	/**< # BSRPs RXed for DUO */
+} wl_cnt_mcst_sc_rxtb_v1_t;
+
+/* RX TB counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_sc_rxtb_v1_t cnt_wrap[];
+} wl_cnt_mcst_sc_rxtb_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16 bit accumulated counters */
+	uint32	rxstrt;			/**< Number of received frames with a good PLCP
+					 * (i.e. passing parity check)
+					 */
+	uint32	rxctlmcast;		/**< # of RX ctrl mcast frames */
+	uint32	rxmgmcast;		/**< # of rx'd Management mcast frames */
+	uint32	rxbeaconmbss;		/**< beacons rx'd from member of BSS */
+	uint32	rxndpa_m;		/**< number of RX NDPA Multicast */
+
+	uint32	rxrtsucast;		/**< # of ucast RTS (good FCS) */
+	uint32	rxctsucast;		/**< # of ucast CTS (good FCS) */
+	uint32	rxctlucast;		/**< # of rx'd CNTRL frames (good FCS & matching RA) */
+	uint32	rxmgucastmbss;		/**< # of rx'd mgmt frames (good FCS & matching RA) */
+	uint32	rxackucast;		/**< number of ucast ACKS received (good FCS) */
+
+	uint32	rxndpa_u;		/**< number of unicast RX NDPAs */
+	uint32	rxsf;			/**< number of rxsfucast */
+	uint32	rxcwrts;		/**< number of rx'd cw ucast rts */
+	uint32	rxcwcts;		/**< number of rx'd cw ucast cts */
+	uint32	rxbfpoll;		/**< number of rx'd BF ucast poll */
+
+	uint32	rxmgocast;		/**< # of rx'd MGMT frames (good FCS & not matching RA) */
+	uint32	rxctlocast;		/**< # of rx'd CNTRL frame (good FCS & not matching RA) */
+	uint32	rxrtsocast;		/**< # of rx'd RTS not addressed */
+	uint32	rxctsocast;		/**< # of rx'd CTS not addressed */
+	uint32	rxbeaconobss;		/* beacons rx'd from other BSS */
+
+	uint32	rxbar;			/**< number of rx'd BARs */
+	uint32	rxback;			/**< number of rx'd BARs */
+	uint32	he_rxmtid_back;		/**< number of rx'd HE RX MultiTID BAs */
+	uint32	he_rxmsta_back;		/**< number of rx'd HE RX MultiSTA BAs */
+	uint32	he_rxdlmu;		/**< number of rx'd DL MU frames */
+
+	uint32	rxcgprqfrm;		/**< number of received Probe requests that made it into
+					 * the PRQ fifo
+					 */
+	uint32 rxdtucastmbss;		/**< # of rx'd DATA frames (good FCS & matching RA) */
+	uint32 pktengrxducast;		/**< number of rx'd good fcs ucast frames */
+	uint32 pktengrxdmcast;		/**< number of rx'd good fcs mcast frames */
+	uint32 rxdtocast;		/**< # of rx'd DATA frames (good FCS & not matching RA) */
+
+	uint32 rxdtucastobss;		/**< number of unicast frames addressed to the MAC from
+					 * other BSS (WDS FRAME)
+					 */
+	uint32 goodfcs;			/**< number of rx'd goodfcs cnts */
+	uint32 rxdtmcast;		/**< # of rx'd Data mcast frames */
+} wl_cnt_mcst_sc_rxfrm_v1_t;
+
+/* RXFRM counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_sc_rxfrm_v1_t cnt_wrap[];
+} wl_cnt_mcst_sc_rxfrm_container_v1_t;
 #endif /* _wlioctl_counters_h_ */

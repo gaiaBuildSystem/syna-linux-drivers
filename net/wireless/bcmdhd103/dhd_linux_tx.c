@@ -96,6 +96,11 @@
 #include <bcmiov.h>
 #include <bcmstdlib_s.h>
 
+#include <ethernet.h>
+#include <bcmevent.h>
+#include <vlan.h>
+#include <802.3.h>
+
 #ifdef WL_NANHO
 #include <nanho.h>
 #endif /* WL_NANHO */
@@ -204,6 +209,7 @@
 #include <802.3.h>
 
 #define WME_PRIO2AC(prio)  wme_fifo2ac[prio2fifo[(prio)]]
+extern int dhd_low_latency;
 
 void
 dhd_tx_stop_queues(struct net_device *net)
@@ -361,7 +367,8 @@ BCMFASTPATH(__dhd_sendpkt)(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 			wl_handle_wps_states(dhd_idx2net(dhdp, ifidx),
 				pktdata, PKTLEN(dhdp->osh, pktbuf), TRUE);
 #endif /* WL_CFG80211 && WL_WPS_SYNC */
-		} else if (ntoh16(eh->ether_type) == ETHER_TYPE_ARP) {
+		} else if (dhd_low_latency &&
+			ntoh16(eh->ether_type) == ETHER_TYPE_ARP) {
 				PKTSETPRIO(pktbuf, PRIO_8021D_VO);
 		}
 	} else {
@@ -490,7 +497,7 @@ BCMFASTPATH(__dhd_sendpkt)(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 		dhd_prot_hdrpush(dhdp, ifidx, pktbuf);
 	}
 
-	if (ntoh16(eh->ether_type) == ETHER_TYPE_IP) {
+	if (dhd_low_latency && ntoh16(eh->ether_type) == ETHER_TYPE_IP) {
 		struct iphdr *ipheader = (struct iphdr*)((uint8 *)eh + ETHER_HDR_LEN);
 		if (ipheader && ipheader->protocol == IPPROTO_ICMP) {
 			PKTSETPRIO(pktbuf, PRIO_8021D_VO);

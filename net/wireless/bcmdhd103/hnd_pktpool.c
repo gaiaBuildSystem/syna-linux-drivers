@@ -63,6 +63,10 @@
 #include <d11_cfg.h>
 #endif
 
+#ifdef SMBM
+#include <rte_smbm.h>
+#endif /* SMBM */
+
 /* mutex macros for thread safe */
 #ifdef HND_PKTPOOL_THREAD_SAFE
 #define HND_PKTPOOL_MUTEX_CREATE(name, mutex)	osl_ext_mutex_create(name, mutex)
@@ -496,6 +500,13 @@ BCMATTACHFN(pktpool_deinit)(osl_t *osh, pktpool_t *pktp)
 	/* Are there still pending pkts? */
 	ASSERT(pktp->n_pkts == 0);
 
+#ifdef RESV_POOL_IN_SMBM
+	/* Unregister reserved pools from SMBM */
+	if (resv_pool_info) {
+		hnd_resv_pool_smbm_unregister(resv_pool_info);
+	}
+#endif /* RESV_POOL_IN_SMBM */
+
 	return 0;
 }
 
@@ -537,10 +548,19 @@ pktpool_fill(osl_t *osh, pktpool_t *pktp, bool minimal)
 		 * Avoid same pkts being dequed and enqued to pool when allocation fails.
 		 * All pkts in pool have same length.
 		 */
-		p = PKTALLOC(osh, pktp->max_pkt_bytes, pktp->type);
+#ifdef RESV_POOL_IN_SMBM
+		/* Check if this is a reserved pool that should use SMBM memory */
+		if (pktp->resv_info != NULL && RI_FROM_PKTP(pktp)->use_smbm_only) {
+			p = lb_alloc_smbm(pktp->max_pkt_bytes, pktp->type,
+				RI_FROM_PKTP(pktp)->smbm_handle, CALL_SITE);
+		} else
+#endif	/* RESV_POOL_IN_SMBM */
+		{
+			p = PKTALLOC(osh, pktp->max_pkt_bytes, pktp->type);
+		}
 #else
 		p = PKTGET(osh, pktp->n_pkts, TRUE);
-#endif
+#endif /* _RTE_ */
 
 		if (p == NULL) {
 			err = BCME_NOMEM;
@@ -1541,7 +1561,7 @@ BCMPOSTTRAPFASTPATH(pktpool_free_cb)(pktpool_t *pktp, void *p, uint num_pkts)
 			pktp->dmarxurb.cb(pktp, pktp->dmarxurb.arg, p, num_pkts);
 		}
 		if (PKTISRXFRAG(OSH_NULL, p)) {
-			ASSERT(num_pkts == 1u); //No chain support if its still rxfrag.
+			ASSERT(num_pkts == 1u); // No chain support if its still rxfrag.
 			/* calls pciedev_manage_haddr */
 			pktp->cb_haddr.cb(pktp, RXCPLID_REMOVE, pktp->cb_haddr.arg, p, NULL);
 			PKTRESETRXFRAG(OSH_NULL, p);

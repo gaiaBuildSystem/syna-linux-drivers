@@ -127,7 +127,7 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
  * @param  val     Value to and into the register at the address.
  * @return         The value in the register at the provided address after the optional write.
  */
-#define RMWR_REG(addr, mask, val) ({ \
+#define RMWR_REG(addr, mask, val) BCM_EXTENSION ({ \
 	if ((mask != 0) || (val != 0)) { \
 		SET_REG(NULL, (uint32 *)(uintptr)(addr), (mask), (val)); \
 	} \

@@ -338,7 +338,6 @@ typedef struct {
 	  ((((uint16)(channel) + (uint16)(offset) * CH_10MHZ_APART) < (uint16)MAXCHANNEL) ? \
 	   ((channel) + (offset) * CH_10MHZ_APART) : 0)))
 
-#ifdef BCMWIFI_BW320MHZ
 /* pass a 320MHz center channel to get 20MHz subband channel numbers */
 #define LLLL_20_SB_320(channel)  CH_OFF_10MHZ_MULTIPLES(channel, -15)
 #define LLLU_20_SB_320(channel)  CH_OFF_10MHZ_MULTIPLES(channel, -13)
@@ -357,24 +356,6 @@ typedef struct {
 #define UUUL_20_SB_320(channel)  CH_OFF_10MHZ_MULTIPLES(channel,  13)
 #define UUUU_20_SB_320(channel)  CH_OFF_10MHZ_MULTIPLES(channel,  15)
 #define BW160MHZ_MACROS
-#else /* BCMWIFI_BW320MHZ */
-#define LLLL_20_SB_320(channel)  0
-#define LLLU_20_SB_320(channel)  0
-#define LLUL_20_SB_320(channel)  0
-#define LLUU_20_SB_320(channel)  0
-#define LULL_20_SB_320(channel)  0
-#define LULU_20_SB_320(channel)  0
-#define LUUL_20_SB_320(channel)  0
-#define LUUU_20_SB_320(channel)  0
-#define ULLL_20_SB_320(channel)  0
-#define ULLU_20_SB_320(channel)  0
-#define ULUL_20_SB_320(channel)  0
-#define ULUU_20_SB_320(channel)  0
-#define UULL_20_SB_320(channel)  0
-#define UULU_20_SB_320(channel)  0
-#define UUUL_20_SB_320(channel)  0
-#define UUUU_20_SB_320(channel)  0
-#endif /* BCMWIFI_BW320MHZ */
 
 #ifdef BCMWIFI_BW160MHZ
 #define BW160MHZ_MACROS
@@ -432,7 +413,8 @@ typedef struct {
  * (works with 20, 40, 80, 160, 320)
  */
 #define CH_FIRST_20_SB(chspec) \
-	((uint8)(CHSPEC_IS320(chspec) ? LLLL_20_SB_320(wf_chspec_center_channel(chspec)) : \
+	((uint8)((CHSPEC_BW(chspec) == WL_CHANSPEC_BW_320) ? \
+		LLLL_20_SB_320(wf_chspec_320_id2cch(chspec)) : \
 		(CHSPEC_IS160(chspec) ? LLL_20_SB_160(wf_chspec_center_channel(chspec)) : \
 		(CHSPEC_IS80(chspec) ? LL_20_SB(wf_chspec_center_channel(chspec)) : \
 		(CHSPEC_IS40(chspec) ? LOWER_20_SB(wf_chspec_center_channel(chspec)) : \
@@ -442,7 +424,8 @@ typedef struct {
  * (works with 20, 40, 80, 160, 320)
  */
 #define CH_LAST_20_SB(chspec) \
-	((uint8)(CHSPEC_IS320(chspec) ? UUUU_20_SB_320(wf_chspec_center_channel(chspec)) : \
+	((uint8)((CHSPEC_BW(chspec) == WL_CHANSPEC_BW_320) ? \
+		UUUU_20_SB_320(wf_chspec_320_id2cch(chspec)) : \
 		(CHSPEC_IS160(chspec) ? UUU_20_SB_160(wf_chspec_center_channel(chspec)) : \
 		(CHSPEC_IS80(chspec) ? UU_20_SB(wf_chspec_center_channel(chspec)) : \
 		(CHSPEC_IS40(chspec) ? UPPER_20_SB(wf_chspec_center_channel(chspec)) : \

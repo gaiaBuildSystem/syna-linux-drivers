@@ -278,6 +278,8 @@ typedef struct hs20_ie hs20_ie_t;
 
 /* QoS Mgmt vendor specific IE OUI type */
 #define QOS_MGMT_VSIE_OUI_TYPE		0x22u
+#define QOS_MGMT_VSIE_MAX_ATTR_SIZE \
+	(BCM_TLV_MAX_DATA_SIZE - (QOS_MGMT_IE_HDR_SIZE - TLV_HDR_LEN))
 
 /* WFA Capabilities vendor specific IE OUI type */
 #define WFA_CAP_VSIE_OUI_TYPE		0x23u
@@ -349,7 +351,9 @@ typedef enum qos_mgmt_attrs {
 	DAR_RADIO_COUNTERS_STATISTICS_ATTR	= 11,
 
 	/* Control plane events attribute */
-	DAR_CONTROL_PLANE_EVENTS_ATTR		= 12
+	DAR_CONTROL_PLANE_EVENTS_ATTR		= 12,
+
+	DAR_FRAGMENT_ATTR			= 255
 
 } qos_mgmt_attrs_t;
 
@@ -403,10 +407,10 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_cap_ie {
 /* QoS Mgmt IE */
 typedef BWL_PRE_PACKED_STRUCT struct qos_mgmt_ie {
 	uint8 id;		/* 0xDD, IEEE 802.11 vendor specific information element */
-	uint8 len;		/* length of data following */
+	uint8 len;		/* length of data + 4u */
 	uint8 oui[WFA_OUI_LEN];	/* WFA OUI */
 	uint8 oui_type;		/* QOS_MGMT_VSIE_OUI_TYPE */
-	uint8 data[];		/* one or more DSCP policy attributes */
+	uint8 data[];		/* One or more QoS Mgmt attributes */
 } BWL_POST_PACKED_STRUCT qos_mgmt_ie_t;
 #define QOS_MGMT_IE_HDR_SIZE (sizeof(qos_mgmt_ie_t))
 
@@ -578,14 +582,30 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_gen_cap_attr {
 #define DAR_AF_RESP_OUI_SUBTYPE			4u
 #define DAR_AF_REPORT_OUI_SUBTYPE		5u
 
-#define DAR_REQ_ATTR_REQ_TYPE_ADD		0u	/* Add */
-#define DAR_REQ_ATTR_REQ_TYPE_REMOVE		1u	/* Remove */
+/* DAR request type add or remove */
+#define DAR_REQ_TYPE_ADD			0u	/* Add */
+#define DAR_REQ_TYPE_REMOVE			1u	/* Remove */
 
-/* DAR request attribute report method */
-#define DAR_REQ_ATTR_REPORT_METHOD_PERIODIC	0u	/* Periodic report */
-#define DAR_REQ_ATTR_REPORT_METHOD_ONE_TIME	1u	/* One-time report */
+/* DAR report type */
+#define DAR_REPORT_TYPE_HISTOGRAM		0u
+#define DAR_REPORT_TYPE_PERCENTILE		1u
+#define DAR_REPORT_TYPE_NO_PREFERENCE		2u
 
-/* Status codes */
+/* DAR report type threshold unit size */
+#define DAR_REPORT_TYPE_HIST_TH_UNIT_SIZE	4u
+#define DAR_REPORT_TYPE_PECT_TH_UNIT_SIZE	2u
+#define DAR_REPORT_TYPE_DFLT_TH_UNIT_SIZE	1u
+
+/* DAR report granularity */
+#define DAR_REPORT_GRANULARITY_TID		0u
+#define DAR_REPORT_GRANULARITY_AC		1u
+#define DAR_REPORT_GRANULARITY_AGG_AC		2u
+
+/* DAR link graularity */
+#define DAR_LINK_GRANULARITY_DEVICE_OR_MLD	0u
+#define DAR_LINK_GRANULARITY_LINK_LEVEL		1u
+
+/* DAR resposne status codes */
 #define DAR_RESP_ATTR_SC_SUCCESS				0u
 #define DAR_RESP_ATTR_SC_ACCEPTED_WITH_CHANGES			1u
 #define DAR_RESP_ATTR_SC_REQ_DECLINED				2u
@@ -605,7 +625,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_af_req {
 				 * DAR attributes
 				 */
 } BWL_POST_PACKED_STRUCT dar_af_req_t;
-#define DAR_REQUEST_AF_REQ_HDR_SIZE (sizeof(dar_af_req_t));
+#define DAR_REQUEST_AF_REQ_HDR_SIZE (sizeof(dar_af_req_t))
 
 /* DAR response action frame header */
 typedef BWL_PRE_PACKED_STRUCT struct dar_af_resp {
@@ -618,7 +638,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_af_resp {
 				 * DAR attributes.
 				 */
 } BWL_POST_PACKED_STRUCT dar_af_resp_t;
-#define AR_RESP_AF_RESP_HDR_SIZE (sizeof(dar_af_resp_t))
+#define DAR_RESP_AF_RESP_HDR_SIZE (sizeof(dar_af_resp_t))
 
 /* DAR report action frame header */
 typedef BWL_PRE_PACKED_STRUCT struct dar_af_report {
@@ -638,11 +658,10 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_req_attr {
 	uint8 len;			/* Length of the following fields */
 	uint8 request_id;		/* Non-zero value */
 	uint8 request_type;		/* 0: Add, 1:Remove, 2-255 reserved */
-	uint8 report_method;		/* periodic/one-time */
-	uint8 measurement_duration;	/* Indicats the requested measurement period
+	uint16 measurement_duration;	/* Indicats the requested measurement period
 					 * in units of ms.
 					 */
-	uint8 number_of_measurements;	/* Indicates the a non-zero value for the requested
+	uint16 number_of_measurements;	/* Indicates the a non-zero value for the requested
 					 * number of measurements for periodic reporting.
 					 * This field is reserved if request_type is not 0 (Add)
 					 * or if report_method is not 0 (Periodic).
@@ -692,11 +711,11 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_report_attr {
 } BWL_POST_PACKED_STRUCT dar_report_attr_t;
 #define DAR_REPORT_ATTR_SIZE (sizeof(dar_report_attr_t))
 
-/* DAR Latency statistics presense bitmap sub-fields */
-typedef enum dar_latency_statistics_presense_bitmap {
-	DAR_LATENCY_STATISTICS_PRESENSE_BITMAP_THREASHOLDS	= (1u << 0u),
-	DAR_LATENCY_STATISTICS_PRESENSE_BITMAP_STATISTICS_ENTRY	= (1u << 1u)
-} dar_latency_statistics_presense_bitmap_t;
+/* DAR Latency statistics parameter presence bitmap */
+typedef enum dar_latency_statistics_parameter_presence_bits {
+	DAR_LATENCY_STATISTICS_PARAMETER_PRESENCE_BITS_THRESHOLD	= (1u << 0u),
+	DAR_LATENCY_STATISTICS_PARAMETER_PRESENCE_BITS_STATISTICS	= (1u << 1u)
+} dar_latency_statistics_parameter_presence_bits_t;
 
 /* DAR Latency statistics attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_attr {
@@ -707,11 +726,6 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_attr {
 	/* Length of the following fields in this attribute */
 	uint8 len;
 
-	/* Set to the same value as the Request ID in the corresponding DAR Request attribute,
-	 * or to 0 for an unsolicited report.
-	 */
-	uint8 request_id;
-
 	/* Bit 0 indicates presence of the Thresholds field. This bit is set to 0 if
 	 * the attribute is in a DAR Report frame.
 	 * Bit 1 indicates presence of the Number of Latency Statistics Entries and
@@ -719,7 +733,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_attr {
 	 * DAR Report frame; otherwise it is set to 0.
 	 * Bits 2-7: Reserved.
 	 */
-	uint8 parameter_presense_bitmap;
+	uint8 parameter_presence_bitmap;
 
 	/* 0: indicates the Latency Statistics List field contains, or is requested to contain,
 	 * histogram(s) of latency measurements.
@@ -749,7 +763,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_attr {
 	 * or requested; otherwise the bit is set to 0. Bits 4-15 are reserved.
 	 * This field is reserved if Report Granularity is not 0 (TID level) or 1 (AC level).
 	 */
-	uint8 report_granularity_bitmap;
+	uint16 report_granularity_bitmap;
 
 	/* 0: indicates the Latency Statistics List field contains, or is requested to contain,
 	 * values at the device level. If the DAR responder is an MLD, this means at the MLD level
@@ -758,7 +772,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_attr {
 	 * is an MLD
 	 * Values 2-255 are reserved.
 	 */
-	uint8 link_granulatiry;
+	uint8 link_granularity;
 
 	/* Bit i is set to 1 if Link i's latency statistics are reported or requested,
 	 * else it is set to 0.
@@ -784,7 +798,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_entry_rt0 {
 	 */
 	uint8 lower_bound_latency;
 
-	/* The number of unicast MPDUs transmitted by the DAR responder to the DAR initiator
+	/* The number of unicast MSDUs transmitted by the DAR responder to the DAR initiator
 	 * for whose latency falls between the value in Lower Bound Latency subfield in this
 	 * Latency Statistics Entry subfield and the value in the Lower Bound Latency subfield
 	 * of the next Latency Statistics Entry subfield in this Latency Statistics List field.
@@ -792,7 +806,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_entry_rt0 {
 	 * the latency falls above the value in the Lower Bound Latency subfield of this Latency
 	 * Statistics Entry subfield.
 	 */
-	uint32 mpdu_count;
+	uint32 msdu_count;
 } BWL_POST_PACKED_STRUCT dar_latency_statistics_entry_rt0_t;
 
 /* DAR Latency statistics entry for report_type 1 */
@@ -809,6 +823,298 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_entry_rt1 {
 	 */
 	uint16 latency;
 } BWL_POST_PACKED_STRUCT dar_latency_statistics_entry_rt1_t;
+
+/* Radio Counters attribute parameter presence bitmap */
+typedef enum dar_radio_counters_parameter_presence_bits {
+	/* Transmit Power field */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_TRANSMIT_POWER	= (1u << 0u),
+	/* Observed Channel Utilization Fraction Field */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_OCU_FRACTION		= (1u << 1u),
+	/* MPDU Count Statistics field */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_MPDU_STAT		= (1u << 2u),
+	/* RTS Statistics field */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_RTS_STAT		= (1u << 3u),
+	/* FCS Failure field */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_FCS_FAILURE		= (1u << 4u),
+	/* 5 reserved */
+	/* Threshold fields */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_THRESHOLD		= (1u << 6u),
+	/* List fields contating analystics information */
+	DAR_RADIO_COUNTERS_PARAMETER_PRESENCE_BITS_LIST_FIELD		= (1u << 7u),
+	/* 8 .. 15 reserved */
+} dar_radio_counters_parameter_presence_bits_t;
+
+/* DAR Radio Counters attribute */
+typedef BWL_PRE_PACKED_STRUCT struct dar_radio_counters_attr {
+	/* Attribute id: LATENCY_STATISTICS_ATTR */
+	uint8 id;
+
+	/* Length of the following fields in this attribute */
+	uint8 len;
+
+	/* Bits 0 thru 5 indicate the presence of, or a request for the presence of,
+	 * a field as follows:
+	 * Bit 0: Transmit Power field
+	 * Bit 1: Observed Channel Utilization Fraction field
+	 * Bit 2: MPDU Count Statistics field
+	 * Bit 3: RTS Statistics field
+	 * Bit 4: FCS Failure field
+	 * Bit 5: reserved.
+	 * Bit 6 indicates the presence of Threshold fields within certain fields
+	 * (when present) of this attribute - see definitions below.
+	 * This bit is set to 0 if the attribute is in a DAR Report frame.
+	 * Bit 7 indicates the presence of list fields containing analytics information
+	 * within certain fields (when present) of this attribute see definitions below
+	 * This bit is set to 1 if the attribute is in a DAR Report frame; otherwise it is set to 0.
+	 * Bits 8 thru 15: reserved
+	 */
+	uint16 parameter_presence_bitmap;
+
+	/* Based on the parameter_presense_bitmap, data contains:
+	 * Report transmit power, Obeserved Channel Utilization Fraction, MPDU Count Statistics,
+	 * RTS Statistics, FCS Failure
+	 */
+	uint8 data[];
+} BWL_POST_PACKED_STRUCT dar_radio_counters_attr_t;
+#define DAR_RADIO_COUNTERS_ATTR_SIZE (sizeof(dar_radio_counters_attr_t))
+
+/* DAR radio counters attribute - Report Transmit Power field */
+typedef BWL_PRE_PACKED_STRUCT struct report_transmit_power {
+
+	/* 0: indicates the Transmit Power List field contains,
+	 * or is requested to contain, values at the device level.
+	 * This value is always used if the DAR Responder is not an MLD.
+	 * 1: indicates the Transmit Power List field contains,
+	 * or is requested to contain, values at the link level (for an MLD).
+	 * This value is always used if the DAR Responder if an MLD.
+	 * Values 2-255 are reserved
+	 */
+	uint8 link_granularity;
+
+	/* Bit i is set to 1 if the transmit power for the link with link identifier equal to i
+	 * (see 35.3.3.2 of 802.11BE draft 7.0) are reported or requested;
+	 * otherwise that bit is set to 0.
+	 * This field is reserved if Link Granularity is not 1
+	 */
+	uint8 link_granularity_bitmap;
+
+	/* This field is present when Bit 7 of the Parameter Presence Bitmap is set to 1;
+	 * otherwise it is absent
+	 * Contains a list of Transmit Power subfields for each reported link.
+	 * 0 or B where
+	 * B is the Hamming weight of the Link Granularity Bitmap field
+	 * if the Link Granularity field is 1, otherwise B is 1
+	 */
+	uint8 transmit_power_list[];
+} BWL_POST_PACKED_STRUCT report_transmit_power_t;
+#define REPORT_TRANSMIT_POWER_SIZE (sizeof(report_transmit_power_t))
+
+/* DAR radio counters attribute - Observed Cahnnel Utilization Fraction field */
+typedef BWL_PRE_PACKED_STRUCT struct observed_channel_utilization_fraction {
+
+	/* 0: indicates the Observed Channel Utilization Fraction List field contains,
+	 * or is requested to contain, values at the device level.
+	 * This value is always used if the DAR Responder is not an MLD
+	 * 1: indicates the Observed Channel Utilization Fraction List field contains
+	 * or is requested to contain, values at the link level (for an MLD).
+	 * This value is always used if the DAR Responder if an MLD.
+	 * Values 2-255 are reserved
+	 */
+	uint8 link_granularity;
+
+	/* Bit i is set to 1 if the observed channel utilization for the link with link
+	 * identifier equal to i (see 35.3.3.2 of 802.11BE draft 7.0) are reported or requested;
+	 * otherwise that bit is set to 0.
+	 * This field is reserved if Link Granularity is not 1
+	 */
+	uint8 link_granularity_bitmap;
+
+	/* Thresholds and Observed channel utilization fraction list
+	 * depneds on link granularity bitmap fields
+	 */
+	uint8 data[];
+} BWL_POST_PACKED_STRUCT observed_channel_utilization_fraction_t;
+#define OBSERVED_CHANNEL_UTILIZATION_FRACTION_SIZE (sizeof(observed_channel_utilization_fraction_t))
+
+/* DAR radio counters attribute - MPDU Count statistics field */
+typedef BWL_PRE_PACKED_STRUCT struct mpdu_count_statistics {
+	/* indicates the MPDU Count Statistics List field contains,
+	 * or is requested to contain, values with granularity at the
+	 * 0: TID level
+	 * 1: AC level
+	 * 2: Aggregated across all ACs
+	 * 3-255: Reserved
+	 */
+	uint8 report_granularity;
+
+	/* If the Report Granularity subfield value is 0,
+	 * Bit k is set to 1 if the MPDU Count statistics for TID k is reported or requested,
+	 * otherwise Bit k is set to 0
+	 * If the Report Granularity subfield value is 1,
+	 * each of bits 0-3 are set to 1 if the MPDU Count statistics for AC_BK, AC_BE, AC_VI
+	 * and AC_VO, respectively, are requested or reported;
+	 * otherwise the bit is set to 0. Bit 4-15 are reserved
+	 */
+	uint16 report_granularity_bitmap;
+
+	/* 0: non-MLD Level, 1: MLD Level */
+	uint8 link_granularity;
+
+	/* Bit i is set to 1 if the statistics for the link with link
+	 * identifier equal to i (see 35.3.3.2 of 802.11BE draft 7.0) are reported or requested;
+	 * otherwise that bit is set to 0.
+	 * This field is reserved if Link Granularity is not 1
+	 */
+	uint8 link_granularity_bitmap;
+
+	/* Thresholds and MPDU count statistics list
+	 * depend on report and link granularity bitmap fields
+	 */
+	uint8 data[];
+} BWL_POST_PACKED_STRUCT mpdu_count_statistics_t;
+#define MPDU_COUNT_STATISTICS_SIZE (sizeof(mpdu_count_statistics_t))
+
+/* DAR radio counters attribute - MPDU Count statistics information subfield */
+typedef BWL_PRE_PACKED_STRUCT struct mpdu_count_statistics_info_subfield {
+	/* Count of unicast MPDUs that were sent by the DAR responder
+	 * to the DAR initiator on the link, and successfully acknowledged
+	 */
+	uint32 successful_mpdu_count;
+	/* Count of unicast MPDUs that were sent by the DAR responder
+	 * to the DAR initiator on the link, were not acknowledged properly,
+	 * were retried one or more times, then were successfully acknowledged
+	 * before reaching the sender retry limit
+	 */
+	uint32 mpdu_retry_count;
+} BWL_POST_PACKED_STRUCT mpdu_count_statistics_info_subfield_t;
+
+/* DAR radio counters attribute - RTS statistics field */
+typedef BWL_PRE_PACKED_STRUCT struct rts_statistics {
+	/* indicates the RTS Statistics List field contains,
+	 * or is requested to contain, values with granularity at the
+	 * 0: TID level
+	 * 1: AC level
+	 * 2: Aggregated across all ACs
+	 * 3-255: Reserved
+	 */
+	uint8 report_granularity;
+
+	/* If the Report Granularity subfield value is 0,
+	 * Bit k is set to 1 if the RTS statistics for TID k is reported or requested,
+	 * otherwise Bit k is set to 0
+	 * If the Report Granularity subfield value is 1,
+	 * each of bits 0-3 are set to 1 if the RTS statistics for AC_BK, AC_BE, AC_VI
+	 * and AC_VO, respectively, are requested or reported;
+	 * otherwise the bit is set to 0. Bit 4-15 are reserved
+	 */
+	uint16 report_granularity_bitmap;
+
+	/* 0: non-MLD Level, 1: MLD Level */
+	uint8 link_granularity;
+
+	/* Bit i is set to 1 if the statistics for the link with link
+	 * identifier equal to i (see 35.3.3.2 of 802.11BE draft 7.0) are reported or requested;
+	 * otherwise that bit is set to 0.
+	 * This field is reserved if Link Granularity is not 1
+	 */
+	uint8 link_granularity_bitmap;
+
+	/* Thresholds and RTS statistics list
+	 * depend on report and link granularity bitmap fields
+	 */
+	uint8 data[];
+} BWL_POST_PACKED_STRUCT rts_statistics_t;
+#define RTS_STATISTICS_SIZE (sizeof(rts_statistics_t))
+
+/* DAR radio counters attribute - RTS statistics information subfield */
+typedef BWL_PRE_PACKED_STRUCT struct rts_statistics_info_subfield {
+	/* The count of RTS frames that were sent by the DAR responder
+	 * to the DAR initiator using the TID/AC on the link and
+	 * for which a CTS frame was successfully received
+	 */
+	uint32 successful_rts_count;
+	/* The count of RTS frames that were sent by the DAR responder
+	 * to the DAR initiator using the TID/AC on the link and
+	 * for which a CTS frame was not successfully received
+	 */
+	uint32 rts_failure_count;
+} BWL_POST_PACKED_STRUCT rts_statistics_info_subfield_t;
+
+/* DAR radio counters attribute - fcs failure count subfield */
+typedef BWL_PRE_PACKED_STRUCT struct fcs_failure_count_subfield {
+	/* Each FCS Failure Count subfield is 4-octets, and indicates
+	 * the count of frames received by the DAR responder
+	 * (irrespective of the transmitter of those frames) on the link,
+	 * for which FCS validation failed
+	 */
+	uint32 fcs_failure_count;
+} BWL_POST_PACKED_STRUCT fcs_failure_count_subfield_t;
+#define FCS_FAILURE_COUNT_SUBFIELD_SIZE (sizeof(fcs_failure_count_subfield_t))
+
+/* DAR radio counters attribute - FCS failure statistics */
+typedef BWL_PRE_PACKED_STRUCT struct fcs_failure_statistics {
+	/* 0: MLD-level, 1: Link-level only used if the DAR responder is an MLD */
+	uint8 link_granularity;
+
+	/* Bit i is set to 1 if the fcs statistics for the link with link
+	 * identifier equal to i (see 35.3.3.2 of 802.11BE draft 7.0) are reported or requested
+	 * otherwise that bit is set to 0.
+	 * This field is reserved if Link Granularity is not 1
+	 */
+	uint8 link_granularity_bitmap;
+
+	/* This field is present when Bit 7 of the Parameter Presence Bitmap of this field
+	 * is set to 1, otherwise it is absent.
+	 * Contains a list of FCS Failure Count subfields for each reported link.
+	 * If the Link Granularity field is 0, the subfields are ordered by link,
+	 * as specified in the Link Granularity Bitmap.
+	 * Each FCS Failure Count subfield is 4-octets and indicates the count of frames
+	 * received by the DAR responder (irrespective of the transmitter of those frames)
+	 * on the link for which FCS validation failed.
+	 */
+	uint8 fcs_failure_list[];
+} BWL_POST_PACKED_STRUCT fcs_failure_statistics_t;
+#define FCS_FAILURE_STATISTICS_SIZE (sizeof(fcs_failure_statistics_t))
+
+/* DAR Control Plane Events attribute */
+typedef BWL_PRE_PACKED_STRUCT struct dar_control_plane_events_attr {
+	/* Attribute id: DAR_RADIO_COUNTERS_STATISTICS_ATTR */
+	uint8 id;
+
+	/* Length of the following fields in this attribute */
+	uint8 len;
+
+	/* The number of Control Plane Event Count */
+	uint8 count;
+
+	/* Control Plane Events Tuple List */
+	uint8 list[];
+} BWL_POST_PACKED_STRUCT dar_control_plane_events_attr_t;
+#define DAR_CONTROL_PLANE_EVENTS_ATTR_SIZE (sizeof(dar_control_plane_events_attr_t))
+
+typedef enum dar_control_plane_event_sub_category {
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_RESERVED		= 0u,
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_DFS_EVENTS		= 1u,
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_BEACON_LOSS	= 2u,
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_SEQ_SN_JUMP	= 3u,
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_RTS_CTS_FLOODS	= 4u,
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_BA_NEGO_FAILUE	= 5u
+	/* 6 - 255 Reserved */
+} dar_control_plane_event_sub_category_t;
+
+#define DAR_CONTROL_PLANE_EVENT_RESERVED_LINK_ID	(0xFF)
+/* DAR Control Plane Event Tuple field */
+typedef BWL_PRE_PACKED_STRUCT struct dar_control_plane_event_tuple {
+	/* Link ID, the four LSBs of the LinkID field indicates the link identifier,
+	 * 0xFF set for non-MLD or not link-specific. the four MSBs are reserved
+	 */
+	uint8 link_id;
+	/* Category Code */
+	uint8 category_code;
+	/* Sub Category Code */
+	uint8 sub_category_code;
+} BWL_POST_PACKED_STRUCT dar_control_plane_event_tuple_t;
+#define DAR_CONTROL_PLANE_EVENT_TUPLE_SIZE (sizeof(dar_control_plane_event_tuple_t))
 
 /* This marks the end of a packed structure section. */
 #include <packed_section_end.h>

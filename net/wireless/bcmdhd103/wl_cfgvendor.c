@@ -14537,6 +14537,17 @@ const struct nla_policy andr_twt_attr_policy[ANDR_TWT_ATTR_MAX] = {
 };
 #endif /* WL_TWT_HAL_IF */
 
+#ifdef WL_MDNS_OFFLOAD
+const struct nla_policy mdnsoffload_attr_policy[MDNS_OFFLOAD_ATTR_MAX] = {
+	[MDNS_OFFLOAD_ATTR_ENABLED] = { .type = NLA_U8 },
+	[MDNS_OFFLOAD_ATTR_PROTOCOL_DATA] = { .type = NLA_BINARY, .len = 1500 - sizeof(uint32) },
+	[MDNS_OFFLOAD_ATTR_RECORD_KEY] = { .type = NLA_U32 },
+	[MDNS_OFFLOAD_ATTR_QNAME] = { .type = NLA_NUL_STRING, .len = MDNS_QNAME_MAX_LEN -1 },
+	[MDNS_OFFLOAD_ATTR_PASSTHROUGH_BEHAVIOR] = { .type = NLA_U8 },
+	[MDNS_OFFLOAD_ATTR_MATCH_CRITERIA] = { .type = NLA_BINARY, .len = sizeof(rr_entry_t) * MDNS_MAX_RR },
+};
+#endif /* WL_MDNS_OFFLOAD */
+
 #endif /* LINUX_VERSION >= 5.3 */
 
 static struct wiphy_vendor_command wl_vendor_cmds [] = {
@@ -15932,6 +15943,117 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 #endif /* LINUX_VERSION >= 5.3 */
 	},
 #endif /* WL_MLO */
+#ifdef WL_MDNS_OFFLOAD
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_SET_STATE
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_set_state,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_RESET_ALL
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_reset_all,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_ADD_RESPONSES
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_add_responses,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_REMOVE_RESPONSES
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_remove_responses,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_GET_HIT_COUNTER
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_get_hit_counter,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_GET_MISS_COUNTER
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_get_miss_counter,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_ADD_TO_PASSTHROUGH
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_add_to_passthrough,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_REMOVE_FROM_PASSTHROUGH
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_remove_from_passthrough,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = MDNS_OFFLOAD_SUBCMD_SET_PASSTHROUGH_BEHAVIOR
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_mdnsoffload_set_passthrough_behavior,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = mdnsoffload_attr_policy,
+		.maxattr = MDNS_OFFLOAD_ATTR_MAX
+#endif /* LINUX_VERSION >= 5.3.0 */
+	},
+#endif /* WL_MDNS_OFFLOAD */
+
 };
 
 static const struct  nl80211_vendor_cmd_info wl_vendor_events [] = {

@@ -38,6 +38,8 @@
  *
  *
  * <<Broadcom-WL-IPTag/Dual:>>
+ *
+ * Edited with the help of GENAI.
  */
 
 #ifndef	_bcmdefs_h_
@@ -103,11 +105,11 @@
 	4 && __GNUC_MINOR__ >= 6)) || defined(__clang__))
 
 #define GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST()              \
-	_Pragma("GCC diagnostic push")			 \
+	_Pragma("GCC diagnostic push")			\
 	_Pragma("GCC diagnostic ignored \"-Wcast-qual\"")
 
-#define GCC_DIAGNOSTIC_PUSH_SUPPRESS_NULL_DEREF()	 \
-	_Pragma("GCC diagnostic push")			 \
+#define GCC_DIAGNOSTIC_PUSH_SUPPRESS_NULL_DEREF()	\
+	_Pragma("GCC diagnostic push")			\
 	_Pragma("GCC diagnostic ignored \"-Wnull-dereference\"")
 
 #define GCC_DIAGNOSTIC_POP()                             \
@@ -118,7 +120,7 @@
 #define GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST()              \
 	__pragma(warning(push))                          \
 	__pragma(warning(disable:4090))
-#define GCC_DIAGNOSTIC_PUSH_SUPPRESS_NULL_DEREF()	 \
+#define GCC_DIAGNOSTIC_PUSH_SUPPRESS_NULL_DEREF()	\
 	__pragma(warning(push))
 #define GCC_DIAGNOSTIC_POP()                             \
 	__pragma(warning(pop))
@@ -133,7 +135,7 @@
 
 #if !defined(__clang__) || __clang_major__ >= 13
 #define GCC_DIAGNOSTIC_PUSH_SUPPRESS_FN_TYPE()           \
-	_Pragma("GCC diagnostic push")			 \
+	_Pragma("GCC diagnostic push")			\
 	_Pragma("GCC diagnostic ignored \"-Wcast-function-type\"")
 #else
 #define GCC_DIAGNOSTIC_PUSH_SUPPRESS_FN_TYPE()           \
@@ -602,7 +604,7 @@ typedef uint32 dmaaddr_t;
 /* One physical DMA segment */
 typedef struct  {
 	dmaaddr_t addr;
-	uint32	  length;
+	uint32	length;
 } hnddma_seg_t;
 
 #if defined(__linux__)
@@ -687,7 +689,7 @@ typedef struct {
 		(((val) >> field ## _S) & field ## _M)
 #define SFIELD(val, field, bits) \
 		(((val) & (~(field ## _M << field ## _S))) | \
-		 ((unsigned)(bits) << field ## _S))
+		((unsigned)(bits) << field ## _S))
 
 /* define BCMSMALL to remove misc features for memory-constrained environments */
 #ifdef BCMSMALL
@@ -997,6 +999,45 @@ extern bool _tx_histogram_enabled;
 	#define TX_HISTOGRAM_ENAB() (FALSE)
 #endif /* TX_HISTOGRAM */
 
+#ifdef SMBM /* URB DBG BUS enab macros  */
+	extern bool _smbm_enab;
+#if defined(ROM_ENAB_RUNTIME_CHECK) || !defined(DONGLEBUILD)
+	#define SMBM_ENAB()	(_smbm_enab)
+#elif defined(SMBM_DISABLED)
+	#define SMBM_ENAB()	(FALSE)
+#else
+	#define SMBM_ENAB()	(TRUE)
+#endif
+#else
+	#define SMBM_ENAB()	(FALSE)
+#endif /* SMBM */
+
+#ifdef BCM_8021X_RXCPLRING /* BCM_8021X_RXCPLRING support enab macros */
+extern bool _bcm_8021x_rxcpl_enab;
+#if defined(ROM_ENAB_RUNTIME_CHECK)
+	#define BCM_8021X_RXCPLRING_ENAB() (_bcm_8021x_rxcpl_enab)
+#elif defined(BCM_8021X_RXCPLRING_DISABLED)
+	#define BCM_8021X_RXCPLRING_ENAB() (FALSE)
+#else
+	#define BCM_8021X_RXCPLRING_ENAB() (TRUE)
+#endif
+#else
+	#define BCM_8021X_RXCPLRING_ENAB() (FALSE)
+#endif /* BCM_8021X_RXCPLRING */
+
+#ifdef BCM_ARP_RXCPLRING /* BCM_ARP_RXCPLRING support enab macros */
+extern bool _bcm_arp_rxcpl_enab;
+#if defined(ROM_ENAB_RUNTIME_CHECK)
+	#define BCM_ARP_RXCPLRING_ENAB() (_bcm_arp_rxcpl_enab)
+#elif defined(BCM_ARP_RXCPLRING_DISABLED)
+	#define BCM_ARP_RXCPLRING_ENAB() (FALSE)
+#else
+	#define BCM_ARP_RXCPLRING_ENAB() (TRUE)
+#endif
+#else
+	#define BCM_ARP_RXCPLRING_ENAB() (FALSE)
+#endif /* BCM_ARP_RXCPLRING */
+
 /* Chip related low power flags (lpflags) */
 
 #ifndef PAD
@@ -1099,7 +1140,7 @@ void* BCM_ASLR_CODE_FNPTR_RELOCATOR(void *func_ptr);
 	 *
 	 * Cast function ptr arg to avoid warnings related to conversion of function ptr to void*.
 	 */
-	#define BCM_FUNC_PTR(fn) \
+	#define BCM_FUNC_PTR(fn)  BCM_EXTENSION \
 		({ static void *func_ptr_err_chk __attribute__ ((unused)) = (void *)(uintptr)(fn); \
 		(__typeof__(&fn))(uintptr)BCM_ASLR_CODE_FNPTR_RELOCATOR((void *)(uintptr)(fn)); })
 #else
@@ -1214,9 +1255,8 @@ typedef struct _regs_bmp_list {
 
 #define REGLIST_GET_REG_COUNT(rlst)	(REGLIST_BMP_IS_COUNT(rlst) ? (REGLIST_LOAD_BMP32(rlst) \
 						& ~(REGLIST_SIZE_MASK | REGLIST_COUNT_MASK)) : 0)
-
 #ifndef WL_UNITTEST
-typedef union d11rxhdr d11rxhdr_t;
+typedef struct d11rxhdr d11rxhdr_t;
 #endif /* WL_UNITTEST */
 
 #endif /* _bcmdefs_h_ */

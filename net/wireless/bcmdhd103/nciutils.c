@@ -725,7 +725,7 @@ BCMATTACHFN(nci_save_iface1_reg)(si_t *sih, interface_desc_t *desc, uint32 iface
 		apb_start = BP_WL_PMNI;
 		apb_end = BP_SAQM_PMNI;
 
-		if (bpid == BP_BOOKER) {
+		if (bpid == BP_BOOKER || bpid == BP_BKR_CCI400) {
 			desc->is_axi = 1u;
 			desc->is_booker = 1u;
 		}
@@ -2520,9 +2520,9 @@ BCMPOSTTRAPFN(nci_get_axi_addr)(const si_t *sih, uint32 *size, uint32 baidx)
 	uint32 iface_idx;
 	uint32 addr = 0;
 
-	NCI_TRACE(("nci_get_curmap coreidx %u\n", sii->curidx));
+	NCI_TRACE(("nci_get_axi_addr coreidx %u\n", sii->curidx));
 	for (iface_idx = 0; iface_idx < core_info->iface_cnt; iface_idx++) {
-		NCI_TRACE(("nci_get_curmap iface_idx %u BP_ID %u master %u\n",
+		NCI_TRACE(("nci_get_axi_addr iface_idx %u BP_ID %u master %u\n",
 		iface_idx, ID_BPID(core_info->desc[iface_idx].iface_desc_1),
 		IS_MASTER(core_info->desc[iface_idx].iface_desc_1)));
 
@@ -2535,8 +2535,13 @@ BCMPOSTTRAPFN(nci_get_axi_addr)(const si_t *sih, uint32 *size, uint32 baidx)
 			(core_info->desc[iface_idx].sp != NULL)) {
 			addr = core_info->desc[iface_idx].sp[baidx].addrl;
 			if (size) {
+				uint32 addrh = core_info->desc[iface_idx].sp[baidx].addrh;
 				uint32 adesc = core_info->desc[iface_idx].sp[baidx].adesc;
-				*size = SLAVEPORT_ADDR_SIZE(adesc);
+				if (adesc & SLAVEPORT_BOUND_ADDR_MASK) {
+					*size = (addrh - addr + 1);
+				} else {
+					*size = SLAVEPORT_ADDR_SIZE(adesc);
+				}
 			}
 		 }
 	}
@@ -2556,10 +2561,10 @@ BCMPOSTTRAPFN(nci_get_core_baaddr)(const si_t *sih, uint32 *size, int32 baidx)
 	uint32 iface_idx;
 	uint32 addr = 0;
 
-	NCI_TRACE(("nci_get_curmap coreidx %u\n", sii->curidx));
+	NCI_TRACE(("nci_get_core_baaddr coreidx %u\n", sii->curidx));
 	for (iface_idx = 0; iface_idx < core_info->iface_cnt; iface_idx++) {
 
-		NCI_TRACE(("nci_get_curmap iface_idx %u BP_ID %u master %u\n",
+		NCI_TRACE(("nci_get_core_baaddr iface_idx %u BP_ID %u master %u\n",
 			iface_idx, ID_BPID(core_info->desc[iface_idx].iface_desc_1),
 			IS_MASTER(core_info->desc[iface_idx].iface_desc_1)));
 
@@ -2577,7 +2582,12 @@ BCMPOSTTRAPFN(nci_get_core_baaddr)(const si_t *sih, uint32 *size, int32 baidx)
 			addr = core_info->desc[iface_idx].sp[baidx].addrl;
 			if (size) {
 				uint32 adesc = core_info->desc[iface_idx].sp[baidx].adesc;
-				*size = SLAVEPORT_ADDR_SIZE(adesc);
+				uint32 addrh = core_info->desc[iface_idx].sp[baidx].addrh;
+				if (adesc & SLAVEPORT_BOUND_ADDR_MASK) {
+					*size = (addrh - addr + 1);
+				} else {
+					*size = SLAVEPORT_ADDR_SIZE(adesc);
+				}
 			}
 		 }
 	}

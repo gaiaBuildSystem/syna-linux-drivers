@@ -232,7 +232,7 @@ getvar_internal(char *vars, const char *name)
 int
 getintvar(char *vars, const char *name)
 {
-	NVRAM_RECLAIM_CHECK(name);
+	NVRAM_RECLAIM_CHECK_EXT(name, 0);
 	return getintvar_internal(vars, name);
 }
 
@@ -250,7 +250,7 @@ getintvar_internal(char *vars, const char *name)
 int
 getintvararray(char *vars, const char *name, int index)
 {
-	NVRAM_RECLAIM_CHECK(name);
+	NVRAM_RECLAIM_CHECK_EXT(name, 0);
 	return getintvararray_internal(vars, name, index);
 }
 
@@ -284,7 +284,7 @@ getintvararray_internal(char *vars, const char *name, int index)
 int
 getintvararraysize(char *vars, const char *name)
 {
-	NVRAM_RECLAIM_CHECK(name);
+	NVRAM_RECLAIM_CHECK_EXT(name, 0);
 	return getintvararraysize_internal(vars, name);
 }
 
@@ -430,7 +430,7 @@ end:
 int
 getvarsig(const uint8 **sig, uint *ssize, const char **var, int *vsize, uint idx)
 {
-	NVRAM_RECLAIM_CHECK("getvarsig");
+	NVRAM_RECLAIM_CHECK_EXT("getvarsig", 0);
 	return nvram_get_sig(sig, ssize, var, vsize, idx);
 }
 #endif /* WLC_NVRAMSIG */
@@ -3800,7 +3800,7 @@ FREED_ENTRY_FOUND:
 					obj,
 					dbgobj->caller, dbgobj->line,
 					caller, line);
-				//ASSERT(0); /* release same obj more than one time? */
+				// ASSERT(0); /*  release same obj more than one time? */
 				goto EXIT;
 			}
 			dbgobj = dbgobj->prior;
@@ -3811,7 +3811,7 @@ FREED_ENTRY_FOUND:
 		printf("bcm_object_trace_opr: ################### release none-existing"
 			" obj %p from %s(%d)\n",
 			obj, caller, line);
-		//ASSERT(0); /* release same obj more than one time? */
+		// ASSERT(0); /*  release same obj more than one time? */
 
 	}
 
@@ -5804,7 +5804,7 @@ void counter_printlog(counter_tbl_t *ctr_tbl)
 #endif /* DEBUG_COUNTER */
 
 /* calculate partial checksum */
-static uint32
+uint32
 ip_cksum_partial(uint32 sum, uint8 *val8, uint32 count)
 {
 	uint32 i;
@@ -5823,7 +5823,7 @@ ip_cksum_partial(uint32 sum, uint8 *val8, uint32 count)
 }
 
 /* calculate IP checksum */
-static uint16
+uint16
 ip_cksum(uint32 sum, uint8 *val8, uint32 count)
 {
 	uint16 *val16 = (uint16 *)val8;

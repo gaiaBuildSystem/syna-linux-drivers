@@ -78,7 +78,8 @@ typedef struct parp_entry {
 	struct parp_entry	*next;
 	uint32			used;		/* time stamp */
 	struct ether_addr	ea;
-	bcm_tlv_t		ip;
+	uint8			ip_ver;
+	uint8			address[IPV6_ADDR_LEN]; /* IP address */
 } parp_entry_t;
 
 typedef struct arp_table arp_table_t;

@@ -415,6 +415,9 @@ typedef struct dhd_info {
 #endif /* WLAN_ACCEL_BOOT */
 	struct kobject dhd_kobj;
 	bool dhd_kobj_inited;
+#ifdef CSI_SUPPORT
+	bool dhd_kobj_csi_battr_created;
+#endif /* CSI_SUPPORT */
 	timer_list_compat_t timesync_timer;
 #if defined(BT_OVER_SDIO)
     char btfw_path[PATH_MAX];

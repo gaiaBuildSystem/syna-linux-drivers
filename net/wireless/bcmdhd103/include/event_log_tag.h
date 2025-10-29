@@ -269,6 +269,8 @@
 #define EVENT_LOG_TAG_PHY_OBSS_INFO		235
 #define EVENT_LOG_TAG_SBI_SC_INFO		236
 #define EVENT_LOG_TAG_SBI_SC_ERR		237
+#define EVENT_LOG_TAG_DUO_INFO			238
+#define EVENT_LOG_TAG_DUO_ERR			239
 
 /* Available space for new tags for Dingo, Iguana and branches
  * prior to Koala only. From Koala onwards, new tags must be greater
@@ -515,6 +517,10 @@
 #define	EVENT_LOG_TAG_SPMI_ERROR		396
 #define	EVENT_LOG_TAG_SPMI_TRACE		397
 
+/* xrapi err,info tags (398-399) unused */
+#define	EVENT_LOG_TAG_UNUSED_398		398
+#define	EVENT_LOG_TAG_UNUSED_399		399
+
 #define EVENT_LOG_TAG_PROXD_DBG			400
 #define EVENT_LOG_TAG_RXOVFL			401
 
@@ -683,7 +689,7 @@
 #define EVENT_LOG_TAG_PER_PKT_INFO              499
 #define EVENT_LOG_TAG_PER_PKT_ERROR             500
 
-/* UHR EVEVNT_LOG_TAG */
+/* UHR EVENT_LOG_TAG */
 #define EVENT_LOG_TAG_WL_UHR_INFO		501
 #define EVENT_LOG_TAG_WL_UHR_TRACE		502
 #define EVENT_LOG_TAG_WL_UHR_WARN		503
@@ -693,8 +699,31 @@
 
 #define EVENT_LOG_TAG_MSCH_DEBUG_STATE		506
 
+/* SBM logging */
+#define EVENT_LOG_TAG_SBM_ERR			507
+#define EVENT_LOG_TAG_SBM_INFO			508
+#define EVENT_LOG_TAG_SBM_TRACE			509
+
+/* HSM logging */
+#define EVENT_LOG_TAG_HSM_ERROR			510
+#define EVENT_LOG_TAG_HSM_INFO			511
+
+/* DPS EVENT_LOG_TAG */
+#define EVENT_LOG_TAG_WL_DPS_INFO		512
+#define EVENT_LOG_TAG_WL_DPS_TRACE		513
+#define EVENT_LOG_TAG_WL_DPS_ERROR		514
+
+/* SMBM EVENT_LOG_TAG */
+#define EVENT_LOG_TAG_WL_SMBM_INFO		515
+#define EVENT_LOG_TAG_WL_SMBM_TRACE		516
+#define EVENT_LOG_TAG_WL_SMBM_ERROR		517
+
+/* QoS Mgmt DAR (Dynamic Analytics Report) */
+#define EVENT_LOG_TAG_QOS_DAR_ERROR		518
+#define EVENT_LOG_TAG_QOS_DAR_INFO		519
+
 /* EVENT_LOG_TAG_MAX	= Set to the same value of last tag, not last tag + 1 */
-#define EVENT_LOG_TAG_MAX			506
+#define EVENT_LOG_TAG_MAX			519
 
 typedef enum wl_el_set_type_def {
 	EVENT_LOG_SET_TYPE_DEFAULT = 0, /* flush the log buffer when it is full - Default option */

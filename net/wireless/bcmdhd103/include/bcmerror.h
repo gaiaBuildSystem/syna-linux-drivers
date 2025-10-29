@@ -965,4 +965,39 @@ typedef enum {
 	BCMSM_E_MAX			= -13311
 } bcmsm_status_t;
 
+/* QoS Dynamic Analytics Report Status Codes [-13312 .. -14335]  (1K) */
+typedef enum wl_qos_dar_status {
+	/* Session not found */
+	WL_QOS_DAR_E_SESSION_NOT_FOUND			= -13312,
+	/* Can't create the session due to no resource */
+	WL_QOS_DAR_E_NO_RESOURCE			= -13313,
+	/* Dar Initiator Configuration Failure */
+	WL_QOS_DAR_E_INIT_CONFIG_FAILURE		= -13314,
+	/* Dar Responder Configuratioin Failure */
+	WL_QOS_DAR_E_RESP_CONFIG_FAILURE		= -13315,
+	/* Dar request ID mismatch */
+	WL_QOS_DAR_E_REQ_ID_MISMATCH			= -13316,
+	/* Dar no response frame from the peer */
+	WL_QOS_DAR_E_NO_RESPONSE			= -13317,
+	/* Dar no report frame from the peer */
+	WL_QOS_DAR_E_NO_REPORT				= -13318,
+	/* Dar measurement done */
+	WL_QOS_DAR_E_MEASUREMENT_DONE			= -13319,
+	/* Dar response status code */
+	WL_QOS_DAR_E_RESP_ACCEPT			= -13320,
+	WL_QOS_DAR_E_RESP_ACCEPT_WITH_CHANGE		= -13321,
+	WL_QOS_DAR_E_RESP_REQUEST_DECLIEND		= -13322,
+	WL_QOS_DAR_E_RESP_INSUFFICIENT_RESOURCE		= -13323,
+	/* Dar invalid state */
+	WL_QOS_DAR_E_INVALID_STATE			= -13324,
+	/* Dar no ack */
+	WL_QOS_DAR_E_NOACK				= -13325,
+	/* Dar generic timeout */
+	WL_QOS_DAR_E_TIMEOUT				= -13326,
+	/* Not configured properly */
+	WL_QOS_DAR_E_SESSION_NOT_CONFIGURED		= -13327,
+
+	WL_QOS_DAR_E_MAX				= -14335
+} wl_qos_dar_status_t;
+
 #endif	/* _bcmerror_h_ */

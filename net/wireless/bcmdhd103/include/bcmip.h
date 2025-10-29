@@ -211,7 +211,7 @@ BWL_PRE_PACKED_STRUCT struct ip_router_alert {
 	                         ((prot) == IPV6_EXTHDR_NONE) || \
 	                         ((prot) == IPV6_EXTHDR_DEST))
 
-#define IPV6_MIN_HLEN 		40
+#define IPV6_MIN_HLEN		40
 
 #define IPV6_EXTHDR_LEN(eh)	((((struct ipv6_exthdr *)(eh))->hdrlen + 1) << 3)
 

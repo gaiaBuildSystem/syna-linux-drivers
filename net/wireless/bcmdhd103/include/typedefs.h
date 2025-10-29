@@ -222,10 +222,13 @@ typedef unsigned __int64 uint64;
 #undef USE_TYPEDEF_DEFAULTS
 
 #ifndef BCMWIFI_DISSECTOR_BUILD
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ <= 201710L)
+/* bool is a builtin for c23 */
 /* BWD build throws errors for two or more data types in declaration */
 #ifndef TYPEDEF_BOOL
-typedef	/* @abstract@ */ unsigned char	bool;
+typedef	 unsigned char	bool;
 #endif /* endif TYPEDEF_BOOL */
+#endif /* __STDC_VERSION__ */
 #endif /* !BCMWIFI_DISSECTOR_BUILD */
 
 /* define uchar, ushort, uint, ulong */
@@ -321,7 +324,7 @@ typedef float64 float_t;
 #endif
 
 #ifndef NULL
-#define	NULL	0
+#define	NULL	((void *)0)
 #endif
 
 #ifndef OFF

@@ -43,6 +43,8 @@
  *
  *
  * <<Broadcom-WL-IPTag/Dual:>>
+ *
+ * Edited with the help of GENAI.
  */
 #ifndef __bcm_ring_included__
 #define __bcm_ring_included__
@@ -497,7 +499,7 @@ typedef struct bcm_workq bcm_workq_t;
 #define WORKQ_RING(workq)               (&((workq)->ring))
 #define WORKQ_PEER_RING(workq)          (&((workq)->peer->ring))
 
-#define WORKQ_ELEMENT(__elem_type, __workq, __index) ({ \
+#define WORKQ_ELEMENT(__elem_type, __workq, __index) BCM_EXTENSION ({ \
 	WORKQ_ASSERT((__workq) != BCM_WORKQ_NULL); \
 	WORKQ_ASSERT((__index) < ((__workq)->ring_size)); \
 	((__elem_type *)((__workq)->buffer)) + (__index); \

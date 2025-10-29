@@ -240,6 +240,7 @@
 #define D11_SAQM_CORE_ID	0x863		/* SAQM core ID */
 #define DAP_CORE_ID		0x865		/* DAP core ID */
 #define PCIE_SERDES_CORE_ID	0x867		/* SerDes core ID */
+#define SMB_CORE_ID		0x874		/* SMB - Shared Memory Block core ID */
 #define APB_BRIDGE_CORE_ID	0x135		/* APB bridge core ID */
 #define AXI_CORE_ID		0x301		/* AXI/GPV core ID */
 #define EROM_CORE_ID		0x366		/* EROM core ID */

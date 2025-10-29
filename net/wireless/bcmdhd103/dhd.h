@@ -95,6 +95,7 @@ int get_scheduler_policy(struct task_struct *p);
 #define ENODATA 6
 #define EREMOTEIO   7
 #define ENODEV      8
+#define ENOCSI		50	/* No CSI structure available */
 #define ERESTARTSYS 512
 #endif /* __linux__ */
 #define MAX_EVENT	16
@@ -402,6 +403,10 @@ enum dhd_bus_devreset_type {
 #ifndef MSEC_PER_SEC
 #define MSEC_PER_SEC 1000u
 #endif
+
+#define TIMESPEC64_TO_US(ts) \
+	(((ts).tv_sec * USEC_PER_SEC) + ((ts).tv_nsec / NSEC_PER_USEC))
+
 #if defined(LINUX) || defined(linux) || defined(__linux__)
 
 /* (u64)result = (u64)dividend / (u64)divisor */
@@ -2011,7 +2016,6 @@ typedef struct dhd_pub {
 #if defined(__linux__)
 	wait_queue_head_t tx_tput_test_wait;
 	wait_queue_head_t tx_completion_wait;
-
 #endif /* defined(__linux__) */
 #ifdef DHD_ERPOM
 	bool enable_erpom;
@@ -2185,6 +2189,29 @@ typedef struct dhd_pub {
 #ifdef SUPPORT_OTA_UPDATE
 	ota_update_info_t ota_update_info;
 #endif /* SUPPORT_OTA_UPDATE */
+#ifdef CSI_SUPPORT
+	struct mutex         csi_lock;
+
+	struct sk_buff_head  csi_raw_skb_queue     ____cacheline_aligned;
+	struct work_struct   csi_raw_skb_work;
+
+	struct list_head     csi_list;
+	uint                 csi_count;
+
+	uint8                csi_init;
+	uint8                csi_version_capability;
+	uint8                csi_header_output_version;
+
+	uint16               csi_data_send_manner;
+	uint16               csi_notify_port;
+	uint32               csi_notify_ip;
+	uint32               csi_local_ip;
+
+	int32                packet_global_id_last;
+	uint32               padding_global_id;
+	uint32               packet_qty_duplicate;
+	uint32               packet_qty_missing;
+#endif /* CSI_SUPPORT */
 	bool open_in_progress;
 	bool stop_in_progress;
 #ifdef DHD_GRO_ENABLE_HOST_CTRL
@@ -4105,6 +4132,13 @@ void dhd_aoe_arp_clr(dhd_pub_t *dhd, int idx);
 int dhd_arp_get_arp_hostip_table(dhd_pub_t *dhd, void *buf, int buflen, int idx);
 void dhd_arp_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx);
 #endif /* ARP_OFFLOAD_SUPPORT */
+
+#ifdef WL_MDNS_OFFLOAD
+void dhd_mdns_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx);
+void dhd_mdns_hostip_clr(dhd_pub_t *dhd, int idx);
+int dhd_mdns_add_ipv6(dhd_pub_t *dhd, char *ipaddr, int idx);
+int dhd_mdns_remove_ipv6(dhd_pub_t *dhd, int idx);
+#endif /* WL_MDNS_OFFLOAD */
 
 #ifdef IGMP_OFFLOAD_SUPPORT
 void dhd_igmp_offload_enable(dhd_pub_t *dhd, uint8 igmp_enable);

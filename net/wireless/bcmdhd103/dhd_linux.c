@@ -97,6 +97,11 @@
 #include <bcmiov.h>
 #include <bcmstdlib_s.h>
 
+#include <ethernet.h>
+#include <bcmevent.h>
+#include <vlan.h>
+#include <802.3.h>
+
 #include <dhd_linux_wq.h>
 #include <dhd.h>
 #include <dhd_linux.h>
@@ -353,6 +358,10 @@ static void dhd_blk_tsfl_handler(struct work_struct *work);
 #endif /* DBG_PKT_MON */
 #include <dhd_plat.h>
 #include <wldev_common.h>
+
+#ifdef CSI_SUPPORT
+#include <dhd_csi.h>
+#endif /* CSI_SUPPORT */
 
 #ifdef OEM_ANDROID
 #ifdef SET_RANDOM_MAC_SOFTAP
@@ -615,9 +624,16 @@ uint dhd_download_fw_on_driverload = TRUE;
 /* Definitions to provide path to the firmware and nvram
  * example nvram_path[MOD_PARAM_PATHLEN]="/projects/wlan/nvram.txt"
  */
-char firmware_path[MOD_PARAM_PATHLEN];
-char nvram_path[MOD_PARAM_PATHLEN];
-char clm_path[MOD_PARAM_PATHLEN];
+#ifdef DHD_LINUX_STD_FW_API
+char firmware_path[MOD_PARAM_PATHLEN] = DHD_FW_NAME;
+char nvram_path[MOD_PARAM_PATHLEN] = DHD_NVRAM_NAME;
+char clm_path[MOD_PARAM_PATHLEN] = DHD_CLM_NAME;
+#else
+char firmware_path[MOD_PARAM_PATHLEN] = CONFIG_BCMDHD_FW_PATH;
+char nvram_path[MOD_PARAM_PATHLEN] = CONFIG_BCMDHD_NVRAM_PATH;
+char clm_path[MOD_PARAM_PATHLEN] = CONFIG_BCMDHD_CLM_PATH;
+#endif /* DHD_LINUX_STD_FW_API */
+
 char txcap_path[MOD_PARAM_PATHLEN];
 char signature_path[MOD_PARAM_PATHLEN];
 #ifdef DHD_UCODE_DOWNLOAD
@@ -1021,11 +1037,18 @@ extern void dhd_dbgfs_init(dhd_pub_t *dhdp);
 extern void dhd_dbgfs_remove(void);
 #endif
 
-#ifdef BCMPCIE
-#include <dhd_pcie.h>
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+extern void dhd_d2m_init(dhd_pub_t *dhdp);
+extern void dhd_d2m_remove(void);
+extern void dhd_d2m_memdump_publish(void);
+extern void dhd_d2m_dbgdump_publish(void);
+#endif
 
 /* Default enable preinit optimisation */
 #define DHD_PREINIT_OPTIMISATION
+
+#ifdef BCMPCIE
+#include <dhd_pcie.h>
 
 /* Tx/Rx/Ctrl cpl/post bounds */
 extern uint dhd_tx_cpl_bound;
@@ -3586,7 +3609,14 @@ dhd_set_mac_address(struct net_device *dev, void *addr)
 
 	dhdif = dhd_get_ifp_by_ndev(dhdp, dev);
 	if (!dhdif) {
-		return -ENODEV;
+		DHD_ERROR(("set_mac_address: dhdif not found in ndev, looking in static iflist\n"));
+#ifdef WL_STATIC_IF
+		dhdif = dhd_get_static_ifp_by_ndev(dhdp, dev);
+#endif /* WL_STATIC_IF */
+		if (!dhdif) {
+			DHD_ERROR(("dhdif not found in ndev and in static iflist \n"));
+			return -ENODEV;
+		}
 	}
 	ifidx = dhdif->idx;
 	dhd_net_if_lock_local(dhd);
@@ -6391,9 +6421,7 @@ dhd_priv_cmd_process_locked(struct net_device *net,
 	}
 #endif /* OEM_ANDROID */
 
-#ifndef WL_NANHO
 	bcmerror = dhd_ioctl_process(&dhd->pub, ifidx, &ioc, local_buf);
-#endif  /* WL_NANHO */
 
 	/* Restore back userspace pointer to ioc.buf */
 	ioc.buf = ioc_buf_user;
@@ -6624,33 +6652,33 @@ static void
 dhd_free_event_data_fmts_buf(dhd_info_t *dhd)
 {
 	if (dhd->event_data.wlan_fmts.fmts) {
-		MFREE(dhd->pub.osh, dhd->event_data.wlan_fmts.fmts,
+		KVMFREE(dhd->pub.osh, dhd->event_data.wlan_fmts.fmts,
 			dhd->event_data.wlan_fmts.fmts_size);
 	}
 	if (dhd->event_data.wlan_fmts.raw_fmts) {
-		MFREE(dhd->pub.osh, dhd->event_data.wlan_fmts.raw_fmts,
+		KVMFREE(dhd->pub.osh, dhd->event_data.wlan_fmts.raw_fmts,
 			dhd->event_data.wlan_fmts.raw_fmts_size);
 	}
 	if (dhd->event_data.ram.raw_sstr) {
-		MFREE(dhd->pub.osh, dhd->event_data.ram.raw_sstr,
+		KVMFREE(dhd->pub.osh, dhd->event_data.ram.raw_sstr,
 			dhd->event_data.ram.raw_sstr_size);
 	}
 	if (dhd->event_data.rom.raw_sstr) {
-		MFREE(dhd->pub.osh, dhd->event_data.rom.raw_sstr,
+		KVMFREE(dhd->pub.osh, dhd->event_data.rom.raw_sstr,
 			dhd->event_data.rom.raw_sstr_size);
 	}
 
 #ifdef COEX_CPU
 	if (dhd->event_data.coex_fmts.fmts) {
-		MFREE(dhd->pub.osh, dhd->event_data.coex_fmts.fmts,
+		KVMFREE(dhd->pub.osh, dhd->event_data.coex_fmts.fmts,
 			dhd->event_data.coex_fmts.fmts_size);
 	}
 	if (dhd->event_data.coex_fmts.raw_fmts) {
-		MFREE(dhd->pub.osh, dhd->event_data.coex_fmts.raw_fmts,
+		KVMFREE(dhd->pub.osh, dhd->event_data.coex_fmts.raw_fmts,
 			dhd->event_data.coex_fmts.raw_fmts_size);
 	}
 	if (dhd->event_data.coex.raw_sstr) {
-		MFREE(dhd->pub.osh, dhd->event_data.coex.raw_sstr,
+		KVMFREE(dhd->pub.osh, dhd->event_data.coex.raw_sstr,
 			dhd->event_data.coex.raw_sstr_size);
 	}
 #endif /* COEX_CPU */
@@ -6951,6 +6979,10 @@ exit:
 
 #ifdef BCMDBGFS
 		dhd_dbgfs_remove();
+#endif
+
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+		dhd_d2m_remove();
 #endif
 	}
 
@@ -7521,6 +7553,10 @@ dhd_open(struct net_device *net)
 
 #ifdef BCMDBGFS
 	dhd_dbgfs_init(&dhd->pub);
+#endif
+
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+	dhd_d2m_init(&dhd->pub);
 #endif
 
 	/* enable network offload features like CSO RCO */
@@ -8708,7 +8744,7 @@ dhd_lookup_map(osl_t *osh, char *fname, uint32 pc, char *pc_fn,
 
 	/* Allocate 1 byte more than read_size to terminate it with NULL */
 	alloc_size = read_size + 1;
-	raw_fmts = MALLOCZ(osh, alloc_size);
+	raw_fmts = KVMALLOCZ(osh, alloc_size);
 	if (raw_fmts == NULL) {
 		DHD_ERROR(("%s: Failed to allocate raw_fmts memory \n",
 			__FUNCTION__));
@@ -8901,7 +8937,7 @@ fail:
 		sprintf(lr_fn, "0x%08x", lr);
 	}
 	if (raw_fmts) {
-		MFREE(osh, raw_fmts, alloc_size);
+		KVMFREE(osh, raw_fmts, alloc_size);
 	}
 	return err;
 }
@@ -8946,7 +8982,7 @@ dhd_init_logstrs_array(dhd_info_t *dhdinfo, char *file_path)
 	if (log_fmts->raw_fmts != NULL) {
 		raw_fmts = log_fmts->raw_fmts;	/* reuse already malloced raw_fmts */
 	} else {
-		raw_fmts = MALLOC(dhdinfo->pub.osh, logstrs_size);
+		raw_fmts = KVMALLOCZ(dhdinfo->pub.osh, logstrs_size);
 		if (raw_fmts == NULL) {
 			DHD_ERROR(("%s: Failed to allocate memory \n", __FUNCTION__));
 			goto fail;
@@ -8969,10 +9005,10 @@ fail:
 		dhd_os_close_img_fwreq(fw);
 	}
 	if (raw_fmts) {
-		MFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
+		KVMFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
 	}
 	if (log_fmts->fmts != NULL) {
-		MFREE(dhdinfo->pub.osh, log_fmts->fmts, log_fmts->num_fmts * sizeof(char *));
+		KVMFREE(dhdinfo->pub.osh, log_fmts->fmts, log_fmts->num_fmts * sizeof(char *));
 	}
 
 	log_fmts->fmts = NULL;
@@ -9064,7 +9100,7 @@ dhd_init_static_strs_array(dhd_info_t *dhdinfo, const char *str_file, const char
 	if (map->raw_sstr != NULL) {
 		raw_fmts = map->raw_sstr;	/* reuse already malloced raw_fmts */
 	} else {
-		raw_fmts = MALLOC(dhdinfo->pub.osh, logstrs_size);
+		raw_fmts = KVMALLOCZ(dhdinfo->pub.osh, logstrs_size);
 
 		if (raw_fmts == NULL) {
 			DHD_ERROR(("%s: Failed to allocate raw_fmts memory \n", __FUNCTION__));
@@ -9100,7 +9136,7 @@ dhd_init_static_strs_array(dhd_info_t *dhdinfo, const char *str_file, const char
 
 fail:
 	if (raw_fmts) {
-		MFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
+		KVMFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
 	}
 
 	if (fw) {
@@ -9162,7 +9198,7 @@ dhd_init_logstrs_array(dhd_info_t *dhdinfo, char *file_path)
 	if (log_fmts->raw_fmts != NULL) {
 		raw_fmts = log_fmts->raw_fmts;	   /* reuse already malloced raw_fmts */
 	} else {
-		raw_fmts = MALLOC(dhdinfo->pub.osh, logstrs_size);
+		raw_fmts = KVMALLOCZ(dhdinfo->pub.osh, logstrs_size);
 		if (raw_fmts == NULL) {
 			DHD_ERROR(("%s: Failed to allocate memory \n", __FUNCTION__));
 			goto fail;
@@ -9183,10 +9219,10 @@ dhd_init_logstrs_array(dhd_info_t *dhdinfo, char *file_path)
 
 	fail:
 	if (raw_fmts) {
-		MFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
+		KVMFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
 	}
 	if (log_fmts->fmts != NULL) {
-		MFREE(dhdinfo->pub.osh, log_fmts->fmts, log_fmts->num_fmts * sizeof(char *));
+		KVMFREE(dhdinfo->pub.osh, log_fmts->fmts, log_fmts->num_fmts * sizeof(char *));
 	}
 
 	fail1:
@@ -9297,7 +9333,7 @@ dhd_init_static_strs_array(dhd_info_t *dhdinfo, const char *str_file, const char
 	if (map->raw_sstr != NULL) {
 		raw_fmts = map->raw_sstr;	/* reuse already malloced raw_fmts */
 	} else {
-		raw_fmts = MALLOC(dhdinfo->pub.osh, logstrs_size);
+		raw_fmts = KVMALLOCZ(dhdinfo->pub.osh, logstrs_size);
 
 		if (raw_fmts == NULL) {
 			DHD_ERROR(("%s: Failed to allocate raw_fmts memory \n", __FUNCTION__));
@@ -9331,7 +9367,7 @@ dhd_init_static_strs_array(dhd_info_t *dhdinfo, const char *str_file, const char
 
 fail:
 	if (raw_fmts) {
-		MFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
+		KVMFREE(dhdinfo->pub.osh, raw_fmts, logstrs_size);
 	}
 
 fail1:
@@ -9561,6 +9597,10 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 #ifdef DHD_WET
 	dhd->pub.wet_info = dhd_get_wet_info(&dhd->pub);
 #endif /* DHD_WET */
+
+#ifdef CSI_SUPPORT
+	dhd_csi_init(&dhd->pub);
+#endif /* CSI_SUPPORT */
 
 	/* Initialize thread based operation and lock */
 	sema_init(&dhd->sdsem, 1);
@@ -10344,7 +10384,6 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 	if (dhdinfo->fw_path[0] == '\0') {
 		if (adapter && adapter->fw_path && adapter->fw_path[0] != '\0')
 			fw = adapter->fw_path;
-
 	}
 	if (dhdinfo->nv_path[0] == '\0') {
 		if (adapter && adapter->nv_path && adapter->nv_path[0] != '\0')
@@ -10398,7 +10437,7 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 		nv = nvram_get(var);
 	}
 	DHD_PRINT(("dhd:%d: fw path:%s nv path:%s\n", dhdinfo->unit, fw, nv));
-#endif
+#endif /* DHD_LINUX_STD_FW_API */
 
 	if (fw && fw[0] != '\0') {
 		fw_len = strlen(fw);
@@ -10447,6 +10486,7 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 		}
 #endif /* DHD_USE_SINGLE_NVRAM_FILE */
 	}
+
 	if (signature_path[0] != '\0') {
 		sig_len = strlen(signature_path);
 		if (sig_len >= sig_path_len) {
@@ -10480,13 +10520,14 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 
 	/* fw_path and nv_path are not mandatory */
 	if (dhdinfo->fw_path[0] == '\0') {
-		DHD_ERROR(("firmware path not found\n"));
+		DHD_ERROR(("%s:firmware path not found\n", __FUNCTION__));
 		return FALSE;
 	}
 	if (dhdinfo->nv_path[0] == '\0') {
-		DHD_ERROR(("nvram path not found\n"));
+		DHD_ERROR(("%s:nvram path not found\n", __FUNCTION__));
 		return FALSE;
 	}
+
 
 	return TRUE;
 }
@@ -12636,6 +12677,10 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 	}
 #endif /* (BOARD_HIKEY) || (BOARD_STB) */
 
+#if defined(BCMSDIO)
+	dhd_txglom_enable(dhd, TRUE);
+#endif /* defined(BCMSDIO) */
+
 done:
 	if (iov_buf) {
 		MFREE(dhd->osh, iov_buf, WLC_IOCTL_SMLEN);
@@ -13858,6 +13903,9 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 	setbit(mask, WLC_E_DELTS_IND);
 #endif /* WL_BCNRECV */
 	setbit(mask, WLC_E_COUNTRY_CODE_CHANGED);
+#ifdef CSI_SUPPORT
+	setbit(mask, WLC_E_CSI);
+#endif /* CSI_SUPPORT */
 
 	/* Write updated Event mask */
 	eventmask_msg->ver = EVENTMSGS_VER;
@@ -14504,6 +14552,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s: preinit_status IOVAR returned err(%d), ABORT\n",
 			__FUNCTION__, ret));
 	}
+#else
 	dhd->fw_preinit = FALSE;
 	ret = dhd_legacy_preinit_ioctls(dhd);
 #endif /* DHD_PREINIT_OPTIMISATION */
@@ -14655,6 +14704,37 @@ exit:
 }
 #endif /* DHD_FILE_DUMP_EVENT && DHD_FW_CORE_DUMP */
 
+#ifdef WL_MDNS_OFFLOAD
+void
+mdns_update_host_ipv4_table(dhd_pub_t *dhd_pub, u32 ipa, bool add, int idx)
+{
+	u32 ipv4_buf[0]; /* temp save for AOE host_ip table */
+
+	bzero(ipv4_buf, sizeof(ipv4_buf));
+
+	/* now we saved hoste_ip table, clr it in the dongle MDNSOE */
+	dhd_mdns_hostip_clr(dhd_pub, idx);
+
+	if (add && (ipv4_buf[0] == 0)) {
+		ipv4_buf[0] = ipa;
+		add = FALSE; /* added ipa to local table  */
+		DHD_ERROR(("%s: Saved new IP in temp mdns_hostip\n",
+				__FUNCTION__));
+	} else if (ipv4_buf[0] == ipa) {
+		ipv4_buf[0] = 0;
+		DHD_ERROR(("%s: removed IP:%x from temp table\n",
+				__FUNCTION__, ipa));
+	}
+
+	if (ipv4_buf[0] != 0) {
+		/* add back host_ip entries from our local cache */
+		dhd_mdns_offload_add_ip(dhd_pub, ipv4_buf[0], idx);
+		DHD_ERROR(("%s: added IP:%x to dongle_mdns_hostip\n\n",
+				__FUNCTION__, ipv4_buf[0]));
+	}
+}
+#endif /* WL_MDNS_OFFLOAD */
+
 #ifdef ARP_OFFLOAD_SUPPORT
 /* add or remove AOE host ip(s) (up to 8 IPs on the interface)  */
 /* add operation is more efficent */
@@ -14719,10 +14799,12 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 	void *ptr)
 {
 	struct in_ifaddr *ifa = (struct in_ifaddr *)ptr;
-
 	dhd_info_t *dhd;
 	dhd_pub_t *dhd_pub;
 	int idx;
+#if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
+	struct net_device *primary_ndev;
+#endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
 
 	if (!ifa || !(ifa->ifa_dev->dev))
 		return NOTIFY_DONE;
@@ -14790,6 +14872,16 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 			__FUNCTION__));
 		aoe_update_host_ipv4_table(dhd_pub, ifa->ifa_address, TRUE, idx);
 #endif /* AOE_IP_ALIAS_SUPPORT */
+
+#if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
+		primary_ndev = dhd_linux_get_primary_netdev(dhd_pub);
+		/* Update mDNS offload host ipv4 address only when the primary interface is in station mode */
+		if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
+			DHD_ERROR(("%s:add aliased IP to MDNS hostip cache\n",
+						__FUNCTION__));
+			mdns_update_host_ipv4_table(dhd_pub, ifa->ifa_address, TRUE, idx);
+		}
+#endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
 		break;
 
 	case NETDEV_DOWN:
@@ -14809,6 +14901,15 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 			/* clear ALL arp and hostip tables */
 			dhd_aoe_hostip_clr(&dhd->pub, idx);
 			dhd_aoe_arp_clr(&dhd->pub, idx);
+
+#if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
+			primary_ndev = dhd_linux_get_primary_netdev(dhd_pub);
+			if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
+				DHD_ERROR(("%s:delete aliased IP to MDNS hostip cache\n",
+							__FUNCTION__));
+				dhd_mdns_hostip_clr(&dhd->pub, idx);
+			}
+#endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
 		}
 		break;
 
@@ -14833,6 +14934,9 @@ dhd_inet6_work_handler(void *dhd_info, void *event_data, u8 event)
 #ifdef NDO_CONFIG_SUPPORT
 	struct nd_ol_stats_t nd_stats;
 #endif /* NDO_CONFIG_SUPPORT */
+#if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
+	struct net_device *primary_ndev;
+#endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
 
 	if (!dhd) {
 		DHD_ERROR(("%s: invalid dhd_info\n", __FUNCTION__));
@@ -14872,6 +14976,22 @@ dhd_inet6_work_handler(void *dhd_info, void *event_data, u8 event)
 			DHD_ERROR(("%s: Adding a host ip for NDO failed %d\n",
 				__FUNCTION__, ret));
 		}
+#if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
+		primary_ndev = dhd_linux_get_primary_netdev(dhdp);
+		/* Update mDNS offload host ipv6 address only when the primary interface is in station mode */
+		if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
+			ret = dhd_mdns_add_ipv6(dhdp, &ndo_work->ipv6_addr[0],
+					ndo_work->if_idx);
+			if (ret < 0) {
+				DHD_ERROR(("%s: Adding a host ipv6 for MDNS failed %d\n",
+					__FUNCTION__, ret));
+			} else
+				DHD_ERROR(("%s: Adding a host ipv6 for MDNS success %d\n",
+					__FUNCTION__, ret));
+
+		}
+#endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
+
 		break;
 	case NETDEV_DOWN:
 		if (dhdp->ndo_version > 0) {
@@ -14887,6 +15007,21 @@ dhd_inet6_work_handler(void *dhd_info, void *event_data, u8 event)
 				__FUNCTION__, ret));
 			goto done;
 		}
+
+#if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
+		primary_ndev = dhd_linux_get_primary_netdev(dhdp);
+		if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
+			ret = dhd_mdns_remove_ipv6(dhdp, ndo_work->if_idx);
+			if (ret < 0) {
+				DHD_ERROR(("%s: Removing host ipv6 for MDNS failed %d\n",
+							__FUNCTION__, ret));
+				goto done;
+			} else
+				DHD_ERROR(("%s: Removing host ipv6 for MDNS success %d\n",
+							__FUNCTION__, ret));
+		}
+#endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
+
 #ifdef NDO_CONFIG_SUPPORT
 		if (dhdp->ndo_host_ip_overflow) {
 			ret = dhd_dev_ndo_update_inet6addr(
@@ -15767,6 +15902,10 @@ void dhd_detach(dhd_pub_t *dhdp)
 #endif
 
 	(void)dhd_deinit_sock_flows_buf(dhd);
+
+#ifdef CSI_SUPPORT
+	dhd_csi_deinit(dhdp);
+#endif /* CSI_SUPPORT */
 
 #ifdef DHD_DUMP_MNGR
 	if (dhd->pub.dump_file_manage) {
@@ -19157,7 +19296,7 @@ dhd_wait_pend8021x(struct net_device *dev)
 static int
 write_file(const char *file_name, uint32 flags, uint8 *buf, int size)
 {
-	int ret = 0;
+	int ret = BCME_ERROR;
 	struct file *fp = NULL;
 	loff_t pos = 0;
 	MM_SEGMENT_T fs;
@@ -20406,6 +20545,183 @@ void dhd_dbgfs_remove(void)
 }
 #endif /* BCMDBGFS */
 
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+#include <linux/debugfs.h>
+
+typedef struct dhd_dump_to_mem_dbgfs {
+	struct dentry	*debugfs_dir;
+	struct dentry	*debugfs_memdump;
+	struct dentry	*debugfs_dbgdump;
+	dhd_pub_t	*dhdp;
+	uint32		memdump_size;
+	atomic_t 	memdump_active;
+	atomic_t 	dbgdump_active;
+	dhd_dump_seg_buf_ctx_t dbgdump_seg_ctx;
+	wait_queue_head_t memdump_wq;
+	wait_queue_head_t dbgdump_wq;
+} dhd_dump_to_mem_dbgfs_t;
+
+dhd_dump_to_mem_dbgfs_t g_d2m_dbgfs;
+
+static int
+dhd_d2m_memdump_state_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t
+dhd_d2m_memdump_state_read(struct file *file, char __user *ubuf,
+	size_t count, loff_t *ppos)
+{
+	size_t ret;
+	ssize_t rval;
+	loff_t pos = *ppos;
+
+	if (!atomic_read(&g_d2m_dbgfs.memdump_active)) {
+		if (file->f_flags & O_NONBLOCK) {
+			DHD_ERROR(("%s: @@@ no data to  mem dump\n", __FUNCTION__));
+			return -EAGAIN;
+		}
+
+		DHD_ERROR(("%s: @@@ no data to block dump\n", __FUNCTION__));
+		if (wait_event_interruptible(g_d2m_dbgfs.memdump_wq, atomic_read(&g_d2m_dbgfs.memdump_active)))
+			return -ERESTARTSYS;
+	}
+
+	if (pos < 0)
+		return -EINVAL;
+	if (pos >= g_d2m_dbgfs.memdump_size || !count) {
+		/* end of memory dump, clear flag and return  */
+		DHD_ERROR(("#DHD memory dump ended : %d\n", pos));
+		atomic_set(&g_d2m_dbgfs.memdump_active, 0);
+		return 0;
+	}
+	if (count > g_d2m_dbgfs.memdump_size - pos)
+		count = g_d2m_dbgfs.memdump_size - pos;
+
+	ret = copy_to_user(ubuf, (void *)((uintptr_t)g_d2m_dbgfs.dhdp->soc_ram + (*(int *)ppos)),
+				count);
+	if (ret) {
+		DHD_ERROR(("#DHD memory dump left %d bytes : %d\n", ret));
+	}
+
+	/* ret is how much data failed to be copied */
+	count -= ret;
+
+	*ppos = pos + count;
+
+	rval = count;
+	return rval;
+}
+
+static int
+dhd_d2m_dbgdump_state_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t
+dhd_d2m_dbgdump_state_read(struct file *file, char __user *ubuf,
+	size_t count, loff_t *ppos) {
+
+	ssize_t ret;
+	bool isover = FALSE;
+
+	if (!atomic_read(&g_d2m_dbgfs.dbgdump_active)) {
+		if (file->f_flags & O_NONBLOCK) {
+			DHD_ERROR(("%s: @@@ no data to debug dump\n", __FUNCTION__));
+			return -EAGAIN;
+		}
+
+		DHD_ERROR(("%s: @@@ no data to block dump\n", __FUNCTION__));
+		if (wait_event_interruptible(g_d2m_dbgfs.dbgdump_wq, atomic_read(&g_d2m_dbgfs.dbgdump_active)))
+			return -ERESTARTSYS;
+	}
+
+	ret = dhd_dump_buf_to_user_copy(&g_d2m_dbgfs.dbgdump_seg_ctx,
+				ppos, ubuf, count, &isover);
+	if (isover) {
+		atomic_set(&g_d2m_dbgfs.dbgdump_active, 0);
+		dhd_dump_buf_free(&g_d2m_dbgfs.dbgdump_seg_ctx);
+	}
+	return ret;
+}
+
+static const struct file_operations dhd_d2m_memdump_state_ops = {
+	.read   = dhd_d2m_memdump_state_read,
+	.open   = dhd_d2m_memdump_state_open,
+};
+
+static const struct file_operations dhd_d2m_dbgdump_state_ops = {
+	.read   = dhd_d2m_dbgdump_state_read,
+	.open   = dhd_d2m_dbgdump_state_open,
+};
+
+static void dhd_d2m_create(dhd_pub_t *dhdp)
+{
+	if (g_d2m_dbgfs.debugfs_dir) {
+		/* memory dump */
+		g_d2m_dbgfs.debugfs_memdump = debugfs_create_file("memdump", 0644, g_d2m_dbgfs.debugfs_dir,
+			NULL, &dhd_d2m_memdump_state_ops);
+		init_waitqueue_head(&g_d2m_dbgfs.memdump_wq);
+		atomic_set(&g_d2m_dbgfs.memdump_active, 0);
+
+		/* debug log dump */
+		g_d2m_dbgfs.debugfs_dbgdump = debugfs_create_file("dbgdump", 0644, g_d2m_dbgfs.debugfs_dir,
+			NULL, &dhd_d2m_dbgdump_state_ops);
+		init_waitqueue_head(&g_d2m_dbgfs.dbgdump_wq);
+		atomic_set(&g_d2m_dbgfs.dbgdump_active, 0);
+		dhd_dump_buf_init(&g_d2m_dbgfs.dbgdump_seg_ctx);
+	}
+}
+
+void dhd_d2m_init(dhd_pub_t *dhdp)
+{
+	g_d2m_dbgfs.dhdp = dhdp;
+	g_d2m_dbgfs.memdump_size = dhdp->soc_ram_length;
+
+	g_d2m_dbgfs.debugfs_dir = debugfs_create_dir("dhd_trap_dumps", 0);
+	if (IS_ERR(g_d2m_dbgfs.debugfs_dir)) {
+		g_d2m_dbgfs.debugfs_dir = NULL;
+		DHD_ERROR(("%s: @@@dbgfs create dir fail\n", __FUNCTION__));
+		return;
+	}
+
+	dhd_d2m_create(dhdp);
+
+	return;
+}
+
+void dhd_d2m_remove(void)
+{
+	debugfs_remove(g_d2m_dbgfs.debugfs_memdump);
+	debugfs_remove(g_d2m_dbgfs.debugfs_dir);
+
+	dhd_dump_buf_free(&g_d2m_dbgfs.dbgdump_seg_ctx);
+	bzero((unsigned char *) &g_d2m_dbgfs, sizeof(g_d2m_dbgfs));
+}
+
+void dhd_d2m_memdump_publish(void)
+{
+	if (atomic_read(&g_d2m_dbgfs.memdump_active))
+		return;
+
+	atomic_set(&g_d2m_dbgfs.memdump_active, 1);
+	wake_up_all(&(g_d2m_dbgfs.memdump_wq));
+}
+
+void dhd_d2m_dbgdump_publish(void)
+{
+	if (atomic_read(&g_d2m_dbgfs.dbgdump_active))
+		return;
+
+	atomic_set(&g_d2m_dbgfs.dbgdump_active, 1);
+	wake_up_all(&(g_d2m_dbgfs.dbgdump_wq));
+}
+#endif /* DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX */
+
 #ifdef CUSTOM_SET_CPUCORE
 void dhd_set_cpucore(dhd_pub_t *dhd, int set)
 {
@@ -21192,6 +21508,11 @@ dhd_mem_dump(void *handle, void *event_info, u8 event)
 #ifdef DHD_DEBUG_UART
 		dhd->pub.memdump_success = FALSE;
 #endif	/* DHD_DEBUG_UART */
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+		dhd_d2m_memdump_publish();
+		DHD_ERROR(("%s: DATA dump to memory from kernel =0x%x,memdump_type=%d\n",
+			__FUNCTION__, g_d2m_dbgfs.memdump_active, memdump_type));
+#endif
 	}
 #endif /* !BCMQT_HW */
 
@@ -21379,6 +21700,7 @@ dhd_export_debug_data(void *mem_buf, void *fp, const void *user_buf, uint32 buf_
 			}
 		} else
 #endif /* CONFIG_COMPAT */
+#ifndef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
 		{
 			ret = copy_to_user((void *)((uintptr_t)user_buf + (*(int *)pos)),
 				mem_buf, buf_len);
@@ -21387,6 +21709,7 @@ dhd_export_debug_data(void *mem_buf, void *fp, const void *user_buf, uint32 buf_
 				goto exit;
 			}
 		}
+#endif
 		(*(int *)pos) += buf_len;
 	}
 #ifdef DHD_DEBUGABILITY_DEBUG_DUMP
@@ -21400,6 +21723,12 @@ dhd_export_debug_data(void *mem_buf, void *fp, const void *user_buf, uint32 buf_
 			}
 		}
 	}
+#else
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+	else {
+		ret = dhd_dump_buf_append(dhd_dump_buf_get_ctx(), mem_buf, buf_len);
+	}
+#endif
 #endif /* DHD_DEBUGABILITY_DEBUG_DUMP */
 exit:
 	return ret;

@@ -329,11 +329,18 @@ typedef struct wl_scan_channel_info_v2 {
 						*/
 } wl_scan_channel_info_v2_t;
 
+/* Keeping the SSID count to '1' as currently no
+ * plan to support multiple SSID parsing in
+ * SCAN SUM.
+ */
+#define SCN_SUM_SSID_CNT	1u
+
+/* This struct is currently depricated. */
 typedef struct wl_scan_summary_info {
 	uint32 total_chan_num;				/* Total number of channels scanned */
 	uint32 scan_start_time;				/* Scan start time in milliseconds */
 	uint32 scan_end_time;				/* Scan end time in milliseconds */
-	wl_scan_ssid_info_t ssid[BCM_FLEX_ARRAY];	/* SSID being scanned in current
+	wl_scan_ssid_info_t ssid[SCN_SUM_SSID_CNT];	/* SSID being scanned in current
 							* channel. For future use
 							*/
 } wl_scan_summary_info_t;
@@ -1663,7 +1670,7 @@ typedef struct chsw_histogram_host_entry_v1 {
 	uint8 PAD[3];
 	chanspec_t from_chanspec;
 	chanspec_t to_chanspec;
-	uint32 buckets[BCM_FLEX_ARRAY];
+	uint32 buckets[];
 } chsw_histogram_host_entry_v1_t;
 
 #define CHSW_HISTOGRAM_HOST_DATA_VERSION_1 (1u)
@@ -1672,8 +1679,14 @@ typedef struct chsw_histogram_host_data_v1 {
 	uint8 version;
 	uint8 num_host_entries; /* Number of host entries */
 	uint8 num_buckets; /* Number of buckets in each host entry */
-	uint8 PAD;
-	chsw_histogram_host_entry_v1_t host_entries[BCM_FLEX_ARRAY];
+	uint8 PAD; /* Keep everything aligned */
+	uint32 host_entries[];	/* chsw_histogram_host_entry_v1_t's go here.
+				 * There are num_host_entries of these.
+				 * uint32 is used because the structures themselves
+				 * are variable length, so defining this with strong
+				 * typing is impossible due to nested variable
+				 * length structures.
+				 */
 } chsw_histogram_host_data_v1_t;
 
 #endif /* _EVENT_LOG_PAYLOAD_H_ */

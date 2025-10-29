@@ -382,6 +382,8 @@ typedef struct bcmpcie_soft_doorbell {
  *
  * D2H_RING_CONFIG_SUBTYPE_MSI_DOORBELL
  */
+#if !defined(BCMPCIE_D2H_MULTIMSI)
+/* Below 2 Enums are unused. Will remove after cleaning up prevous branches. */
 typedef enum bcmpcie_msi_intr_idx {
 	MSI_INTR_IDX_CTRL_CMPL_RING	= 0,
 	MSI_INTR_IDX_TXP_CMPL_RING	= 1,
@@ -391,7 +393,6 @@ typedef enum bcmpcie_msi_intr_idx {
 	MSI_INTR_IDX_MAX		= 5
 } bcmpcie_msi_intr_idx_t;
 
-#define BCMPCIE_D2H_MSI_OFFSET_SINGLE	0
 typedef enum bcmpcie_msi_offset_type {
 	BCMPCIE_D2H_MSI_OFFSET_MB0	= 2,
 	BCMPCIE_D2H_MSI_OFFSET_MB1	= 3,
@@ -400,24 +401,25 @@ typedef enum bcmpcie_msi_offset_type {
 	BCMPCIE_D2H_MSI_OFFSET_H1_DB0	= 6,
 	BCMPCIE_D2H_MSI_OFFSET_MAX	= 7
 } bcmpcie_msi_offset_type_t;
+#endif /* !BCMPCIE_D2H_MULTIMSI */
+
+/* Max MSI,ringid tuples in a ring_config message */
+#define BCMPCIE_D2H_MSI_OFFSET_TUPLE_MAX	5U
+#define BCMPCIE_D2H_MSI_OFFSET_SINGLE		0U
 
 typedef struct bcmpcie_msi_offset {
-	uint16	intr_idx;    /* interrupt index */
+	uint16	msi_ring_id;    /* ring index */
 	uint16	msi_offset;  /* msi vector offset */
 } bcmpcie_msi_offset_t;
 
 typedef struct bcmpcie_msi_offset_config {
 	uint32	len;
-	bcmpcie_msi_offset_t	bcmpcie_msi_offset[MSI_INTR_IDX_MAX];
+	bcmpcie_msi_offset_t	bcmpcie_msi_offset[BCMPCIE_D2H_MSI_OFFSET_TUPLE_MAX];
 } bcmpcie_msi_offset_config_t;
 
 typedef struct bcmpcie_mdata_config {
 	uint16  ringid;
 } bcmpcie_mdata_config_t;
-
-#define BCMPCIE_D2H_MSI_OFFSET_DEFAULT	BCMPCIE_D2H_MSI_OFFSET_DB1
-
-#define BCMPCIE_D2H_MSI_SINGLE		0xFFFE
 
 /* if_id */
 #define BCMPCIE_CMNHDR_IFIDX_PHYINTF_SHFT	5
@@ -611,14 +613,31 @@ typedef struct tx_flowring_flush_request {
 	uint32	rsvd[7];
 } tx_flowring_flush_request_t;
 
-/** Subtypes for ring_config_req control message */
+/** D2H Subtypes for ring_config_req control message */
 typedef enum ring_config_subtype {
 	/** Default D2H PCIE doorbell override using ring_config_req msg */
-	D2H_RING_CONFIG_SUBTYPE_SOFT_DOORBELL = 1, /* Software doorbell */
-	D2H_RING_CONFIG_SUBTYPE_MSI_DOORBELL  = 2, /* MSI configuration */
-	D2H_RING_CONFIG_SUBTYPE_MDATA_LINK    = 3, /* Metadata ring link */
-	D2H_RING_CONFIG_SUBTYPE_MDATA_UNLINK  = 4  /* Metadata ring unlink */
+	D2H_RING_CONFIG_SUBTYPE_SOFT_DOORBELL = 1u, /* Software doorbell */
+	D2H_RING_CONFIG_SUBTYPE_MSI_DOORBELL  = 2u, /* MSI configuration */
+	D2H_RING_CONFIG_SUBTYPE_MDATA_LINK    = 3u, /* Metadata ring link */
+	D2H_RING_CONFIG_SUBTYPE_MDATA_UNLINK  = 4u  /* Metadata ring unlink */
 } ring_config_subtype_t;
+
+#define BCMPCIE_H2D_MULTIDB_TUPLE_MAX		5u
+
+/** H2D Subtypes for ring_config_req control message */
+typedef enum h2d_ring_config_subtype {
+	H2D_RING_CONFIG_SUBTYPE_DOORBELL = 1u, /* Multi H2DDB Subtype */
+} h2d_ring_config_subtype_t;
+
+typedef struct bcmpcie_h2d_db_tuple {
+	uint16  h2d_ringid;    /* interrupt index */
+	uint16  h2d_db_offset;  /* msi vector offset */
+} bcmpcie_h2d_db_tuple_t;
+
+typedef struct bcmpcie_h2d_db_config {
+	uint32  len;
+	bcmpcie_h2d_db_tuple_t    h2d_db_tuple[BCMPCIE_H2D_MULTIDB_TUPLE_MAX];
+} bcmpcie_h2d_db_config_t;
 
 typedef struct ring_config_req { /* pulled from upcoming rev6 ... */
 	cmn_msg_hdr_t	msg;
@@ -632,6 +651,7 @@ typedef struct ring_config_req { /* pulled from upcoming rev6 ... */
 		/** D2H_RING_CONFIG_SUBTYPE_MSI_DOORBELL */
 		bcmpcie_msi_offset_config_t msi_offset;
 		bcmpcie_mdata_config_t mdata_assoc;
+		bcmpcie_h2d_db_config_t h2d_db_config;
 	};
 } ring_config_req_t;
 

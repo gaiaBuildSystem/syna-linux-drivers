@@ -120,6 +120,10 @@ static dhd_debug_dump_ring_entry_t dhd_debug_dump_ring_map[] = {
 };
 #endif /* DHD_DEBUGABILITY_DEBUG_DUMP */
 
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+static dhd_dump_seg_buf_ctx_t *p_dump_seg_ctx = NULL;
+#endif
+
 #ifdef CUSTOMER_HW4_DEBUG
 static void
 dhd_log_dump_print_to_kmsg(char *bufptr, unsigned long len)
@@ -1569,7 +1573,9 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 		if (IS_ERR(fp) || (fp == NULL)) {
 			ret = PTR_ERR(fp);
 			DHD_ERROR(("open file error, err = %d\n", ret));
+#if !defined(DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX)
 			goto exit2;
+#endif
 		}
 		DHD_PRINT(("debug_dump_path = %s\n", dump_path));
 #endif /* defined(CONFIG_X86) && defined(OEM_ANDROID) */
@@ -1577,14 +1583,18 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 #if !(defined(CONFIG_X86) && defined(OEM_ANDROID))
 		ret = PTR_ERR(fp);
 		DHD_ERROR(("open file error, err = %d\n", ret));
+#if !defined(DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX)
 		goto exit2;
+#endif /* !DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX */
 #endif /* CONFIG_X86 && OEM_ANDROID */
 	}
 
 	ret = dhd_vfs_stat(dump_path, &stat);
 	if (ret < 0) {
 		DHD_ERROR(("file stat error, err = %d\n", ret));
+#if !defined(DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX)
 		goto exit2;
+#endif
 	}
 
 	dhd_print_time_str(0, fp, len, &pos);
@@ -1748,6 +1758,14 @@ exit1:
 	DHD_BUS_BUSY_CLEAR_IN_LOGDUMP(dhdp);
 	dhd_os_busbusy_wake(dhdp);
 	DHD_GENERAL_UNLOCK(dhdp, flags);
+
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+	if ((ret >= 0) && (fp == NULL)) {
+		DHD_ERROR(("%s: Finished writing log dump to memory\n",
+				__FUNCTION__));
+		dhd_d2m_dbgdump_publish();
+	}
+#endif
 
 #ifdef DHD_DUMP_MNGR
 	if (ret >= 0) {
@@ -2926,3 +2944,160 @@ dhd_iovar_log_dump_check(dhd_pub_t *dhd_pub, uint32 cmd, char *msg)
 }
 #endif /* DHD_IOVAR_LOG_FILTER_DUMP */
 #endif /* DHD_LOG_DUMP */
+
+#ifdef DHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+
+dhd_dump_seg_buf_ctx_t* dhd_dump_buf_get_ctx(void)
+{
+	return p_dump_seg_ctx;
+}
+
+void dhd_dump_buf_init(dhd_dump_seg_buf_ctx_t *ctx)
+{
+	if (!ctx) return;
+
+	ctx->head = NULL;
+	ctx->tail = NULL;
+	ctx->total = 0;
+
+	p_dump_seg_ctx = ctx;
+}
+
+void dhd_dump_buf_free(dhd_dump_seg_buf_ctx_t *ctx)
+{
+	dhd_dump_segment_t *cur, *next;
+
+	DHD_ERROR(("#DHD dump mem free :total= %d\n",ctx->total));
+	if (!ctx||!(ctx->total)) return;
+	cur = ctx->head;
+
+	while (cur) {
+		next = cur->next;
+		kvfree(cur->data);
+		kvfree(cur);
+		cur = next;
+	}
+
+	ctx->head = NULL;
+	ctx->tail = NULL;
+	ctx->total = 0;
+}
+
+int dhd_dump_buf_append(dhd_dump_seg_buf_ctx_t *ctx, const void* src, size_t len)
+{
+	const uint8_t * pdata = src;
+	dhd_dump_segment_t * node;
+	size_t avail; /* space available in node */
+	size_t data_to_write;
+
+	if (!ctx) return -ENOSPC;
+
+	while (len) {
+		/* append new segment node into list */
+		if ((!ctx->tail) || (ctx->tail->len == DHD_DUMP_SEGMENT_MAX)) {
+			node = kmalloc(sizeof(*node), GFP_KERNEL);
+			if (!node) return -ENOMEM;
+			node->data = kvmalloc(DHD_DUMP_SEGMENT_MAX, GFP_KERNEL);
+			if (!node->data) {kfree(node); return -ENOMEM;}
+
+			node->len = 0;
+			node->next = NULL;
+
+			if (!ctx->head) {
+				ctx->head = node;
+			} else {
+				ctx->tail->next = node;
+			}
+			ctx->tail = node;
+		}
+
+		/* normal case to append data to tail node */
+		node = ctx->tail;
+		avail = DHD_DUMP_SEGMENT_MAX - node->len;
+		data_to_write = (len >= avail) ? avail : len;
+		memcpy(node->data + node->len, pdata, data_to_write);
+
+		node->len += data_to_write;
+		len -= data_to_write;
+		pdata += data_to_write;
+		ctx->total += data_to_write;
+	}
+	return 0;
+}
+
+ssize_t dhd_dump_buf_to_user_copy(dhd_dump_seg_buf_ctx_t *ctx,
+				loff_t *ppos, char __user *ubuf, size_t count, bool *isover)
+{
+	size_t pos = *ppos; /* offset to kernel buffer */
+	size_t offset = 0; /* offset inside each node data */
+	size_t sum = 0; /* temp node data size sum */
+	size_t chunk_ready = 0; /* bytes read in all nodes together */
+	size_t avail = 0; /* bytes available in each node */
+	size_t missed; /* bytes read failed in copy_to_user */
+	size_t data_to_read = 0; /* bytes set to read in copy_to_user */
+	ssize_t rval;
+	const void *src; /* start point in a certain node->data */
+
+	dhd_dump_segment_t *node = ctx->head;
+
+	if (!ctx || (pos < 0) || !isover) return -ENOSPC;
+
+	if (pos >= ctx->total || !count) {
+		DHD_ERROR(("DHD dbg data dump ended : %d\n", ctx->total));
+		*isover = TRUE;
+		return 0;
+	}
+
+	if (count > ctx->total - pos)
+		count = ctx->total - pos;
+
+	/* locate the node to start by pos */
+	while (node && (sum + node->len <= pos)) {
+		sum += node->len;
+		node = node->next;
+	}
+
+	if (!node) return 0;
+
+	/* copy data across nodes */
+	*isover = FALSE;
+
+	/* initial offset */
+	offset = pos - sum;
+
+	while (node && chunk_ready < count) {
+		/* locate src start, and how much to read in one segment node */
+		src = node->data + offset;
+		avail = node->len - offset;
+		data_to_read = MIN(avail, count - chunk_ready);
+
+		missed = copy_to_user(ubuf + chunk_ready, src, data_to_read);
+
+		/* session must stop if failed */
+		if (missed > 0) {
+			rval = chunk_ready + data_to_read - missed;
+			*ppos += (data_to_read - missed);
+			DHD_ERROR(("#dhd dbg partial dumped :pos = %d"
+				"total= %d, count=%d, ready=%d, ret=%d\n",
+				*ppos, ctx->total, count, chunk_ready, rval));
+			return rval;
+		}
+
+		/* states move forward */
+		chunk_ready += data_to_read;
+		*ppos += data_to_read;
+		offset += data_to_read;
+
+		/* if one node goes off, then go on to next node */
+		if (offset == node->len) {
+			node = node->next;
+			offset = 0;
+		}
+	}
+	/* till here everything goes well */
+	/* rval is how many bytes copied in success, possibly */
+	rval = chunk_ready;
+	return rval;
+}
+
+#endif

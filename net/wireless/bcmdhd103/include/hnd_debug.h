@@ -114,6 +114,9 @@ typedef struct hnd_debug_reloc {
 #define HND_DEBUG_VERSION_2	2u	/* Version 2 contains the MMU information
 					 * used for stack virtualization, etc.
 					 */
+#define HND_DEBUG_VERSION_3	3u	/* Version 3 contains the MMU information &
+					 * SMB memory information if present.
+					 */
 
 /* This struct is placed at a well-defined location, and contains a pointer to hnd_debug. */
 typedef struct hnd_debug_ptr {
@@ -143,7 +146,6 @@ extern hnd_debug_ptr_t debug_info_ptr;
 typedef struct hnd_debug {
 	uint32	magic;
 #define HND_DEBUG_MAGIC 0x47424544u	/* 'DEBG' */
-
 	/* Note: The original uint32 version is split into two fields:
 	 * uint16 version and uint16 length to accomidate future expansion
 	 * of the structure.
@@ -178,13 +180,19 @@ typedef struct hnd_debug {
 	/* Version 2 fields */
 	/* Specifies the hnd debug MMU info */
 	_HD_DEBUG_RELOC_P	hnd_debug_reloc_ptr;
+
+	uint32	smb_base;		/* SMB physical address. */
+	uint32	smb_size;		/* SMB size. */
 } hnd_debug_t;
 
 #define HND_DEBUG_V1_SIZE       (OFFSETOF(hnd_debug_t, chipid_signature) + \
-				 sizeof(((hnd_debug_t *)0)->chipid_signature))
+					sizeof(((hnd_debug_t *)0)->chipid_signature))
 
 #define HND_DEBUG_V2_BASE_SIZE  (OFFSETOF(hnd_debug_t, hnd_debug_reloc_ptr) + \
-				 sizeof(((hnd_debug_t *)0)->hnd_debug_reloc_ptr))
+					sizeof(((hnd_debug_t *)0)->hnd_debug_reloc_ptr))
+
+#define HND_DEBUG_V3_SIZE	(OFFSETOF(hnd_debug_t, smb_size) + \
+					sizeof(((hnd_debug_t *)0)->smb_size))
 
 /* The following structure is used in populating build information */
 typedef struct hnd_build_info {
@@ -212,10 +220,10 @@ typedef struct             {    /* Time value with microsecond resolution    */
 
 /* Linux/ARM 32 prstatus for notes section */
 typedef struct prstatus {
-	  int32 si_signo; 	/* Signal number */
-	  int32 si_code; 	/* Extra code */
-	  int32 si_errno; 	/* Errno */
-	  uint16 pr_cursig; 	/* Current signal.  */
+	  int32 si_signo;	/* Signal number */
+	  int32 si_code;	/* Extra code */
+	  int32 si_errno;	/* Errno */
+	  uint16 pr_cursig;	/* Current signal.  */
 	  uint16 unused;
 	  uint32 pr_sigpend;	/* Set of pending signals.  */
 	  uint32 pr_sighold;	/* Set of held signals.  */

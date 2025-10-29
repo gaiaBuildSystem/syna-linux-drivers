@@ -364,6 +364,16 @@ BCMATTACHFN(si_buscore_setup)(si_info_t *sii, chipcregs_t *cc, uint bustype, uin
 			sii->pub.buscoreidx = (uint16)i;
 		}
 #endif /* BCMSDIO */
+		if (cid == SMB_CORE_ID) {
+			sii->smb.present = TRUE;
+			sii->smb.rev = crev;
+			sii->smb.base_addr =
+				si_addrspace(&sii->pub, CORE_SLAVE_PORT_1, CORE_BASE_ADDR_0);
+			sii->smb.size =
+				si_addrspacesize(&sii->pub, CORE_SLAVE_PORT_1, CORE_BASE_ADDR_0);
+			SI_MSG(("SMB: rev %d base 0x%08x size %u\n", sii->smb.rev,
+				sii->smb.base_addr, sii->smb.size));
+		}
 
 		/* find the core idx before entering this func. */
 		if (CHIPTYPE(sii->pub.socitype) == SOCI_NCI) {
@@ -1323,11 +1333,38 @@ BCMPOSTTRAPFN(si_saqm_present)(const si_t *sih)
 	return FALSE;
 }
 
-static bool
+/*
+ * si_get_smb_info:
+ * Returns TRUE if SMB core is present, and also fills the base_addr and size.
+ * Returns FALSE if SMB core is not present , sets base_addr and size to 0.
+ */
+bool
+BCMPOSTTRAPFN(si_get_smb_info)(const si_t *sih, uint32 *base_addr, uint32 *size)
+{
+	const si_info_t *sii = SI_INFO(sih);
+	if (sii->smb.present) {
+		*base_addr = sii->smb.base_addr;
+		*size = sii->smb.size;
+		return TRUE;
+	}
+
+	*base_addr = 0;
+	*size = 0;
+	return FALSE;
+}
+
+bool
 BCMPOSTTRAPFN(si_saqm_power_domain_present)(const si_t *sih)
 {
-	/* 4384 chip is AI first chip with SAQM. It doesn't have SAQM power domain */
-	if (CHIPID((sih)->chip) == BCM4384_CHIP_GRPID) {
+	/*
+	 * TBD: Need to look into generic method (e.g: query HW) to avoid chipid checks.
+	 *
+	 * 4384 chip is AI first chip with SAQM. It doesn't have SAQM power domain
+	 * 43109/43110 - SAQM doesn't have separate powerdomain, it is part of WL pwrdomain(1)
+	 */
+	if (CHIPID((sih)->chip) == BCM4384_CHIP_GRPID ||
+		BCM43109_CHIP((sih)->chip) ||
+		BCM43110_CHIP((sih)->chip)) {
 		return FALSE;
 	}
 	return TRUE;
@@ -3288,7 +3325,7 @@ BCMPOSTTRAPFN(si_srpwr_request)(const si_t *sih, uint32 mask, uint32 val)
 		val  <<= SRPWR_REQON_SHIFT;
 
 		/* Return if requested power request is already set */
-		if (BUSTYPE(sih->bustype) == SI_BUS) {
+		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
 			r = R_REG(sii->osh, fast_srpwr_addr);
 		} else {
 			r = si_corereg_pciefast_read(sih, offset);
@@ -3300,7 +3337,7 @@ BCMPOSTTRAPFN(si_srpwr_request)(const si_t *sih, uint32 mask, uint32 val)
 
 		r = (r & ~mask) | val;
 
-		if (BUSTYPE(sih->bustype) == SI_BUS) {
+		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
 			W_REG(sii->osh, fast_srpwr_addr, r);
 			r = R_REG(sii->osh, fast_srpwr_addr);
 		} else {
@@ -3316,7 +3353,7 @@ BCMPOSTTRAPFN(si_srpwr_request)(const si_t *sih, uint32 mask, uint32 val)
 			si_srpwr_stat_spinwait(sih, mask2, val2);
 		}
 	} else {
-		if (BUSTYPE(sih->bustype) == SI_BUS) {
+		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
 			r = R_REG(sii->osh, fast_srpwr_addr);
 		} else {
 			r = si_corereg_pciefast_read(sih, offset);
@@ -3339,7 +3376,7 @@ BCMPOSTTRAPFN(si_srpwr_stat_spinwait)(const si_t *sih, uint32 mask, uint32 val)
 	mask <<= SRPWR_STATUS_SHIFT;
 	val <<= SRPWR_STATUS_SHIFT;
 
-	if (BUSTYPE(sih->bustype) == SI_BUS) {
+	if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
 		SPINWAIT(((R_REG(sii->osh, fast_srpwr_addr) & mask) != val),
 			PMU_MAX_TRANSITION_DLY);
 		r = R_REG(sii->osh, fast_srpwr_addr) & mask;

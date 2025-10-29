@@ -284,7 +284,7 @@ typedef uint32 ratespec_bw_t;
 #define RSPEC_UHR_MCS_LO_SET(mcs)	((mcs) & WL_RSPEC_UHR_MCS_LO_MASK)
 
 #define RSPEC_GET_UHR_MCS(rspec)	wf_uhr_rspec_get_mcs(rspec)
-#define RSPEC_SET_UHR_MCS(rspec, mcs)	(rspec = wf_uhr_rspec_set_mcs(rspec, mcs))
+#define RSPEC_SET_UHR_MCS(rspec, mcs)	((rspec) = wf_uhr_rspec_set_mcs(rspec, mcs))
 
 /* Macro to get MCS/NSS for encoding >= 2 i.e VHT, HE, EHT and UHR */
 #define RSPEC_GET_VHTEXT_MCS(rspec)	(RSPEC_ISUHR(rspec) ? RSPEC_GET_UHR_MCS(rspec) : \

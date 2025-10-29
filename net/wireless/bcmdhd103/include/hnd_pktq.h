@@ -79,8 +79,8 @@ typedef struct pktq_prec {
 #ifdef PKTQ_LOG
 typedef struct {
 	uint32 requested;    /**< packets requested to be stored */
-	uint32 stored;	     /**< packets stored */
-	uint32 saved;	     /**< packets saved,
+	uint32 stored;	/**< packets stored */
+	uint32 saved;	/**< packets saved,
 	                            because a lowest priority queue has given away one packet
 	                      */
 	uint32 selfsaved;    /**< packets saved,

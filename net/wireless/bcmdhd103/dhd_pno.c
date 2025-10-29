@@ -146,8 +146,6 @@ do { \
 						- (uint32)(timestamp2/1000)))
 #define TIME_DIFF_MS(timestamp1, timestamp2) (abs((uint32)(timestamp1)  \
 						- (uint32)(timestamp2)))
-#define TIMESPEC64_TO_US(ts)  (((ts).tv_sec * USEC_PER_SEC) + \
-						(ts).tv_nsec / NSEC_PER_USEC)
 
 #define ENTRY_OVERHEAD strlen("bssid=\nssid=\nfreq=\nlevel=\nage=\ndist=\ndistSd=\n====")
 #define TIME_MIN_DIFF 5

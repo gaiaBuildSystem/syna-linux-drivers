@@ -192,6 +192,10 @@ typedef struct {
 
 #define PCIE_SHARED3_8021X_FLOWRING	0x00000040u /* supports separate 8021x flowring */
 
+#define PCIE_SHARED3_FW_8021X_RXCPL	0x00000080u /* supports separate 8021x RXCPL Ring */
+#define PCIE_SHARED3_FW_ARP_RXCPL	0x00000100u /* supports separate ARP RXCPL ring  */
+#define PCIE_SHARED3_H2D_MULTI_DB	0x00000200u /* supports Multiple H2D DB */
+
 #define PCIE_SHARED_D2H_MAGIC		0xFEDCBA09
 #define PCIE_SHARED_H2D_MAGIC		0x12345678
 
@@ -237,6 +241,8 @@ typedef uint16			pcie_hwa_db_index_t;	/* 16 bit HWA index (IPC Rev 7) */
 #define BCMPCIE_D2H_RING_TYPE_HPP_RX_CPL                0x9
 #define BCMPCIE_D2H_RING_TYPE_MESH_RX_CPL               0xA
 #define BCMPCIE_D2H_RING_TYPE_MDATA_CPL                 0xB
+#define BCMPCIE_D2H_RING_TYPE_8021X_RX_CPL		0xC
+#define BCMPCIE_D2H_RING_TYPE_ARP_RX_CPL		0xD
 
 /**
  * H2D and D2H, WR and RD index, are maintained in the following arrays:

@@ -118,9 +118,6 @@ static DEFINE_SPINLOCK(noti_list_lock);
 		}\
 	} while (0)
 
-#define TIMESPEC64_TO_US(ts)  (((ts).tv_sec * USEC_PER_SEC) + \
-							(ts).tv_nsec / NSEC_PER_USEC)
-
 #undef DHD_RTT_MEM
 #undef DHD_RTT_ERR
 #define DHD_RTT_MEM DHD_LOG_MEM
@@ -5337,6 +5334,9 @@ dhd_rtt_convert_az_results_to_host_v1(rtt_mc_az_result_t *rtt_result,
 	rtt_report_t *rtt_report = &(rtt_result->u.az_result.report);
 	wl_ftm_status_t ftm_status;
 	int i;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+	struct timespec64 ts;
+#endif /* LINUX_VER >= 2.6.39 */
 
 	result_v1 = (wl_ftm_az_rtt_result_v1_t *)p_data;
 
@@ -5373,6 +5373,11 @@ dhd_rtt_convert_az_results_to_host_v1(rtt_mc_az_result_t *rtt_result,
 	rtt_report->rtt = result_v1->rtt_mean;
 	rtt_report->rtt_sd = result_v1->rtt_sd;
 	rtt_report->distance = result_v1->dist;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+	ts = ktime_to_timespec64(ktime_get_boottime());
+	rtt_report->ts = (uint64)TIMESPEC64_TO_US(ts);
+#endif /* LINUX_VER >= 2.6.39 */
 
 	rtt_result->u.az_result.detail_len =
 		sizeof(rtt_result->u.az_result.rtt_detail);
@@ -5424,6 +5429,9 @@ dhd_rtt_convert_az_results_to_host_v2(rtt_mc_az_result_t *rtt_result,
 	wl_ftm_intvl_t min_delta, max_delta;
 	wl_ftm_status_t ftm_status;
 	int i;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+	struct timespec64 ts;
+#endif /* LINUX_VER >= 2.6.39 */
 	chanspec_t chanspec;
 	int8 max_rssi = BCM_INT8_MIN;
 
@@ -5499,10 +5507,15 @@ dhd_rtt_convert_az_results_to_host_v2(rtt_mc_az_result_t *rtt_result,
 	}
 	rtt_result->packet_bw = dhd_rtt_format_bw_to_pkt_bw(p_data_info->format_bw);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+	ts = ktime_to_timespec64(ktime_get_boottime());
+	rtt_report->ts = (uint64)TIMESPEC64_TO_US(ts);
+#endif /* LINUX_VER >= 2.6.39 */
+
 	DHD_RTT(("dhd_rtt_convert_az_results_to_host_v2 : distance = %d mm success_num = %d "
-		"pkt_bw = %d format_bw = %d \n",
+		"pkt_bw = %d format_bw = %d ts = %lld\n",
 			rtt_report->distance, rtt_report->success_num, rtt_result->packet_bw,
-			p_data_info->format_bw));
+			p_data_info->format_bw, rtt_report->ts));
 	return BCME_OK;
 }
 
@@ -5515,6 +5528,9 @@ dhd_rtt_convert_az_results_to_host_v3(rtt_mc_az_result_t *rtt_result,
 	wl_ftm_intvl_t min_delta, max_delta;
 	wl_ftm_status_t ftm_status;
 	int i;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+	struct timespec64 ts;
+#endif /* LINUX_VER >= 2.6.39 */
 	chanspec_t chanspec;
 	int8 max_rssi = BCM_INT8_MIN;
 	char eabuf[ETHER_ADDR_STR_LEN];
@@ -5611,12 +5627,19 @@ dhd_rtt_convert_az_results_to_host_v3(rtt_mc_az_result_t *rtt_result,
 	}
 	rtt_result->packet_bw = dhd_rtt_format_bw_to_pkt_bw(p_data_info->format_bw);
 
-	DHD_RTT_MEM(("dhd_rtt_convert_az_results_to_host_v3 : Target(%s) status = %d "
-			"distance = %d mm distance_sd = %d mm success_num = %d rtt_sd = %d ps"
-			" pkt_bw = %d format_bw = %d \n",
+	/* time stamp */
+	/* get the time elapsed from boot time */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+	ts = ktime_to_timespec64(ktime_get_boottime());
+	rtt_report->ts = (uint64)TIMESPEC64_TO_US(ts);
+#endif /* LINUX_VER >= 2.6.39 */
+
+	DHD_RTT(("dhd_rtt_convert_az_results_to_host_v3 : Target(%s) status = %d "
+			"distance = %d mm distance_sd = %d mm success_num = %d rtt_sd = %lld ps"
+			" pkt_bw = %d format_bw = %d ts = %lld\n",
 			eabuf, rtt_report->status, rtt_report->distance, rtt_report->distance_sd,
 			rtt_report->success_num, rtt_report->rtt_sd, rtt_result->packet_bw,
-			p_data_info->format_bw));
+			p_data_info->format_bw, rtt_report->ts));
 	return BCME_OK;
 }
 

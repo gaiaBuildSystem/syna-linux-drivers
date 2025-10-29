@@ -38,6 +38,8 @@
  *
  *
  * <<Broadcom-WL-IPTag/Dual:>>
+ *
+ * Edited with the help of GENAI.
  */
 
 #ifndef	_bcmutils_h_
@@ -329,31 +331,33 @@ extern int bcm_atoipv4(const char *p, struct ipv4_addr *ip);
 
 /* delay */
 extern void bcm_mdelay(uint ms);
+
 /* variable access */
 #if defined(BCM_RECLAIM)
 extern bool _nvram_reclaim_enb;
 #define NVRAM_RECLAIM_ENAB() (_nvram_reclaim_enb)
 #ifdef BCMDBG
-#define NVRAM_RECLAIM_CHECK(name)							\
+#define NVRAM_RECLAIM_CHECK_EXT(name, ret)						\
 	if (NVRAM_RECLAIM_ENAB() && (bcm_attach_part_reclaimed == TRUE)) {		\
 		printf("NVRAM already reclaimed, %s\n", (name));			\
 		GCC_DIAGNOSTIC_PUSH_SUPPRESS_NULL_DEREF();				\
 		*(char*) 0 = 0; /* TRAP */						\
 		GCC_DIAGNOSTIC_POP();							\
-		return NULL;								\
+		return (ret);								\
 	}
 #else /* BCMDBG */
-#define NVRAM_RECLAIM_CHECK(name)							\
+#define NVRAM_RECLAIM_CHECK_EXT(name, ret)						\
 	if (NVRAM_RECLAIM_ENAB() && (bcm_attach_part_reclaimed == TRUE)) {		\
 		GCC_DIAGNOSTIC_PUSH_SUPPRESS_NULL_DEREF();				\
 		*(char*) 0 = 0; /* TRAP */						\
 		GCC_DIAGNOSTIC_POP();							\
-		return NULL;								\
+		return (ret);								\
 	}
 #endif /* BCMDBG */
 #else /* BCM_RECLAIM */
-#define NVRAM_RECLAIM_CHECK(name)
+#define NVRAM_RECLAIM_CHECK_EXT(name, ret)
 #endif /* BCM_RECLAIM */
+#define NVRAM_RECLAIM_CHECK(name) NVRAM_RECLAIM_CHECK_EXT(name, NULL)
 
 const char *getvar(char *vars, const char *name);
 int getintvar(char *vars, const char *name);
@@ -594,6 +598,10 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
 
 #define DELTA(curr, prev) ((curr) > (prev) ? ((curr) - (prev)) : \
 	(0xffffffff - (prev) + (curr) + 1))
+
+#define DELTA64(curr, prev) ((curr) > (prev) ? ((curr) - (prev)) : \
+	(0xffffffffffffffff - (prev) + (curr) + 1))
+
 #define CEIL(x, y)		(((x) + ((y) - 1)) / (y))
 #define ROUNDUP(x, y)		((((x) + ((y) - 1)) / (y)) * (y))
 #define ROUNDDN(p, align)	((p) & ~((align) - 1))
@@ -817,7 +825,7 @@ DECLARE_MAP_API(8, 2, 3, 3u, 0x00FFu) /* setbit8() and getbit8() */
 
 /* chanspec format */
 #ifdef DONGLEBUILD
-#define CHF			"CHSPEC:X%04F"
+#define CHF			"CHSPEC:X%04X"
 #define CHSPEC_TO_CHF(ch, buf)	(BCM_REFERENCE(buf), ch)
 #else
 #define CHF			"%s"
@@ -832,6 +840,7 @@ DECLARE_MAP_API(8, 2, 3, 3u, 0x00FFu) /* setbit8() and getbit8() */
 #define SSIDF			"SSID:X%X..%X:L%u"
 #define SSIDP_TO_SSIDF(ssid, ssid_len, ssidbuf) \
 				ssid_len > 0 ? ntoh32_ua(&((const uint8 *)(ssid))[0]) : 0, \
+				BCM_EXTENSION \
 				({ \
 				uint pos = ssid_len > 8 ? ssid_len - 4 : ssid_len > 4 ? 4 : 0; \
 				pos > 0 ? ntoh32_ua(&((const uint8 *)(ssid))[pos]) : 0; \
@@ -1474,23 +1483,27 @@ int valid_bcmerror(int e);
 /* Used to pass in a macro variable that gets expanded and then stringified */
 #define BCM_EXTENDED_STRINGIFY(s) BCM_STRINGIFY(s)
 
+extern uint32 ip_cksum_partial(uint32 sum, uint8 *val8, uint32 count);
+/* calculate IP checksum */
+extern uint16 ip_cksum(uint32 sum, uint8 *val8, uint32 count);
+
 /* calculate IPv4 header checksum
  * - input ip points to IP header in network order
  * - output cksum is in network order
  */
-uint16 ipv4_hdr_cksum(uint8 *ip, uint ip_len);
+extern uint16 ipv4_hdr_cksum(uint8 *ip, uint ip_len);
 
 /* calculate IPv4 TCP header checksum
  * - input ip and tcp points to IP and TCP header in network order
  * - output cksum is in network order
  */
-uint16 ipv4_tcp_hdr_cksum(uint8 *ip, uint8 *tcp, uint16 tcp_len);
+extern uint16 ipv4_tcp_hdr_cksum(uint8 *ip, uint8 *tcp, uint16 tcp_len);
 
 /* calculate IPv6 TCP header checksum
  * - input ipv6 and tcp points to IPv6 and TCP header in network order
  * - output cksum is in network order
  */
-uint16 ipv6_tcp_hdr_cksum(uint8 *ipv6, uint8 *tcp, uint16 tcp_len);
+extern uint16 ipv6_tcp_hdr_cksum(uint8 *ipv6, uint8 *tcp, uint16 tcp_len);
 
 #ifdef __cplusplus
 	}
@@ -1733,7 +1746,7 @@ typedef struct ver_len_info {
 } ver_len_info_t;
 
 /* Nvram related constants and magics */
-#define NV_SIG_MAGIC_VAL {0xCD, 0xCA, 0xDC, 0xAC, 0xBA, 0xB0, 0xAB, 0x0B};
+#define NV_SIG_MAGIC_VAL {0xCD, 0xCA, 0xDC, 0xAC, 0xBA, 0xB0, 0xAB, 0x0B}
 #define NV_SIG_MAGIC_SZ 8
 #define NV_SIG_KEY_LEN_SZ sizeof(uint16)
 #define NV_SIG_HDR_SZ (NV_SIG_MAGIC_SZ + NV_SIG_KEY_LEN_SZ)

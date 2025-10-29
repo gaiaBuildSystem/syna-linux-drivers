@@ -45,6 +45,7 @@
 #include <sbhnddma.h>
 #include <siutils.h>
 
+#define REV_GE_135(rev) (PCIECOREREV((rev)) >= 135u)
 #define REV_GE_74(rev) (PCIECOREREV((rev)) >= 74)
 #define REV_GE_73(rev) (PCIECOREREV((rev)) >= 73)
 #define REV_GE_71(rev) (PCIECOREREV((rev)) >= 71)
@@ -583,10 +584,13 @@ typedef volatile struct pcie_serdes_regs {
 #define PCIE_LTR_THRESHOLD_VALUE_MASK	0x3FF0000u
 
 /* NumMsg and NumMsgEn in PCIE MSI Cap */
-#define MSICAP_NUM_MSG_SHF		17
+#define MSICAP_NUM_MSG_SHF		17U
 #define MSICAP_NUM_MSG_MASK		(0x7 << MSICAP_NUM_MSG_SHF)
-#define MSICAP_NUM_MSG_EN_SHF	20
+#define MSICAP_NUM_MSG_EN_SHF	20U
 #define MSICAP_NUM_MSG_EN_MASK	(0x7 << MSICAP_NUM_MSG_EN_SHF)
+
+#define	MSI_MAX_VECTORS	32U
+#define MSI_VECTOR_OFFSET_MAX	(MSI_MAX_VECTORS - 1U)
 
 /* Devcontrol2 reg offset in PCIE Cap */
 #define PCIE_CAP_DEVCTRL2_OFFSET	0x28	/* devctrl2 offset in pcie cap */
@@ -889,6 +893,19 @@ typedef volatile struct pcie_serdes_regs {
 #define DAR_SEC_NSEC_WR_SHIFT	5u
 #define DAR_SEC_NSEC_RD_MASK	0x40u
 #define DAR_SEC_NSEC_RD_SHIFT	6u
+
+#define DAR_BPDEBUGINFO_SEL(rev)	(REV_GE_135(rev) ? PCIE_REG_OFF(dar_bpDebugInfoSel) : 0u)
+#define DAR_BPDEBUGINFO(rev)		(REV_GE_135(rev) ? PCIE_REG_OFF(dar_bpDebugInfo) : 0u)
+
+/* DAR BP DebugInfo Select bits */
+#define DAR_BPDI_SEL_DBGBUS1		0
+#define DAR_BPDI_SEL_PMU_RSRC_CNTL	1u
+#define DAR_BPDI_SEL_PMU_RSRC_AVAIL	2u
+#define DAR_BPDI_SEL_PMU_TOP_GPIO_OUT	3u
+#define DAR_BPDI_SEL_STDC_LPMUXOUT_LO	4u
+#define DAR_BPDI_SEL_STDC_LPMUXOUT_HI	5u
+#define DAR_BPDI_SEL_GCI_CHIPSTS	6u
+#define DAR_BPDI_SEL_GCI_GPIO_OUT	7u
 
 #define PCIE_PWR_REQ_PCIE	(0x1 << 8)
 
@@ -1267,6 +1284,7 @@ typedef volatile struct pcieregs pcieregs_t;
 #define pciegen2_dar_intstatus_ADDR                                                     0xa10u
 #define pciegen2_dar_errorlog_ADDR                                                      0xa60u
 #define pciegen2_dar_errorlog_addr_ADDR                                                 0xa64u
+#define pciegen2_dar_h2d3_doorbell0_ADDR                                                0xa38u
 #define pciegen2_dar_h2d3_doorbell1_ADDR                                                0xa3cu
 #define pciegen2_mailboxint_ADDR                                                        0xc30u
 #define pciegen2_mailboxintmask_ADDR                                                    0xc34u
@@ -1293,6 +1311,7 @@ typedef volatile struct pcieregs pcieregs_t;
 #define pciegen2_dar_h2d2_doorbell0_ADDR                                                0xa30u
 #define pciegen2_hosttodev2doorbell0_ADDR                                               0x160u
 #define pciegen2_hosttodev0doorbell1_ADDR                                               0x144u
+#define pciegen2_hosttodev3doorbell0_ADDR                                               0x170u
 #define pciegen2_hosttodev3doorbell1_ADDR                                               0x174u
 #define pciegen2_devtohost0doorbell0_ADDR                                               0x148u
 #define pciegen2_error_header_reg1_ADDR                                                 0x1b0u
@@ -1311,6 +1330,8 @@ typedef volatile struct pcieregs pcieregs_t;
 #define pciegen2_dar_mailboxint_ADDR                                                    0xa68u
 #define pciegen2_hmapviolation_errorinfo_ADDR                                           0x608u
 #define pciegen2_dar_security_status_ADDR                                               0xa74u
+#define pciegen2_dar_bpDebugInfo_ADDR							0xa88u
+#define pciegen2_dar_bpDebugInfoSel_ADDR						0xa8cu
 #define pciegen2_cpl_to_ctrl_ADDR                                                       0x3cu
 #endif /* !DONGLEBUILD */
 

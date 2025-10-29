@@ -178,7 +178,7 @@ typedef struct pktpool {
 	bool is_heap_pool;	/* Whether this pool can be used as heap */
 	bool release_active;
 	uint8 mem_handle;
-	uint8 resv_mode; 	/* reserve mode for using reserved rx host address for rxpool */
+	uint8 resv_mode;	/* reserve mode for using reserved rx host address for rxpool */
 
 	struct resv_info *resv_info; /* Resv frag pool info */
 	uint resv_pool_idx;
@@ -268,17 +268,17 @@ bool pktpool_validate_freelist(pktpool_t *pktp);
 
 /* Registry of pktpool(s) */
 /* Pool ID to/from Pool Pointer converters */
-#define PKTPOOL_ID2PTR(id)          (get_pktpools_registry(id))
-#define PKTPOOL_PTR2ID(pp)          (POOLID(pp))
+#define PKTPOOL_ID2PTR(id)		(get_pktpools_registry(id))
+#define PKTPOOL_PTR2ID(pp)		(POOLID(pp))
 
 /* Registry size is one larger than max pools, as slot #0 is reserved */
-#define PKTPOOLREG_RSVD_ID				(0U)
-#define PKTPOOLREG_RSVD_PTR				(POOLPTR(0xdeaddead))
-#define PKTPOOLREG_FREE_PTR				(POOLPTR(NULL))
+#define PKTPOOLREG_RSVD_ID		(0U)
+#define PKTPOOLREG_RSVD_PTR		(POOLPTR(0xdeaddead))
+#define PKTPOOLREG_FREE_PTR		(POOLPTR(NULL))
 
 #ifndef PKTID_POOL
 /* max pktids reserved for pktpool is updated properly in Makeconf */
-#define PKTID_POOL		    (PKT_MAXIMUM_ID - 32u)
+#define PKTID_POOL			(PKT_MAXIMUM_ID - 32u)
 #endif /* PKTID_POOL */
 extern uint32 total_pool_pktid_count;
 

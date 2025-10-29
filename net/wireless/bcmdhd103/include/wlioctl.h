@@ -149,6 +149,7 @@ typedef struct remote_ioctl {
 #define PHY_SAMP_TXTONE_MAX_NUM 2u
 
 /**DFS Forced param */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_dfs_forced_params {
 	chanspec_t chspec;
 	uint16 version;
@@ -230,6 +231,7 @@ typedef struct wl_af_params_v1 {
 #define WL_WIFI_ACTION_FRAME_SIZE_V1 sizeof(wl_action_frame_v1_t)
 #define WL_WIFI_AF_PARAMS_SIZE_V1    sizeof(wl_af_params_v1_t)
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_af_params_v2 {
 	uint16			version;
 	uint16			length;
@@ -617,6 +619,25 @@ typedef struct wl_eht_mcsmap {
 #define WL_EHT_MCS_BMP_MCS_15_POS	1u
 /* EHT mcs 14 & 15 field width */
 #define WL_EHT_MCS_BMP_MCS_SZ		1u	/* 1 bit per mcs */
+
+typedef struct wl_uhr_mcsmap {
+	uint8		mcs_0_13[4];		/* mcs 0 - 13 mcsmap */
+	uint8		mcs_14_15[1];		/* mcs 14 & 15 bitmap */
+	uint8		mcs_ext[1];		/* mcs 17, 19, 20 & 23 bitmap */
+} wl_uhr_mcsmap_t;
+
+/* UHR mcs 14 & 15 bit positions */
+#define WL_UHR_MCS_BMP_MCS_14_POS	0u
+#define WL_UHR_MCS_BMP_MCS_15_POS	1u
+
+/* UHR mcs 17, 19, 20 & 23 bit positions */
+#define WL_UHR_MCS_BMP_MCS_17_POS	0u
+#define WL_UHR_MCS_BMP_MCS_19_POS	1u
+#define WL_UHR_MCS_BMP_MCS_20_POS	2u
+#define WL_UHR_MCS_BMP_MCS_23_POS	3u
+
+/* UHR mcs 14, 15, 17, 19, 20 & 23 field width */
+#define WL_UHR_MCS_BMP_MCS_SZ		1u	/* 1 bit per mcs */
 
 /**
  * BSS info structure
@@ -1028,7 +1049,7 @@ typedef struct wl_extdscan_params {
 	int8		split_scan;			/**< split scan */
 	int8		band;				/**< band */
 	int8		PAD;
-	wlc_ssid_t	ssid[WLC_EXTDSCAN_MAX_SSID]; 	/**< ssid list */
+	wlc_ssid_t	ssid[WLC_EXTDSCAN_MAX_SSID];	/**< ssid list */
 	uint32		tx_rate;			/**< in 500ksec units */
 	wl_scan_type_t	scan_type;			/**< enum */
 	int32		channel_num;
@@ -1254,6 +1275,7 @@ typedef struct wl_scan_params_v4 {
 #define ISCAN_REQ_VERSION_V2 2
 
 /** incremental scan struct */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_iscan_params_v1 {
 	uint32 version;
 	uint16 action;
@@ -1262,6 +1284,7 @@ typedef struct wl_iscan_params_v1 {
 } wl_iscan_params_v1_t;
 
 /** incremental scan struct */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_iscan_params_v2 {
 	uint32 version;
 	uint16 action;
@@ -1270,6 +1293,7 @@ typedef struct wl_iscan_params_v2 {
 } wl_iscan_params_v2_t;
 
 /** incremental scan struct */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_iscan_params_v3 {
 	uint32 version;
 	uint16 action;
@@ -1344,6 +1368,7 @@ typedef struct iscan_buf {
 #define ESCAN_REQ_VERSION_V3 3
 #define ESCAN_REQ_VERSION_V4 4
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_escan_params_v1 {
 	uint32 version;
 	uint16 action;
@@ -1351,6 +1376,7 @@ typedef struct wl_escan_params_v1 {
 	struct wl_scan_params_v1 params;
 } wl_escan_params_v1_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_escan_params_v2 {
 	uint32 version;
 	uint16 action;
@@ -1358,6 +1384,7 @@ typedef struct wl_escan_params_v2 {
 	wl_scan_params_v2_t params;
 } wl_escan_params_v2_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_escan_params_v3 {
 	uint32 version;
 	uint16 action;
@@ -1365,6 +1392,7 @@ typedef struct wl_escan_params_v3 {
 	wl_scan_params_v3_t params;
 } wl_escan_params_v3_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_escan_params_v4 {
 	uint32 version;
 	uint16 action;
@@ -1412,12 +1440,14 @@ typedef struct wl_gscan_result_v2_1 {
 } wl_gscan_result_v2_1_t;
 
 /** incremental scan results struct */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_iscan_results {
 	uint32 status;
 	wl_scan_results_v109_t results;
 } wl_iscan_results_v109_t;
 
 /** incremental scan results struct */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_iscan_results_v2 {
 	uint32 status;
 	wl_scan_results_v2_t results;
@@ -1710,6 +1740,7 @@ typedef  wl_assoc_params_v3_t wl_reassoc_params_v3_t;
 #define WL_EXT_REASSOC_VER_1	2
 #define WL_EXT_REASSOC_VER_3	3
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_ext_reassoc_params {
 	uint16 version;
 	uint16 length;
@@ -1729,6 +1760,8 @@ typedef struct wl_ext_reassoc_params {
 
 #define WL_EXTREASSOC_PARAMS_FIXED_SIZE		(OFFSETOF(wl_ext_reassoc_params_t, params) + \
 					 WL_REASSOC_PARAMS_FIXED_SIZE)
+
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_ext_reassoc_params_v1 {
 	uint16 version;
 	uint16 length;
@@ -1739,6 +1772,7 @@ typedef struct wl_ext_reassoc_params_v1 {
 #define WL_EXTREASSOC_PARAMS_FIXED_SIZE_V1	(OFFSETOF(wl_ext_reassoc_params_v1_t, params) + \
 					 WL_REASSOC_PARAMS_FIXED_SIZE_V1)
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_ext_reassoc_params_v3 {
 	uint16 version;
 	uint16 length;
@@ -1758,6 +1792,7 @@ typedef wl_assoc_params_v3_t wl_join_assoc_params_v3_t;
 #define WL_JOIN_ASSOC_PARAMS_FIXED_SIZE_V2 WL_ASSOC_PARAMS_FIXED_SIZE_V2
 #define WL_JOIN_ASSOC_PARAMS_FIXED_SIZE_V3 WL_ASSOC_PARAMS_FIXED_SIZE_V3
 /** used for join with or without a specific bssid and channel list */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_join_params {
 	wlc_ssid_t ssid;
 	wl_assoc_params_t params;	/**< optional field, but it must include the fixed portion
@@ -1766,6 +1801,7 @@ typedef struct wl_join_params {
 } wl_join_params_t;
 
 /** used for join with or without a specific bssid and channel list */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_join_params_v1 {
 	wlc_ssid_t ssid;
 	wl_assoc_params_v1_t params;    /**< optional field, but it must include the fixed portion
@@ -1774,6 +1810,7 @@ typedef struct wl_join_params_v1 {
 } wl_join_params_v1_t;
 
 /** used for join with or without a specific bssid and channel list */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_join_params_v2 {
 	wlc_ssid_t ssid;
 	wl_assoc_params_v2_t params;    /**< optional field, but it must include the fixed portion
@@ -1782,6 +1819,7 @@ typedef struct wl_join_params_v2 {
 } wl_join_params_v2_t;
 
 /** used for join with or without a specific bssid and channel list */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_join_params_v3 {
 	wlc_ssid_t ssid;
 	wl_assoc_params_v3_t params;    /**< optional field, but it must include the fixed portion
@@ -1919,6 +1957,7 @@ typedef struct wl_join_scan_params_v3 {
 #define wl_join_assoc_params_v2_t wl_assoc_params_v2_t
 #define wl_join_assoc_params_v3_t wl_assoc_params_v3_t
 /** extended join params */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_extjoin_params {
 	wlc_ssid_t ssid;                /**< {0, ""}: wildcard scan */
 	wl_join_scan_params_t scan;
@@ -1928,6 +1967,7 @@ typedef struct wl_extjoin_params {
 					  */
 } wl_extjoin_params_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_extjoin_params_v1 {
 	uint16 version;
 	uint16 PAD;
@@ -1939,6 +1979,7 @@ typedef struct wl_extjoin_params_v1 {
 					 */
 } wl_extjoin_params_v1_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_extjoin_params_v2 {
 	uint16				version;
 	uint16				PAD;
@@ -1950,6 +1991,7 @@ typedef struct wl_extjoin_params_v2 {
 						*/
 } wl_extjoin_params_v2_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_extjoin_params_v3 {
 	uint16				version;
 	uint16				PAD;
@@ -2369,7 +2411,7 @@ typedef struct wl_rm_req_elt {
 typedef struct wl_rm_req {
 	uint32	token;				/**< overall measurement set token */
 	uint32	count;				/**< number of measurement requests */
-	void	*cb;				/**< completion callback function: may be NULL */
+	void	(*cb)(void *);			/**< completion callback function: may be NULL */
 	void	*cb_arg;			/**< arg to completion callback function */
 	wl_rm_req_elt_t	req[BCM_FLEX_ARRAY];	/**< variable length block of requests */
 } wl_rm_req_t;
@@ -3030,22 +3072,6 @@ typedef struct maclist {
 	uint32 count;				/**< number of MAC addresses */
 	struct ether_addr ea[BCM_FLEX_ARRAY];	/**< variable length array of MAC addresses */
 } maclist_t;
-
-typedef struct wds_client_info {
-	char	ifname[INTF_NAME_SIZ];	/* WDS ifname */
-	struct	ether_addr ea;		/* WDS client MAC address */
-} wds_client_info_t;
-
-#define WDS_MACLIST_MAGIC	0xFFFFFFFF
-#define WDS_MACLIST_VERSION	1
-
-/* For wds MAC list ioctls */
-typedef struct wds_maclist {
-	uint32 count;						/* Number of WDS clients */
-	uint32 magic;						/* Magic number */
-	uint32 version;						/* Version number */
-	struct wds_client_info client_list[BCM_FLEX_ARRAY];	/* Var len array of WDS clients */
-} wds_maclist_t;
 
 /**get pkt count struct passed through ioctl */
 typedef struct get_pktcnt {
@@ -3717,6 +3743,7 @@ struct wl_dfs_ap_move_status_v1 {
 	wl_dfs_status_t cac_status;	/* CAC status */
 };
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_dfs_ap_move_status_v2 {
 	int8 version;            /* version field; current max version 1 */
 	int8 move_status;        /* DFS move status */
@@ -4408,6 +4435,9 @@ enum {
 	DVFS_SUBCMD_HIST =   3,			/* DVFS history, data[] contains
 			                         * history of dvfs state change
 			                         */
+	DVFS_SUBCMD_HDV =    4,			/* DVFS force arm state to HDV, 1-byte data
+						 * DVFS force HDV ON 1, HDV OFF 0
+						 */
 	DVFS_SUBCMD_LAST
 };
 
@@ -6231,7 +6261,7 @@ typedef enum {
 #define ANQPO_MAX_QUERY_SIZE		256
 typedef struct {
 	uint16 max_retransmit;		/**< ~0 use default, max retransmit on no ACK from peer */
-	uint16 response_timeout; 	/**< ~0 use default, msec to wait for resp after tx pkt */
+	uint16 response_timeout;	/**< ~0 use default, msec to wait for resp after tx pkt */
 	uint16 max_comeback_delay;	/**< ~0 use default, max comeback delay in resp else fail */
 	uint16 max_retries;		/**< ~0 use default, max retries on failure */
 	uint16 query_len;		/**< length of ANQP query */
@@ -6578,6 +6608,7 @@ typedef struct wl_pkt_filter_pattern_timeout {
 } wl_pkt_filter_pattern_timeout_t;
 
 /** IOVAR "pkt_filter_add" parameter. Used to install packet filters. */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_pkt_filter {
 	uint32	id;		/**< Unique filter id, specified by app. */
 	uint32	type;		/**< Filter type (WL_PKT_FILTER_TYPE_xxx). */
@@ -7253,6 +7284,7 @@ typedef struct {
 	char                 headings[];
 } pktq_log_format_v05_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct {
 	uint32               version;
 	wl_iov_mac_params_t  params;
@@ -7459,6 +7491,27 @@ typedef struct eventmsgs_ext
 	uint8	maxgetsize;
 	uint8	mask[BCM_FLEX_ARRAY];
 } eventmsgs_ext_t;
+
+#include <packed_section_start.h>
+#define BUS_FLOW_CONFIG_PARAMS_VERSION_1	(1u)
+
+#define BUS_FLOW_CONFIG_FLAGS_LIMIT		(1u << 0)
+#define BUS_FLOW_CONFIG_FLAGS_CONFIGURE		(1u << 1u)
+#define BUS_FLOW_CONFIG_FLAGS_RESET		(1u << 2u)
+
+typedef BWL_PRE_PACKED_STRUCT struct flow_config {
+	uint16		flowid;	/**<flowring id */
+	uint16		percentage; /**< limit percentage */
+} BWL_POST_PACKED_STRUCT flow_config_t;
+
+typedef BWL_PRE_PACKED_STRUCT struct pcie_bus_flow_config_params_v1 {
+	uint16		ver; /**<version */
+	uint16		len; /**<length */
+	uint16		flags; /**< param flags */
+	uint16		count; /**< number of flows */
+	flow_config_t	flow_configs[];
+} BWL_POST_PACKED_STRUCT pcie_bus_flow_config_params_t;
+#include <packed_section_end.h>
 
 #include <packed_section_start.h>
 typedef BWL_PRE_PACKED_STRUCT struct pcie_bus_tput_params {
@@ -7866,6 +7919,7 @@ typedef BWL_PRE_PACKED_STRUCT struct {
 #include <packed_section_end.h>
 
 #include <packed_section_start.h>
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef BWL_PRE_PACKED_STRUCT struct {
 	char cmd[VNDR_IE_CMD_LEN];	/**< vndr_ie IOVar set command : "add", "del" + NUL */
 	vndr_ie_buf_t vndr_ie_buffer;	/**< buffer containing Vendor IE list information */
@@ -7896,6 +7950,7 @@ typedef BWL_PRE_PACKED_STRUCT struct {
 #include <packed_section_end.h>
 
 #include <packed_section_start.h>
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef BWL_PRE_PACKED_STRUCT struct {
 	char cmd[VNDR_IE_CMD_LEN];	/**< ie IOVar set command : "add" + NUL */
 	ie_buf_t ie_buffer;	/**< buffer containing IE list information */
@@ -9184,6 +9239,7 @@ enum {
 };
 
 /** Definitions for WNM/NPS TCLAS */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tclas {
 	uint8 user_priority;
 	uint8 fc_len;
@@ -12590,6 +12646,7 @@ typedef struct wl_nan_nbr_rssi_data {
 } wl_nan_peer_rssi_data_t;
 
 /* WL_NAN_CMD_DBG_DUMP, GET Resp */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_nan_dbg_dump_rsp {
 	wl_nan_dbg_dump_type_t dump_type; /* dump data type */
 	uint8 PAD[3];
@@ -13400,9 +13457,12 @@ typedef struct wl_nan_mcast_avail_bmp_s {
 #define WL_NAN_MCAST_AVAIL_BMP_LEN_FIXED  (OFFSETOF(wl_nan_mcast_avail_bmp_t, bitmap))
 #define WL_NAN_MCAST_AVAIL_BMP_LEN_MAX    (WL_NAN_MCAST_AVAIL_BMP_LEN_FIXED + 8u) /* 1024/16TU */
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_nan_mcast_avail_s {
 	struct ether_addr ndi;
 	uint8 PAD[2];
+
+	/* NOTE: array of structs that contains a flexible array member is non-ISO C compliant. */
 	wl_nan_mcast_avail_bmp_t bmp[];
 } wl_nan_mcast_avail_t;
 #define WL_NAN_MCAST_AVAIL_LEN_FIXED	(OFFSETOF(wl_nan_mcast_avail_t, bmp))
@@ -14490,6 +14550,7 @@ typedef struct net_detect_profile_list {
 	net_detect_profile_t	nd_profile[];
 } net_detect_profile_list_t;
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct net_detect_config {
 	uint8			    nd_enabled;
 	uint8				PAD[3];
@@ -14530,6 +14591,7 @@ typedef struct bcnreq {
 } bcnreq_t;
 
 #define WL_RRM_BCN_REQ_VER	1
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct bcn_req {
 	uint8 version;
 	uint8 bcn_mode;
@@ -14546,6 +14608,7 @@ typedef struct bcn_req {
 } bcn_req_t;
 
 #define WL_RRM_BCN_REQ_VER_2	2u
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 struct wl_bcn_req_v2 {
 	uint8	version;		/* size to be compatible with older version */
 	uint8	pad1[1];
@@ -14774,13 +14837,6 @@ typedef struct {
 	uint8 data[WL_RRM_RPT_MAX_PAYLOAD];
 } statrpt_t;
 
-typedef struct wlc_dwds_config {
-	uint32		enable;
-	uint32		mode; /**< STA/AP interface */
-	struct ether_addr ea;
-	uint8  PAD[2];
-} wlc_dwds_config_t;
-
 typedef struct wl_el_set_params_s {
 	uint8 set;	/**< Set number */
 	uint8  PAD[3];
@@ -14883,11 +14939,6 @@ typedef struct wlc_bcn_len_hist {
 	uint32	ringbuff_len;		/**< Length of the ring buffer 'bcnlen_ring' */
 	uint32	bcnlen_ring[BCM_FLEX_ARRAY];	/**< ring buffer storing received beacon lengths */
 } wlc_bcn_len_hist_t;
-
-/* WDS net interface types */
-#define WL_WDSIFTYPE_NONE  0x0 /**< The interface type is neither WDS nor DWDS. */
-#define WL_WDSIFTYPE_WDS   0x1 /**< The interface is WDS type. */
-#define WL_WDSIFTYPE_DWDS  0x2 /**< The interface is DWDS type. */
 
 typedef struct wl_bssload_static {
 	uint8 is_static;
@@ -15906,11 +15957,14 @@ typedef struct wl_proxd_ftm_session_status {
 } wl_proxd_ftm_session_status_t;
 
 /** rrm range request */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_proxd_range_req {
 	uint16			num_repeat;
 	uint16			init_delay_range;	/**< in TUs */
 	uint8			PAD;
 	uint8			num_nbr;		/**< number of (possible) neighbors */
+
+	/* NOTE: array of structs that contains a flexible array member is non-ISO C compliant. */
 	nbr_element_t		nbr[BCM_FLEX_ARRAY];
 } wl_proxd_range_req_t;
 
@@ -16355,6 +16409,7 @@ typedef struct wl_bssload_cfg {
 #define WL_USER_ROAM_CACHE_CLR		3u	/**< Delete all chanspec[s] */
 #define WL_USER_ROAM_CACHE_OVERRIDE	4u	/**< Set to use roam cached chanspec only */
 
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_user_roamcache {
 	uint16	version;
 	uint16	length;		/**< Total length including version and length */
@@ -16385,9 +16440,9 @@ typedef struct wl_user_roamcache {
 #define WL_ROAM_PROF_NO_CI		(1u << 1u)
 #define WL_ROAM_PROF_SUSPEND		(1u << 2u)
 #define WL_ROAM_PROF_EXTSCAN		(1u << 3u)
-#define WL_ROAM_FIND_HIGHER_BAND_ONLY	(1u << 4u) /* Flag to find better higher band AP
-						  * Not valid 4388 onwards
-						  */
+#define WL_ROAM_FIND_HIGHER_BAND_ONLY	(1u << 4u) /* Flag to find better 5G AP (4387 & earlier) */
+/* bit4 is redefined and reused for 4388 and later for skipping 6G scan */
+#define WL_ROAM_PROF_SKIP_6GSCAN	WL_ROAM_FIND_HIGHER_BAND_ONLY
 #define WL_ROAM_PROF_SYNC_DTIM		(1u << 6u)
 #define WL_ROAM_PROF_DEFAULT		(1u << 7u) /* backward compatible single default profile */
 #define WL_ROAM_PROF_5G_PREF		(1u << 8u) /* Flag to restrict low rssi roam scan to 5G */
@@ -17469,6 +17524,22 @@ enum {
 	IOV_DYNSAR_CMD_LAST
 };
 
+enum wlc_dynsar_dbg_cmds_t {
+	IOV_DSADBG_CMD_FORCEFS	   = 1,		// Induce Failsafe
+	IOV_DSADBG_CMD_SAR_CRASH   = 2,		// Disable crash upon violation
+	IOV_DSADBG_CMD_FORCENOMUTE = 3,		// Force no-mute mode
+	IOV_DSADBG_CMD_TRAP_ON_FS  = 4,		// Trap upon Failsafe detection (def=Off)
+	IOV_DSADBG_TRACE_BUDGET	   = 5,		// Trace budget assignment
+	IOV_DSADBG_TRACE_FORECAST  = 6,		// Trace Forecast details
+	IOV_DSADBG_TRACE_CACHE	   = 7,		// Cache verification
+	IOV_DSADBG_TRACE_SEARCH	   = 8,		// Show detailed search adjustment
+	IOV_DSADBG_CMD_CNTR_SHOW   = 9,		// Display operational state counters
+	IOV_DSADBG_CMD_CNTR_RESET  = 10,	// Reset operational state counters
+	IOV_DSADBG_CMD_BUDGET_BT   = 11,	// Force/Reset test BT/WLAN SAR distribution
+	IOV_DSADBG_CMD_BT_BAND	   = 12,	// BT simulated traffic band (def=2G)
+	IOV_DSADBG_CMD_BT_TXDC	   = 13		// BT simulated traffic (%%)
+};
+
 /* when subcommand is IOV_DYNSAR_MODE, the mode can be one of the below */
 enum {
 	IOV_DYNSAR_MODE_OFF	   = 0, /* DSA optimization turned off */
@@ -17766,7 +17837,7 @@ typedef struct dynsar_opt_profile_v2 {
 	uint8 util_thrhd;	/* Averaged Ux before turning off optimization	*/
 	uint8 util_mean;	/* Mean     Ux before turning off optimization	*/
 	/* failsafe parameters */
-	uint8 fs;          	/* Historical Ux threshold triggering failsafe	*/
+	uint8 fs;		/* Historical Ux threshold triggering failsafe	*/
 	uint8 util_mean_fs;	/* Mean Ux threshold to trigger failsafe	*/
 	uint8 avg_txdc_fs;	/* Mean TxDC threshold for failsafe for util_mean_fs */
 	/* DDC parameters */
@@ -17788,7 +17859,7 @@ typedef struct dynsar_opt_profile_v3 {
 	uint8 util_thrhd;	/* Averaged Ux before turning off optimization	*/
 	uint8 util_mean;	/* Mean     Ux before turning off optimization	*/
 	/* failsafe parameters */
-	uint8 fs;          	/* Historical Ux threshold triggering failsafe	*/
+	uint8 fs;		/* Historical Ux threshold triggering failsafe	*/
 	uint8 util_mean_fs;	/* Mean Ux threshold to trigger failsafe	*/
 	uint8 avg_txdc_fs;	/* Mean TxDC threshold for failsafe for util_mean_fs */
 	/* DDC parameters */
@@ -17844,12 +17915,23 @@ typedef struct dynsar_sar_budget {
 	uint8  sar[DSA_MAX_RADIO];  /* active profile */
 } dynsar_sar_budget_t;
 
+/* DSA operational counters */
+typedef struct dynsar_stats {
+	uint32	opt;	/* Optimization is enabled	*/
+	uint32	pwr;	/* Power optimization is On	*/
+	uint32	nomute;	/* NoMute Optimization is On	*/
+	uint32	ddc;	/* DDC is On			*/
+	uint32	fs;	/* Failsafe is On		*/
+	uint32	total;	/* Total Tmon counter		*/
+} dynsar_stats_t;
+
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_dynsar_ioc {
 	uint16 id;	/* ID of the sub-command */
 	uint16 len;	/* total length of all data[] */
 	uint8 PAD[4];
 	union { /* var len payload */
-		uint8 cnt;
+		uint8			 cnt;
 		dynsar_cnt_v1_t		 det;
 		dynsar_cnt_v2_t		 detv2;
 		dynsar_cnt_v3_t		 detv3;
@@ -17862,6 +17944,7 @@ typedef struct wl_dynsar_ioc {
 		dynsar_opt_profiles_v2_t profilesv2;
 		dynsar_opt_profiles_v3_t profilesv3;
 		dynsar_sar_budget_t	 budgets;
+		dynsar_stats_t		 stats;
 	} data;
 } wl_dynsar_ioc_t;
 
@@ -18417,28 +18500,6 @@ enum {
 	WL_MFP_CAPABLE,
 	WL_MFP_REQUIRED
 };
-
-typedef enum {
-/* The complete enum definition should be moved to bcmevent.h.
- * When add new, add it to bcmevent.h
- */
-#if !defined(WL_CHANSW_REASONS_0TO13_INCLUDED)
-	CHANSW_UNKNOWN = 0,	/* channel switch due to unknown reason */
-	CHANSW_SCAN = 1,	/* channel switch due to scan */
-	CHANSW_PHYCAL = 2,	/* channel switch due to phy calibration */
-	CHANSW_INIT = 3,	/* channel set at WLC up time */
-	CHANSW_ASSOC = 4,	/* channel switch due to association */
-	CHANSW_ROAM = 5,	/* channel switch due to roam */
-	CHANSW_MCHAN = 6,	/* channel switch triggered by mchan module */
-	CHANSW_IOVAR = 7,	/* channel switch due to IOVAR */
-	CHANSW_CSA_DFS = 8,	/* channel switch due to chan switch  announcement from AP */
-	CHANSW_APCS = 9,	/* Channel switch from AP channel select module */
-	CHANSW_FBT = 11,	/* Channel switch from FBT module for action frame response */
-	CHANSW_UPDBW = 12,	/* channel switch at update bandwidth */
-	CHANSW_ULB = 13,	/* channel switch at ULB */
-#endif	/* WL_CHANSW_REASONS_0TO13_INCLUDED */
-	CHANSW_DUMMY		/* dummy entry to avoid empty enum */
-} chansw_reason_t;
 
 /*
  * WOWL unassociated mode power svae pattern.
@@ -20007,6 +20068,7 @@ enum {
 	WL_MLO_CMD_TEST			= 0x1009u,	/* invoke an internal test case */
 	WL_MLO_CMD_FORCE_PS		= 0x100au,	/* Force PS state to all links (CTT) */
 	WL_MLO_CMD_R1_COMPAT		= 0x100bu,	/* Compatibility for WiFi7 R1 tests */
+	WL_MLO_CMD_RSVD_BITS_TEST	= 0x100cu,	/* WFA reserved bits for ML elem test */
 	WL_MLO_CMD_MLOSIM		= 0x2000u,	/* to set mlo simulation option */
 };
 
@@ -20121,9 +20183,6 @@ typedef struct wl_mlo_config_pref_v1 {
 #define WL_MLO_FEA_LINK_ADDR_RAND_MASK		0x200	/* MLO link addr randomization mask */
 #define WL_MLO_FEA_LINK_ADDR_RAND_SHIFT		9u	/* MLO  link addr randomization shift */
 
-#define WL_MLO_FEA_LINK_ADDR_RAND_DISABLE	0u	/* MLO link addr randomization mask */
-#define WL_MLO_FEA_LINK_ADDR_RAND_ENABLE	1u	/* MLO  link addr randomization shift */
-
 #define WL_MLO_FEA_EMLSR_DISABLE		0u	/* Disable eMLSR mode */
 #define WL_MLO_FEA_EMLSR_ENABLE			1u	/* Enable eMLSR mode */
 
@@ -20140,6 +20199,9 @@ typedef struct wl_mlo_config_pref_v1 {
 
 #define WL_MLO_FEA_MLO_ASSOC_MODE_STRICT	0u	/* Strict assoc mode 0 */
 #define WL_MLO_FEA_MLO_ASSOC_MODE_FLEXI		1u	/* Flexible assoc mode 1 (default) */
+
+#define WL_MLO_FEA_LINK_ADDR_RAND_DISABLE	0u	/* MLO link addr randomization mask */
+#define WL_MLO_FEA_LINK_ADDR_RAND_ENABLE	1u	/* MLO  link addr randomization shift */
 
 /* Mask in the following structure defines which bit is valid in the enab field. If a bit in
  * mask field is zero, the corresponding value in enab will be ignored. The definition of
@@ -20927,15 +20989,36 @@ typedef enum wl_qos_cmd_id {
 	WL_QOS_CMD_RAV_SCS_DESCR_PARAMS	= 4u,	/* qos_mgmt rav_scs descr_params */
 	WL_QOS_CMD_RAV_SCS_CT4		= 5u,	/* qos_mgmt rav_scs ct4 */
 	WL_QOS_CMD_RAV_SCS_CT10		= 6u,	/* qos_mgmt rav_scs ct10 */
-	WL_QOS_CMD_RAV_SCS_QOS_CHAR	= 7u	/* qos_mgmt rav_scs qos_char */
+	WL_QOS_CMD_RAV_SCS_QOS_CHAR	= 7u,	/* qos_mgmt rav_scs qos_char */
+	WL_QOS_CMD_DAR			= 8u,	/* qos_mgmt dar */
+	WL_QOS_CMD_DAR_LATENCY_STAT	= 9u,	/* qos_mgmt dar latency_stat */
+	WL_QOS_CMD_DAR_RADIO_COUNTERS	= 10u,	/* qos_mgmt dar radio_cnt */
+	WL_QOS_CMD_DAR_CONTROL_PLANE	= 11u,	/* qos_mgmt dar control_plane */
+	WL_QOS_CMD_DAR_GET_CONFIG	= 12u,	/* qos_mgmt dar config */
+	WL_QOS_CMD_DAR_SESSION_REQ	= 13u,	/* qos_mgmt dar session_req */
+	WL_QOS_CMD_DAR_SESSION_INFO	= 14u,	/* qos_mgmt dar session_info */
+	WL_QOS_CMD_DAR_SESSION_DEL	= 15u,	/* qos_mgmt dar session_del */
+	WL_QOS_CMD_CAP			= 16u	/* qos_mgmt cap */
 } wl_qos_cmd_id_e;
+
+/* QoS Capability Bitmap */
+typedef enum wl_qos_cap_flags {
+	WL_QOS_CAP_FLAG_RAV_MSCS	= (1u << 0u),	/* bit 0 */
+	WL_QOS_CAP_FLAG_RAV_SCS		= (1u << 1u),	/* bit 1 */
+	WL_QOS_CAP_FLAG_DAR		= (1u << 2u)	/* bit 2 */
+} wl_qos_cap_flags_e;
 
 /* QoS enable subcommand flags */
 typedef enum qos_cmd_enable_flags {
 	WL_QOS_CMD_ENABLE_FLAG_RAV_MSCS			= (1u << 0u),	/* bit 0 */
 	WL_QOS_CMD_ENABLE_FLAG_RAV_MSCS_NEG_IN_ASSOC	= (1u << 1u),	/* bit 1 */
 	WL_QOS_CMD_ENABLE_FLAG_RAV_SCS			= (1u << 2u),	/* bit 2 */
-	WL_QOS_CMD_ENABLE_FLAG_RAV_SCS_QOS_CHAR		= (1u << 3u)	/* bit 3 */
+	WL_QOS_CMD_ENABLE_FLAG_RAV_SCS_QOS_CHAR		= (1u << 3u),	/* bit 3 */
+	WL_QOS_CMD_ENABLE_FLAG_DAR			= (1u << 4u),	/* bit 4 */
+	WL_QOS_CMD_ENABLE_FLAG_DAR_LATENCY_STATISTICS	= (1u << 5u),	/* bit 5 */
+	WL_QOS_CMD_ENABLE_FLAG_DAR_RADIO_COUNTERS	= (1u << 6u),	/* bit 6 */
+	WL_QOS_CMD_ENABLE_FLAG_DAR_CONTROL_PLANE_EVENTS	= (1u << 7u),	/* bit 7 */
+	WL_QOS_CMD_ENABLE_FLAG_DAR_UNSOLICIT_REPORT_RX	= (1u << 8u)	/* bit 8 */
 } qos_cmd_enable_flags_e;
 
 /* MSCS activation status flags */
@@ -21079,28 +21162,128 @@ typedef struct wl_qos_rav_scs_qos_char_v1 {
 					 */
 } wl_qos_rav_scs_qos_char_v1_t;
 
-/* QoS DAR Session States */
-enum wl_qos_dar_session_states {
-	/* IDLE state */
-	WL_QOS_DAR_SESSION_STATE_IDLE			= 0u,
-	/* Initiator, Responder Configured */
-	WL_QOS_DAR_SESSION_STATE_CONFIGURED		= 1u,
-	/* Initiator waiting for DAR response */
-	WL_QOS_DAR_SESSION_STATE_INIT_WAIT_RESPONSE	= 2u,
-	/* Initiator waiting for DAR report */
-	WL_QOS_DAR_SESSION_STATE_INIT_WAIT_REPORT	= 3u,
-	/* Initiator waiting for DAR response */
-	WL_QOS_DAR_SESSION_STATE_RESP_SEND_RESPONSE	= 4u,
-	/* Responder in measurement phase */
-	WL_QOS_DAR_SESSION_STATE_RESP_MEASUREMENT	= 5u,
-	/* Session termination */
-	WL_QOS_DAR_SESSION_STATE_TERMINATING		= 6u,
-	/* Session end */
-	WL_QOS_DAR_SESSION_STATE_END			= 7u
+/* QoS Management R4, DAR (Dynamic Analytics Report)
+ * Refer QCO-DynamicAnalytics-draft-01182025
+ */
+typedef uint8 wl_qos_dar_session_states_t;
+typedef uint32 wl_qos_dar_session_flags_t;
+typedef uint8 wl_qos_dar_session_type_t;
+typedef uint16 wl_qos_dar_session_id_t;
+
+typedef enum wl_qos_dar_role {
+	WL_QOS_DAR_ROLE_INITIATOR	= 0u,
+	WL_QOS_DAR_ROLE_RESPONDER	= 1u
+} wl_qos_dar_role_t;
+
+/* QoS DAR sesssion state */
+enum wl_qos_dar_session_state {
+	WL_QOS_DAR_SESSION_STATE_NONE		= 0x0u,
+	WL_QOS_DAR_SESSION_STATE_IDLE		= 0x01u,
+	WL_QOS_DAR_SESSION_STATE_ACTIVE		= 0x02u
 };
 
-typedef uint8 wl_qos_dar_session_states_t;
-typedef uint16 wl_qos_dar_session_id_t;
+/* QoS DAR session flags */
+enum wl_qos_dar_sn_flag {
+	/* Common flags */
+	WL_QOS_DAR_SN_FLAG_NONE			= 0x00000000u,
+	WL_QOS_DAR_SN_FLAG_CONF_VALIDATED	= 0x00000001u,
+	/* Intiator flags */
+	WL_QOS_DAR_SN_FLAG_REQ_ADD_SENT		= 0x00000002u, /* Req ADD */
+	WL_QOS_DAR_SN_FLAG_REQ_REMOVE_SENT	= 0x00000004u, /* Req REMOVE */
+	WL_QOS_DAR_SN_FLAG_WAIT_RESP		= 0x00000008u, /* Waiting for Response */
+	WL_QOS_DAR_SN_FLAG_WAIT_RESP_TIMEOUT	= 0x00000010u, /* Response timeout */
+	WL_QOS_DAR_SN_FLAG_RESP_RCVD		= 0x00000020u, /* Response Received */
+	WL_QOS_DAR_SN_FLAG_REP_RCVD		= 0x00000040u, /* Report Received */
+	WL_QOS_DAR_SN_FLAG_REP_ALL_RCVD		= 0x00000080u, /* All Reports received */
+	WL_QOS_DAR_SN_FLAG_WAIT_REPORT		= 0x00000100u, /* Waiting for Report frame */
+	WL_QOS_DAR_SN_FLAG_WAIT_REPORT_TIMEOUT	= 0x00000200u, /* Waiting timeout for report */
+	WL_QOS_DAR_SN_FLAG_RESP_TERM_RCVD	= 0x00000400u, /* Response Termination Received */
+
+	/* Responder flags */
+	WL_QOS_DAR_SN_FLAG_REQ_ADD_RCVD		= 0x00010000u, /* Req ADD Received */
+	WL_QOS_DAR_SN_FLAG_REQ_REMOVE_RCVD	= 0x00020000u, /* Req REMOVE Received */
+	WL_QOS_DAR_SN_FLAG_RESP_SENT		= 0x00040000u, /* Response Sent */
+	WL_QOS_DAR_SN_FLAG_REPORT_SENT		= 0x00080000u, /* Report Sent */
+	WL_QOS_DAR_SN_FLAG_REPORT_SENT_ALL	= 0x00100000u, /* Send all report frames */
+	WL_QOS_DAR_SN_FLAG_RESP_TERM_SENT	= 0x00200000u, /* Response Termination Sent */
+
+	WL_QOS_DAR_SN_FLAG_TX_PENDING		= 0x10000000u, /* Tx Pending */
+	WL_QOS_DAR_SN_FLAG_TERMINATION_DONE	= 0x20000000u  /* Termination Done */
+};
+
+/* QoS DAR session type */
+enum wl_qos_dar_sn_type {
+	WL_QOS_DAR_SN_TYPE_INITIATOR          = 0u,
+	WL_QOS_DAR_SN_TYPE_RESPONDER          = 1u,
+	WL_QOS_DAR_SN_TYPE_UNSOLICITED        = 2u
+};
+
+#define WL_QOS_DAR_SESSION_ID_MAX		0xFFFFu
+#define WL_QOS_DAR_MEASUREMENT_DUR_MIN		1000u	/* 1000ms */
+#define WL_QOS_DAR_SUB_CATEGORY_MAX		255u
+
+#define WL_QOS_DAR_SC_VERSION_1		1u	/* dar subcommand version */
+#define WL_QOS_DAR_CONFIG_VERSION_1	1u
+
+/* Common config structure for DAR Latency Statistics, Radio Counters, Control Plane Events */
+typedef struct wl_qos_dar_config_v1 {
+	uint16 version;
+	uint16 length;
+	wl_qos_dar_session_id_t session_id;	/* Session ID */
+	uint8 role;				/* Initator or Responder */
+	uint8 req_type;				/* ADD(0) or Remove(1) */
+	uint16 measurement_duration;		/* Measurement duration (ms) */
+	uint16 number_of_measurements;		/* Number of measurements */
+	uint8 attr_id;				/* Attribute id that this structure hold */
+	uint8 category;				/* Control Plane event category */
+	uint16 parameter_presence_bitmap;	/* Presence bitmap */
+	uint8 report_type;			/* Histogram or Percentile */
+	uint8 report_granularity;		/* Report granularity TID/AC */
+	uint16 report_granularity_bitmap;	/* Report granularity bitmap */
+	uint8 link_granularity;			/* MLD(non-MLD) 0 or Link level 1 */
+	uint8 link_granularity_bitmap;		/* Link granularity bitmap */
+	uint8 PAD[2u];				/* Reserved */
+	uint8 data[];				/* Variable length data */
+} wl_qos_dar_config_v1_t;
+
+#define WL_QOS_DAR_SESSION_DELETE_VERSION_1	1u
+typedef struct wl_qos_dar_session_del_v1 {
+	uint16 version;
+	uint16 length;
+	wl_qos_dar_session_id_t session_id;
+} wl_qos_dar_session_del_v1_t;
+
+#define WL_QOS_DAR_SESSION_REQ_VERSION_1	1u
+typedef struct wl_qos_dar_session_req_v1 {
+	uint16 version;
+	uint16 length;
+	wl_qos_dar_session_id_t session_id;
+	uint8 role;			/* Reserved */
+	uint8 req_type;			/* ADD or REMOVE */
+	struct ether_addr da;		/* Destination addr(optional) */
+} wl_qos_dar_session_req_v1_t;
+
+#define WL_QOS_DAR_SESSION_INFO_VERSION_1	1u
+typedef struct wl_qos_dar_session_data_v1 {
+	wl_qos_dar_session_id_t sid;		/* Session ID */
+	wl_qos_dar_session_states_t state;	/* Session STATE */
+	uint8 role;				/* Role */
+	uint8 attr_id;				/* Attribute ID */
+	uint8 request_id;			/* Request ID */
+	uint8 dialog_token;
+	uint8 hsm_id;				/* State ID */
+	uint32 flags;				/* Session flags */
+	uint16 requested_measurements;		/* Request or requested measurements number */
+	uint16 reported_measurements;		/* Reported measurements numbers */
+	uint16 measurement_duration;		/* Measurement duration (ms) */
+	uint16 missed_measurements;		/* Missed measurements */
+} wl_qos_dar_session_data_v1_t;
+
+typedef struct wl_qos_dar_session_info_v1 {
+	uint16 version;
+	uint16 length;
+	wl_qos_dar_session_data_v1_t sessions[];
+} wl_qos_dar_session_info_v1_t;
 
 #define WL_ESP_IOV_MAJOR_VER_1 1
 #define WL_ESP_IOV_MINOR_VER_1 1
@@ -21374,6 +21557,20 @@ typedef enum wl_otp_field_id {
 	WL_OTP_FIELD_CIS_FORMAT				= 54,
 	WL_OTP_FIELD_HW_CONFIG_OPTION			= 55,
 	WL_OTP_FIELD_HIF_HDR_REV			= 56,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_LOWER_CORE_0		= 57,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_LOWER_CORE_1		= 58,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_LOWEST_CORE_0	= 59,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_LOWEST_CORE_1	= 60,
+	WL_OTP_FIELD_WL_AUX_WRSSI_LOWER_CORE_0		= 61,
+	WL_OTP_FIELD_WL_AUX_WRSSI_LOWER_CORE_1		= 62,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_6G_LOWER_CORE_0	= 63,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_6G_LOWER_CORE_1	= 64,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_6G_LOWEST_CORE_0	= 65,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_6G_LOWEST_CORE_1	= 66,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_7G_LOWER_CORE_0	= 67,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_7G_LOWER_CORE_1	= 68,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_7G_LOWEST_CORE_0	= 69,
+	WL_OTP_FIELD_WL_MAIN_WRSSI_7G_LOWEST_CORE_1	= 70,
 	WL_OTP_FIELD_LAST
 } wl_otp_field_id_t;
 
@@ -24028,6 +24225,7 @@ typedef struct wl_tx_hist {
 	(max_hist_size + 1) * sizeof(uint32))
 
 /* structure for WL_TX_HIST_TXQ, WL_TX_HIST_EXCUR_TXQ_ID */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tx_hist_txq {
 	uint32 bsscfg_bmap;      /* bitmap of bsscfg indexes associated with this queue */
 	wl_tx_hist_t tx_hist;	/* tx histograms */
@@ -24049,6 +24247,7 @@ enum wl_txq_stop_histogram_id {
 };
 
 /* common tx histogram structure */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_txq_stop_hist {
 	wl_tx_hist_t tx_hist;	/* tx histograms */
 } wl_txq_stop_hist_t;
@@ -24060,6 +24259,7 @@ typedef struct wl_txq_stop_hist {
 	WL_TX_HIST_FULL_LEN(num_hist, max_hist_size))
 
 /* structure for WL_TX_HIST_LOW_TXQ, WL_TX_HIST_EXCUR_LOW_TXQ_ID */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tx_hist_low_txq {
 	wl_tx_hist_t tx_hist;	/* tx histograms */
 } wl_tx_hist_low_txq_t;
@@ -24071,6 +24271,7 @@ typedef struct wl_tx_hist_low_txq {
 	WL_TX_HIST_FULL_LEN(num_hist, max_hist_size))
 
 /* structure for WL_TX_HIST_SCBQ */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tx_hist_scbq {
 	struct ether_addr ea;	/* ether addr of peer */
 	uint16 bsscfg_idx;	/* bsscfg index */
@@ -24105,6 +24306,7 @@ typedef struct wl_tx_queue_depth {
 	sizeof(uint16))
 
 /* structure for WL_TX_QUEUE_DEPTH_TXQ_ID, WL_TX_QUEUE_DEPTH_EXCUR_TXQ_ID */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tx_queue_depth_txq {
 	uint32 bsscfg_map;      /* bitmap of bsscfg indexes associated with this queue */
 	wl_tx_queue_depth_t tx_queue_depth;	/* queue depth */
@@ -24117,6 +24319,7 @@ typedef struct wl_tx_queue_depth_txq {
 	WL_TX_QUEUE_DEPTH_FULL_LEN(num_queue_depth))
 
 /* structure for WL_TX_QUEUE_DEPTH_LOW_TXQ_ID, WL_TX_QUEUE_DEPTH_EXCUR_LOW_TXQ_ID */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tx_queue_depth_low_txq {
 	wl_tx_queue_depth_t tx_queue_depth;	/* queue depth */
 } wl_tx_queue_depth_low_txq_t;
@@ -24128,6 +24331,7 @@ typedef struct wl_tx_queue_depth_low_txq {
 	WL_TX_QUEUE_DEPTH_FULL_LEN(num_queue_depth))
 
 /* structure for WL_TX_QUEUE_DEPTH_SCBQ_ID */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_tx_queue_depth_scbq {
 	struct ether_addr ea;			/* ether addr of peer */
 	uint16 bsscfg_idx;			/* bsscfg index */
@@ -24146,6 +24350,7 @@ enum wl_pcie_tx_histogram_id {
 };
 
 /* structure for PCIE_TX_HIST_ID */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_pcie_tx_hist {
 	uint16 ring_id;		/* PCIe ring id */
 	uint16 PAD;		/* 4-byte alignment */
@@ -25561,6 +25766,7 @@ typedef struct bcm_rng_reseed {
 } bcm_rng_reseed_t;
 
 /* RNG IOVAR data */
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 typedef struct wl_rng_iovar {
 	uint16	version;			/* Version of this structure */
 	uint16	subcmd_id;			/* RNG subcmd ID */
@@ -25863,6 +26069,13 @@ typedef struct btcx_test_mode {
 	uint8	mode;		/* Mode to identify which features needs to debug */
 	bool	enable;		/* enable and disable mode */
 } btcx_test_mode_v1_t;
+
+/* BTC Slotted BSS (AWDL/NAN) policy options */
+typedef enum wlc_btcx_slotbss_policy {
+	BTC_SLOTBSS_DEFAULT =		0u,	/* Default legacy policy applies */
+	BTC_SLOTBSS_NONCS_ALLOW_BTINQ =	1u,	/* Allow BT-Inquiry during non-critical slots */
+	BTC_SLOTBSS_LAST
+} wlc_btcx_slotbss_policy_t;
 
 /* WLAN Rate Recovery Configuration */
 /* Version 1 is the IOVAR itself. */
@@ -26772,6 +26985,7 @@ typedef enum wl_csi_subcommand {
 } wl_csi_subcommand_t;
 
 /* current version */
+#define WL_CSI_VERSION_V3		3u	/* adds CSI DMA option */
 #define WL_CSI_VERSION_V2		2u	/* adds CSI data available event */
 #define WL_CSI_VERSION_V1		1u
 
@@ -26786,6 +27000,7 @@ typedef struct wl_csi_version {
 #define WL_CSI_ENABLE_CNTRL_FRAME	(1u << 1u)	/* match frame type/subtype */
 #define WL_CSI_ENABLE_CNTRL_SUBCHANNEL	(1u << 2u)	/* enable subchannel index/width */
 #define WL_CSI_ENABLE_CNTRL_NSTREAM	(1u << 3u)	/* enable number of streams */
+#define WL_CSI_ENABLE_CNTRL_DMA		(1u << 4u)	/* enable CSI DMA mode */
 
 /* WL_CSI_SUBCMD_ENABLE SET subcommand data */
 typedef struct wl_csi_enable {
@@ -27380,6 +27595,7 @@ typedef struct  flow_fetch_histogram_v1 {
 } flow_fetch_histogram_v1_t;
 
 #define BUS_TX_RELEASE_LOG_FLAG_TRUNCATED	(0x1u)
+BCM_EXTENSION	/* struct containing flexible array member is the last field. */
 struct bus_fetch_historgram_v1 {
 	uint16				version;		/**< version field */
 	uint16				unused;			/**< unused */
@@ -27387,6 +27603,8 @@ struct bus_fetch_historgram_v1 {
 	uint16				buckets_max;		/* max # of buckets */
 	uint16				reason_max;		/* max # of fetch stop reasons */
 	uint16				histogram_count;	/**< count of fetch histograms */
+
+	/* NOTE: array of structs that contains a flexible array member is non-ISO C compliant. */
 	flow_fetch_histogram_v1_t fetch_histograms[BCM_FLEX_ARRAY]; /**< flow fetch histograms */
 };
 
@@ -28120,16 +28338,41 @@ typedef struct wl_vlptpc_thresh_v1 {
 
 /* UHR sub command IDs */
 enum {
-	WL_UHR_CMD_ENAB			= 0u,	/* enable/disable UHR feature as a whole */
-	WL_UHR_CMD_FEATURES		= 1u,	/* configure UHR sub-features */
-	WL_UHR_CMD_SLROAM_ENAB		= 2u,	/* UHR slroam enab/disable */
-	WL_UHR_CMD_SLROAM_POLICY	= 3u,	/* UHR slroam policy */
+	WL_UHR_CMD_ENAB			= 0u,		/* enable/disable UHR feature as a whole */
+	WL_UHR_CMD_FEATURES		= 1u,		/* configure UHR sub-features */
+	WL_UHR_CMD_SBT_ENAB		= 2u,		/* UHR SBT enab/disable */
+	WL_UHR_CMD_SBT_POLICY		= 3u,		/* UHR SBT policy */
+	WL_UHR_CMD_NPCA_ENAB		= 4u,		/* enable/disable NPCA feature in UHR */
+	WL_UHR_CMD_SMD_BOOST		= 5u,		/* SMD targets boost config */
 
-	/* Add new sub command IDs here... */
-
+	/* Add new sub command IDs above this here... */
 	/* debug/test related sub-commands, mogrify? */
 	WL_UHR_CMD_DBG			= 0x1000u,	/* configure UHR debug facilities */
+	WL_UHR_CMD_NPCA_CONFIG		= 0x1001u,	/* config NPCA feature, testing for now */
 };
+
+#define WL_UHR_SMD_BOOST_CONFIG_VER_1        1u
+
+typedef struct wl_uhr_smd_boost_config_v1 {
+	uint16  version;		/* Structure version */
+	uint16  length;			/* Length of structure */
+	int8	smd_ap_boost;		/* Boost to be applied for any SMD APs */
+	int8	same_smd_boost;		/* Boost to be applied for same SMD APs */
+	int8	PAD[2];
+} wl_uhr_smd_boost_config_v1_t;
+
+/* DPS sub command IDs */
+enum {
+	WL_DPS_CMD_ENAB		= 0u,	/* enable/disable DPS feature */
+	WL_DPS_CMD_MODE		= 1u,	/* configure DPS operation mode */
+	WL_DPS_CMD_ASSIST	= 2u,	/* configure DPS assist mode */
+};
+
+/* DPS Mode values */
+#define WL_DPS_MODE_DISABLED		0	/* DPS Mode disabled */
+#define WL_DPS_MODE_ICF_REQUIRED	1	/* ICF_REQUIRED (Option1 LC using SC) */
+#define WL_DPS_MODE_ICF_NOT_REQUIRED	2	/* ICF_NOT_REQUIRED (Option2, LC using Main) */
+#define WL_DPS_MODE_AUTO		3	/* Auto: Based on SC availability/DPS links */
 
 /*
  * CCI performance monitor definitions
@@ -28179,12 +28422,243 @@ typedef struct wl_cciperf_resp_v1 {
 	wl_cciperf_stats_v1_t stats[CCIPERF_MAX_COUNTERS_V1];
 } wl_cciperf_resp_v1_t;
 
+/* DUO sub command IDs */
+enum {
+	WL_DUO_CMD_CONFIG			= 0u,
+	WL_DUO_CMD_HISTORY			= 1u,
+	WL_DUO_CMD_SEND				= 2u,
+	WL_DUO_CMD_LAST
+};
+
+#define DUO_CFG_VERSION_V1                 1u
+
+#define DUO_FIELD_MASK_FLAGS               (1u << 0u)
+#define DUO_FIELD_MASK_ALL_V1              (DUO_FIELD_MASK_FLAGS)
+
+#define DUO_FLAGS_ENABLE                   (1u << 0u)
+
+typedef struct wlc_duo_cfg_v1 {
+	uint16 ver;
+	uint16 len;
+	uint16 field_mask;       /* Provides info on which of the following fields are valid */
+	uint16 flags;            /* One of DUO_FLAGS_XYZ */
+} wlc_duo_cfg_v1_t;
+
+#define DUO_HIST_REQ_SUCCESS             (1u << 0u)
+#define DUO_HIST_REQ_TO                  (1u << 1u)
+#define DUO_HIST_REQ_CLR_START           (1u << 2u)
+#define DUO_HIST_REQ_CLR_SUCCESS         (1u << 3u)
+#define DUO_HIST_REQ_CLR_TO              (1u << 4u)
+
+typedef struct wlc_duo_hist_v1 {
+	uint32 ts_ms;           /* Timestamp (ms) of request */
+	uint16 start_offset_ms; /* Start offset of request */
+	uint16 duration_ms;     /* Duration of request */
+	uint16 req_bss_mask;    /* BSS indices mask  */
+	uint8 type;             /* Requestor type */
+	uint8 flags;            /* One of DUO_HIST_REQ_XYZ */
+} wlc_duo_hist_v1_t;
+
+#define DUO_HIST_VERSION_V1                1u
+
+typedef struct wlc_duo_hist_ctr_v1 {
+	uint16 ver;
+	uint16 len;
+	uint32 num;    /* No. of hist_list entries */
+	uint32 flags;  /* Placeholder */
+	uint32 now;    /* FW timestamp (ms) when list was made */
+	wlc_duo_hist_v1_t hist_list[];
+} wlc_duo_hist_ctr_v1_t;
+
+#define DUO_SEND_VERSION_V1                 1u
+
+#define DUO_SEND_FLAGS_ALL_LINKS_ON_SLICE     (1u << 0u)
+#define DUO_SEND_FLAGS_5G_ONLY                (1u << 1u)
+#define DUO_SEND_FLAGS_6G_ONLY                (1u << 2u)
+
+typedef struct wlc_duo_send_window_v1 {
+	uint16 ver;
+	uint16 len;
+	uint32 flags;            /* One of DUO_SEND_FLAGS_XYZ */
+	uint32 start_offset_ms;  /* DUO window start offset (ms) */
+	uint16 duration_ms;      /* DUO window duration (ms) */
+	uint16 pad;
+} wlc_duo_send_window_v1_t;
+
 /* ART top level command IDs */
 enum {
 	WL_ART_CMD_ENAB			= 0,
 	WL_ART_CMD_TXACTIVE		= 1,
 	WL_ART_CMD_LAST
 };
+
+#define WL_NPCA_CONFIG_VERSION_1 1
+typedef struct wl_npca_config_req {
+	uint16  version;
+	uint16  len;
+	chanspec_t npca_chanspec;
+	uint16 flags;
+} wl_npca_config_req_v1_t;
+
+/* Shadow Bank Manager iovar support */
+#define WL_SBM_IOV_VERSION_1		1u
+enum wl_sbm_cmd_ids {
+	WL_SBM_CMD_VER			= 1u,	/* Get SBM API VER */
+	WL_SBM_CMD_ADD			= 2u,	/* Add a SBM entry (debug only) */
+	WL_SBM_CMD_DEL			= 3u,	/* Del a SBM entry (debug only) */
+	WL_SBM_CMD_DUMP			= 4u,	/* Dump the slice's SBM information */
+	WL_SBM_CMD_SLOT_ROLE_BMP	= 5u,	/* Set the current slot role bitmap */
+};
+
+enum wl_sbm_xtlv_id {
+	WL_SBM_XTLV_NONE		= 0u,	/* Not valid SBM tag */
+	WL_SBM_XTLV_VER			= 1u,	/* Version */
+	WL_SBM_XTLV_SLICE_INFO		= 2u,	/* per slice shadowbank status */
+	WL_SBM_XTLV_SHADOWBANK_INFO	= 3u,	/* Shadow bank */
+	WL_SBM_XTLV_WAITLIST_INFO	= 4u,	/* Waitlist */
+	WL_SBM_XTLV_REQ_ITEM		= 5u,	/* request item */
+	WL_SBM_XTLV_CONFIG		= 6u,	/* add/del */
+	WL_SBM_XTLV_SLOT_ROLE_BMP	= 7u,	/* Force slot role bmp */
+};
+
+/* WL_SBM_XTLV_SLICE_INFO */
+typedef struct wl_sbm_slice_info_v1 {
+	uint8	macunit;		/* 0:main,1:aux,2:sc */
+	uint8	num_sb_max;		/* max # of shadowbank for the slice */
+	uint8	num_sb_used;		/* # of shadowbanks in use. */
+	uint8	total_reqs_in_waitlists;	/* requests in waitlist (pending) for the slice */
+	uint32	cur_slot_roles_bmp;	/* current slot role bitmap */
+} wl_sbm_slice_info_v1_t;
+
+/* WL_SBM_XTLV_SHADOWBANK_INFO */
+typedef struct wl_sbm_shadowbank_info_v1 {
+	uint8		macunit;		/* 0:main,1:aux,2:sc */
+	uint8		idx;			/* shadowbank index */
+	uint8		num_reqs;		/* number of requests */
+	uint8		reason;			/* reason to be in the cur state */
+	int16		prev_state;		/* previous state */
+	int16		cur_state;		/* current state */
+	chanspec_t	chanspec;		/* chanspec of the shadowbank */
+	chanspec_t	prim_chanspec;		/* TBD */
+	uint8		prim_chanspec_slice;	/* TBD */
+	uint8		reuse;			/* reusable by phy */
+	uint8		PAD[2];
+	uint32		oper_state;		/* phy shadowbank operating state */
+	uint32		feature_bmp;		/* phy shadowbank feature bitmap */
+} wl_sbm_shadowbank_info_v1_t;
+
+/* WL_SBM_XTLV_WAITLIST_INFO */
+typedef struct wl_sbm_waitlist_info_v1 {
+	uint8		macunit;	/* 0:main,1:aux,2:sc */
+	uint8		role_id;	/* the role id of the waitlist */
+	uint8		PAD;
+	uint8		num_reqs;	/* number of requests in the wailist */
+} wl_sbm_waitlist_info_v1_t;
+
+/* WL_SBM_XTLV_REQ_ITEM */
+typedef struct wl_sbm_req_item_v1 {
+	uint8		role_id;		/* role id of the request item */
+	uint8		user_id;		/* user id of the request item */
+	uint8		parent_user_id;		/* parent user id */
+	uint8		prio_default;		/* default prioity */
+	uint8		prio_override;		/* override priority value */
+	uint8		macunit;		/* 0:main,1:aux,2:sc */
+	int16		prev_state;		/* previous state */
+	int16		cur_state;		/* current state */
+	chanspec_t	chanspec;		/* chanspec of the request item */
+	uint16		req_flags;		/* request flags */
+	uint8		PAD[2];
+	uint32		reason_bmp;		/* reason bitmap */
+} wl_sbm_req_item_v1_t;
+
+/* WL_SBM_XTLV_CONFIG */
+typedef struct wl_sbm_config_v1 {
+	uint8		role_id;		/* role id for a shadowbank manager client */
+	uint8		user_id;		/* user id for a shadowbank manager client */
+	chanspec_t	chanspec;		/* chanspec of the client's shadowbank request */
+} wl_sbm_config_v1_t;
+
+/**
+ * @brief wl_pqc_perf_params_v1 layout version
+ */
+#define WL_PQC_PERF_PARAMS_V1 1
+
+/**
+ * @brief Mode (algorithm) to PQC performance test
+ */
+enum wl_pqc_perf_mode {
+	WL_QPC_PERF_MODE_SHA_256	= 0,	/**< This is, actually, SHA2-256 */
+	WL_PQC_PERF_MODE_KECCAK		= 1,
+	WL_PQC_PERF_MODE_KYBER		= 2,
+	WL_PQC_PERF_MODE_DILITHIUM	= 3,
+	WL_PQC_PERF_MODE_NOIC		= 4};
+typedef enum wl_pqc_perf_mode wl_pqc_perf_mode_t;
+
+/**
+ * @struct wl_pqc_perf_params_v1
+ * @brief Parameters to use in PQC performance testing. Adding new fields to the
+ * end (for new modes) is allowed without changing struct name
+ */
+typedef struct wl_pqc_perf_params_v1 {
+	uint32 version;			/**< Format version of this structure layout
+					 * (WL_PQC_PERF_PARAMS_V1). Does not change
+					 * if new fields only added to the end of
+					 * the structure
+					 */
+	uint32 length;			/**< Length of this structure */
+	uint32 flags;			/**< Flags parameter (Kyber, Dilithium, Noic) */
+	uint32 mode;			/**< wl_pqc_perf_mode_t - mode (algorithm) to test */
+	uint32 num_iter;		/**< Number of iterations */
+	uint32 msg_len;			/**< Message length (SHA2-256, Keccak, Dilithium) */
+	uint32 keccak_sha3_algo;	/**< bcm_keccak_sha3_algo_t parameter for Keccak */
+	uint32 kyber_sec_param;		/**< bcm_kyber_sec_param_t parameter for Kyber */
+	uint32 kyber_ind_mode;		/**< bcm_kyber_ind_mode_t parameter for kyber */
+	uint32 dilithium_sec_level;	/**< bcm_dilithium_sec_level_t parameter for Dilithium */
+	uint32 noic_hash_type;		/**< bcm_noic_hash_type_t parameter for Noic */
+	uint32 keccak_shake_out_len;    /**< Output length for Keccak in SHAKE mode */
+} wl_pqc_perf_params_v1_t;
+
+/* shared flow stats configuration */
+/* Shared flow stats types */
+typedef enum wl_shared_flow_stats_type {
+	WL_SHARED_FLOW_STATS_TYPE_FLOW = 0,
+	WL_SHARED_FLOW_STATS_TYPE_IF = 1,
+	WL_SHARED_FLOW_STATS_TYPE_PEER = 2
+} wl_shared_flow_stats_type_t;
+
+#define WL_SHARED_FLOW_STATS_CFG_VERSION_1		1
+typedef struct wl_shared_flow_stats_cfg_v1 {
+	uint16 version;				/* structure version */
+	uint16 length;				/* data length (including version and length) */
+	wl_interface_type_t iface_type;		/* interface type; WL_INTERFACE_TYPE_NAN, etc. */
+	wl_shared_flow_stats_type_t stats_type;	/* stats type; per-flow, per-if, per-peer */
+	uint32 stats_bitmap;			/* bitmap of the enabled sub-stats */
+	struct ether_addr da;			/* destination MAC of the flow */
+	uint8 tid;				/* TID of the flow */
+	uint8 pad;
+} wl_shared_flow_stats_cfg_v1_t;
+
+/* Bit definitions to enable specific stats */
+#define WL_SHARED_FLOW_STATS_PHASE_UPDATE	0x0001
+#define WL_SHARED_FLOW_STATS_FETCH		0x0002
+#define WL_SHARED_FLOW_STATS_SUPPRESS		0x0004
+#define WL_SHARED_FLOW_STATS_COMPLETION		0x0008
+#define WL_SHARED_FLOW_STATS_FLUSH		0x0010
+#define WL_SHARED_FLOW_STATS_PORT_OPEN		0x0020
+#define WL_SHARED_FLOW_STATS_PORT_CLOSE		0x0040
+#define WL_SHARED_FLOW_STATS_PENDING_TIMES	0x0080
+#define WL_SHARED_FLOW_STATS_FLOW_COUNTERS	0x0100
+#define WL_SHARED_FLOW_STATS_LATENCY_TS		0x0200
+#define WL_SHARED_FLOW_STATS_MISC		0x0400
+
+/* Default bitmaps to enable flow stats for different stats types */
+#define WL_PER_FLOW_STATS_BITMAP		0x07FF /* all stats */
+#define WL_PER_INTERFACE_FLOW_STATS_BITMAP	0x07FF /* all stats */
+#define WL_PER_PEER_FLOW_STATS_BITMAP		0x07FF /* all stats */
+
+/* Total number of interfaces and peers for which to store shared stats */
+#define WL_SHARED_FLOW_STATS_MAX_IF_COUNT	12
+#define WL_SHARED_FLOW_STATS_MAX_PEER_COUNT	8
 
 /* SAR related parameter and structure */
 #define MAX_5G_SUBBAND       4
@@ -28230,5 +28704,4 @@ typedef struct _sarctrl_set {
 	};
 } sarctrl_set;
 #define CONST_SARCTRL_SET_QTY    (sizeof(sarctrl_set)/sizeof(uint32) - 1)
-
 #endif /* _wlioctl_h_ */

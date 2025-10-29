@@ -321,6 +321,7 @@ CONFIG_BCMDHD_OOB=y
 endif
 ifneq ($(CONFIG_ANDROID),)
 DHDCFLAGS += -Wframe-larger-than=2400
+DHDCFLAGS += -Wno-unused-function
 endif
 endif
 
@@ -647,7 +648,6 @@ DHDCFLAGS += -DCUSTOM_BLOCK_DEAUTH_AT_EAP_FAILURE
 DHDCFLAGS += -DTDLS_MSG_ONLY_WFD
 # Custom tuning value
 DHDCFLAGS += -DCUSTOM_ROAM_TIME_THRESH_IN_SUSPEND=6000
-DHDCFLAGS += -DCUSTOM_EVENT_PM_WAKE=20
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=30000
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 DHDCFLAGS += -DSPECIFIC_MAC_GEN_SCHEME
@@ -759,7 +759,7 @@ DHDCFLAGS += -DCUSTOM_ROAM_DELTA_SETTING=10
 DHDCFLAGS += -DSUPPORT_PM2_ONLY
 
 # ADPS
-#DHDCFLAGS += -DWLADPS
+DHDCFLAGS += -DWLADPS
 
 # For special PNO Event keep wake lock for 10sec
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
@@ -777,6 +777,9 @@ DHDCFLAGS += -DRTT_SUPPORT -DRTT_DEBUG
 #NDOffload
 DHDCFLAGS += -DNDO_CONFIG_SUPPORT
 DHDCFLAGS += -DIPV6_NDO_SUPPORT
+
+#MDNS_OFFLOAD
+DHDCFLAGS += -DWL_MDNS_OFFLOAD
 
 #Debugaility
 DHDCFLAGS += -DDBG_PKT_MON -DDBG_PKT_MON_INIT_DEFAULT
@@ -923,6 +926,7 @@ endif
   DHDCFLAGS += -DTSQ_MULTIPLIER=10
   DHDCFLAGS += -DDHD_TCP_PACING_SHIFT
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR
+  DHDCFLAGS += -DDHD_BUS_MEM_ACCESS
   DHDCFLAGS += -DPROP_TXSTATUS
 ifeq ($(CONFIG_BCMDHD_PROPTX_ALWAYS_ON),)
   DHDCFLAGS += -DPROP_TXSTATUS_VSDB
@@ -1027,6 +1031,7 @@ ifneq ($(filter y, $(CONFIG_BCM4354) $(CONFIG_BCM4356)),)
 ifneq ($(CONFIG_BCMDHD_SDIO),)
   DHDCFLAGS += -DBDC -DOOB_INTR_ONLY -DHW_OOB -DDHD_BCMEVENTS -DMMC_SDIO_ABORT
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR
+  DHDCFLAGS += -DDHD_BUS_MEM_ACCESS
   DHDCFLAGS += -DPROP_TXSTATUS
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=16
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
@@ -1227,6 +1232,15 @@ endif
 
 ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS := $(filter-out -DWBRC, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DBCMDBG, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DBCMDBG_MEM, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DSDTEST, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DBCMDBG_ASSERT, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DDHD_DBG_DUMP, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DBCMDEV, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DDHD_SSSR_DUMP, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DDHD_KERNEL_SCHED_DEBUG, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DDHD_MMIO_TRACE, $(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DDBG_PKT_MON ,$(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DDBG_PKT_MON_INIT_DEFAULT ,$(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DDHD_USE_COHERENT_MEM_FOR_RING ,$(DHDCFLAGS))
@@ -1237,6 +1251,7 @@ ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS := $(filter-out -DSAR_SUPPORT ,$(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DWL_SAR_TX_POWER ,$(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DWL_SAR_TX_POWER_CONFIG ,$(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DDWLADPS ,$(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DDHD_PKT_LOGGING, $(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DDHD_PKT_LOGGING_DBGRING, $(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DDHD_DEBUGABILITY_LOG_DUMP_RING, $(DHDCFLAGS))
@@ -1259,6 +1274,10 @@ ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS += -DEMPTY_CARD_DETECT -DRMMOD_CARD_DETECT
 	DHDCFLAGS += -DDHD_ASTRA_CUST_CHIP_SUPPORT
 	DHDCFLAGS += -DCUSTOM_LOG_DUMP_BUFSIZE_MB=1
+
+	ifeq ($(filter -DDHD_SUPPORT_VFS_CALL, $(DHDCFLAGS)),)
+		DHDCFLAGS += -DDHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+	endif
 
 	# Auto selecting binary file name by chip id
 	DHDCFLAGS += -DDHD_AUTOSEL_BINARY_FILENAME
@@ -1289,7 +1308,6 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
         DHDCFLAGS += -DPOWERUP_MAX_RETRY=0 -DWIFI_TURNON_DELAY=0 -DWIFI_TURNOFF_DELAY=0
 endif # CONFIG_BCMDHD_PCIE
 
-
 endif # CONFIG_ARCH_ASTRA
 
 ifneq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
@@ -1314,8 +1332,8 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o \
     hnd_pktpool.o wl_cfgvendor.o bcmxtlv.o bcm_app_utils.o dhd_debug.o frag.o \
     dhd_debug_linux.o wl_cfgnan.o dhd_mschdbg.o bcmbloom.o dhd_dbg_ring.o bcmstdlib_s.o \
     dhd_linux_exportfs.o dhd_linux_tx.o dhd_linux_rx.o \
-    dhd_log_dump.o fwpkg_utils.o bcmcapext.o linuxerrmap.o wl_cfgtwt.o bcmwifi_channels_shared.o
-    #dhd_csi.o
+    dhd_log_dump.o fwpkg_utils.o bcmcapext.o linuxerrmap.o wl_cfgtwt.o bcmwifi_channels_shared.o \
+    dhd_csi.o wl_cfgmdnsoffload.o
 
 # customer configuration file
 DHDCFLAGS += -DREAD_CONFIG_FROM_FILE
@@ -1380,12 +1398,12 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
   DHDCFLAGS += -DDHD_TX_PROFILE
   DHDCFLAGS += -DBCMCRYPTO_COMPONENT
   DHDCFLAGS += -DHOST_SFH_LLC
+endif # CONFIG_BCMDHD_PCIE
 
 # NCI_BUS support
   DHDCFLAGS += -DSOCI_NCI_BUS
   DHDCFLAGS += -DBCM_ETB_CFG_TRANSITIONAL_FLAG
   DHDOFILES += nciutils.o nciutils_host.o hal_nci_cmn.o
-endif # CONFIG_BCMDHD_PCIE
 
 ifneq ($(CONFIG_BCMDHD_USB),)
   DHDOFILES += dbus.o dbus_usb.o dbus_usb_linux.o

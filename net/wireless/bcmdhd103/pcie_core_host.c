@@ -111,6 +111,9 @@ void pcie_watchdog_reset(osl_t *osh, si_t *sih, uint32 wd_mask, uint32 wd_val)
 		if ((ss_control & (1 << PCIE_SSRESET_STATUS_BIT)) != 0) {
 			DHD_PRINT(("WL SS is still in reset - ss_control 0x%8x\n", ss_control));
 		}
+
+		/* 43102A0 QT HM2P75, After reset, WL BP is taking time to move from ILP to ALP */
+		OSL_DELAY(150);
 #endif /* BCMQT_HW */
 		val = si_corereg(sih, SI_CC_IDX, CC_REG_OFF(IntStatus), 0, 0);
 		si_corereg(sih, SI_CC_IDX, CC_REG_OFF(IntStatus),

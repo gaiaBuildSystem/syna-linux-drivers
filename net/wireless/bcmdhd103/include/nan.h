@@ -398,7 +398,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_avail_entry_s {
 typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_vendor_attr_s {
 	uint8	id;			/* 0xDD */
 	uint16	len;			/* IE length */
-	uint8	oui[DOT11_OUI_LEN]; 	/* 00-90-4C */
+	uint8	oui[DOT11_OUI_LEN];	/* 00-90-4C */
 	uint8	type;			/* attribute type */
 	uint8	attr[BCM_FLEX_ARRAY];	/* var len attributes */
 } BWL_POST_PACKED_STRUCT wifi_nan_vendor_attr_t;

@@ -191,6 +191,7 @@ typedef union bcm_event_msg_u {
 #define WLC_E_PRE_ASSOC_IND	61	/* assoc request received */
 #define WLC_E_PRE_REASSOC_IND	62	/* re-assoc request received */
 #define WLC_E_CHANNEL_ADOPTED	63	/* channel adopted (obsoleted) */
+#define WLC_E_CSI		63	/* CSI used obsoleted event number */
 #define WLC_E_AP_STARTED	64	/* AP started */
 #define WLC_E_DFS_AP_STOP	65	/* AP stopped due to DFS */
 #define WLC_E_DFS_AP_RESUME	66	/* AP resumed due to DFS */
@@ -329,6 +330,8 @@ typedef union bcm_event_msg_u {
 #define WLC_E_AMT			196	/* Address Management Table (AMT) */
 #define WLC_E_ROAM_SCAN_RESULT		197	/* roam/reassoc scan result event */
 
+#define WLC_E_UNUSED_198		198	/* XR event-obsolte */
+
 #define WLC_E_MSCS			200	/* MSCS success/failure events */
 #define WLC_E_RXDMA_RECOVERY_ATMPT	201	/* RXDMA Recovery Attempted Event */
 #define WLC_E_PFN_PARTIAL_RESULT	202
@@ -350,7 +353,8 @@ typedef union bcm_event_msg_u {
 #define WLC_E_SBI_SC_EVENT		216	/* SBI SC event */
 #define WLC_E_SSID_MITIGATION           217     /* SSID mitigation event */
 #define WLC_E_REQUEST_CLM		218	/* Request CLM reload */
-#define WLC_E_LAST			219	/* highest val + 1 for range checking */
+#define WLC_E_REQUEST_TXCAP		219	/* Request TXCAP reload */
+#define WLC_E_LAST			220	/* highest val + 1 for range checking */
 
 /* define an API for getting the string name of an event */
 extern const char *bcmevent_get_name(uint event_type);
@@ -1456,33 +1460,24 @@ typedef enum ie_error_code {
 
 /* reason of channel switch */
 typedef enum {
-/* The complete enum definition should be moved to here
- * When adding new one, please add it here
- */
-#define WL_CHANSW_REASONS_0TO13_INCLUDED
-#if defined(WL_CHANSW_REASONS_0TO13_INCLUDED)
 	CHANSW_UNKNOWN = 0,	/* channel switch due to unknown reason */
 	CHANSW_SCAN = 1,	/* channel switch due to scan */
 	CHANSW_OFFCHAN_AF = 2,	/* channel switch due to off channel action frame */
 	CHANSW_INIT = 3,	/* channel set at WLC up time */
 	CHANSW_ASSOC = 4,	/* channel switch due to association */
-	CHANSW_ROAM = 5,	/* channel switch due to roam */
+	CHANSW_CAL = 5,		/* channel switch due to calibration */
 	CHANSW_IOVAR = 7,	/* channel switch due to IOVAR */
 	CHANSW_NAN_SCAN = 8,	/* channel switch due to NAN Scan */
 	CHANSW_APCS = 9,	/* Channel switch from AP channel select module */
 	CHANSW_P2PDTIM = 10,	/* channel switch due to P2P DTIM */
-	CHANSW_FBT = 11,	/* Channel switch from FBT module for action frame response */
 	CHANSW_UPDBW = 12,	/* channel switch at update bandwidth */
 	CHANSW_DTIM = 13,	/* channel switch at DTIM */
-#endif	/* WL_CHANSW_REASONS_0TO13_INCLUDED */
 	CHANSW_HOMECH_REQ = 14, /* channel switch due to HOME Channel Request */
 	CHANSW_STA = 15,	/* channel switch due to STA */
 	CHANSW_SOFTAP = 16,	/* channel switch due to SoftAP */
 	CHANSW_P2P_GC = 17,	/* channel switch due to P2P GC */
 	CHANSW_NAN = 18,	/* channel switch due to NAN */
-	CHANSW_NAN_DISC = 19,	/* channel switch due to NAN Disc */
 	CHANSW_NAN_SCHED = 20,	/* channel switch due to NAN Sched */
-
 	CHANSW_ASSOC_P2P = 25,	/* channel swtich due to assoc for P2P sta */
 	CHANSW_TDLS = 26,	/* channel switch due to TDLS */
 	CHANSW_PROXD = 27,	/* channel switch due to PROXD */

@@ -39,6 +39,8 @@
  *
  *
  * <<Broadcom-WL-IPTag/Dual:>>
+ *
+ * Edited with the help of GENAI.
  */
 
 #ifndef _linuxver_h_
@@ -922,8 +924,8 @@ do {									\
 	remove_wait_queue(&wq, &__wait);				\
 } while (0)
 
-#define wait_event_interruptible_timeout(wq, condition, timeout)	\
-({									\
+#define wait_event_interruptible_timeout(wq, condition, timeout)	 BCM_EXTENSION \
+	({									\
 	long __ret = timeout;						\
 	if (!(condition))						\
 		__wait_event_interruptible_timeout(wq, condition, __ret); \

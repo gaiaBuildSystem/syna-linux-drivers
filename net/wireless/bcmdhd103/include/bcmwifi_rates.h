@@ -1790,8 +1790,6 @@ typedef enum clm_ru_rates {
 
 extern const uint8 plcp_ofdm_rate_tbl[];
 
-/* extract NSS:MCS portions of the rspec */
-#define WF_NON_HT_MCS 0x80
 uint8 wf_vht_plcp_to_rate(const uint8 *plcp);
 uint8 wf_he_plcp_to_rate(const uint8 *plcp, bool is_mu);
 

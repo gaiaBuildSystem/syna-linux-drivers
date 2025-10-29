@@ -188,6 +188,14 @@ typedef struct event_log_block {
 	/* Event logs go here. Do not put extra fields below. */
 } event_log_block_t;
 
+/* Info that appears at the start of every allocated contiguous memory chunk.
+ * Each allocated memory chunk contains one or more event log blocks.
+ */
+typedef struct event_log_contiguous_memory_block {
+	struct event_log_contiguous_memory_block *next; /* Pointer to next block */
+	size_t size;
+} event_log_contiguous_memory_block_t;
+
 /* Event log top flags */
 /* Event log uses PTM timestamps for log record timestamps */
 #define EVENT_LOG_TOP_FLAG_USE_PTM_TIMESTAMP	((uint8)(1u << 0))
@@ -320,6 +328,10 @@ typedef struct event_log_set {
 	uint32 last_rpt_ts;		/* last time to flush  in ms */
 	uint64 ets_write_ptm_time;	/* Raw PTM count in ns on PTM enabled devices */
 	uint64 timestamp;		/* Last timestamp event in ns */
+	event_log_contiguous_memory_block_t *mem_alloc_list;	/* Linked list of
+								 * memory allocations
+								 * for event log blocks.
+								 */
 } event_log_set_t;
 
 /* Definition of flags in set */
@@ -424,6 +436,7 @@ typedef struct event_log_set_init_config_entry {
 	event_log_set_sub_destination_t sub_destination;
 	uint16 num_blocks;
 	uint16 block_size;
+	bool expand_during_attach;
 } event_log_set_init_config_entry_t;
 
 #ifdef BCMDRIVER
@@ -685,7 +698,7 @@ extern bool prsv_periodic_enab;
 #define _EVENT_LOG_REMOVE_PAREN(...) __VA_ARGS__
 #define EVENT_LOG_REMOVE_PAREN(args) _EVENT_LOG_REMOVE_PAREN args
 
-//printf is to catch any wrong parameters at compiletime.
+// printf is to catch any wrong parameters at compiletime.
 #define EVENT_LOG_CAST_PAREN_ARGS(tag, pargs)				\
 	do {								\
 		if (0) {						\
@@ -725,7 +738,7 @@ extern bool prsv_periodic_enab;
 
 #define EVENT_LOG_IF_READY(_tag, ...) \
 	do {                                \
-		if (event_log_is_ready()) {             \
+		if (event_log_is_ready(_tag)) {             \
 			EVENT_LOG(_tag, __VA_ARGS__); \
 		}                           \
 	}                               \
@@ -776,7 +789,8 @@ int event_log_init(osl_t *osh);
 void event_log_timestamp_init(osl_t *osh);
 int event_log_set_init(osl_t *osh, int set_num, int size);
 int event_log_set_expand(osl_t *osh, int set_num, int size);
-int event_log_set_expand_align(osl_t *osh, int set_num, int size, uint align_bits);
+int event_log_set_expand_align(osl_t *osh, int set_num, int size,
+	uint8 page_boundary_bits);
 int event_log_set_shrink(osl_t *osh, int set_num, int size);
 
 /**
@@ -840,7 +854,7 @@ extern uint16 event_log_get_available_space(int set);
 extern bool event_log_is_tag_valid(int tag);
 /* returns number of blocks available for writing */
 extern int event_log_free_blocks_get(int set);
-extern bool event_log_is_ready(void);
+extern bool event_log_is_ready(int set_num);
 extern bool event_log_is_preserve_active(uint set);
 extern uint event_log_get_percentage_available_space(uint set);
 extern bool event_log_set_watermark_reached(int set_num);

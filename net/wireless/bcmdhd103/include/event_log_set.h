@@ -489,17 +489,27 @@
 #define EVENT_LOG_SET_IMP_FRAMES_BLOCK_SIZE       (EVENT_LOG_BLOCK_SIZE_1K)
 #endif
 
+/* set 45: For SMBM (SMB Memory manager) logging. */
+#define EVENT_LOG_SET_SMBM			(45u)
+#ifndef EVENT_LOG_SET_SMBM_NUM_BLOCKS
+#define EVENT_LOG_SET_SMBM_NUM_BLOCKS		(2u)
+#endif /* !EVENT_LOG_SET_SMBM_NUM_BLOCKS */
+
+#ifndef EVENT_LOG_SET_SMBM_BLOCK_SIZE
+#define EVENT_LOG_SET_SMBM_BLOCK_SIZE	(EVENT_LOG_BLOCK_SIZE_1648B)
+#endif
+
 #ifndef NUM_EVENT_LOG_SETS
 /* Set a maximum number of sets here.  It is not dynamic for
  * efficiency of the EVENT_LOG calls. Old branches could define
- * this to an appropriat enumber in their makefiles to reduce
+ * this to an appropriate enumber in their makefiles to reduce
  * ROM invalidation
  */
 #ifdef NUM_EVENT_LOG_SETS_V2
 /* for v2, everything has became unsigned */
-#define NUM_EVENT_LOG_SETS (45u)
+#define NUM_EVENT_LOG_SETS (46u)
 #else /* NUM_EVENT_LOG_SETS_V2 */
-#define NUM_EVENT_LOG_SETS (45)
+#define NUM_EVENT_LOG_SETS (46)
 #endif /* NUM_EVENT_LOG_SETS_V2 */
 #endif /* NUM_EVENT_LOG_SETS */
 

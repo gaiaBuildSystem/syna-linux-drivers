@@ -167,6 +167,10 @@
 #include <dhd_pcie_sssr_dump.h>
 #endif /* DHD_SSSR_DUMP */
 
+#ifdef CSI_SUPPORT
+#include <dhd_csi.h>
+#endif /* CSI_SUPPORT */
+
 #include <wldev_common.h>
 
 #ifdef DHD_LOG_PRINT_RATE_LIMIT
@@ -598,6 +602,10 @@ enum {
 	IOV_PKT_LLC_ENABLE,
 	IOV_PKT_LLC_PAYLOAD,
 	IOV_LOW_LATENCY,
+#ifdef CSI_SUPPORT
+	IOV_CSI_VERSION,
+	IOV_CSI_CONFIG,
+#endif /* CSI_SUPPORT */
 	IOV_LAST
 };
 
@@ -805,6 +813,10 @@ const bcm_iovar_t dhd_iovars[] = {
 	{"pkt_llc_enable", IOV_PKT_LLC_ENABLE, 0, 0, IOVT_BOOL, 0},
 	{"pkt_llc_payload", IOV_PKT_LLC_PAYLOAD, 0, 0, IOVT_BUFFER, 0},
 	{"low_latency",	IOV_LOW_LATENCY,	0,	0, IOVT_BOOL,	0 },
+#ifdef CSI_SUPPORT
+	{"csi_version", IOV_CSI_VERSION, 0, 0,	IOVT_UINT8,	sizeof(uint32)},
+	{"csi_config", IOV_CSI_CONFIG,	 0, 0,	IOVT_BUFFER,	sizeof(uint32)},
+#endif /* CSI_SUPPORT */
 
 	/* --- add new iovars *ABOVE* this line --- */
 	{NULL, 0, 0, 0, 0, 0 }
@@ -4638,7 +4650,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, int ifidx, const bcm_iovar_t *vi, uint32 actioni
 		if (int_val == dhd_low_latency)
 			goto exit;
 		else {
-			uint wl_down = 1;
+			uint wl_updown = 1;
 			uint txbf_bfe_cap = 0;
 			uint ampdu_rts = 0;
 			uint32 ampdu_ba_wsize = 4;
@@ -4655,18 +4667,32 @@ dhd_doiovar(dhd_pub_t *dhd_pub, int ifidx, const bcm_iovar_t *vi, uint32 actioni
 #endif
 			}
 			dhd_wl_ioctl_cmd(dhd_pub, WLC_DOWN,
-				(char *)&wl_down, sizeof(wl_down), TRUE, 0);
-
+				(char *)&wl_updown, sizeof(wl_updown), TRUE, 0);
 			dhd_iovar(dhd_pub, 0, "txbf_bfe_cap",
 				(char *)&txbf_bfe_cap, sizeof(txbf_bfe_cap), NULL, 0, TRUE);
 			dhd_iovar(dhd_pub, 0, "ampdu_rts",
 				(char *)&ampdu_rts, sizeof(ampdu_rts), NULL, 0, TRUE);
 			dhd_iovar(dhd_pub, 0, "ampdu_ba_wsize",
 				(char *)&ampdu_ba_wsize, sizeof(ampdu_ba_wsize), NULL, 0, TRUE);
+			dhd_wl_ioctl_cmd(dhd_pub, WLC_UP,
+				(char *)&wl_updown, sizeof(wl_updown), TRUE, 0);
 		}
 
 		break;
 	}
+
+#ifdef CSI_SUPPORT
+	case IOV_GVAL(IOV_CSI_VERSION):
+		bcmerror = dhd_csi_version(dhd_pub, arg, val_size, FALSE);
+		break;
+	case IOV_GVAL(IOV_CSI_CONFIG):
+		bcmerror = dhd_csi_config(dhd_pub, arg, val_size, FALSE);
+		break;
+	case IOV_SVAL(IOV_CSI_CONFIG):
+		bcmerror = dhd_csi_config(dhd_pub, arg, val_size, TRUE);
+		break;
+#endif /* CSI_SUPPORT */
+
 	default:
 		bcmerror = BCME_UNSUPPORTED;
 		break;
@@ -6133,7 +6159,13 @@ wl_show_host_event(dhd_pub_t *dhd_pub, wl_event_msg_t *event, void *event_data,
 		dhd_prhex("MSCS Event:", (volatile uchar *) event_data, datalen, DHD_ERROR_VAL);
 #endif /* BCMDBG */
 		break;
-
+#if defined(CSI_SUPPORT)
+	case WLC_E_CSI:
+		/* do not process here as the whole CSI event will
+		 * be direclty pass to CSI module for processing
+		 */
+		break;
+#endif /* CSI_SUPPORT */
 	case WLC_E_SCAN:
 		{
 			const char *scan_state;
@@ -6186,6 +6218,19 @@ wl_show_host_event(dhd_pub_t *dhd_pub, wl_event_msg_t *event, void *event_data,
 		{
 			DHD_INFO(("MACEVENT: WLC_E_AP_BCN_MUTE, MAC %s\n", eabuf));
 			wl_show_host_bcn_mute_miti_event(event, event_data);
+			break;
+		}
+	case WLC_E_AP_STARTED:
+	case WLC_E_DFS_AP_STOP:
+	case WLC_E_DFS_AP_RESUME:
+	case WLC_E_RADAR_DETECTED:
+		{
+			DHD_EVENT(("MACEVENT: %s, MAC %s reason:%d\n", event_name, eabuf, reason));
+			break;
+		}
+	case WLC_E_CSI_DATA:
+		{
+			DHD_EVENT(("MACEVENT: %s, MAC %s reason:%d\n", event_name, eabuf, reason));
 			break;
 		}
 	default:
@@ -6707,7 +6752,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 	uint32 type, status, datalen, reason;
 	uint16 flags;
 	uint evlen;
-	int ret;
+	int ret = BCME_OK;
 	uint16 usr_subtype;
 #if defined(__linux__)
 	dhd_if_t *ifp = NULL;
@@ -7099,7 +7144,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 	}
 #endif /* SHOW_EVENTS */
 
-	return (BCME_OK);
+	return (ret);
 } /* wl_process_host_event */
 
 int
@@ -7779,6 +7824,98 @@ dhd_arp_get_arp_hostip_table(dhd_pub_t *dhd, void *buf, int buflen, int idx)
 	return 0;
 }
 #endif /* ARP_OFFLOAD_SUPPORT  */
+
+#ifdef WL_MDNS_OFFLOAD
+void
+dhd_mdns_hostip_clr(dhd_pub_t *dhd, int idx)
+{
+	int ret = 0;
+
+	if (dhd == NULL)
+		return;
+	idx = 0;
+
+	ret = dhd_iovar(dhd, idx, "mdns_hostip_clear", NULL, 0, NULL, 0, TRUE);
+	if (ret < 0)
+		DHD_ERROR(("%s failed code %d\n", __FUNCTION__, ret));
+	else {
+#ifdef DHD_LOG_DUMP
+		DHD_LOG_MEM(("%s: MDNS host ip clear\n", __FUNCTION__));
+#else
+		DHD_TRACE(("%s: MDNS host ip clear\n", __FUNCTION__));
+#endif /* DHD_LOG_DUMP */
+	}
+}
+
+void
+dhd_mdns_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx)
+{
+	int ret;
+
+	if (dhd == NULL)
+		return;
+	idx = 0;
+
+	ret = dhd_iovar(dhd, idx, "mdns_hostip", (char *)&ipaddr, sizeof(ipaddr),
+			NULL, 0, TRUE);
+	if (ret < 0)
+		DHD_ERROR(("%s: MDNS ip addr add failed, ret = %d\n", __FUNCTION__, ret));
+	else {
+		/* mac address is updated in the dongle */
+		//dhd->hmac_updated = 1;
+#ifdef DHD_LOG_DUMP
+		DHD_LOG_MEM(("%s: MDNS ip addr entry added \n", __FUNCTION__));
+#else
+		DHD_TRACE(("%s: MDNS ip addr entry added \n", __FUNCTION__));
+#endif /* DHD_LOG_DUMP */
+	}
+}
+
+int
+dhd_mdns_add_ipv6(dhd_pub_t *dhd, char* ipv6addr, int idx)
+{
+	int ret;
+
+	if (dhd == NULL)
+		return -1;
+	ret = dhd_iovar(dhd, idx, "mdns_hostipv6", (char *)ipv6addr, IPV6_ADDR_LEN,
+			NULL, 0, TRUE);
+	if (ret < 0)
+		DHD_ERROR(("%s: MDNS ipv6 addr add failed, ret = %d\n", __FUNCTION__, ret));
+	else {
+		/* mac address is updated in the dongle */
+#ifdef DHD_LOG_DUMP
+		DHD_LOG_MEM(("%s: MDNS ipv6 addr entry added\n", __FUNCTION__));
+#else
+		DHD_TRACE(("%s: MDNS ipv6 addr entry added\n", __FUNCTION__));
+#endif /* DHD_LOG_DUMP */
+	}
+
+	return ret;
+}
+
+int
+dhd_mdns_remove_ipv6(dhd_pub_t *dhd, int idx)
+{
+	int ret = 0;
+
+	if (dhd == NULL)
+		return -1;
+	idx = 0;
+
+	ret = dhd_iovar(dhd, idx, "mdns_hostipv6_clear", NULL, 0, NULL, 0, TRUE);
+	if (ret < 0)
+		DHD_ERROR(("%s failed code %d\n", __FUNCTION__, ret));
+	else {
+#ifdef DHD_LOG_DUMP
+		DHD_LOG_MEM(("%s: MDNS host ipv6 clear\n", __FUNCTION__));
+#else
+		DHD_TRACE(("%s: MDNS host ipv6 clear\n", __FUNCTION__));
+#endif /* DHD_LOG_DUMP */
+	}
+	return ret;
+}
+#endif /* WL_MDNS_OFFLOAD */
 
 #ifdef IGMP_OFFLOAD_SUPPORT
 /* ========================== */
@@ -13356,10 +13493,11 @@ dhd_histo_deinit(dhd_pub_t *dhd, uint64 *histo)
 static chip_name_map_t chip_name_map[] = {
 /*   ChipID                Rev   FW_Name               NVRAM_Name              BLOB_Name            CERT_Name  */
 #ifndef BCMSDIO
-	{BCM4384_CHIP_ID,  0x0, "fw_bcm4384.bin",      "bcmdhd_4384.cal",      "bcmdhd_clm_4384.blob",   NULL},
+	{BCM4384_CHIP_ID,  0x0, "fw_bcm4384a0.bin",    "bcmdhd_4384a0.cal",    "bcmdhd_clm_4384.blob",   NULL},
+	{BCM4384_CHIP_ID,  0x1, "fw_bcm4384b0.bin",    "bcmdhd_4384b0.cal",    "bcmdhd_clm_4384.blob",   NULL},
 	{BCM4390_CHIP_ID,  0x5, "fw_bcm4390.bin",      "bcmdhd_4390.cal",      "bcmdhd_clm_4390.blob",   NULL},
 #else
-	{BCM4384_CHIP_ID,  0x0, "fw_sd_bcm4384.bin",   "bcmdhd_sd_4384.cal",   "bcmdhd_clm_4384.blob",   NULL},
+	{BCM4384_CHIP_ID,  0x1, "fw_sd_bcm4384b0.bin",   "bcmdhd_sd_4384b0.cal",   "bcmdhd_clm_4384.blob",   NULL},
 #endif
 };
 

@@ -63,6 +63,10 @@
 #include <dhd_pcie_sssr_dump.h>
 #endif /* DHD_SSSR_DUMP */
 
+#ifdef CSI_SUPPORT
+#include <dhd_csi.h>
+#endif /* CSI_SUPPORT */
+
 #ifdef SHOW_LOGTRACE
 extern dhd_pub_t *g_dhd_pub;
 
@@ -3746,6 +3750,30 @@ static struct kobj_type dhd_logger_ktype = {
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) */
 };
 
+#ifdef CSI_SUPPORT
+/* Function to show current ccode */
+static ssize_t read_csi_data(struct file *filp, struct kobject *kobj,
+	struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
+{
+	dhd_info_t *dhd = to_dhd(kobj);
+	int n = 0;
+
+	n = dhd_csi_data_queue_polling(&dhd->pub, buf, (uint)count);
+	DHD_TRACE(("Dump data to file, size %d\n", n));
+
+	return n;
+}
+
+static struct bin_attribute dhd_attr_csi = {
+	.attr = {
+		.name = CONST_SYNA_DHD_CSI_OBJ_NAME,
+		.mode = 0660
+	},
+	.size = CONST_CSI_SYS_FILE_SIZE_MAX,
+	.read = read_csi_data,
+};
+#endif /* CSI_SUPPORT */
+
 /*
  * *************************************
  */
@@ -3813,6 +3841,16 @@ int dhd_sysfs_init(dhd_info_t *dhd)
 	kobject_uevent(&dhd->dhd_logger_kobj, KOBJ_ADD);
 	dhd->dhd_logger_kobj_inited = TRUE;
 
+#ifdef CSI_SUPPORT
+	ret = sysfs_create_bin_file(&dhd->dhd_kobj, &dhd_attr_csi);
+	if (ret) {
+		DHD_ERROR(("%s: can't create %s\n", __func__, dhd_attr_csi.attr.name));
+		return ret;
+	}
+
+	dhd->dhd_kobj_csi_battr_created = TRUE;
+#endif /* CSI_SUPPORT */
+
 	return ret;
 }
 
@@ -3823,6 +3861,13 @@ void dhd_sysfs_exit(dhd_info_t *dhd)
 		DHD_ERROR(("%s(): dhd is NULL \r\n", __FUNCTION__));
 		return;
 	}
+
+#ifdef CSI_SUPPORT
+	if (dhd->dhd_kobj_csi_battr_created) {
+		sysfs_remove_bin_file(&dhd->dhd_kobj, &dhd_attr_csi);
+		dhd->dhd_kobj_csi_battr_created = FALSE;
+	}
+#endif /* CSI_SUPPORT */
 
 #ifdef DHD_LB
 	if (dhd->dhd_lb_kobj_inited) {

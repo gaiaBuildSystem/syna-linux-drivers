@@ -69,10 +69,10 @@
 #endif	/* BCMDBG_msg */
 
 struct arp_table {
-	parp_entry_t	*parp_table[BCM_PARP_TABLE_SIZE];   /* proxyarp entries in cache table */
-	parp_entry_t	*parp_candidate_list;		    /* proxyarp entries in candidate list */
-	uint8 parp_smac[ETHER_ADDR_LEN];		    /* L2 SMAC from DHCP Req */
-	uint8 parp_cmac[ETHER_ADDR_LEN];		    /* Bootp Client MAC from DHCP Req */
+	parp_entry_t *parp_table[BCM_PARP_TABLE_SIZE];	/* proxyarp entries in cache table */
+	parp_entry_t *parp_candidate_list;		/* proxyarp entries in candidate list */
+	uint8 parp_smac[ETHER_ADDR_LEN];		/* L2 SMAC from DHCP Req */
+	uint8 parp_cmac[ETHER_ADDR_LEN];		/* Bootp Client MAC from DHCP Req */
 };
 #ifdef DHD_DUMP_ARPTABLE
 void bcm_l2_parp_dump_table(arp_table_t* arp_tbl);
@@ -89,8 +89,8 @@ bcm_l2_parp_dump_table(arp_table_t* arp_tbl)
 		entry = ptable->parp_table[idx];
 		while (entry) {
 			printf("Cached entries..\n");
-			printf("%d: %d.%d.%d.%d", idx, entry->ip.data[0], entry->ip.data[1],
-				entry->ip.data[2], entry->ip.data[3]);
+			printf("%d: %d.%d.%d.%d", idx, entry->address[0], entry->address[1],
+				entry->address[2], entry->address[3]);
 			printf("%02x:%02x:%02x:%02x:%02x:%02x", entry->ea.octet[0],
 				entry->ea.octet[1], entry->ea.octet[2], entry->ea.octet[3],
 				entry->ea.octet[4], entry->ea.octet[5]);
@@ -101,8 +101,8 @@ bcm_l2_parp_dump_table(arp_table_t* arp_tbl)
 	entry = ptable->parp_candidate_list;
 	while (entry) {
 		printf("Candidate entries..\n");
-		printf("%d.%d.%d.%d", entry->ip.data[0], entry->ip.data[1],
-			entry->ip.data[2], entry->ip.data[3]);
+		printf("%d.%d.%d.%d", entry->address[0], entry->address[1],
+			entry->address[2], entry->address[3]);
 		printf("%02x:%02x:%02x:%02x:%02x:%02x", entry->ea.octet[0],
 			entry->ea.octet[1], entry->ea.octet[2], entry->ea.octet[3],
 			entry->ea.octet[4], entry->ea.octet[5]);
@@ -387,7 +387,7 @@ bcm_l2_filter_parp_modifyentry(arp_table_t* arp_tbl, struct ether_addr *ea,
 	    entry = ptable->parp_candidate_list;
 	}
 	while (entry) {
-		if (bcmp(entry->ip.data, ip, ip_len) == 0) {
+		if (bcmp(entry->address, ip, ip_len) == 0) {
 			/* entry matches, overwrite mac content and return */
 			eacopy(ea, &entry->ea);
 			entry->used = entry_tickcnt;
@@ -428,16 +428,16 @@ bcm_l2_filter_parp_addentry(osl_t *osh, arp_table_t* arp_tbl, struct ether_addr 
 	    return BCME_ERROR;
 	}
 
-	if ((entry = MALLOCZ(osh, sizeof(parp_entry_t) + ip_len)) == NULL) {
+	entry = MALLOCZ(osh, sizeof(*entry));
+	if (entry == NULL) {
 	    L2_FILTER_MSG(("Allocating new parp_entry for IPv%d failed!!\n", ip_ver));
 	    return BCME_NOMEM;
 	}
 
 	eacopy(ea, &entry->ea);
 	entry->used = entry_tickcnt;
-	entry->ip.id = ip_ver;
-	entry->ip.len = ip_len;
-	(void)memcpy_s(entry->ip.data, ip_len, ip, ip_len);
+	entry->ip_ver = ip_ver;
+	(void)memcpy_s(entry->address, ip_len, ip, ip_len);
 	ptable = arp_tbl;
 	if (cached) {
 	    entry->next = ptable->parp_table[idx];
@@ -482,8 +482,8 @@ bcm_l2_filter_parp_delentry(osl_t* osh, arp_table_t *arp_tbl, struct ether_addr 
 		entry = ptable->parp_candidate_list;
 	}
 	while (entry) {
-		if (entry->ip.id == ip_ver &&
-		    bcmp(entry->ip.data, ip, ip_len) == 0 &&
+		if (entry->ip_ver == ip_ver &&
+		    bcmp(entry->address, ip, ip_len) == 0 &&
 		    bcmp(&entry->ea, ea, ETHER_ADDR_LEN) == 0) {
 			if (prev == NULL) {
 			    if (cached) {
@@ -500,7 +500,7 @@ bcm_l2_filter_parp_delentry(osl_t* osh, arp_table_t *arp_tbl, struct ether_addr 
 		entry = entry->next;
 	}
 	if (entry != NULL)
-		MFREE(osh, entry, sizeof(parp_entry_t) + ip_len);
+		MFREE(osh, entry, sizeof(*entry));
 #ifdef DHD_DUMP_ARPTABLE
 	bcm_l2_parp_dump_table(arp_tbl);
 #endif
@@ -535,7 +535,7 @@ bcm_l2_filter_parp_findentry(arp_table_t* arp_tbl, uint8 *ip, uint8 ip_ver, bool
 	    entry = ptable->parp_candidate_list;
 	}
 	while (entry) {
-	    if (entry->ip.id == ip_ver && bcmp(entry->ip.data, ip, ip_len) == 0) {
+	    if (entry->ip_ver == ip_ver && bcmp(entry->address, ip, ip_len) == 0) {
 			/* time stamp of adding the station entry to arp table for ifp */
 			entry->used = entry_tickcnt;
 			break;
@@ -564,9 +564,9 @@ bcm_l2_filter_arp_table_update(osl_t *osh, arp_table_t* arp_tbl, bool all, uint8
 			if (all || (periodic && BCM_PARP_IS_TIMEOUT(tickcnt, entry)) ||
 			    (del_ea != NULL && !bcmp(del_ea, &entry->ea, ETHER_ADDR_LEN))) {
 				/* copy frame here */
-				ip_ver = entry->ip.id;
+				ip_ver = entry->ip_ver;
 				(void)memcpy_s(ip, sizeof(ip),
-					entry->ip.data, MIN(entry->ip.len, sizeof(ip)));
+					entry->address, sizeof(entry->address));
 				eacopy(&entry->ea, &ea);
 				entry = entry->next;
 				bcm_l2_filter_parp_delentry(osh, ptable, &ea, ip, ip_ver, TRUE);
@@ -588,7 +588,7 @@ bcm_l2_filter_arp_table_update(osl_t *osh, arp_table_t* arp_tbl, bool all, uint8
 				TRUE: FALSE;
 			parp_entry_t *node = NULL;
 
-			ip_ver = entry->ip.id;
+			ip_ver = entry->ip_ver;
 
 			if (prev == NULL)
 				ptable->parp_candidate_list = entry->next;
@@ -596,12 +596,12 @@ bcm_l2_filter_arp_table_update(osl_t *osh, arp_table_t* arp_tbl, bool all, uint8
 				prev->next = entry->next;
 
 			node = bcm_l2_filter_parp_findentry(ptable,
-				entry->ip.data, IP_VER_6, TRUE, tickcnt);
+				entry->address, IP_VER_6, TRUE, tickcnt);
 			if (promote && node == NULL) {
 				bcm_l2_filter_parp_addentry(osh, ptable, &entry->ea,
-					entry->ip.data, entry->ip.id, TRUE, tickcnt);
+					entry->address, entry->ip_ver, TRUE, tickcnt);
 			}
-			MFREE(osh, entry, sizeof(parp_entry_t) + entry->ip.len);
+			MFREE(osh, entry, sizeof(*entry));
 			if (prev == NULL) {
 				entry = ptable->parp_candidate_list;
 			} else {

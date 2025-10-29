@@ -5307,7 +5307,7 @@ wl_set_fils_params(struct net_device *dev, struct cfg80211_connect_params *sme)
 	iov_buf->id = WL_FILS_CMD_ADD_CONNECT_PARAMS;
 	/* check if this should be len w/o headers */
 	err = bcm_xtlv_buf_init(&tbuf, (uint8*)&iov_buf->data[0],
-		WLC_IOCTL_SMLEN - sizeof(bcm_iov_buf_t) + sizeof(uint16),
+		WLC_IOCTL_SMLEN - sizeof(bcm_iov_buf_t),
 		BCM_XTLV_OPTION_ALIGN32);
 	if (err != BCME_OK) {
 		WL_ERR(("%s: xtlv_context initialization failed\n", __FUNCTION__));
@@ -5348,8 +5348,8 @@ wl_set_fils_params(struct net_device *dev, struct cfg80211_connect_params *sme)
 		}
 	}
 	iov_buf->len = bcm_xtlv_buf_len(&tbuf);
-	err = wldev_iovar_setbuf(dev, "fils", iov_buf, iov_buf->len + sizeof(bcm_iov_buf_t) -
-		sizeof(uint16), cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync);
+	err = wldev_iovar_setbuf(dev, "fils", iov_buf, iov_buf->len + sizeof(bcm_iov_buf_t),
+	 cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync);
 	if (unlikely(err)) {
 		 WL_ERR(("set fils params ioctl error (%d)\n", err));
 		 goto exit;
@@ -7673,6 +7673,7 @@ wl_handle_assoc_hints(struct bcm_cfg80211 *cfg, struct net_device *dev,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
 	bool skip_hints = false;
+	bool skip_chspec_hints = false;
 #endif /* KERNEL >= 3.15 */
 	chanspec_t chspec;
 
@@ -7720,7 +7721,11 @@ wl_handle_assoc_hints(struct bcm_cfg80211 *cfg, struct net_device *dev,
 	else {
 #ifdef WL_SKIP_CONNECT_HINTS
 		skip_hints = true;
-		WL_DBG(("force skip connect hints\n"));
+		WL_DBG(("force skip connect bssid hints\n"));
+#ifdef WL_SKIP_CONNECT_CHSPEC_HINTS
+		skip_chspec_hints = true;
+		WL_DBG(("force skip connect chspec hints\n"));
+#endif /* WL_SKIP_CONNECT_CHSPEC_HINTS */
 #else /* WL_SKIP_CONNECT_HINTS */
 		/* override bssid_hint if overridden via module param */
 		skip_hints = fw_ap_select;
@@ -7734,6 +7739,7 @@ wl_handle_assoc_hints(struct bcm_cfg80211 *cfg, struct net_device *dev,
 
 		if (IS_P2P_GC(dev->ieee80211_ptr)) {
 			 skip_hints = false;
+			 skip_chspec_hints = false;
 		}
 
 		/* Use bssid_hint if hints are allowed and if its unicast addr */
@@ -7748,8 +7754,9 @@ wl_handle_assoc_hints(struct bcm_cfg80211 *cfg, struct net_device *dev,
 		}
 #ifndef WL_FORCE_RCC_LIST
 		/* Store channel hint. If RCC is used, it will append this list */
-		if (sme->channel_hint && ((chspec = wl_freq_to_chanspec(
-			sme->channel_hint->center_freq)) != INVCHANSPEC)) {
+		if (!skip_chspec_hints && sme->channel_hint &&
+				((chspec = wl_freq_to_chanspec(sme->channel_hint->center_freq))
+					!= INVCHANSPEC)) {
 			info->chan_cnt = 1;
 			info->chanspecs[0] = chspec;
 			WL_INFORM_MEM(("channel_hint: chspec(%x)\n", chspec));
@@ -17687,6 +17694,7 @@ static void wl_init_event_handler(struct bcm_cfg80211 *cfg)
 #ifdef WL_IDAUTH
 	cfg->evt_handler[WLC_E_AUTHORIZED] = wl_cfgvif_scb_authorized;
 #endif /* WL_IDAUTH */
+	cfg->evt_handler[WLC_E_CSI_DATA] = wl_cfgvif_process_csi_data;
 }
 
 #if defined(STATIC_WL_PRIV_STRUCT)

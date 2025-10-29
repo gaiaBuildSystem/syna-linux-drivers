@@ -161,8 +161,12 @@ typedef uint32 ratespec_t;
 #define WL_STA_AUTHE		0x00000008	/* Authenticated */
 #define WL_STA_ASSOC		0x00000010	/* Associated */
 #define WL_STA_AUTHO		0x00000020	/* Authorized */
-#define WL_STA_WDS		0x00000040	/* Wireless Distribution System */
-#define WL_STA_WDS_LINKUP	0x00000080	/* WDS traffic/probes flowing properly */
+/* TODO: WDS feature is obsolete.
+ * Remove WL_STA_WDS and WL_STA_WDS_LINKUP defines once older branches (WOLF and earlier) do not use
+ * the current version of this file.
+ */
+#define WL_STA_WDS		0x00000040	/* OBSOLETE Wireless Distribution System */
+#define WL_STA_WDS_LINKUP	0x00000080	/* OBSOLETE WDS traffic/probes flowing properly */
 #define WL_STA_PS		0x00000100	/* STA is in power save mode from AP's viewpoint */
 #define WL_STA_APSD_BE		0x00000200	/* APSD delv/trigger for AC_BE is default enabled */
 #define WL_STA_APSD_BK		0x00000400	/* APSD delv/trigger for AC_BK is default enabled */
@@ -177,9 +181,10 @@ typedef uint32 ratespec_t;
 #define WL_STA_RIFS_CAP		0x00080000	/* rifs enabled */
 #define WL_STA_VHT_CAP		0x00100000	/* STA VHT(11ac) capable */
 #define WL_STA_WPS		0x00200000	/* WPS state */
-#define WL_STA_DWDS_CAP		0x01000000	/* DWDS CAP */
-#define WL_STA_DWDS		0x02000000	/* DWDS active */
-#define WL_WDS_LINKUP		WL_STA_WDS_LINKUP	/* deprecated */
+/*                              0x00400000 available */
+/*                              0x00800000 available */
+/*                              0x01000000 available */
+/*                              0x02000000 available */
 #define WL_STA_IS_2G		0x04000000	/* 2G channels supported */
 #define WL_STA_IS_5G		0x08000000	/* 5G channels supported */
 #define WL_STA_IS_6G		0x10000000	/* 6G channels supported */
@@ -272,14 +277,14 @@ typedef uint32 ratespec_t;
 #define WL_SCANFLAGS_SWTCHAN			0x20U	/* Force channel switch for differerent
 							* bandwidth.
 							*/
-#define WL_SCANFLAGS_FORCE_PARALLEL 		0x40U	/* Force parallel scan even when actcb_fn_t
+#define WL_SCANFLAGS_FORCE_PARALLEL		0x40U	/* Force parallel scan even when actcb_fn_t
 							* is on.By default parallel scan will be
 							* disabled if actcb_fn_t is provided.
 							*/
 #define WL_SCANFLAGS_SISO			0x40U	/* Use 1 RX chain for scanning */
 #define WL_SCANFLAGS_MIMO			0x80U	/* Force MIMO scanning */
 
-#define WL_SCANFLAGS_NO_6GHZ_FOLLOWUP  		0x100U	/* No 6G active scan due to RNR or FILS */
+#define WL_SCANFLAGS_NO_6GHZ_FOLLOWUP		0x100U	/* No 6G active scan due to RNR or FILS */
 #define WL_SCANFLAGS_INCL_FILS_DISC_FRAMES	0x200U	/* Include Fils info as well in
 							* escan results.
 							*/
@@ -566,18 +571,19 @@ typedef uint32 ratespec_t;
 #define WSEC_GEN_MFP_DISASSOC_ERROR	0x0010
 #define WSEC_GEN_MFP_DEAUTH_ERROR	0x0020
 
-#define WL_SOFT_KEY	(1 << 0)	/* Indicates this key is using soft encrypt */
-#define WL_PRIMARY_KEY	(1 << 1)	/* Indicates this key is the primary (ie tx) key */
+#define WL_SOFT_KEY		(1 << 0)	/* Indicates this key is using soft encrypt */
+#define WL_PRIMARY_KEY		(1 << 1)	/* Indicates this key is the primary (ie tx) key */
 #if defined(BCMCCX) || defined(BCMEXTCCX)
-#define WL_CKIP_KP	(1 << 4)	/* CMIC */
-#define WL_CKIP_MMH	(1 << 5)	/* CKIP */
+#define WL_CKIP_KP		(1 << 4)	/* CMIC */
+#define WL_CKIP_MMH		(1 << 5)	/* CKIP */
 #else
-#define WL_KF_RES_4	(1 << 4)	/* Reserved for backward compat */
-#define WL_KF_RES_5	(1 << 5)	/* Reserved for backward compat */
+#define WL_KF_RES_4		(1 << 4)	/* Reserved for backward compat */
+#define WL_KF_RES_5		(1 << 5)	/* Reserved for backward compat */
 #endif /* BCMCCX || BCMEXTCCX */
 #define WL_IBSS_PEER_GROUP_KEY	(1 << 6)	/* Indicates a group key for a IBSS PEER */
-#define WL_LINK_KEY	(1 << 7)	/* For linking keys of both cores */
-#define WL_UNLINK_KEY	(1 << 8)	/* For unlinking keys of both cores */
+#define WL_LINK_KEY		(1 << 7)	/* For linking keys of both cores */
+#define WL_UNLINK_KEY		(1 << 8)	/* For unlinking keys of both cores */
+#define WL_SCAN_SLICE_KEY	(1 << 9)	/* Key for the scan slice, not for the i/f slice */
 
 /* wireless security bitvec */
 #define WSEC_NONE		0x0
@@ -703,7 +709,7 @@ typedef uint32 ratespec_t;
 
 #ifdef MACOSX
 /* Macos limits ioctl maxlen for TX to 1864 and for RX to 2004 */
-#define WLC_IOCTL_MAXLEN            2000    /* "max" length ioctl buffer */
+#define WLC_IOCTL_MAXLEN            2000u    /* "max" length ioctl buffer */
 #else
 #define WLC_IOCTL_MAXLEN            8192u   /* "max" length ioctl buffer */
 #endif /* MACOSX */
@@ -844,8 +850,8 @@ typedef uint32 ratespec_t;
 #define WLC_SET_EAP_RESTRICT			120
 #define WLC_SCB_AUTHORIZE			121
 #define WLC_SCB_DEAUTHORIZE			122
-#define WLC_GET_WDSLIST				123
-#define WLC_SET_WDSLIST				124
+//#define WLC_GET_WDSLIST			123 OBSOLETE
+//#define WLC_SET_WDSLIST			124 OBSOLETE
 #define WLC_GET_ATIM				125
 #define WLC_SET_ATIM				126
 #define WLC_GET_RSSI				127
@@ -859,8 +865,8 @@ typedef uint32 ratespec_t;
 #define WLC_GET_PHY_NOISE			135
 #define WLC_GET_BSS_INFO			136
 #define WLC_GET_PKTCNTS				137
-#define WLC_GET_LAZYWDS				138
-#define WLC_SET_LAZYWDS				139
+//#define WLC_GET_LAZYWDS			138 OBSOLETE
+//#define WLC_SET_LAZYWDS			139 OBSOLETE
 #define WLC_GET_BANDLIST			140
 #define WLC_GET_BAND				141
 #define WLC_SET_BAND				142
@@ -968,14 +974,14 @@ typedef uint32 ratespec_t;
 #define WLC_SET_RADAR				243
 #define WLC_SET_SPECT_MANAGMENT			244
 #define WLC_GET_SPECT_MANAGMENT			245
-#define WLC_WDS_GET_REMOTE_HWADDR		246	/* handled in wl_linux.c/wl_vx.c */
-#define WLC_WDS_GET_WPA_SUP			247
+//#define WLC_WDS_GET_REMOTE_HWADDR		246 OBSOLETE
+//#define WLC_WDS_GET_WPA_SUP			247 OBSOLETE
 #define WLC_SET_CS_SCAN_TIMER			248
 #define WLC_GET_CS_SCAN_TIMER			249
 #define WLC_MEASURE_REQUEST			250
 #define WLC_INIT				251
 #define WLC_SEND_QUIET				252
-#define WLC_KEEPALIVE			253
+#define WLC_KEEPALIVE				253
 #define WLC_SEND_PWR_CONSTRAINT			254
 #define WLC_UPGRADE_STATUS			255
 #define WLC_CURRENT_PWR				256
@@ -1672,11 +1678,6 @@ typedef uint32 ratespec_t;
 #define WL_NUMCHANSPECS 110
 #endif
 #endif /* WL_BAND6G */
-
-/* WDS link local endpoint WPA role */
-#define WL_WDS_WPA_ROLE_AUTH	0	/* authenticator */
-#define WL_WDS_WPA_ROLE_SUP	1	/* supplicant */
-#define WL_WDS_WPA_ROLE_AUTO	255	/* auto, based on mac addr value */
 
 /* Base offset values */
 #define WL_PKT_FILTER_BASE_PKT   0
@@ -2736,7 +2737,7 @@ enum {
 #define WLC_WITH_XTLV_CNT
 
 /* Number of xtlv info as required to calculate subcounter offsets */
-#define WL_CNT_XTLV_ID_NUM	15
+#define WL_CNT_XTLV_ID_NUM	20
 #define WL_TLV_IOV_VERSION_1	1u
 #define WL_TLV_IOV_VERSION_2	2u
 
@@ -2827,6 +2828,26 @@ enum wl_cnt_xtlv_id {
 	WL_CNT_XTLV_DATA_BW_BLK1 = 0x102f,
 	WL_CNT_XTLV_WLC_HE_UNIFIED_BLK1 = 0x1030,
 	/* 13 XTLVs reserved for new counters that may need to be added */
+	/* XTLVs till 0x1100 reserved for ecounters */
+
+	/* main/aux slices */
+	WL_CNT_XTLV_MCST_RXERR_V1 = 0x1101,
+	WL_CNT_XTLV_MCST_RXERR_U32_V1 = 0x1102,
+	WL_CNT_XTLV_MCST_TXERR_V1 = 0x1103,
+	WL_CNT_XTLV_MCST_TXERR_U32_V1 = 0x1104,
+	WL_CNT_XTLV_MCST_RXTB_V1 = 0x1105,
+	WL_CNT_XTLV_MCST_TXTB_V1 = 0x1106,
+	WL_CNT_XTLV_MCST_RXFRM_V1 = 0x1107,
+	WL_CNT_XTLV_MCST_RXFRM_U32_V1 = 0x1108,
+	WL_CNT_XTLV_MCST_TXFRM_V1 = 0x1109,
+	WL_CNT_XTLV_MCST_TXFRM_U32_V1 = 0x110a,
+	/* 10 reserved for more counters */
+
+	/* scan slice */
+	WL_CNT_XTLV_MCST_SC_RXERR_V1 = 0x1115,
+	WL_CNT_XTLV_MCST_SC_RXTB_V1 = 0x1116,
+	WL_CNT_XTLV_MCST_SC_RXFRM_V1 = 0x1117,
+	/* 5 reserved for more SC counters */
 };
 
 /* bitmap for clm_flags iovar */
@@ -3190,8 +3211,8 @@ enum wlc_capext_feature_bitpos {
 	WLC_CAPEXT_FEATURE_BITPOS_PROP_TXSTATUS		= 19,
 
 	WLC_CAPEXT_FEATURE_BITPOS_MCHAN			= 20,
-	WLC_CAPEXT_FEATURE_BITPOS_WDS			= 21,
-	WLC_CAPEXT_FEATURE_BITPOS_DWDS			= 22,
+//	WLC_CAPEXT_FEATURE_BITPOS_WDS			= 21, OBSOLETE
+//	WLC_CAPEXT_FEATURE_BITPOS_DWDS			= 22, OBSOLETE
 	WLC_CAPEXT_FEATURE_BITPOS_CSO			= 23,
 	WLC_CAPEXT_FEATURE_BITPOS_P2P0			= 24,
 
@@ -3328,6 +3349,9 @@ enum wlc_capext_feature_bitpos {
 	WLC_CAPEXT_FEATURE_BITPOS_MPF_SCAN		= 138,
 	WLC_CAPEXT_FEATURE_BITPOS_MRSNO			= 139,
 	WLC_CAPEXT_FEATURE_BITPOS_AOP_SCAN		= 140,
+	WLC_CAPEXT_FEATURE_BITPOS_TXSHAPER		= 141,
+	WLC_CAPEXT_FEATURE_BITPOS_SLIMEMLSR		= 142,
+	WLC_CAPEXT_FEATURE_BITPOS_SCF			= 143,
 
 	WLC_CAPEXT_FEATURE_BITPOS_MAX
 };

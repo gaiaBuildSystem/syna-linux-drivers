@@ -152,9 +152,12 @@
 #define BCM4399_D11BE_ID	0x4451		/* 4399 802.11be dualband device */
 #define BCM43992_D11BE_ID	0x4453		/* 43992 802.11be dualband device */
 #define BCM43109_D11BN_ID	0x4454		/* 43109 802.11bn dualband device */
-#define BCM43101_D11BN_ID	0x4455		/* 43101 802.11bn dualband device */
 #define BCM43110_D11BN_ID	0x4456		/* 43110 802.11bn dualband device */
 #define BCM43102_D11BN_ID	0x4457		/* 43102 802.11bn dualband device */
+#define BCM43103_D11BN_ID	0x4458		/* 43103 802.11bn dualband device */
+#define BCM43111_D11BN_ID	0x4459		/* 43111 802.11bn dualband device */
+#define BCM43109_CHIP_ID	0xA865          /* 43109 chipcommon chipid */
+#define BCM43110_CHIP_ID	0xA866		/* 43110 chipcommon chipid */
 
 #define BCM43756E_D11AX6E_ID	0x44a3		/* 43756E 802.11ax 6E device */
 #define BCM43756E_D11AC_ID	0x44a4		/* 43756E 802.11ac dualband device */
@@ -201,6 +204,14 @@
 #define BCM4399_CHIP_ID		0x4399          /* 4399 chipcommon chipid */
 
 /* Chip Family IDs */
+#define BCM43109_CHIP(chipid)	(CHIPID(chipid) == BCM43109_CHIP_ID)
+
+#define BCM43109_CHIP_GRPID	BCM43109_CHIP_ID
+
+#define BCM43110_CHIP(chipid)	(CHIPID(chipid) == BCM43110_CHIP_ID)
+
+#define BCM43110_CHIP_GRPID	BCM43110_CHIP_ID
+
 // Please leave this UNRELEASEDCHIP MOG wrapper in place even if there is nothing inside it
 
 #define SYNA43711_CHIP(chipid)	(CHIPID(chipid) == SYNA43711_CHIP_ID)

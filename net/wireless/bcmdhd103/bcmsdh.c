@@ -374,7 +374,7 @@ bcmsdh_cfg_read(void *sdh, uint fnc_num, uint32 addr, int *err)
 	            fnc_num, addr, data));
 
 	return data;
-} EXPORT_SYMBOL(bcmsdh_cfg_read);
+}
 
 void
 bcmsdh_cfg_write(void *sdh, uint fnc_num, uint32 addr, uint8 data, int *err)
@@ -404,7 +404,7 @@ bcmsdh_cfg_write(void *sdh, uint fnc_num, uint32 addr, uint8 data, int *err)
 
 	BCMSDH_INFO(("%s:fun = %d, addr = 0x%x, uint8data = 0x%x\n", __FUNCTION__,
 	            fnc_num, addr, data));
-} EXPORT_SYMBOL(bcmsdh_cfg_write);
+}
 
 uint32
 bcmsdh_cfg_read_word(void *sdh, uint fnc_num, uint32 addr, int *err)

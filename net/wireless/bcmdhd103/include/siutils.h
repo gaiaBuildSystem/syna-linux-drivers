@@ -1173,4 +1173,5 @@ int si_bpind_access(si_t *sih, uint32 addr_high, uint32 addr_low,
 int si_reset_5g_rffe_vio(si_t *sih);
 int si_get_amni_slave_cfg_cc_reg_addrs(si_t *sih, volatile uint32 **idm_errstatus_addr,
 	volatile uint32 **idm_intstatus_addr);
+extern bool si_get_smb_info(const si_t *sih, uint32 *base_addr, uint32 *size);
 #endif	/* _siutils_h_ */

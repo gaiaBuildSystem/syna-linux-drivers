@@ -9187,6 +9187,230 @@ wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limit)
 }
 #endif /* LIMIT_AP_BW */
 
+static void
+ndev_csi_dump_data_info(wl_csi_data_info_t *data_info)
+{
+	uint8 i;
+	char eabuf[ETHER_ADDR_STR_LEN];
+
+	WL_INFORM_MEM(("TA address: %s\n", bcm_ether_ntoa(&data_info->ta, eabuf)));
+	WL_INFORM_MEM(("RA address: %s\n", bcm_ether_ntoa(&data_info->ra, eabuf)));
+	WL_INFORM_MEM(("BSSID address: %s\n", bcm_ether_ntoa(&data_info->bssid, eabuf)));
+	WL_INFORM_MEM(("bw: %d\n", data_info->bw));
+	WL_INFORM_MEM(("frame: 0x%02x\n", data_info->frame));
+	WL_INFORM_MEM(("nsts: %d\n", data_info->nsts));
+	WL_INFORM_MEM(("slice: %d\n", data_info->slice));
+	WL_INFORM_MEM(("num tones: %d\n", data_info->num_tones));
+	WL_INFORM_MEM(("num rx: %d\n", data_info->num_rx));
+	WL_INFORM_MEM(("num streams: %d\n", data_info->num_streams));
+	for (i = 0; i < data_info->num_rssi; i++) {
+		WL_INFORM_MEM(("rssi[%d]: %d\n", i, data_info->rssi[i]));
+	}
+}
+
+/* get csi data fragment */
+static int
+ndev_csi_get_data_fragment(struct net_device *ndev, uint32 offset, u8 *dest_buf)
+{
+	int rc = BCME_OK;
+	uint8 buf[OFFSETOF(bcm_xtlv_t, data) + sizeof(wl_csi_get_data_req_t)];
+	uint8 *rem = buf;
+	uint16 remlen = sizeof(buf);
+	wl_csi_get_data_req_t data_req;
+	wl_csi_get_data_resp_t *data_resp;
+	uint32 i;
+
+	bzero(buf, sizeof(buf));
+	bzero(&data_req, sizeof(data_req));
+
+	data_req.offset = htod32(offset);
+	data_req.length = htod32(~0);           /* request as much as possible */
+
+	/* build TLV */
+	if ((rc = bcm_pack_xtlv_entry(&rem, &remlen, WL_CSI_SUBCMD_GET_DATA,
+		sizeof(data_req), (uint8 *)&data_req, BCM_XTLV_OPTION_ALIGN32)) != BCME_OK) {
+		goto done;
+	}
+
+#define CSI_IOVAR_NAME  "csi"
+	/* invoke GET iovar */
+	if ((rc = wldev_iovar_getbuf(ndev, CSI_IOVAR_NAME, buf, sizeof(buf), (void *)dest_buf,
+			WL_EXTRA_BUF_MAX, NULL))
+		!= BCME_OK) {
+		WL_ERR(("ndev_csi_get_data_fragment() rc %d\n", rc));
+		goto done;
+	}
+
+	data_resp = (wl_csi_get_data_resp_t *)dest_buf;
+	/* convert from dongle to host format */
+	data_resp->total_length = dtoh32(data_resp->total_length);
+	data_resp->offset = dtoh32(data_resp->offset);
+	data_resp->length = dtoh32(data_resp->length);
+	for (i = 0; i < data_resp->length; i++) {
+		data_resp->csi_data[i] = dtoh32(data_resp->csi_data[i]);
+	}
+
+done:
+	return rc;
+}
+
+static int
+ndev_csi_data_decode(wl_csi_data_info_t *data_info, uint32 length, uint32 *csi_data)
+{
+	uint16 max_rx, max_sts, num_tones;
+	uint8 slice;
+	uint16 k, r, t;
+	uint32 count = 0;
+
+	max_rx = data_info->num_rx + 1u;
+	max_sts = data_info->num_streams + 1u;
+	num_tones = data_info->num_tones;
+	slice = data_info->slice;
+
+	for (k = 0; k < num_tones; k++) {
+		for (r = 0; r < max_rx; r++) {
+			for (t = 0; t < max_sts; t++) {
+				uint32 ch;
+				uint16 fftk;
+				uint16 ch_re_ma, ch_im_ma;
+				uint8 ch_re_si, ch_im_si;
+				int16 ch_re, ch_im;
+				int8 ch_exp;
+
+				if (count >= length) {
+					goto done;
+				}
+				/* raw CSI data */
+				ch = csi_data[count++];
+				if (slice == 0) {
+					/* main slice */
+					ch_re_ma  = ((ch >> 18u) & 0x7ffu);
+					ch_re_si  = ((ch >> 29u) & 0x01u);
+					ch_im_ma  = ((ch >>  6u) & 0x7ffu);
+					ch_im_si  = ((ch >> 17u) & 0x01u);
+					ch_exp    = ((int8)((ch << 2u) & 0xfcu)) >> 2u;
+				} else {
+					/* aux slice */
+					ch_re_ma  = ((ch >> 14u) & 0xffu);
+					ch_re_si  = ((ch >> 22u) & 0x01u);
+					ch_im_ma  = ((ch >>  5u) & 0xffu);
+					ch_im_si  = ((ch >> 13u) & 0x01u);
+					ch_exp    = ((int8)((ch << 3u) & 0xf8u)) >> 3u;
+				}
+				ch_re = (ch_re_si > 0) ? -ch_re_ma : ch_re_ma;
+				ch_im = (ch_im_si > 0) ? -ch_im_ma : ch_im_ma;
+
+				fftk = ((k < num_tones / 2u) ? (k + num_tones / 2u) :
+					(k - num_tones / 2u));
+
+				if ((((r + 1u) == 2u) && ((t + 1u) == 1u)) && ((fftk + 1u)
+					== 48u)) {
+					WL_INFORM_MEM(("chan(%d,%d,%d)=(%d+i*%d)*2^%d;\n",
+						r + 1u, t + 1u, fftk + 1u, ch_re, ch_im, ch_exp));
+				} else {
+					WL_INFORM_MEM(("chan(%d,%d,%d)=(%d+i*%d)*2^%d;\n",
+						r + 1u, t + 1u, fftk + 1u, ch_re, ch_im, ch_exp));
+				}
+			}
+		}
+	}
+
+done:
+	return BCME_OK;
+}
+
+static int
+ndev_csi_get_data(struct bcm_cfg80211 *cfg, struct net_device *ndev,
+		wl_csi_data_info_t *data_info, bool is_raw_format, char *filename)
+{
+	int rc = BCME_OK;
+	wl_csi_get_data_resp_t *data_resp = NULL;
+	uint32 offset = 0, length = 0, total_length = 0;
+	uint32 *csi_data_buf = NULL;
+	uint8 data_size = sizeof(data_resp->csi_data[0]);
+	u8 *dest_buf = NULL;
+
+	do {
+		/* update offset to read next fragment */
+		offset += length;
+		dest_buf = (char *)MALLOCZ(cfg->osh, WL_EXTRA_BUF_MAX);
+		if (!dest_buf) {
+			WL_ERR(("dest buffer alloc failed.\n"));
+			return BCME_NOMEM;
+		}
+		if ((rc = ndev_csi_get_data_fragment(ndev, offset, dest_buf)) != BCME_OK) {
+			goto done;
+		}
+
+		data_resp = (wl_csi_get_data_resp_t *)dest_buf;
+
+		if (csi_data_buf == NULL) {
+			/* malloc buffer for all fragments */
+			total_length = data_resp->total_length;
+			csi_data_buf = MALLOCZ(cfg->osh, total_length * data_size);
+			if (csi_data_buf == NULL) {
+				rc = BCME_NOMEM;
+				goto done;
+			}
+		}
+		length = data_resp->length;
+
+		if (memcpy_s(&csi_data_buf[offset], (total_length - offset) * data_size,
+			data_resp->csi_data, length * data_size) != 0) {
+			rc = BCME_BUFTOOSHORT;
+			goto done;
+		}
+
+		if (dest_buf) {
+			MFREE(cfg->osh, dest_buf, WL_EXTRA_BUF_MAX);
+		}
+
+	} while (offset + length < total_length);
+
+	if (csi_data_buf != NULL) {
+		wl_csi_data_info_t *di = data_info;
+		/* decode */
+		if ((rc = ndev_csi_data_decode(di, total_length, csi_data_buf))
+			!= BCME_OK) {
+			goto done;
+		}
+	}
+done:
+	if (csi_data_buf != NULL) {
+		MFREE(cfg->osh, csi_data_buf, total_length * data_size);
+	}
+	return rc;
+}
+
+s32
+wl_cfgvif_process_csi_data(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
+        const wl_event_msg_t *event, void *data)
+{
+	s32 err = BCME_OK;
+	u32 status = ntoh32(event->status);
+	u32 event_type = ntoh32(event->event_type);
+	wl_csi_data_info_t *data_info = NULL;
+
+	struct net_device *ndev = (struct net_device *)cfgdev_to_ndev(cfgdev);
+
+	BCM_REFERENCE(ndev);
+
+	if (event_type == WLC_E_CSI_DATA) {
+		data_info = (wl_csi_data_info_t *)data;
+		if (status == BCME_OK) {
+			ndev_csi_dump_data_info(data_info);
+			/* get data available */
+			err = ndev_csi_get_data(cfg, ndev, data_info, FALSE, NULL);
+			if (err) {
+				WL_ERR(("ndev_csi_get_data() err %d\n", err));
+			}
+		} else {
+			WL_ERR(("wl_cfgvif_process_csi_data() status %d \n", status));
+		}
+	}
+	return err;
+}
+
 #ifdef WL_IDAUTH
 s32
 wl_cfgvif_scb_authorized(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
