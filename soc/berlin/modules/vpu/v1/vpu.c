@@ -332,6 +332,7 @@ static int berlin_vpu_probe(struct syna_vpu_auxiliary_device *auxdev,
 	register_pm_notifier(&pVpuHwCtx->pm_notifier);
 
 	pVpuHwCtx->auxdev = auxdev;
+	pVpuHwCtx->irq = auxdev->irq;
 	dev_set_drvdata(&auxdev->dev, pVpuHwCtx);
 
 	vpu_trace("vpu:%s probe ok\n", hw_name);
