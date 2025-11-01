@@ -361,15 +361,24 @@ static int i2s_soc_dai_setfmt(struct snd_soc_dai *dai, unsigned int fmt)
 		return -EINVAL;
 	}
 
-	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-	case SND_SOC_DAIFMT_CBM_CFM: //codec master
-		soc_dai->is_master = false;
-		break;
-	case SND_SOC_DAIFMT_CBS_CFS: //codec slave
+	switch (fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+	case SND_SOC_DAIFMT_BP_FP:
 		soc_dai->is_master = true;
 		break;
-	case SND_SOC_DAIFMT_CBM_CFS:
-	case SND_SOC_DAIFMT_CBS_CFM:
+	case SND_SOC_DAIFMT_BC_FC:
+		soc_dai->is_master = false;
+		break;
+#else
+	case SND_SOC_DAIFMT_CBP_CFP: //codec provider
+		soc_dai->is_master = false;
+		break;
+	case SND_SOC_DAIFMT_CBC_CFC: //codec consumer
+		soc_dai->is_master = true;
+		break;
+#endif
+	case SND_SOC_DAIFMT_CBP_CFC:
+	case SND_SOC_DAIFMT_CBC_CFP:
 	default:
 		dev_err(dai->dev, "Berlin AIO do not support DAI master mask %x\n", fmt);
 		return -EINVAL;
