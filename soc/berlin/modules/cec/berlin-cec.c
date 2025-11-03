@@ -35,6 +35,7 @@ static struct cec_device_t cec_dev = {
 	.minor = CEC_MINOR,
 };
 
+static atomic_t cec_dev_refcnt = ATOMIC_INIT(0);
 /*******************************************************************************
   Module internal function
   */
@@ -134,7 +135,8 @@ static int cec_suspend(struct device *dev)
 {
 	pr_info("cec_suspend\n");
 
-	cec_disable_irq();
+	if (atomic_read(&cec_dev_refcnt))
+		cec_disable_irq();
 
 	return 0;
 }
@@ -143,7 +145,9 @@ static int cec_resume(struct device *dev)
 {
 	pr_info("cec_resume\n");
 
-	cec_enable_irq();
+	if (atomic_read(&cec_dev_refcnt))
+		cec_enable_irq();
+
 	return 0;
 }
 #endif
@@ -179,7 +183,6 @@ static int cec_device_exit(struct cec_device_t *cec_dev, unsigned int user)
 /*******************************************************************************
   Module Register API
   */
-static atomic_t cec_dev_refcnt = ATOMIC_INIT(0);
 static int cec_driver_open(struct inode *inode, struct file *filp)
 {
 	int err = 0;
