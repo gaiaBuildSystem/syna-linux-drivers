@@ -598,7 +598,9 @@ static void ovp_drv_shutdown(struct platform_device *pdev)
 {
 	ovp_trace("%s\n", __func__);
 
-	ovp_drv_disable_irq();
+	if (atomic_read(&ovp_dev_refcnt)) {
+		ovp_drv_disable_irq();
+	}
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -615,6 +617,9 @@ static int ovp_drv_suspend(struct device *dev)
 	int ret = 0;
 
 	ovp_trace("%s\n", __func__);
+
+	if (!atomic_read(&ovp_dev_refcnt))
+		return ret;
 
 	ovp_drv_disable_irq();
 
@@ -636,6 +641,9 @@ static int ovp_drv_resume(struct device *dev)
 	int ret = 0;
 
 	ovp_trace("%s\n", __func__);
+
+	if (!atomic_read(&ovp_dev_refcnt))
+		return ret;
 
 	ret = tz_ovp_invoke_cmd(OVP_RESUME);
 	if (ret) {
