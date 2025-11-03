@@ -834,6 +834,8 @@ ifneq ($(filter -DDHD_EVENT_LOG_FILTER, $(DHDCFLAGS)),)
 DHDOFILES += dhd_event_log_filter.o
 endif
 
+UBSAN_SANITIZE := n
+
 bcmdhd-objs := $(DHDOFILES)
 obj-$(DRIVER_TYPE)   += bcmdhd.o
 ccflags-y := $(KBUILD_CFLAGS)
