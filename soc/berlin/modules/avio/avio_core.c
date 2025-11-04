@@ -66,6 +66,9 @@
 static int fastlogo_status;
 module_param(fastlogo_status, int, 0444);
 
+static int kernel_logo_disable;
+module_param(kernel_logo_disable, int, 0444);
+
 /***********************************************************************
  * Module Variable
  */
@@ -518,6 +521,11 @@ avio_fastlogo_info avio_get_fastlogo_status(void)
 	return disp_info;
 }
 
+int avio_get_avio_kernel_logo_status(void)
+{
+	return kernel_logo_disable;
+}
+
 void avio_set_fastlogo_status(int status)
 {
 	avio_fastlogo_info display_info;
@@ -555,3 +563,4 @@ MODULE_DESCRIPTION("AVIO module driver");
 
 EXPORT_SYMBOL(avio_get_fastlogo_status);
 EXPORT_SYMBOL(avio_set_fastlogo_status);
+EXPORT_SYMBOL(avio_get_avio_kernel_logo_status);

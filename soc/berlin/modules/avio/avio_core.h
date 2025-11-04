@@ -44,5 +44,6 @@ struct avio_device_t {
 };
 
 int avio_module_avio_probe(struct platform_device *pdev);
+int avio_get_avio_kernel_logo_status(void);
 
 #endif //_AVIO_DRIVER_H_

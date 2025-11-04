@@ -346,6 +346,13 @@ static int syna_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_drm_dev_late_unload;
 
+	if (avio_get_avio_kernel_logo_status()) {
+		//Overide ctrl flags based on kernel command line parameter
+		is_fb_delayed_start = 0;
+		dev_priv = ddev->dev_private;
+		dev_priv->vpp_config_param.logo_enable = 0;
+	}
+
 	ret = syna_late_load(ddev);
 	if (ret)
 		goto err_drm_dev_unregister;
