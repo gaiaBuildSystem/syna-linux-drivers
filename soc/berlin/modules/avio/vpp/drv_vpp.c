@@ -1096,7 +1096,12 @@ void drv_hdmitx_5v_set(void *h_vpp_ctx, int enable)
 {
 	VPP_CTX *hVppCtx = (VPP_CTX*)h_vpp_ctx;
 	int state = hVppCtx->is_bootup_quiescent ? GPIOD_OUT_LOW : enable;
+	int ret;
 
-	avio_trace("setting HDMI 5V to %d, quiescent: %d\n", state, hVppCtx->is_bootup_quiescent);
-	gpiod_set_value_cansleep(hVppCtx->gpio_hdmitx_5v, state);
+	avio_trace("setting HDMI 5V to %d, quiescent: %d\n", state,
+		   hVppCtx->is_bootup_quiescent);
+
+	ret = gpiod_direction_output(hVppCtx->gpio_hdmitx_5v, state);
+	if (ret)
+		avio_trace("failed to set hdtx5v direction, ret = %d\n", ret);
 }

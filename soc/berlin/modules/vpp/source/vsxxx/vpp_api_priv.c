@@ -240,10 +240,14 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	dispParams.uiColorFmt = vpp_config_param.disp1_colorformat;
 	dispParams.iPixelRepeat = 1;
 
-	if (vpp_config_param.hdmitx_enable)
+	if (vpp_config_param.hdmitx_enable) {
 		feature_cfg[0] = VPP_FEATURE_HDMITX;
-	else
+
+		if(!display_info.u.status)
+			wrap_MV_VPP_HDMITX_5v_set(1);
+	} else {
 		wrap_MV_VPP_HDMITX_5v_set(0);
+	}
 
 	if (!display_info.u.status) {
 		//Allocate memory for TA heap memory manager
