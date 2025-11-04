@@ -11,6 +11,7 @@
 #include "avio_ioctl.h"
 #include "avio_memmap.h"
 #include "avio_common.h"
+#include "avio_fl_info.h"
 
 typedef struct _AVIO_CTX_ {
 	struct resource *pAvioRes;
@@ -24,21 +25,6 @@ typedef struct _AVIO_CTX_ {
 
 	struct semaphore resume_sem;
 } AVIO_CTX;
-
-typedef struct bootloader_info_t  {
-	u32 status : 1;     // Successfully displayed logo or not
-	u32 devnum : 1;     // Device number (0 or 1)
-	u32 hw_partition : 3;   // Partition type (0=DEFAULT, 4=GP1, 5=GP2 etc)
-	u32 sw_partition : 5;  // Partition identifier (partition number)
-	u32 cpcb0ResId : 8; // CpCb0 resolution -- may be additional bits for depth/format
-	u32 cpcb1ResId : 8; // CpCb1 resolution
-	u32 reserved : 6;   // Reserved for future use
-} BOOTLOADER_INFO;
-
-typedef union  avio_fastlogo_info_u {
-	u32 fl_disp_info;
-	BOOTLOADER_INFO u;
-} avio_fastlogo_info;
 
 struct avio_device_t {
 	unsigned char *dev_name;
@@ -58,7 +44,5 @@ struct avio_device_t {
 };
 
 int avio_module_avio_probe(struct platform_device *pdev);
-avio_fastlogo_info avio_get_fastlogo_status(void);
-void avio_set_fastlogo_status(int status);
 
 #endif //_AVIO_DRIVER_H_
