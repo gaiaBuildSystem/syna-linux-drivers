@@ -19,6 +19,7 @@
 #include <linux/regulator/of_regulator.h>
 #include <linux/slab.h>
 #include <linux/version.h>
+#include "avio_fl_info.h"
 
 /* I2C registers of the Atmel microcontroller. */
 #define REG_ID		0x80
@@ -91,9 +92,20 @@ static u8 attiny_get_port_state(struct attiny_lcd *state, int reg)
 	return state->port_states[reg - REG_PORTA];
 };
 
+static void attiny_set_port_state_soft(struct attiny_lcd *state, int reg, u8 val)
+{
+	state->port_states[reg - REG_PORTA] = val;
+};
+
 static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 {
 	struct attiny_lcd *state = rdev_get_drvdata(rdev);
+	avio_fastlogo_info display_info = avio_get_fastlogo_status();
+
+	if (display_info.u.status) {
+		attiny_set_port_state_soft(state, REG_PORTC, PC_LED_EN);
+		return 0;
+	}
 
 	mutex_lock(&state->lock);
 
@@ -124,6 +136,12 @@ static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 static int attiny_lcd_power_disable(struct regulator_dev *rdev)
 {
 	struct attiny_lcd *state = rdev_get_drvdata(rdev);
+	avio_fastlogo_info display_info = avio_get_fastlogo_status();
+
+	if (display_info.u.status) {
+		attiny_set_port_state_soft(state, REG_PORTC, PC_LED_EN);
+		return 0;
+	}
 
 	mutex_lock(&state->lock);
 
@@ -282,6 +300,8 @@ static int attiny_i2c_probe(struct i2c_client *i2c)
 	struct regmap *regmap;
 	unsigned int data;
 	int ret;
+	/* Check for fastlogo status to avoid unnecessary reinitialization */
+	avio_fastlogo_info display_info;
 
 	state = devm_kzalloc(&i2c->dev, sizeof(*state), GFP_KERNEL);
 	if (!state)
@@ -314,9 +334,14 @@ static int attiny_i2c_probe(struct i2c_client *i2c)
 		goto error;
 	}
 
-	regmap_write(regmap, REG_POWERON, 0);
-	msleep(30);
-	regmap_write(regmap, REG_PWM, 0);
+	display_info = avio_get_fastlogo_status();
+	if (display_info.u.status) {
+		attiny_set_port_state_soft(state, REG_PORTC, PC_LED_EN);
+	} else {
+		regmap_write(regmap, REG_POWERON, 0);
+		msleep(30);
+		regmap_write(regmap, REG_PWM, 0);
+	}
 
 	config.dev = &i2c->dev;
 	config.regmap = regmap;
