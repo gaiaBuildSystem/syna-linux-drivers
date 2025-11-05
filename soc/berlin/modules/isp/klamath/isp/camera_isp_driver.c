@@ -127,15 +127,34 @@ static int find_exact_match(struct camera_isp_dev *isp_dev,
 	return -1;
 }
 
+static int calculate_scaling_factor(u32 in_w, u32 in_h, u32 out_w, u32 out_h)
+{
+	u32 scale_x;
+	u32 scale_y;
+
+	if (in_w >= out_w && in_h >= out_h) {
+		scale_x = in_w / out_w;
+		scale_y = in_h / out_h;
+
+		/* Check for perfect integral scaling */
+		if (scale_x == scale_y &&
+				(in_w % out_w) == 0 && (in_h % out_h) == 0)
+			return scale_x;
+
+	}
+
+	return -1;
+}
+
 /* METHOD 1 - Find ISP scalable mode */
 static int find_scalable_mode(struct camera_isp_dev *isp_dev,
-			struct sensor_mode *modes, int num_modes,
-			u32 requested_width, u32 requested_height,
-			u32 *out_scale_factor)
+		struct sensor_mode *modes, int num_modes,
+		u32 requested_width, u32 requested_height,
+		u32 *out_scale_factor)
 {
 	int best_mode = -1;
 	u32 best_scale_factor = UINT_MAX;
-	u32 scale_x, scale_y;
+	u32 scale_factor = -1;
 	int i;
 
 	for (i = 0; i < num_modes; i++) {
@@ -143,18 +162,12 @@ static int find_scalable_mode(struct camera_isp_dev *isp_dev,
 		if (modes[i].width < requested_width || modes[i].height < requested_height)
 			continue;
 
-		scale_x = modes[i].width / requested_width;
-		scale_y = modes[i].height / requested_height;
+		scale_factor = calculate_scaling_factor(modes[i].width, modes[i].height,
+				requested_width, requested_height);
 
-		/* Check for perfect integral scaling */
-		if (scale_x == scale_y &&
-			(modes[i].width % requested_width) == 0 &&
-			(modes[i].height % requested_height) == 0) {
-
-			if (scale_x < best_scale_factor) {
-				best_scale_factor = scale_x;
-				best_mode = i;
-			}
+		if (scale_factor > 0 && scale_factor < best_scale_factor) {
+			best_scale_factor = scale_factor;
+			best_mode = i;
 		}
 	}
 
@@ -582,6 +595,7 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 		camera_isp_csi_try_power_on(isp_dev, 1);
 		CSI_PIPE_Start(isp_dev->pipe[req_pad]);
 	} else {
+		isp_dev->pad_data[req_pad + 1].is_cropping_enable = false;
 		CSI_PIPE_Stop(isp_dev->pipe[req_pad]);
 		camera_isp_csi_try_power_on(isp_dev, 0);
 
@@ -758,7 +772,8 @@ static int camera_isp_get_selection(struct v4l2_subdev *sd,
 		struct v4l2_subdev_selection *sel)
 {
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
-	CSI_PL_CTX_t *ctx;
+	struct camera_isp_pad_data *pad_data;
+	u32 in_w, in_h;
 
 	if (sel->pad >= CAMERA_ISP_PAD_NR) {
 		dev_err(isp_dev->dev, "Invalid pad %d for get_selection\n", sel->pad);
@@ -770,11 +785,14 @@ static int camera_isp_get_selection(struct v4l2_subdev *sd,
 		dev_err(isp_dev->dev, "Selection not supported on sink pad\n");
 		return -EINVAL;
 	}
+	pad_data = &isp_dev->pad_data[sel->pad];
 
-	ctx = (CSI_PL_CTX_t *)isp_dev->pipe[sel->pad - 1];
-	if (!ctx) {
-		dev_err(isp_dev->dev, "Pipeline context not available for pad %d\n", sel->pad);
-		return -EINVAL;
+	/* Use sink format as input bounds when ctx is not ready */
+	in_w = isp_dev->formats[CAMERA_ISP_PAD_SINK].width;
+	in_h = isp_dev->formats[CAMERA_ISP_PAD_SINK].height;
+	if (!in_w || !in_h) {
+		in_w = CAMERA_ISP_DEFAULT_WIDTH;
+		in_h = CAMERA_ISP_DEFAULT_HEIGHT;
 	}
 
 	switch (sel->target) {
@@ -783,20 +801,19 @@ static int camera_isp_get_selection(struct v4l2_subdev *sd,
 		/* Full input frame bounds */
 		sel->r.left = 0;
 		sel->r.top = 0;
-		sel->r.width = ctx->hres;
-		sel->r.height = ctx->vres;
+		sel->r.width = in_w;
+		sel->r.height = in_h;
 		break;
 
 	case V4L2_SEL_TGT_CROP:
-		/* Current crop rectangle */
-		sel->r.left = ctx->crop.x_st;
-		sel->r.top = ctx->crop.y_st;
-		sel->r.width = ctx->crop.x_end - ctx->crop.x_st + 1;
-		sel->r.height = ctx->crop.y_end - ctx->crop.y_st + 1;
+		/* Current rectangle */
+		if (pad_data->is_cropping_enable)
+			sel->r = pad_data->r;
 		break;
 
 	default:
-		dev_err(isp_dev->dev, "Unsupported selection target %d\n", sel->target);
+		dev_dbg(isp_dev->dev, "Unsupported selection target %d LINE: %d\n",
+			sel->target, __LINE__);
 		return -EINVAL;
 	}
 
@@ -807,13 +824,26 @@ static int camera_isp_get_selection(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int camera_isp_check_cropping_enable(struct v4l2_subdev_selection *sel)
+{
+	int x = sel->r.left;
+	int y = sel->r.top;
+	int width = sel->r.width;
+	int height = sel->r.height;
+
+	if (x == 0 && width == CAMERA_ISP_DEFAULT_WIDTH &&
+			y == 0 && height == CAMERA_ISP_DEFAULT_HEIGHT)
+		return 1;
+
+	return 0;
+}
+
 static int camera_isp_set_selection(struct v4l2_subdev *sd,
 		struct v4l2_subdev_state *sd_state,
 		struct v4l2_subdev_selection *sel)
 {
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
-	CSI_PL_CTX_t *ctx;
-	u32 max_width, max_height;
+	int ret = 0;
 
 	if (sel->pad >= CAMERA_ISP_PAD_NR) {
 		dev_err(isp_dev->dev, "Invalid pad %d for set_selection\n", sel->pad);
@@ -826,73 +856,23 @@ static int camera_isp_set_selection(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	/* Only support crop target */
 	if (sel->target != V4L2_SEL_TGT_CROP) {
-		dev_err(isp_dev->dev, "Unsupported selection target %d\n", sel->target);
+		dev_err(isp_dev->dev, "Unsupported selection target %d\n",
+			sel->target);
 		return -EINVAL;
 	}
 
-	ctx = (CSI_PL_CTX_t *)isp_dev->pipe[sel->pad - 1];
-	if (!ctx) {
-		dev_err(isp_dev->dev, "Pipeline ctx not available for pad %d\n", sel->pad);
-		return -EINVAL;
+	ret = camera_isp_check_cropping_enable(sel);
+
+	if (!ret) {
+		dev_dbg(isp_dev->dev, "cropping\n");
+		isp_dev->pad_data[sel->pad].is_cropping_enable = true;
+		isp_dev->pad_data[sel->pad].r = sel->r;
+		isp_dev->pad_data[sel->pad].target = sel->target;
+	} else {
+		dev_dbg(isp_dev->dev, "scaling\n");
+		isp_dev->pad_data[sel->pad].is_cropping_enable = false;
 	}
-
-	/* Get input frame bounds for validation */
-	max_width = ctx->hres;
-	max_height = ctx->vres;
-
-	/* Validate and clamp crop rectangle */
-	sel->r.left = clamp_t(u32, sel->r.left, 0, max_width - 1);
-	sel->r.top = clamp_t(u32, sel->r.top, 0, max_height - 1);
-	sel->r.width = clamp_t(u32, sel->r.width, CAMERA_ISP_WIDTH_MIN,
-						  max_width - sel->r.left);
-	sel->r.height = clamp_t(u32, sel->r.height, CAMERA_ISP_HEIGHT_MIN,
-						   max_height - sel->r.top);
-
-	/* Align dimensions */
-	//sel->r.width = ALIGN(sel->r.width, CAMERA_ISP_WIDTH_ALIGN);
-	//sel->r.height = ALIGN(sel->r.height, CAMERA_ISP_HEIGHT_ALIGN);
-
-	/* Ensure crop rectangle doesn't exceed bounds after alignment */
-	if (sel->r.left + sel->r.width > max_width) {
-		sel->r.width = max_width - sel->r.left;
-		sel->r.width = ALIGN_DOWN(sel->r.width, CAMERA_ISP_WIDTH_ALIGN);
-	}
-	if (sel->r.top + sel->r.height > max_height) {
-		sel->r.height = max_height - sel->r.top;
-		sel->r.height = ALIGN_DOWN(sel->r.height, CAMERA_ISP_HEIGHT_ALIGN);
-	}
-
-	/* Update crop window in pipeline context */
-	ctx->crop.x_st = sel->r.left;
-	ctx->crop.y_st = sel->r.top;
-	ctx->crop.x_end = sel->r.left + sel->r.width - 1;
-	ctx->crop.y_end = sel->r.top + sel->r.height - 1;
-
-	/* Recalculate scale factor based on new crop and current output format */
-	if (ctx->op_wt > 0 && ctx->op_ht > 0) {
-		u32 crop_width = sel->r.width;
-		u32 crop_height = sel->r.height;
-		u32 scale_x = crop_width / ctx->op_wt;
-		u32 scale_y = crop_height / ctx->op_ht;
-
-		ctx->crop.scale = (scale_x > scale_y) ? scale_x : scale_y;
-		if (ctx->crop.scale < 1)
-			ctx->crop.scale = 1;
-		ctx->crop.imgres_oprn = (ctx->crop.scale > 1) ? 1 : 0;	/* 1=scaling, 0=cropping */
-	}
-
-	/*
-	 * Apply crop settings to hardware registers through pipeline reconfiguration
-	 * The crop parameters are now stored in ctx->crop and will be applied
-	 * during the next CSI_PIPE_Config call when format is set or streaming starts
-	 */
-
-	dev_info(isp_dev->dev, "%s crop (%d,%d)/%dx%d -> (%d,%d)-(%d,%d) scale=%d oprn=%d\n",
-			 __func__, sel->r.left, sel->r.top, sel->r.width, sel->r.height,
-			 ctx->crop.x_st, ctx->crop.y_st, ctx->crop.x_end, ctx->crop.y_end,
-			 ctx->crop.scale, ctx->crop.imgres_oprn);
 
 	return 0;
 }
@@ -1011,6 +991,55 @@ static int camera_isp_check_formats(struct device *dev,
 	return 0;
 }
 
+static int camera_isp_validate_cropping(struct camera_isp_dev *isp_dev,
+		struct v4l2_mbus_framefmt *out_fmt,
+		struct v4l2_rect *r, u32 *scale_factor,
+		CSI_PL_CTX_t *ctx)
+{
+	/* Validate and clamp crop rectangle */
+	r->left = clamp_t(u32, r->left, 0, CAMERA_ISP_DEFAULT_WIDTH - 1);
+	r->top = clamp_t(u32, r->top, 0, CAMERA_ISP_DEFAULT_HEIGHT - 1);
+	r->width = clamp_t(u32, r->width, CAMERA_ISP_WIDTH_MIN,
+			CAMERA_ISP_DEFAULT_WIDTH - r->left);
+	r->height = clamp_t(u32, r->height, CAMERA_ISP_HEIGHT_MIN,
+			CAMERA_ISP_DEFAULT_HEIGHT - r->top);
+
+	/* Ensure crop rectangle doesn't exceed bounds after alignment */
+	if (r->left + r->width > CAMERA_ISP_DEFAULT_WIDTH) {
+		r->width = CAMERA_ISP_DEFAULT_WIDTH - r->left;
+		r->width = ALIGN_DOWN(r->width, CAMERA_ISP_WIDTH_ALIGN);
+	}
+	if (r->top + r->height > CAMERA_ISP_DEFAULT_HEIGHT) {
+		r->height = CAMERA_ISP_DEFAULT_HEIGHT - r->top;
+		r->height = ALIGN_DOWN(r->height, CAMERA_ISP_HEIGHT_ALIGN);
+	}
+
+	/* Update crop window in pipeline context */
+	ctx->crop.x_st = r->left;
+	ctx->crop.y_st = r->top;
+	ctx->crop.x_end = r->left + r->width - 1;
+	ctx->crop.y_end = r->top + r->height - 1;
+
+	/* Output size should be <= crop size */
+	if (out_fmt->width > r->width || out_fmt->height > r->height)
+		return -EINVAL;
+
+	/* If output size != crop size, compute integral scaling factor */
+	if (out_fmt->width != r->width || out_fmt->height != r->height) {
+		int sf = calculate_scaling_factor(r->width, r->height,
+				out_fmt->width, out_fmt->height);
+		if (sf > 0) {
+			*scale_factor = sf;
+		} else {
+			dev_err(isp_dev->dev, "non-integral crop->o/p: (%dx%d -> %dx%d)\n",
+					r->width, r->height, out_fmt->width, out_fmt->height);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 /* Program pipeline */
 static int camera_isp_program_pipeline(struct camera_isp_dev *isp_dev,
 						 u32 pad,
@@ -1018,13 +1047,39 @@ static int camera_isp_program_pipeline(struct camera_isp_dev *isp_dev,
 						 struct v4l2_mbus_framefmt *out_fmt,
 						 u32 scale_factor)
 {
+	CSI_PL_CTX_t *ctx;
+	struct v4l2_rect *r = &isp_dev->pad_data[pad].r;
+	int ret;
+
 	if (!isp_dev->pipeline_ready[pad - 1]) {
 		isp_dev->pipe[pad - 1] = CSI_PIPE_Create(isp_dev, pad - 1);
 		isp_dev->pipeline_ready[pad - 1] = true;
 	}
 
+	ctx = (CSI_PL_CTX_t *)isp_dev->pipe[pad - 1];
+	if (!ctx)
+		return -ENOMEM;
+
 	CSI_PIPE_Set_Input_Fmt(isp_dev->pipe[pad - 1],
 				  in_fmt->width, in_fmt->height);
+
+	if (scale_factor == 0) {
+		ret = camera_isp_validate_cropping(isp_dev, out_fmt, r,
+					&scale_factor, ctx);
+		if (ret)
+			return ret;
+	} else {
+		ctx->crop.x_st = 0;
+		ctx->crop.y_st = 0;
+		ctx->crop.x_end = ctx->hres - 1;
+		ctx->crop.y_end = ctx->vres - 1;
+	}
+
+	dev_dbg(isp_dev->dev, "%s crop (%d,%d)/%dx%d -> (%d,%d)-(%d,%d) scale=%d oprn=%d\n",
+			 __func__, r->left, r->top, r->width, r->height,
+			 ctx->crop.x_st, ctx->crop.y_st, ctx->crop.x_end, ctx->crop.y_end,
+			 ctx->crop.scale, ctx->crop.imgres_oprn);
+
 
 	CSI_PIPE_Set_Fmt(isp_dev->pipe[pad - 1], out_fmt);
 	CSI_PIPE_Config(isp_dev->pipe[pad - 1], in_fmt->code, scale_factor);
@@ -1044,6 +1099,7 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 	int num_fmts;
 	int i;
 	int ret;
+	bool cropping = isp_dev->pad_data[format->pad].is_cropping_enable;
 	struct v4l2_subdev_format sd_fmt = {
 		.which = format->which,
 		.pad = 0,
@@ -1080,38 +1136,47 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 			CAMERA_ISP_HEIGHT_MIN, CAMERA_ISP_HEIGHT_MAX);
 
 	pad = media_pad_remote_pad_first(&isp_dev->pads[CAMERA_ISP_PAD_SINK]);
+
 	if (pad && is_media_entity_v4l2_subdev(pad->entity)) {
 		sd_fmt.pad = pad->index;
 		sd_fmt.format = format->format;
-		subdev = media_entity_to_v4l2_subdev(pad->entity);
 
-		/* Select sensor mode and update sd_fmt */
-		ret = camera_isp_get_sensor_resolution_and_program(isp_dev, subdev,
-				sd_state, &sd_fmt);
-		if (ret)
-			return ret;
+		subdev = media_entity_to_v4l2_subdev(pad->entity);
+		/* Cropping-only */
+		if (cropping) {
+			sd_fmt.format.width = CAMERA_ISP_DEFAULT_WIDTH;
+			sd_fmt.format.height = CAMERA_ISP_DEFAULT_HEIGHT;
+		}
 
 		/* Apply selected sensor format to CSI */
 		if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+			/* Select sensor mode and update sd_fmt */
+			ret = camera_isp_get_sensor_resolution_and_program(isp_dev, subdev,
+					sd_state, &sd_fmt);
+			if (ret)
+				return ret;
+
+
 			ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &sd_fmt);
 			if (ret)
 				return ret;
 		}
 	}
 
-	/* Enforce input->output format policy for source pads */
+	/* Enforce input->output format policy */
 	ret = camera_isp_check_formats(isp_dev->dev,
-					      sd_fmt.format.code,
-					      format->format.code);
+			sd_fmt.format.code,
+			format->format.code);
 	if (ret)
 		return ret;
 
 	/* Program pipeline */
 	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+		/* Disable scaling for cropping-only */
 		ret = camera_isp_program_pipeline(isp_dev, format->pad,
 					      &sd_fmt.format,
 					      &format->format,
-					      isp_dev->scale_factor);
+					      (cropping ? 0 : isp_dev->scale_factor));
 		if (ret)
 			return ret;
 	}

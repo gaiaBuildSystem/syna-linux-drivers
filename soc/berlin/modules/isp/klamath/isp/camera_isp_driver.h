@@ -102,6 +102,12 @@ struct camera_isp_mbus_fmt {
 	uint32_t code;
 };
 
+struct camera_isp_pad_data {
+	struct v4l2_rect r;
+	u32  target;
+	bool is_cropping_enable;
+};
+
 /* ISP device structure */
 struct camera_isp_dev {
 	struct device *dev;
@@ -110,8 +116,9 @@ struct camera_isp_dev {
 	uint32_t id;
 	struct clk **isp_clks;
 
-	/* Format information for each pad */
+	/* Format information for each- pad */
 	struct v4l2_mbus_framefmt formats[CAMERA_ISP_PAD_NR];
+	struct camera_isp_pad_data pad_data[CAMERA_ISP_PAD_NR];
 
 	/* Runtime state */
 	uint8_t streaming;

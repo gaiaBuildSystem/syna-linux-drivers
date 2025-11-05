@@ -996,7 +996,7 @@ static int CSI_PIPE_Irq_Handler(uint32_t intrNum, void *pArgs)
 		return 0;
 
 #ifdef DEBUG_INTR
-	static int count = 0;
+	static int count;
 
 	if (intrNum == 0 && count++ % 30 == 0)
 		pr_err("%s intrNum 0x%x\n", __func__, intrNum);
@@ -1242,19 +1242,14 @@ int CSI_PIPE_Config(CSIPIPE_HANDLE handle, uint32_t mbus_code, uint32_t scale_fa
 	ctx->capture_frame_interval = 0;
 	ctx->skip_frame_num = 0;
 
-	// Crop parameters: full input frame
-	ctx->crop.x_st = 0;
-	ctx->crop.y_st = 0;
-	ctx->crop.x_end = ctx->hres - 1;
-	ctx->crop.y_end = ctx->vres - 1;
 
 	// Use pre-calculated scale factor from resolution selection algorithm
-	if (scale_factor > 1) {
-		// Scaling mode: downscale from input to output
-		ctx->crop.scale = scale_factor;
-	} else {
+	if (scale_factor <= 1) {
 		// Normal mode: 1:1 (no scaling)
 		ctx->crop.scale = 0;
+	} else {
+		// Scaling mode: downscale from input to output
+		ctx->crop.scale = scale_factor;
 	}
 	ctx->crop.imgres_oprn = 0;
 	// For binning sacling factor should be power of 2
@@ -1522,6 +1517,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	int res;
 	struct camera_isp_dev *isp_dev = ctx->dev;
 	unsigned long flags;
+	int crop_is_full;
 
 	// Init WrClient variables with invalid value
 	ctx->y_wr_ip = INVD_INPUT;
@@ -1535,12 +1531,21 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	if (!ctx->op_through_ipi)
 		mod.imgres_byp = 1;
 	mod.wb_en = ctx->wb_en;
+	crop_is_full = (ctx->crop.x_st == 0 && ctx->crop.y_st == 0 &&
+			   (ctx->crop.x_end + 1) == ctx->hres &&
+			   (ctx->crop.y_end + 1) == ctx->vres);
+	/*
+	 * Only scaling
+	 * Or both cropping and scaling
+	 */
 	if (IS_IMGRESTODH_ACTIVE(ctx->crop.scale)) {
 		mod.imgres_en = 1;
 		mod.imgres_byp = 0;
 		ctx->op_wt = (ctx->crop.x_end + 1 - ctx->crop.x_st) / scale;
 		ctx->op_ht = (ctx->crop.y_end + 1 - ctx->crop.y_st) / scale;
-	} else if (ctx->crop.x_end && ctx->crop.y_end) {
+	}
+	/* Only cropping */
+	else if (!crop_is_full) {
 		ctx->op_wt = ctx->crop.x_end + 1 - ctx->crop.x_st;
 		if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
 			(ipi_out_fmt == CAM_PIXFMT_RGB565) ||
@@ -1549,7 +1554,9 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 			mod.seq_en = 1;
 		}
 		ctx->op_ht = ctx->crop.y_end + 1 - ctx->crop.y_st;
-	} else {
+	}
+	/* Full frame: no cropping and no scaling */
+	else {
 		ctx->op_wt = ctx->hres;
 		ctx->op_ht = ctx->vres;
 	}

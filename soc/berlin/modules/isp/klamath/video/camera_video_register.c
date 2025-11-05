@@ -278,30 +278,30 @@ static int camera_video_vfmt_to_mfmt(struct v4l2_format *f, struct v4l2_subdev_f
 
 static void print_v4l2_pix_format_mplane(struct v4l2_pix_format_mplane *pix_mp)
 {
-    int i;
+	int i;
 
-    if (pix_mp == NULL) {
-        pr_err("The structure pointer is NULL.\n");
-        return;
-    }
+	if (pix_mp == NULL) {
+		pr_err("The structure pointer is NULL.\n");
+		return;
+	}
 
-    pr_debug("Width: %u\n", pix_mp->width);
-    pr_debug("Height: %u\n", pix_mp->height);
-    pr_debug("Pixel Format: %u\n", pix_mp->pixelformat);
-    pr_debug("Field: %u\n", pix_mp->field);
-    pr_debug("Colorspace: %u\n", pix_mp->colorspace);
-    pr_debug("ycbcr_enc: %u\n", pix_mp->ycbcr_enc);
-    pr_debug("Quantization: %u\n", pix_mp->quantization);
-    pr_debug("Flags: %u\n", pix_mp->flags);
-    pr_debug("Transfer Func: %u\n", pix_mp->xfer_func);
-    pr_debug("Number of planes: %u\n", pix_mp->num_planes);
+	pr_debug("Width: %u\n", pix_mp->width);
+	pr_debug("Height: %u\n", pix_mp->height);
+	pr_debug("Pixel Format: %u\n", pix_mp->pixelformat);
+	pr_debug("Field: %u\n", pix_mp->field);
+	pr_debug("Colorspace: %u\n", pix_mp->colorspace);
+	pr_debug("ycbcr_enc: %u\n", pix_mp->ycbcr_enc);
+	pr_debug("Quantization: %u\n", pix_mp->quantization);
+	pr_debug("Flags: %u\n", pix_mp->flags);
+	pr_debug("Transfer Func: %u\n", pix_mp->xfer_func);
+	pr_debug("Number of planes: %u\n", pix_mp->num_planes);
 
-    for (i = 0; i < pix_mp->num_planes; ++i) {
-        pr_debug("Plane %d sizeimage: %u\n",
-                i, pix_mp->plane_fmt[i].sizeimage);
-        pr_debug("Plane %d bytesperline: %u\n",
-                i, pix_mp->plane_fmt[i].bytesperline);
-    }
+	for (i = 0; i < pix_mp->num_planes; ++i) {
+		pr_debug("Plane %d sizeimage: %u\n",
+				i, pix_mp->plane_fmt[i].sizeimage);
+		pr_debug("Plane %d bytesperline: %u\n",
+				i, pix_mp->plane_fmt[i].bytesperline);
+	}
 }
 
 /**
@@ -342,7 +342,7 @@ static int camera_video_mfmt_to_vfmt(struct v4l2_subdev_format *mfmt, struct v4l
 	}
 
 	f->fmt.pix_mp.pixelformat = fourcc;
-	bytesperline = ALIGN (info->bpp[0] * width, WIDTH_ALIGNMENT);
+	bytesperline = ALIGN(info->bpp[0] * width, WIDTH_ALIGNMENT);
 	sizeimage = bytesperline * height;
 
 	/* Fill plane format information */
@@ -358,7 +358,7 @@ static int camera_video_mfmt_to_vfmt(struct v4l2_subdev_format *mfmt, struct v4l
 		f->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
 		f->fmt.pix_mp.plane_fmt[0].sizeimage = sizeimage;
 		for (i = 1; i < info->comp_planes; i++) {
-			bytesperline = ALIGN (info->bpp[i] *
+			bytesperline = ALIGN(info->bpp[i] *
 					DIV_ROUND_UP(width, info->hdiv), WIDTH_ALIGNMENT);
 			sizeimage = bytesperline * DIV_ROUND_UP(height, info->vdiv);
 			f->fmt.pix_mp.plane_fmt[0].sizeimage += sizeimage;
@@ -367,7 +367,7 @@ static int camera_video_mfmt_to_vfmt(struct v4l2_subdev_format *mfmt, struct v4l
 		f->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
 		f->fmt.pix_mp.plane_fmt[0].sizeimage = sizeimage;
 		for (i = 1; i < info->mem_planes; i++) {
-			bytesperline = ALIGN (info->bpp[i] *
+			bytesperline = ALIGN(info->bpp[i] *
 					DIV_ROUND_UP(width, info->hdiv), WIDTH_ALIGNMENT);
 			sizeimage = bytesperline * DIV_ROUND_UP(height, info->vdiv);
 			f->fmt.pix_mp.plane_fmt[i].bytesperline = bytesperline;
@@ -391,6 +391,79 @@ static struct v4l2_subdev *camera_video_remote_subdev(struct camera_video_dev *c
 		return NULL;
 
 	return media_entity_to_v4l2_subdev(pad->entity);
+}
+
+/** Get selection (crop/bounds/default) */
+static int camera_videoc_g_selection(struct file *file, void *fh,
+		struct v4l2_selection *a)
+{
+	struct camera_video_dev *camera_vdev = video_drvdata(file);
+	struct v4l2_subdev *subdev;
+	struct media_pad *pad;
+	struct v4l2_subdev_selection sel;
+	int ret = 0;
+
+	subdev = camera_video_remote_subdev(camera_vdev);
+	if (!subdev)
+		return -ENOTTY;
+
+	pad = media_pad_remote_pad_first(&camera_vdev->pad);
+	if (!pad)
+		return -ENOTTY;
+
+	memset(&sel, 0, sizeof(sel));
+	sel.pad = pad->index;
+	sel.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	sel.target = a->target;
+	sel.r = a->r;
+
+	ret = v4l2_subdev_call(subdev, pad, get_selection, NULL, &sel);
+	if (ret)
+		return ret;
+
+	a->r = sel.r;
+	dev_dbg(camera_vdev->camera_mdev->dev,
+		"G_SELECTION target=%u -> (%d,%d)/%dx%d\n",
+		a->target, a->r.left, a->r.top, a->r.width, a->r.height);
+
+	return 0;
+}
+
+/** Set selection (crop) */
+static int camera_videoc_s_selection(struct file *file, void *fh,
+		struct v4l2_selection *a)
+{
+	struct camera_video_dev *camera_vdev = video_drvdata(file);
+	struct v4l2_subdev *subdev;
+	struct media_pad *pad;
+	struct v4l2_subdev_selection sel;
+	int ret = 0;
+
+	subdev = camera_video_remote_subdev(camera_vdev);
+	if (!subdev)
+		return -ENOTTY;
+
+	pad = media_pad_remote_pad_first(&camera_vdev->pad);
+	if (!pad)
+		return -ENOTTY;
+
+	memset(&sel, 0, sizeof(sel));
+	sel.pad = pad->index;
+	sel.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	sel.target = a->target;
+	sel.r = a->r;
+
+	ret = v4l2_subdev_call(subdev, pad, set_selection, NULL, &sel);
+	if (ret)
+		return ret;
+
+	/* Return the clamped/aligned rectangle */
+	a->r = sel.r;
+	dev_dbg(camera_vdev->camera_mdev->dev,
+		"S_SELECTION applied -> (%d,%d)/%dx%d\n",
+		a->r.left, a->r.top, a->r.width, a->r.height);
+
+	return 0;
 }
 
 /**
@@ -589,7 +662,7 @@ static int camera_videoc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 	/* Store the validated format */
 	camera_vdev->format = *f;
 
-	pr_info("%s :%d x %d fmt %s\n", __func__,f->fmt.pix_mp.width,
+	pr_info("%s :%d x %d fmt %s\n", __func__, f->fmt.pix_mp.width,
 			f->fmt.pix_mp.height, (char *)&f->fmt.pix_mp.pixelformat);
 	print_v4l2_pix_format_mplane(&f->fmt.pix_mp);
 	return 0;
@@ -893,6 +966,8 @@ static const struct v4l2_ioctl_ops camera_video_ioctl_ops = {
 	.vidioc_s_ext_ctrls         = camera_vidioc_s_ext_ctrls,
 	.vidioc_try_ext_ctrls       = camera_vidioc_try_ext_ctrls,
 	.vidioc_querymenu           = camera_vidioc_querymenu,
+	.vidioc_g_selection         = camera_videoc_g_selection,
+	.vidioc_s_selection         = camera_videoc_s_selection,
 	.vidioc_subscribe_event     = camera_videoc_subscribe_event,
 	.vidioc_unsubscribe_event   = v4l2_event_unsubscribe,
 };
@@ -1065,7 +1140,7 @@ static int camera_video_vb2_buf_prepare(struct vb2_buffer *vb)
 	}
 
 	//To support contigous memory
-	if (info->mem_planes == 1 && info->comp_planes >1 ) {
+	if (info->mem_planes == 1 && info->comp_planes > 1) {
 		bytesperline = info->bpp[0] * format->fmt.pix_mp.width;
 		sizeimage = bytesperline * format->fmt.pix_mp.height;
 		for (i = 1; i < info->comp_planes; i++) {
