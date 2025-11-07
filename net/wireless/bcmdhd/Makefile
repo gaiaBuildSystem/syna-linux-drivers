@@ -834,7 +834,15 @@ ifneq ($(filter -DDHD_EVENT_LOG_FILTER, $(DHDCFLAGS)),)
 DHDOFILES += dhd_event_log_filter.o
 endif
 
-UBSAN_SANITIZE := n
+
+ifeq ($(VERSION), 6)
+    # For Kernel 6.x
+    UBSAN_SANITIZE := n
+    $(info KERNEL 6.x detected: Disabling UBSAN for this driver.)
+else
+    $(info kernel version $(VERSION))
+endif
+
 
 bcmdhd-objs := $(DHDOFILES)
 obj-$(DRIVER_TYPE)   += bcmdhd.o
