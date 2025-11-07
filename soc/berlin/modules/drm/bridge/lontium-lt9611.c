@@ -3,6 +3,13 @@
  * Copyright (c) 2018, The Linux Foundation. All rights reserved.
  * Copyright (c) 2019-2020. Linaro Limited.
  * Copyright (C) 2024 Synaptics Incorporated
+ *
+ * Enhancements:
+ * - Added EDID reading and parsing functionality from upstream driver
+ * - Added HPD (Hot Plug Detection) support
+ * - Added automatic mode detection from EDID preferred mode
+ * - Added VIC code detection for multiple resolutions
+ * - Maintains backward compatibility with manual display_timing specification
  */
 
 #include <linux/gpio/consumer.h>
@@ -19,6 +26,8 @@
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
+#include <drm/drm_edid.h>
+#include <drm/drm_connector.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
@@ -45,6 +54,9 @@ struct lt9611 {
 
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *enable_gpio;
+
+	enum drm_connector_status status;
+	u8 edid_buf[EDID_SEG_SIZE];
 };
 static struct lt9611 *lt9611;
 static struct i2c_board_info bridge_i2c_info = {
@@ -316,6 +328,73 @@ end:
 	return -1;
 }
 
+static int lt9611_read_edid(struct lt9611 *lt9611)
+{
+	unsigned int temp;
+	int ret = 0;
+	int i, j;
+
+	/* memset to clear old buffer, if any */
+	memset(lt9611->edid_buf, 0, sizeof(lt9611->edid_buf));
+
+	regmap_write(lt9611->regmap, 0x8503, 0xc9);
+
+	/* 0xA0 is EDID device address */
+	regmap_write(lt9611->regmap, 0x8504, 0xa0);
+	/* 0x00 is EDID offset address */
+	regmap_write(lt9611->regmap, 0x8505, 0x00);
+
+	/* length for read */
+	regmap_write(lt9611->regmap, 0x8506, EDID_LEN);
+	regmap_write(lt9611->regmap, 0x8514, 0x7f);
+
+	for (i = 0; i < EDID_LOOP; i++) {
+		/* offset address */
+		regmap_write(lt9611->regmap, 0x8505, i * EDID_LEN);
+		regmap_write(lt9611->regmap, 0x8507, 0x36);
+		regmap_write(lt9611->regmap, 0x8507, 0x31);
+		regmap_write(lt9611->regmap, 0x8507, 0x37);
+		usleep_range(5000, 10000);
+
+		regmap_read(lt9611->regmap, 0x8540, &temp);
+
+		if (temp & KEY_DDC_ACCS_DONE) {
+			for (j = 0; j < EDID_LEN; j++) {
+				regmap_read(lt9611->regmap, 0x8583, &temp);
+				lt9611->edid_buf[i * EDID_LEN + j] = temp;
+			}
+
+		} else if (temp & DDC_NO_ACK) { /* DDC No Ack or Abitration lost */
+			dev_err(lt9611->dev, "read edid failed: no ack\n");
+			ret = -EIO;
+			goto edid_end;
+
+		} else {
+			dev_err(lt9611->dev, "read edid failed: access not done\n");
+			ret = -EIO;
+			goto edid_end;
+		}
+	}
+
+edid_end:
+	regmap_write(lt9611->regmap, 0x8507, 0x1f);
+	return ret;
+}
+
+static enum drm_connector_status lt9611_bridge_detect(struct lt9611 *lt9611)
+{
+	unsigned int reg_val = 0;
+	int connected = 0;
+
+	regmap_read(lt9611->regmap, 0x825e, &reg_val);
+	connected  = (reg_val & (BIT(2) | BIT(0)));
+
+	lt9611->status = connected ?  connector_status_connected :
+				connector_status_disconnected;
+
+	return lt9611->status;
+}
+
 static void lt9611_hdmi_tx_digital(struct lt9611 *lt9611)
 {
 	regmap_write(lt9611->regmap, 0x8443, 0x46 - lt9611->vic);
@@ -413,9 +492,44 @@ static void lt9611_modeset(struct lt9611 *lt9611,
 	lt9611_pcr_setup(lt9611, mode);
 }
 
+static void lt9611_dump_edid_info(struct lt9611 *lt9611)
+{
+	struct edid *edid;
+	u16 prod_code;
+	u32 serial;
+
+	if (lt9611_bridge_detect(lt9611) != connector_status_connected) {
+		dev_info(lt9611->dev, "No monitor connected\n");
+		return;
+	}
+
+	if (lt9611_read_edid(lt9611)) {
+		dev_err(lt9611->dev, "Failed to read EDID\n");
+		return;
+	}
+
+	edid = (struct edid *)lt9611->edid_buf;
+	if (!drm_edid_is_valid(edid)) {
+		dev_err(lt9611->dev, "Invalid EDID\n");
+		return;
+	}
+
+	memcpy(&prod_code, &edid->prod_code, sizeof(prod_code));
+	memcpy(&serial, &edid->serial, sizeof(serial));
+	prod_code = le16_to_cpu(prod_code);
+	serial = le32_to_cpu(serial);
+
+	dev_info(lt9611->dev, "EDID Info:\n");
+	dev_info(lt9611->dev, "  Manufacturer: %.3s\n", (char *)edid->mfg_id);
+	dev_info(lt9611->dev, "  Product Code: 0x%04x\n", prod_code);
+	dev_info(lt9611->dev, "  Serial Number: 0x%08x\n", serial);
+	dev_info(lt9611->dev, "  EDID Version: %d.%d\n", edid->version, edid->revision);
+}
+
 static int lt9611_init(struct lt9611 *lt9611)
 {
 	int ret;
+	enum drm_connector_status status;
 
 	if (lt9611_read_device_rev(lt9611))
 		dev_err(lt9611->dev, "failed to read chip rev\n");
@@ -428,6 +542,21 @@ static int lt9611_init(struct lt9611 *lt9611)
 
 	if (lt9611_mipi_input_analog(lt9611))
 		dev_info(lt9611->dev, "MIPI analog config error\n");
+
+	/* Detect monitor connection */
+	status = lt9611_bridge_detect(lt9611);
+	if (status == connector_status_connected) {
+		dev_info(lt9611->dev, "Monitor detected, reading EDID...\n");
+		ret = lt9611_read_edid(lt9611);
+		if (ret)
+			dev_warn(lt9611->dev, "Failed to read EDID during init: %d\n", ret);
+		else {
+			dev_info(lt9611->dev, "EDID read successfully\n");
+			lt9611_dump_edid_info(lt9611);
+		}
+	} else {
+		dev_info(lt9611->dev, "No monitor detected during init\n");
+	}
 
 	lt9611_hdmi_tx_digital(lt9611);
 	lt9611_hdmi_tx_phy(lt9611);
@@ -447,32 +576,138 @@ static void lt9611_bridge_deinit(void)
 	i2c_put_adapter(adapter);
 }
 
+static int lt9611_get_edid_preferred_mode(struct lt9611 *lt9611, struct drm_display_mode *mode)
+{
+	struct edid *edid;
+	int ret;
+
+	/* Check if monitor is connected */
+	if (lt9611_bridge_detect(lt9611) != connector_status_connected) {
+		dev_warn(lt9611->dev, "No monitor connected\n");
+		return -ENODEV;
+	}
+
+	/* Read EDID */
+	ret = lt9611_read_edid(lt9611);
+	if (ret) {
+		dev_err(lt9611->dev, "Failed to read EDID: %d\n", ret);
+		return ret;
+	}
+
+	/* Parse EDID to get preferred mode */
+	edid = (struct edid *)lt9611->edid_buf;
+	if (!drm_edid_is_valid(edid)) {
+		dev_err(lt9611->dev, "Invalid EDID data\n");
+		return -EINVAL;
+	}
+
+	/* Get the preferred mode from EDID (first detailed timing) */
+	if (edid->detailed_timings[0].pixel_clock) {
+		const struct detailed_timing *timing = &edid->detailed_timings[0];
+		const struct detailed_pixel_timing *pt = &timing->data.pixel_data;
+		unsigned int hactive = (pt->hactive_hblank_hi & 0xf0) << 4 | pt->hactive_lo;
+		unsigned int hblank = (pt->hactive_hblank_hi & 0x0f) << 8 | pt->hblank_lo;
+		unsigned int vactive = (pt->vactive_vblank_hi & 0xf0) << 4 | pt->vactive_lo;
+		unsigned int vblank = (pt->vactive_vblank_hi & 0x0f) << 8 | pt->vblank_lo;
+		unsigned int hsync_offset = (pt->hsync_vsync_offset_pulse_width_hi & 0xc0) << 2 | pt->hsync_offset_lo;
+		unsigned int hsync_pulse = (pt->hsync_vsync_offset_pulse_width_hi & 0x30) << 4 | pt->hsync_pulse_width_lo;
+		unsigned int vsync_offset = (pt->hsync_vsync_offset_pulse_width_hi & 0x0c) << 2 | (pt->vsync_offset_pulse_width_lo & 0xf0) >> 4;
+		unsigned int vsync_pulse = (pt->hsync_vsync_offset_pulse_width_hi & 0x03) << 4 | (pt->vsync_offset_pulse_width_lo & 0x0f);
+
+		mode->hdisplay = hactive;
+		mode->hsync_start = mode->hdisplay + hsync_offset;
+		mode->hsync_end = mode->hsync_start + hsync_pulse;
+		mode->htotal = mode->hdisplay + hblank;
+
+		mode->vdisplay = vactive;
+		mode->vsync_start = mode->vdisplay + vsync_offset;
+		mode->vsync_end = mode->vsync_start + vsync_pulse;
+		mode->vtotal = mode->vdisplay + vblank;
+
+		mode->clock = (u32)le16_to_cpu(timing->pixel_clock) * 10;
+
+		dev_info(lt9611->dev, "EDID preferred mode: %dx%d@%dkHz\n",
+			 mode->hdisplay, mode->vdisplay, mode->clock);
+
+		return 0;
+	}
+
+	dev_err(lt9611->dev, "No preferred mode found in EDID\n");
+	return -ENOENT;
+}
+
+static u32 lt9611_get_vic_from_mode(struct drm_display_mode *mode)
+{
+	/* Common VIC codes based on resolution and refresh rate */
+	if (mode->hdisplay == 1920 && mode->vdisplay == 1080) {
+		if (mode->clock >= 148000 && mode->clock <= 149000)
+			return 16; /* 1920x1080p60 */
+		else if (mode->clock >= 74000 && mode->clock <= 75000)
+			return 34; /* 1920x1080p30 */
+	} else if (mode->hdisplay == 1280 && mode->vdisplay == 720) {
+		if (mode->clock >= 74000 && mode->clock <= 75000)
+			return 4; /* 1280x720p60 */
+	} else if (mode->hdisplay == 3840 && mode->vdisplay == 2160) {
+		if (mode->clock >= 296000 && mode->clock <= 297000)
+			return 95; /* 3840x2160p30 */
+	} else if (mode->hdisplay == 720 && mode->vdisplay == 480) {
+		return 3; /* 720x480p60 */
+	} else if (mode->hdisplay == 640 && mode->vdisplay == 480) {
+		return 1; /* 640x480p60 */
+	}
+
+	/* Default to 1080p60 if unknown */
+	return 16;
+}
+
 void lt9611_bridge_modeset(struct display_timing *synaPanelTimings)
 {
 	struct drm_display_mode dmode;
+	int ret;
 
 	if (lt9611->power_on != true)
 		return;
 
-	dmode.hdisplay = synaPanelTimings->hactive.typ;
-	dmode.hsync_start = dmode.hdisplay + synaPanelTimings->hfront_porch.typ;
-	dmode.hsync_end =  dmode.hsync_start + synaPanelTimings->hsync_len.typ;
-	dmode.htotal = dmode.hsync_end + synaPanelTimings->hback_porch.typ;
+	/* First try to get mode from EDID if synaPanelTimings is NULL or use_edid is preferred */
+	if (!synaPanelTimings) {
+		/* Try to get mode from EDID */
+		ret = lt9611_get_edid_preferred_mode(lt9611, &dmode);
+		if (ret) {
+			dev_warn(lt9611->dev, "Failed to get EDID mode, using default 1080p\n");
+			/* Fallback to default 1080p60 mode */
+			dmode.hdisplay = 1920;
+			dmode.hsync_start = 1920 + 88;
+			dmode.hsync_end = 1920 + 88 + 44;
+			dmode.htotal = 2200;
+			dmode.vdisplay = 1080;
+			dmode.vsync_start = 1080 + 4;
+			dmode.vsync_end = 1080 + 4 + 5;
+			dmode.vtotal = 1125;
+			dmode.clock = 148500;
+			lt9611->vic = 16;
+		} else {
+			/* Successfully got mode from EDID, determine VIC */
+			lt9611->vic = lt9611_get_vic_from_mode(&dmode);
+		}
+	} else {
+		/* Use provided display timing */
+		dmode.hdisplay = synaPanelTimings->hactive.typ;
+		dmode.hsync_start = dmode.hdisplay + synaPanelTimings->hfront_porch.typ;
+		dmode.hsync_end =  dmode.hsync_start + synaPanelTimings->hsync_len.typ;
+		dmode.htotal = dmode.hsync_end + synaPanelTimings->hback_porch.typ;
 
-	dmode.vdisplay =  synaPanelTimings->vactive.typ;
-	dmode.vsync_start = dmode.vdisplay + synaPanelTimings->vfront_porch.typ;
-	dmode.vsync_end = dmode.vsync_start + synaPanelTimings->vsync_len.typ;
-	dmode.vtotal = dmode.vsync_end + synaPanelTimings->vback_porch.typ;
-	dmode.clock =  synaPanelTimings->pixelclock.typ;
+		dmode.vdisplay =  synaPanelTimings->vactive.typ;
+		dmode.vsync_start = dmode.vdisplay + synaPanelTimings->vfront_porch.typ;
+		dmode.vsync_end = dmode.vsync_start + synaPanelTimings->vsync_len.typ;
+		dmode.vtotal = dmode.vsync_end + synaPanelTimings->vback_porch.typ;
+		dmode.clock =  synaPanelTimings->pixelclock.typ;
 
-	switch (dmode.vdisplay) {
-	case 1080:
-		lt9611->vic = 16;
-		break;
-	default:
-		pr_err("Resolution not supported\n");
-		return;
+		/* Determine VIC from mode */
+		lt9611->vic = lt9611_get_vic_from_mode(&dmode);
 	}
+
+	dev_info(lt9611->dev, "Setting mode: %dx%d@%dkHz (VIC %d)\n",
+		 dmode.hdisplay, dmode.vdisplay, dmode.clock, lt9611->vic);
 
 	lt9611_modeset(lt9611, &dmode);
 }
