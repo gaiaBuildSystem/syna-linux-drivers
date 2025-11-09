@@ -121,12 +121,6 @@ static int syna_early_load(struct drm_device *dev)
 	syna_panel_lcdc_init(pdev);
 	syna_panel_dsi_init(pdev);
 
-	/* Check if VPP dependencies are ready before initializing */
-	if (!VPP_Is_Recovery_Mode()) {
-		DRM_INFO("VPP not in recovery mode yet, deferring probe\n");
-		err = -EPROBE_DEFER;
-		goto err_gem_cleanup;
-	}	/* Initialise the Device specific init*/
 	err = syna_vpp_dev_init(dev);
 	if (err) {
 		/* If VPP initialization fails, it might be because dependencies

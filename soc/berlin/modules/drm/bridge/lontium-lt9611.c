@@ -765,6 +765,8 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 	lt9611->client = client;
 	lt9611->sleep = false;
 
+	dev_info(lt9611->dev, "syna-bridge lt9611 probe start\n");
+
 	lt9611->regmap = devm_regmap_init_i2c(client, &lt9611_regmap_config);
 	if (IS_ERR(lt9611->regmap)) {
 		dev_err(lt9611->dev, "regmap i2c init failed\n");
@@ -807,6 +809,8 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 EXIT_STAGE_I2C_INIT:
 	i2c_unregister_device(client);
 	i2c_put_adapter(adapter);
+
+	printk(KERN_ERR "syna-bridge lt9611 probe failed\n");
 
 EXIT_DEFAULT:
 
