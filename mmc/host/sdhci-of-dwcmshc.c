@@ -143,7 +143,6 @@ struct dwcmshc_priv {
 	u8			init_vol;
 	u8			sdclkdl_dc;
 	u8			dc_200m;
-	u8			dc_pre200m;
 	u8			pad_sn;
 	u8			pad_sp;
 	u8			drv_strength;
@@ -662,17 +661,15 @@ static inline u8 dwcmshc_choose_hs400_txdelay(struct sdhci_host *host,
 	if (!priv->dll_cal)
 		return priv->sdclkdl_dc;
 
-	if ((host->mmc->ios.clock < MMC_HS200_MAX_DTR) && priv->dc_pre200m)
-		return priv->dc_pre200m;
-	if ((host->mmc->ios.clock >= MMC_HS200_MAX_DTR) && priv->dc_200m)
+	if (host->mmc->ios.clock < MMC_HS200_MAX_DTR)
+		return 0;
+
+	if (priv->dc_200m)
 		return priv->dc_200m;
 
 	ret = dwcmshc_phy_dll_cal(host);
 	if (ret > 0) {
-		if (host->mmc->ios.clock < MMC_HS200_MAX_DTR)
-			priv->dc_pre200m = ret;
-		else
-			priv->dc_200m = ret;
+		priv->dc_200m = ret;
 		return ret;
 	}
 
@@ -742,8 +739,13 @@ static void dwcmshc_set_uhs_signaling(struct sdhci_host *host,
 	else if (timing == MMC_TIMING_MMC_HS400)
 		txdelay = dwcmshc_choose_hs400_txdelay(host, priv);
 
-	if (txdelay)
+	if (txdelay) {
 		dwcmshc_set_phy_tx_delay(host, txdelay);
+		if (timing == MMC_TIMING_MMC_HS400) {
+			sdhci_reset_tuning(host);
+			sdhci_execute_tuning(host->mmc, MMC_SEND_TUNING_BLOCK_HS200);
+		}
+	}
 }
 
 static int dwcmshc_execute_tuning(struct mmc_host *mmc, u32 opcode)
