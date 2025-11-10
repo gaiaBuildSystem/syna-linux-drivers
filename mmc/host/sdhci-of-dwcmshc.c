@@ -988,6 +988,9 @@ static int dwcmshc_resume(struct device *dev)
 	struct dwcmshc_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
 
+	reset_control_reset(priv->rst);
+	reset_control_assert(priv->phy_rst);
+
 	ret = clk_prepare_enable(pltfm_host->clk);
 	if (ret)
 		return ret;
