@@ -222,7 +222,6 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 	dev_priv->vpp_config_param.callback = NULL;
 	dev_priv->vpp_config_param.data = NULL;
 
-	syna_read_config_priv(dev_priv);
 	ret = syna_encoder_parse_dsi_dt(dev_priv, (vpp_config_params*) &dev_priv->vpp_config_param);
 
 	if (ret) {
@@ -231,6 +230,12 @@ int syna_read_config(struct syna_drm_private *dev_priv)
 		else
 			DRM_ERROR("Failed to Parse DSI DT node %d\n", ret);
 	}
+
+	/* Configuration Should be done after DSI node is parsed.
+	 * Otherwise DSI res info will be missed in LCDC res config params.
+	 * Note: LCDC driving the DSI will have same res config.
+	 */
+	syna_read_config_priv(dev_priv);
 
 	hdmitx_node = of_get_child_by_name(np, "hdmi_tx");
 	if (hdmitx_node) {

@@ -37,9 +37,9 @@ typedef enum syna_lcdc_output_mode_t_ {
 	SYNA_LCDC_MODE_3    = 0x3
 } syna_lcdc_output_mode_t;
 
-enum SYNA_LCDC_NUM {
+typedef enum syna_lcdc_num_t {
 	SYNA_LCDC_1 = 0,
 	SYNA_LCDC_2 = 1,
 	SYNA_LCDC_MAX = 2
-};
+} SYNA_LCDC_NUM;
 #endif

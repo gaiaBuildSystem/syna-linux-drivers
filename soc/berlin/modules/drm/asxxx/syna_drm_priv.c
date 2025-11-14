@@ -83,15 +83,15 @@ void syna_read_config_priv(struct syna_drm_private *dev_priv)
 	if (lcdc_node) {
 		lcdcConfig = devm_kmalloc(dev->dev, sizeof(SYNA_LCDC_CONFIG), GFP_KERNEL);
 		if (lcdcConfig) {
-			of_property_read_u32(lcdc_node, "ACTIVE_WIDTH", &lcdcConfig->xres);
-			of_property_read_u32(lcdc_node, "HFP", &lcdcConfig->right_margin);
-			of_property_read_u32(lcdc_node, "HSYNCWIDTH", &lcdcConfig->hsync_len);
-			of_property_read_u32(lcdc_node, "HBP", &lcdcConfig->left_margin);
-			of_property_read_u32(lcdc_node, "ACTIVE_HEIGHT", &lcdcConfig->yres);
-			of_property_read_u32(lcdc_node, "VFP", &lcdcConfig->lower_margin);
-			of_property_read_u32(lcdc_node, "VSYNCWIDTH", &lcdcConfig->vsync_len);
-			of_property_read_u32(lcdc_node, "VBP", &lcdcConfig->upper_margin);
-			of_property_read_u32(lcdc_node, "FREQ", &lcdcConfig->pixclock);
+			of_property_read_u32(lcdc_node, "hact", &lcdcConfig->xres);
+			of_property_read_u32(lcdc_node, "hfp", &lcdcConfig->right_margin);
+			of_property_read_u32(lcdc_node, "hsa", &lcdcConfig->hsync_len);
+			of_property_read_u32(lcdc_node, "hbp", &lcdcConfig->left_margin);
+			of_property_read_u32(lcdc_node, "vact", &lcdcConfig->yres);
+			of_property_read_u32(lcdc_node, "vfp", &lcdcConfig->lower_margin);
+			of_property_read_u32(lcdc_node, "vsa", &lcdcConfig->vsync_len);
+			of_property_read_u32(lcdc_node, "vbp", &lcdcConfig->upper_margin);
+			of_property_read_u32(lcdc_node, "pixclockKhz", &lcdcConfig->pixclock);
 			of_property_read_u32(lcdc_node, "bits_per_pixel", &lcdcConfig->bits_per_pixel);
 			of_property_read_u32(lcdc_node, "busformat", &mode);
 			of_property_read_u32(lcdc_node, "rgbswap", &rgbswap);
