@@ -479,7 +479,6 @@ struct drm_connector *syna_hdmi_connector_create(struct drm_device *dev)
 		return ERR_PTR(-ENOMEM);
 	}
 #else
-	syna_hdmi->cec = NULL;
 	pr_info("CEC support not enabled in kernel config\n");
 #endif
 
