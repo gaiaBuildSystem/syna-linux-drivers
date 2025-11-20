@@ -43,16 +43,6 @@ static const struct mipi_fmt dw_mipi_csi_formats[] = {
 		.depth = 10,
 	},
 	{
-		.name = "RGB565",
-		.code = MEDIA_BUS_FMT_RGB565_2X8_BE,
-		.depth = 16,
-	},
-	{
-		.name = "BGR565",
-		.code = MEDIA_BUS_FMT_RGB565_2X8_LE,
-		.depth = 16,
-	},
-	{
 		.name = "RGB888",
 		.code = MEDIA_BUS_FMT_RGB888_2X12_LE,
 		.depth = 24,
@@ -95,7 +85,7 @@ static u32 dw_mipi_csi_read(struct mipi_csi_dev *dev, unsigned int address)
 	return data;
 }
 
-static void dw_mipi_csi_write_part1(struct mipi_csi_dev *dev,
+static void dw_mipi_csi_write_part(struct mipi_csi_dev *dev,
 		unsigned long address, unsigned long data,
 		unsigned char shift, unsigned char width)
 {
@@ -141,22 +131,6 @@ prepare_failure:
 	return ret;
 }
 
-void dw_mipi_csi2_dv_reset_seq(struct mipi_csi_dev *dev)
-{
-	dw_mipi_csi_write(dev, R_CSI2_VC_EXTENSION, 0);
-	dw_mipi_csi_write(dev, R_CSI2_SCRAMBLING, 0);
-	dw_mipi_csi_write(dev, R_CSI2_IPI_MODE, 0);
-	dw_mipi_csi_write(dev, R_CSI2_IPI2_MODE, 0);
-	dw_mipi_csi_write(dev, R_CSI2_IPI2_VCID, 0);
-	dw_mipi_csi_write(dev, R_CSI2_IPI3_MODE, 0);
-	dw_mipi_csi_write(dev, R_CSI2_IPI3_VCID, 0);
-}
-
-void dw_mipi_csi2_host_reset(struct mipi_csi_dev *dev, int on)
-{
-	dw_mipi_csi_write(dev, R_CSI2_CTRL_RESETN, on);
-}
-
 void dw_mipi_csi_intr_enable(struct mipi_csi_dev *dev, int en)
 {
 	if (en) {
@@ -177,39 +151,9 @@ void dw_mipi_csi_intr_enable(struct mipi_csi_dev *dev, int en)
 	}
 }
 
-void dw_mipi_csi2_status(struct mipi_csi_dev *dev)
-{
-	u32 version, lanes, data_type;
-
-	version = dw_mipi_csi_read(dev, R_CSI2_VERSION);
-	lanes = dw_mipi_csi_read(dev, R_CSI2_N_LANES);
-	data_type = dw_mipi_csi_read(dev, R_CSI2_IPI_DATA_TYPE);
-	data_type = data_type & 0x3F;
-	pr_info("CSI2: [0x%p] \r\n", dev->base_address);
-	pr_info("VERSION: 0x%x\r\n", version);
-	pr_info("LANES: %d\r\n", lanes);
-	if (data_type <= 0x7)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "SYNC Short Packet");
-	else if (data_type <= 0xF)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "GEN Short Packet");
-	else if (data_type <= 0x17)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "GEN Long Packet");
-	else if (data_type <= 0x1F)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "YUV data");
-	else if (data_type <= 0x27)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "RGB data");
-	else if (data_type <= 0x2F)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "Raw data");
-	else if (data_type <= 0x37)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "User defined");
-	else if (data_type <= 0x3F)
-		pr_info("DATA_TYPE: %d [%s]\r\n", data_type, "Reserved");
-}
-
 static void dw_mipi_csi_reset(struct mipi_csi_dev *dev)
 {
 	dw_mipi_csi_write(dev, R_CSI2_CTRL_RESETN, 0);
-	//mdelay(1);
 	dw_mipi_csi_write(dev, R_CSI2_CTRL_RESETN, 1);
 }
 
@@ -231,7 +175,7 @@ static int dw_mipi_csi_hw_stdby(struct mipi_csi_dev *dev)
 	return 0;
 }
 
-void dw_mipi_csi_set_ipi_fmt1(struct mipi_csi_dev *dev, int ipi, uint32_t code)
+void dw_mipi_csi_set_ipi_fmt(struct mipi_csi_dev *dev, int ipi, uint32_t code)
 {
 	int fmt;
 	unsigned int feature;
@@ -294,7 +238,7 @@ void dw_mipi_csi_set_ipi_fmt1(struct mipi_csi_dev *dev, int ipi, uint32_t code)
 		fmt = CSI_2_YUV422_10;
 		break;
 	case MEDIA_BUS_FMT_YUYV8_1_5X8:
-		fmt = CSI_2_YUV420_8; // Legacy not supported
+		fmt = CSI_2_YUV420_8;
 		break;
 
 	default:
@@ -343,23 +287,22 @@ void dw_mipi_csi_configure(struct mipi_csi_dev *dev)
 			dataid = dev->hw[ipi].data_type;
 			dw_mipi_csi_write(dev, R_CSI2_DATA_IDS_1, dataid);
 
-			dw_mipi_csi_write_part1(dev, offset + R_CSI2_IPI_MODE,
+			dw_mipi_csi_write_part(dev, offset + R_CSI2_IPI_MODE,
 					dev->hw[ipi].ipi_mode, 0, 1);
 
-			dw_mipi_csi_write_part1(dev, offset + R_CSI2_IPI_MODE,
+			dw_mipi_csi_write_part(dev, offset + R_CSI2_IPI_MODE,
 					dev->hw[ipi].ipi_color_mode, 8, 1);
 
-			dw_mipi_csi_write_part1(dev, offset + R_CSI2_IPI_MODE,
+			dw_mipi_csi_write_part(dev, offset + R_CSI2_IPI_MODE,
 					dev->hw[ipi].ipi_cut_through_en, 16, 1);
 			dw_mipi_csi_write(dev, offset + R_CSI2_IPI_VCID, vc);
 
-			dw_mipi_csi_write_part1(dev, offset + R_CSI2_IPI_MEM_FLUSH,
+			dw_mipi_csi_write_part(dev, offset + R_CSI2_IPI_MEM_FLUSH,
 					dev->hw[ipi].ipi_auto_flush, 8, 1);
 
 			width = dev->hw[ipi].htotal - (dev->hw[ipi].hsa +
 					dev->hw[ipi].hbp + dev->hw[ipi].hsd);
 
-			//csi2_dphy_setppictrl(dev->base_address, 0, width, 0);
 
 			hsa = dev->hw[ipi].hsa;
 			hbp = dev->hw[ipi].hbp;
@@ -388,7 +331,7 @@ void dw_mipi_csi_configure(struct mipi_csi_dev *dev)
 				dw_mipi_csi_write(dev, offset + R_CSI2_IPI_VACTIVE_LINES,
 						dev->hw[ipi].vactive);
 			}
-			dw_mipi_csi_write_part1(dev, offset + R_CSI2_IPI_MODE, 1, 24, 1);
+			dw_mipi_csi_write_part(dev, offset + R_CSI2_IPI_MODE, 1, 24, 1);
 		}
 	}
 }
@@ -474,12 +417,12 @@ static int dw_mipi_csi_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 
 		dw_mipi_csi_fill_timings(dev, sensor_fmt.format.width,
 				sensor_fmt.format.height);
-		dw_mipi_csi_set_ipi_fmt1(dev, 0, sensor_fmt.format.code);
+		dw_mipi_csi_set_ipi_fmt(dev, 0, sensor_fmt.format.code);
 		*fmt = sensor_fmt;
 	} else {
 		/* Default values from DT get used */
 		dw_mipi_csi_fill_timings(dev, fmt->format.width, fmt->format.height);
-		dw_mipi_csi_set_ipi_fmt1(dev, 0, dev->hw[0].v4l2_data_type);
+		dw_mipi_csi_set_ipi_fmt(dev, 0, dev->hw[0].v4l2_data_type);
 		fmt->format.code = dev->hw[0].v4l2_data_type;
 	}
 
@@ -551,7 +494,7 @@ static int dw_mipi_csi_enum_frame_size(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int dw_mipi_csi_s_power1(struct v4l2_subdev *sd, int on)
+static int dw_mipi_csi_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct mipi_csi_dev *dev = v4l2_get_subdevdata(sd);
 	struct media_pad *pad;
@@ -600,7 +543,7 @@ static const struct v4l2_subdev_internal_ops dw_mipi_csi_sd_internal_ops = {
 };
 
 static const struct v4l2_subdev_core_ops dw_mipi_csi_core_ops = {
-	.s_power = dw_mipi_csi_s_power1,
+	.s_power = dw_mipi_csi_s_power,
 };
 
 static const struct v4l2_subdev_pad_ops dw_mipi_csi_pad_ops = {
@@ -641,11 +584,11 @@ static int dw_mipi_csi_parse_dt(struct platform_device *pdev,
 		return ret;
 	}
 
-	dev->hw[ipi].output_type = IPI_OUT; //Only IPI output supported
+	dev->hw[ipi].output_type = IPI_OUT;
 	dev->hw[ipi].ipi_mode = CAMERA_TIMING;
 	dev->hw[ipi].ipi_auto_flush = 1;
 	dev->hw[ipi].ipi_color_mode = COLOR48;
-	dev->hw[ipi].virtual_ch = 0; //TODO change for IPI 0
+	dev->hw[ipi].virtual_ch = 0;
 	dev->hw[ipi].ipi_cut_through_en = CTACTIVE;
 	dev->index = 0;
 
@@ -879,7 +822,6 @@ static int mipi_csi_probe(struct platform_device *pdev)
 	if (ret)
 		goto entity_cleanup;
 
-	/* .. and a pointer to the subdev. */
 	platform_set_drvdata(pdev, mipi_csi);
 
 	ret = v4l2_async_register_subdev(&mipi_csi->sd);

@@ -20,7 +20,6 @@
 #include "snps_dphy_gen3.h"
 
 /** @short DPHY GEN 3 configuration */
-/** @short DPHY GEN 3 configuration */
 struct range_dphy range_gen3[] = {
 	{  80, 0x00, 0x1CC}, {  90, 0x10, 0x1CC}, { 100, 0x20, 0x1CC},
 	{ 110, 0x30, 0x1CC}, { 120, 0x01, 0x1CC}, { 130, 0x11, 0x1CC},
@@ -45,43 +44,6 @@ struct range_dphy range_gen3[] = {
 	{2400, 0x47, 0x1BA}, {2450, 0x48, 0x1C3}, {2500, 0x49, 0x1CC}
 };
 
-
-/** @short DPHY GEN 2 configuration */
-struct range_dphy range_gen2[65] = {
-	{  80,  0x00,   0x00}, {  90,    0x10,   0x00}, { 100,    0x20,   0x00},
-	{ 110,  0x30,   0x00}, { 120,    0x01,   0x00}, { 130,    0x11,   0x00},
-	{ 140,  0x21,   0x00}, { 150,    0x31,   0x00}, { 160,    0x02,   0x00},
-	{ 170,  0x12,   0x00}, { 180,    0x22,   0x00}, { 190,    0x32,   0x00},
-	{ 205,  0x03,   0x00}, { 220,    0x13,   0x00}, { 235,    0x23,   0x00},
-	{ 250,  0x33,   0x00}, { 275,    0x04,   0x00}, { 300,    0x14,   0x00},
-	{ 325,  0x05,   0x00}, { 350,    0x15,   0x00}, { 400,    0x25,   0x00},
-	{ 450,  0x06,   0x00}, { 500,    0x16,   0x00}, { 550,    0x07,   0x00},
-	{ 600,  0x17,   0x00}, { 650,    0x08,   0x00}, { 700,    0x18,   0x00},
-	{ 750,  0x09,   0x00}, { 800,    0x19,   0x00}, { 850,    0x29,   0x00},
-	{ 900,  0x39,   0x00}, { 950,    0x0A,   0x00}, {1000,    0x1A,   0x00},
-	{1050,  0x2A,   0x00}, {1100,    0x3A,   0x00}, {1150,    0x0B, 0x00},
-	{1200,  0x1B,   0x00}, {1250,    0x2B,   0x00}, {1300,  0x3B,   0x00},
-	{1350,  0x0C,   0x00}, {1400,    0x1C,   0x00}, {1450,    0x2C,   0x00},
-	{1500,  0x3C,   0x00}, {1550,    0x0D,   0x00}, {1600,    0x1D,   0x00},
-	{1650,  0x2D,   0x00}, {1700,    0x0E,   0x00}, {1750,    0x1E,   0x00},
-	{1800,  0x2E,   0x00}, {1850,    0x3E,   0x00}, {1900,    0x0F,   0x00},
-	{1950,  0x1F,   0x00}, {2000,    0x2F, 0x00},
-};
-
-/** @short DPHY GEN 1 configuration */
-struct range_dphy range_gen1[] = {
-	{ 90, 0x00, 0x00}, { 100, 0x20, 0x00}, {110, 0x40, 0x00},
-	{125, 0x02, 0x00}, { 140, 0x22, 0x00}, {150, 0x42, 0x00},
-	{160, 0x04, 0x00}, { 180, 0x24, 0x00}, {200, 0x44, 0x00},
-	{210, 0x06, 0x00}, { 240, 0x26, 0x00}, {250, 0x46, 0x00},
-	{270, 0x08, 0x00}, { 300, 0x28, 0x00}, {330, 0x08, 0x00},
-	{360, 0x2A, 0x00}, { 400, 0x4A, 0x00}, {450, 0x0C, 0x00},
-	{500, 0x2C, 0x00}, { 550, 0x0E, 0x00}, {600, 0x2E, 0x00},
-	{650, 0x10, 0x00}, { 700, 0x30, 0x00}, {750, 0x12, 0x00},
-	{800, 0x32, 0x00}, { 850, 0x14, 0x00}, {900, 0x34, 0x00},
-	{950, 0x54, 0x00}, {1000, 0x74, 0x00}
-};
-
 static void phy_write_part(struct snps_dphy *dev,  unsigned long address,
 		unsigned long data, unsigned char shift, unsigned char width)
 {
@@ -102,24 +64,12 @@ u32 phy_read_part(struct snps_dphy *dev, unsigned int address,
 static void snps_dphy_reset(struct snps_dphy *dev)
 {
 	phy_write(dev, R_CSI2_DPHY_RSTZ, 0);
-	//mdelay(1);
 	phy_write(dev, R_CSI2_DPHY_RSTZ, 1);
-}
-
-int snps_dphy_param_config(struct snps_dphy *dev, int comp_en)
-{
-	dev->comp_en = comp_en;
-	return 0;
 }
 
 int snps_dphy_power_on(struct snps_dphy *dev)
 {
 	return __set_phy_state(dev, 1);
-}
-
-int snps_dphy_power_off(struct snps_dphy *dev)
-{
-	return __set_phy_state(dev, 0);
 }
 
 int snps_dphy_init(struct snps_dphy *dev)
@@ -129,26 +79,4 @@ int snps_dphy_init(struct snps_dphy *dev)
 	phy_write_part(dev, R_CSI2_DPHY_SHUTDOWNZ, 0, 0, 1);
 
 	return 0;
-}
-
-void snps_dphy_check_stopstate(struct snps_dphy *state)
-{
-	unsigned int stop_state, phy_rx;
-
-	stop_state = phy_read(state, R_CSI2_DPHY_STOPSTATE);
-	phy_rx = phy_read(state, R_CSI2_DPHY_RX);
-	pr_err("phy_stop_state: 0x%x phy_rx: 0x%x\r\n", stop_state, phy_rx);
-}
-
-void dw_mipi_csi2_dphy_reset(struct snps_dphy *dev)
-{
-#ifdef MIPI_CSI2_GUIDELINES
-	phy_write(dev, R_CSI2_DPHY_SHUTDOWNZ, 0);
-#endif
-	phy_write(dev, R_CSI2_DPHY_RSTZ, 0);
-	mdelay(100);
-#ifdef MIPI_CSI2_GUIDELINES
-	phy_write(dev, R_CSI2_DPHY_SHUTDOWNZ, 1);
-#endif
-	phy_write(dev, R_CSI2_DPHY_RSTZ, 1);
 }

@@ -23,24 +23,19 @@
 
 /* Note: There is no CSI1, legacy code */
 #define MIPI_CSI0_BASE  0
-#define MIPI_CSI1_BASE  0
 #define MIPI_DPHY_BASE  PHY_SHUTDOWNZ /*Base address for PHY_SHUTDOWNZ*/
 
 #define MIPI_PHYCTRL0_BASE (MIPI_CSI0_BASE + RA_CSIHOST_GENH)
-#define MIPI_PHYCTRL1_BASE (MIPI_CSI1_BASE + RA_CSIHOST_GENH)
 
 #define MIPI_PHYATE0_BASE  (MIPI_CSI0_BASE + RA_CSIHOST_GENH)
-#define MIPI_PHYATE1_BASE  (MIPI_CSI1_BASE + RA_CSIHOST_GENH)
 
+#define COMPATIBITLTY_MODE_WAIT_COUNT 0x2F00
 
 struct mipi_csi_wrapper mipi_gbl_info[DW_MIPI_DEV_MAX] = {
 	{MIPI_CSI0_BASE, (MIPI_CSI0_BASE + MIPI_DPHY_BASE), MIPI_PHYCTRL0_BASE,
 	 MIPI_PHYATE0_BASE, 0x1},
-	{MIPI_CSI1_BASE, (MIPI_CSI1_BASE + MIPI_DPHY_BASE), MIPI_PHYCTRL1_BASE,
-	 MIPI_PHYATE1_BASE, 0x1},
 };
 
-#define COMPATIBITLTY_MODE_WAIT_COUNT 0x2F00
 static void phy_write_part(struct snps_dphy *dev,  unsigned long address,
 		unsigned long data, unsigned char shift, unsigned char width)
 {
@@ -49,9 +44,7 @@ static void phy_write_part(struct snps_dphy *dev,  unsigned long address,
 
 	temp &= ~(mask << shift);
 	temp |= (data & mask) << shift;
-	//    address -=0x10;
 	phy_write(dev, address, temp);
-	//IMGP_WriteReg(NULL, dev->base_address+address, temp);
 }
 
 void snps_dphy_te_write(struct snps_dphy *dev,
@@ -135,13 +128,6 @@ int snps_dphy_te_read(struct snps_dphy *dev, unsigned int addr)
 {
 	uint8_t ret;
 
-	//phy_write_part(dev,R_CSI2_DPHY_SHUTDOWNZ, 0, 0, 1);
-	//phy_write_part(dev,R_CSI2_DPHY_RSTZ, 0, 0, 1);
-
-	// TODO verify if this is required
-	//gen3_if1_write(dev,DPHYGLUEIFTESTER,0x00);
-	//gen3_if1_write(dev,DPHYGLUEIFTESTER,0x02);
-
 	phy_write_part(dev, R_CSI2_DPHY_TST_CTRL0, 0, 0, 1);
 	phy_write_part(dev, R_CSI2_DPHY_TST_CTRL1, 1, 16, 1);
 	phy_write_part(dev, R_CSI2_DPHY_TST_CTRL0, 1, 1, 1);
@@ -152,13 +138,11 @@ int snps_dphy_te_read(struct snps_dphy *dev, unsigned int addr)
 
 	phy_write_part(dev, R_CSI2_DPHY2_TST_CTRL1, 0, 16, 1);
 
-	phy_write_part(dev, R_CSI2_DPHY_TST_CTRL1, 0x00, 0, 8); /* bit [7] = 1 or 0 */
+	phy_write_part(dev, R_CSI2_DPHY_TST_CTRL1, 0x00, 0, 8);
 
 	ret = phy_read_part(dev, R_CSI2_DPHY_TST_CTRL1, 8, 8);
 
 	phy_write_part(dev, R_CSI2_DPHY_TST_CTRL1, 0, 16, 1);
-	//phy_write_part(dev,R_CSI2_DPHY_RSTZ, 1, 0, 1);
-	//phy_write_part(dev,R_CSI2_DPHY_SHUTDOWNZ, 1, 0, 1);
 
 	return ret;
 }
@@ -213,14 +197,12 @@ static int snps_dphy_configure(struct snps_dphy *dev)
 	snps_dphy_testport_write(dev, 0xAC, 0x4B, 1);
 	snps_dphy_testport_write(dev, 0x0, 0, 1);
 
-	/*rxclk_rxhs_pull_long_channel_if_rw signal (bit 7) = 1*/
 	snps_dphy_testport_write(dev, 0x0, 0x3, 1);
 	snps_dphy_testport_write(dev, 0x7, 0x80, 1);
 	snps_dphy_testport_write(dev, 0x0, 0x0, 1);
 
 	/*Compatibility mode*/
 	if ((comp_mode) || ((input_freq/1000) > 1500)) {
-		/*config 0xe2, 0xe3 ; (d460,  for 2.5G)*/
 		osc_freq_target_lsb = range_gen3[range].osc_freq_target & 0xFF;
 		osc_freq_target_msb = (range_gen3[range].osc_freq_target>>8) & 0xF;
 		snps_dphy_testport_write(dev, 0xe2, osc_freq_target_lsb, 1);
@@ -229,10 +211,6 @@ static int snps_dphy_configure(struct snps_dphy *dev)
 		val |= 0x1;
 		snps_dphy_testport_write(dev, 0xe4, val, 1);
 	} else {
-		/*
-		 * rx0_rxhs_ddl_tune_ovr_en_rw (bit 5) to 1'b1 and set
-		 * rx0_rxhs_ddl_tune_ovr_rw[4:0] (bits 4:0) to 5'b11111;
-		 */
 		snps_dphy_testport_write(dev, 0x0, 0x6, 1);
 		snps_dphy_testport_write(dev, 0x7, 0x3F, 1);
 		snps_dphy_testport_write(dev, 0x0, 0x8, 1);
@@ -334,7 +312,6 @@ void snps_dphy_seteq(struct snps_dphy *dev, int eq)
 
 int __set_phy_state(struct snps_dphy *state, unsigned int on)
 {
-	/* spin_lock(&state->slock); */
 	if (on) {
 		snps_dphy_configure(state);
 	} else {
@@ -344,7 +321,6 @@ int __set_phy_state(struct snps_dphy *state, unsigned int on)
 		if (state->lanes == LANES_8)
 			phy_write_part(state, R_CSI2_DPHY2_TST_CTRL0, 0, 1, 1);
 	}
-	/* spin_unlock(&state->slock); */
 	return 0;
 }
 
@@ -358,9 +334,7 @@ int snps_dphy_probe(struct snps_dphy *state, int index)
 		return PTR_ERR(state->base_address);
 	}
 	/* TODO Get this value from subdev ctrl */
-	//state->dphy_freq = 160000; /* Generator */
 	state->dphy_freq = 280000; /* OV5647 VGA */
-	/* state->dphy_freq = 408000; OV5647 */
 	state->max_lanes = 2;
 	state->ref_clk = 25000;
 	if (state->max_lanes == 4)

@@ -207,7 +207,6 @@ enum cut_through {
  */
 struct mipi_fmt {
 	const char *name;
-	//enum v4l2_mbus_pixelcode code;
 	uint32_t code;
 	u8 depth;
 };
@@ -266,11 +265,8 @@ struct mipi_csi_dev {
 	struct device *dev;
 };
 
-void dw_mipi_csi_set_ipi_fmt1(struct mipi_csi_dev *dev, int ipi, uint32_t code);
-void dw_mipi_csi2_host_reset(struct mipi_csi_dev *dev, int on);
-void dw_mipi_csi2_dv_reset_seq(struct mipi_csi_dev *dev);
+void dw_mipi_csi_set_ipi_fmt(struct mipi_csi_dev *dev, int ipi, uint32_t code);
 void dw_mipi_csi_intr_enable(struct mipi_csi_dev *dev, int en);
 void dw_mipi_csi_configure(struct mipi_csi_dev *dev);
-void dw_mipi_csi2_status(struct mipi_csi_dev *dev);
 
 #endif              /* DW_MIPI_CSI */

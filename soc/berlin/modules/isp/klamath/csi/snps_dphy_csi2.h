@@ -41,26 +41,6 @@ enum tst_ctrl1 {
 	PHY_TESTEN  = 16,
 };
 
-/** @short Gen3 interface register bank*/
-#define IDLYCFG         0x00
-#define IDLYSEL         0x04
-#define IDLYCNTINVAL        0x08
-#define IDLYCNTOUTVAL       0x0c
-#define DPHY1REGRSTN        0x10
-#define DPHYZCALSTAT        0x14
-#define DPHYZCALCTRL        0x18
-#define DPHYLANE0STAT       0x1c
-#define DPHYLANE1STAT       0x20
-#define DPHYLANE2STAT       0x24
-#define DPHYLANE3STAT       0x28
-#define DPHYCLKSTAT     0x2c
-#define DPHYZCLKCTRL        0x30
-#define TCGENPURPOSOUT      0x34
-#define TCGENPURPOSIN       0x38
-#define DPHYGENERICOUT      0x3c
-#define DPHYGENERICIN       0x40
-#define DPHYGLUEIFTESTER    0x44
-
 #define GET_BIT_MASK(N_BIT)     ((1<<N_BIT) - 1)
 #define GET_BIT(VALUE, BIT_POS, N_BIT)  ((VALUE & (GET_BIT_MASK(N_BIT) << BIT_POS)) >> BIT_POS)
 #define SET_BIT(VARIABLE, VALUE, BIT_POS, N_BIT) \
@@ -72,14 +52,6 @@ enum tst_ctrl1 {
 	pr_debug("REGW 0X%lX = 0x%lx\n", (unsigned long)(addr), (unsigned long)(data)); \
 } while (0)
 #define phy_read(dev, addr) readl(dev->base_address + (addr))
-
-#define MIPI_CSI2_GUIDELINES 1
-enum glueiftester {
-	GLUELOGIC = 0x4,
-	RX_PHY = 0x2,
-	TX_PHY = 0x1,
-	RESET = 0x0,
-};
 
 enum n_lanes {
 	LANES_4 = 0,
@@ -113,17 +85,13 @@ struct range_dphy {
 };
 
 int snps_dphy_power_on(struct snps_dphy *dphy);
-int snps_dphy_power_off(struct snps_dphy *dphy);
 int snps_dphy_init(struct snps_dphy *dphy);
 int snps_dphy_probe(struct snps_dphy *state, int index);
 void gen3_if1_write(struct snps_dphy *dev, unsigned int address, unsigned int data);
 u32 phy_read_part(struct snps_dphy *dev, unsigned int address,
 		unsigned char shift, unsigned char width);
 void gen3_if2_write(struct snps_dphy *dev, unsigned int address, unsigned int data);
-void dw_mipi_csi2_dphy_reset(struct snps_dphy *dev);
 void dphy1_test_clr(struct snps_dphy *dev);
-void snps_dphy_check_stopstate(struct snps_dphy *state);
-int snps_dphy_param_config(struct snps_dphy *dphy, int comp_en);
 
 extern struct range_dphy range_gen3[65];
 #endif

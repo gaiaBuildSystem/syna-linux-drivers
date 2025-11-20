@@ -19,7 +19,7 @@ struct mipi_csi_wrapper {
 	unsigned int irq_num;
 };
 
-#define  DW_MIPI_DEV_MAX  2
+#define  DW_MIPI_DEV_MAX  1
 
 int snps_dphy_te_read(struct snps_dphy *dev, unsigned int addr);
 void snps_dphy_te_write(struct snps_dphy *dev, u8 address, u8 *data, u8 data_length);
