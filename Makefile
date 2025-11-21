@@ -25,6 +25,8 @@ obj-$(CONFIG_SYNAPTICS_SOC)			+= soc/
 
 obj-$(CONFIG_SYNAPTICS_NET)			+= net/
 
+obj-$(CONFIG_SYNAPTICS_NPU)			+= npu/
+
 obj-$(CONFIG_SYNAPTICS_VIDEO)		+= video/
 
 obj-$(CONFIG_SYNAPTICS_SOUND)		+= sound/

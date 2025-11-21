@@ -1,0 +1,19 @@
+
+menuconfig SYNAPTICS_NPU
+	default y
+	bool "Enable the Synaptics NPU driver features"
+	help
+	  This option enables support for the Synaptics Neural Processing Unit (NPU)
+
+	  If unsure, say Y.
+
+if SYNAPTICS_NPU
+
+config SYNAPTICS_VIS_NPU
+	tristate "Enable SyNAP VIS NPU support"
+  default m
+	help
+	  This option enables support for the Synaptics Vision
+	  Neural Processing Unit (NPU).
+
+endif # SYNAPTICS_NPU

@@ -27,6 +27,8 @@ source "drivers/synaptics/soc/Kconfig"
 
 source "drivers/synaptics/net/Kconfig"
 
+source "drivers/synaptics/npu/Kconfig"
+
 source "drivers/synaptics/video/Kconfig"
 
 source "drivers/synaptics/sound/Kconfig"
