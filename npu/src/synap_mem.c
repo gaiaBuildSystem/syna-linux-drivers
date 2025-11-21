@@ -19,7 +19,7 @@ static u32 ion_ns_cont_heap_id_mask;
 static u32 ion_s_cont_heap_id_mask;
 static u32 ion_scatter_heap_id_mask;
 
-bool synap_mem_init(void)
+int synap_mem_init(void)
 {
 
     int heap_num, i;
@@ -28,7 +28,7 @@ bool synap_mem_init(void)
     hdata = kmalloc(sizeof(*hdata) * ION_NUM_MAX_HEAPS, GFP_KERNEL);
     if (!hdata) {
         KLOGE("unable to look up heaps");
-        return false;
+        return -ENOMEM;
     }
 
     heap_num = ion_query_heaps_kernel(hdata, ION_NUM_MAX_HEAPS);
@@ -50,18 +50,21 @@ bool synap_mem_init(void)
     }
 
     if (ion_ns_cont_heap_id_mask == 0) {
-        KLOGE("unable to find ION_HEAP_TYPE_DMA_CUST heap");
-        return false;
+        KLOGE("unable to find ION_HEAP_TYPE_DMA_CUST heap, deferring probe");
+        kfree(hdata);
+        return -EPROBE_DEFER;
     }
 
     if (ion_s_cont_heap_id_mask == 0) {
-        KLOGE("unable to find ION_HEAP_TYPE_BERLIN_SECURE heap");
-        return false;
+        KLOGE("unable to find ION_HEAP_TYPE_BERLIN_SECURE heap, deferring probe");
+        kfree(hdata);
+        return -EPROBE_DEFER;
     }
 
-    if (ion_ns_cont_heap_id_mask == 0) {
-        KLOGE("unable to find ION_HEAP_TYPE_DMA_CUST heap");
-        return false;
+    if (ion_scatter_heap_id_mask == 0) {
+        KLOGE("unable to find ION_HEAP_TYPE_SYSTEM_CUST heap, deferring probe");
+        kfree(hdata);
+        return -EPROBE_DEFER;
     }
 
     kfree(hdata);
@@ -69,7 +72,7 @@ bool synap_mem_init(void)
     KLOGI("heap mask scatter=0x%x s_cont=0x%x ns_cont=0x%x",
           ion_scatter_heap_id_mask, ion_s_cont_heap_id_mask, ion_ns_cont_heap_id_mask);
 
-    return true;
+    return 0;
 }
 
 #elif defined(CONFIG_DMABUF_HEAPS)
@@ -77,31 +80,31 @@ static struct dma_heap *ns_cont_heap;
 static struct dma_heap *s_cont_heap;
 static struct dma_heap *scatter_heap;
 
-bool synap_mem_init(void)
+int synap_mem_init(void)
 {
 
     ns_cont_heap = dma_heap_find("CMA-CUST-reserved");
 
     if (!ns_cont_heap) {
-        KLOGE("unable to find CMA-CUST-reserved heap");
-        return false;
+        KLOGE("unable to find CMA-CUST-reserved heap, deferring probe");
+        return -EPROBE_DEFER;
     }
 
     s_cont_heap = dma_heap_find("Secure");
 
     if (!s_cont_heap) {
-        KLOGE("unable to find Secure heap");
-        return false;
+        KLOGE("unable to find Secure heap, deferring probe");
+        return -EPROBE_DEFER;
     }
 
     scatter_heap = dma_heap_find("system_cust");
 
     if (!scatter_heap) {
-        KLOGE("unable to find system_cust heap");
-        return false;
+        KLOGE("unable to find system_cust heap, deferring probe");
+        return -EPROBE_DEFER;
     }
 
-    return true;
+    return 0;
 }
 #else
 #error Either CONFIG_ION or CONFIG_DMABUF_HEAPS must be enabled to use SyNAP
