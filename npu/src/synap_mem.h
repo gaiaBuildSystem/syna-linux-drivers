@@ -36,7 +36,7 @@ typedef enum {
 #define SYNAP_MEM_NPU_PAGE_SIZE 4096
 #define SYNAP_MEM_ALIGN_SIZE(x) (((x) + 4096 - ((x) % SYNAP_MEM_NPU_PAGE_SIZE == 0 ? 4096 : (x) % SYNAP_MEM_NPU_PAGE_SIZE)))
 
-bool synap_mem_init(void);
+int synap_mem_init(void);
 
 void synap_mem_free(struct synap_mem* mem);
 

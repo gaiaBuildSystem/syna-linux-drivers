@@ -492,7 +492,7 @@ static bool do_synap_set_input_data(struct synap_file *inst,
         return false;
     }
 
-    if(!synap_ca_set_input(inst->synap_device->ta->ca, 
+    if(!synap_ca_set_input(inst->synap_device->ta->ca,
                            n->ta_nid, b->ta_aid, data->index)) {
         return false;
     }
@@ -1675,14 +1675,16 @@ static struct platform_driver synap_platform_driver = {
 
 int32_t synap_kernel_module_init(void)
 {
+    int ret;
 
     LOG_ENTER();
 
     KLOGI("initalizing synap module");
 
-    if (!synap_mem_init()) {
-        KLOGE("platform driver register failed.");
-        return -ENODEV;
+    ret = synap_mem_init();
+    if (ret) {
+        KLOGE("synap mem init failed: %d", ret);
+        return ret;
     }
 
     if (platform_driver_register(&synap_platform_driver) < 0) {
