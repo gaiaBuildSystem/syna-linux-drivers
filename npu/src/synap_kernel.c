@@ -1505,12 +1505,18 @@ static RET synap_platform_remove(struct platform_device *pdev) {
 
 static int32_t synap_platform_probe(struct platform_device *pdev)
 {
-
+    int ret;
     struct synap_device *synap_device;
 
     LOG_ENTER();
 
     KLOGI("initializing device");
+
+    ret = synap_mem_init();
+    if (ret) {
+        KLOGE("synap mem init failed: %d", ret);
+        return ret;
+    }
 
     // here we request memory that will be automatically deallocated when the device
     // is removed
@@ -1675,17 +1681,10 @@ static struct platform_driver synap_platform_driver = {
 
 int32_t synap_kernel_module_init(void)
 {
-    int ret;
 
     LOG_ENTER();
 
     KLOGI("initalizing synap module");
-
-    ret = synap_mem_init();
-    if (ret) {
-        KLOGE("synap mem init failed: %d", ret);
-        return ret;
-    }
 
     if (platform_driver_register(&synap_platform_driver) < 0) {
         KLOGE("platform driver register failed.");
