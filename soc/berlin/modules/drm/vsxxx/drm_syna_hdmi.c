@@ -254,6 +254,8 @@ static int syna_hdmi_connector_helper_mode_valid(struct drm_connector *connector
 	if (syna_check_mode_enabled(res_id, to_syna_conn_hdmi(connector)))
 		return MODE_NOMODE;
 
+	DRM_INFO("syna_hdmi mode_valid: res_id %d is MODE_OK\n", res_id);
+
 	return MODE_OK;
 }
 
