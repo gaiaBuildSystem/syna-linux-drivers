@@ -39,6 +39,10 @@ int syna_is_scaling_allowed(struct syna_drm_private *dev_priv,
 	if (plane_id == PLANE_PIP &&
 		dev_priv->vpp_config_param.display_mode == VPP_VOUT_DUAL_MODE_PIP)
 		return 0;
+	else
+	// Disable scaling on primary plane HDMI only
+	if (dev_priv->vpp_config_param.display_mode == VPP_VOUT_SINGLE_MODE_PRI)
+		return 0;
 #endif
 
 	return 1;

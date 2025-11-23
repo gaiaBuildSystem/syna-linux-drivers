@@ -79,6 +79,9 @@ syna_tmds_encoder_helper_mode_set(struct drm_encoder *encoder,
 
 		dispParams.uiResId = res_id;
 		dispParams.uiDispId = VOUT_HDMI;
+
+		DRM_INFO("Set HDMI mode to resIndex: %d\n", res_id);
+
 	} else if (encoder->encoder_type == DRM_MODE_ENCODER_DPI) {
 #ifdef USE_DOLPHIN
 		if (dispParams.uiDisplayMode == VPP_VOUT_DUAL_MODE_PIP) {
