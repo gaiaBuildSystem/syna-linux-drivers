@@ -227,7 +227,7 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	int res = 0;
 	int planeID = PLANE_GFX1;
 	VPP_DISP_OUT_PARAMS dispParams;
-	int feature_cfg[MAX_NUM_FEATURE_CFG];
+	int feature_cfg[MAX_NUM_FEATURE_CFG] = { 0 };
 	VPP_HDMI_SINK_CAPS sinkCaps;
 	int res_apply_flag = 1;
 	avio_fastlogo_info display_info = avio_get_fastlogo_status();
@@ -248,6 +248,9 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 	} else {
 		wrap_MV_VPP_HDMITX_5v_set(0);
 	}
+
+	if (vpp_config_param.mipidsi_enable)
+		feature_cfg[0] |= VPP_FEATURE_MIPI_DSI;
 
 	if (!display_info.u.status) {
 		//Allocate memory for TA heap memory manager
