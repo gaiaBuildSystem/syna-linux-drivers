@@ -70,6 +70,12 @@ extern volatile bool dhd_mmc_suspend;
 #endif
 #include "bcmsdh_sdmmc.h"
 
+/* dhd_sd_mmc_clk_rate: dhd module param to select SDIO clock frequency
+ * dhd_sd_mmc_clk_rate <= Max freq of selected SDIO Bus Speed Mode
+ * */
+uint dhd_sd_mmc_clk_rate = 0;
+module_param(dhd_sd_mmc_clk_rate, uint, 0);
+
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 0, 0)) || (LINUX_VERSION_CODE >= \
 	KERNEL_VERSION(4, 4, 0))
 static inline void
@@ -330,8 +336,10 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 	sd->func[3] = NULL;
 #endif /* defined (BT_OVER_SDIO) */
 
-#if defined(CONFIG_ARCH_MESON)
-	if (func->device == BCM4381_CHIP_ID || func->device == BCM4382_CHIP_ID) {
+#if defined(CONFIG_ARCH_MESON) || defined(CONFIG_ARCH_ASTRA)
+	if (func->device == BCM4381_CHIP_ID ||
+		func->device == BCM4382_CHIP_ID || 
+		func->device == BCM4384_CHIP_ID) {
 		/* Save the device ID for Wi-Fi reset next time */
 		sd->func[0]->device = func->device;
 #ifndef CONFIG_SD_DS_DEFAULT
@@ -339,9 +347,13 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 		/* Avoid the SDIO -84 (EILSEQ) Illegal byte sequence problem. */
 		sdioh_set_driver_strength(sd->func[0], 0x20);
 
-		/* With 22ohm resistors mouting, 4381WLBGA EVB is OK for 200MHz sdclk */
-		if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
-			sdmmc_set_clock_rate(sd, 200*1000*1000);
+		if (dhd_sd_mmc_clk_rate) {
+			sdmmc_set_clock_rate(sd, dhd_sd_mmc_clk_rate);
+		} else {
+			/* With 22ohm resistors mouting, 4381WLBGA EVB is OK for 200MHz sdclk */
+			if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
+				sdmmc_set_clock_rate(sd, 200*1000*1000);
+			}
 		}
 #endif /* CONFIG_SD_DS_DEFAULT */
 	/* 430132E only support clk rate up to SDR50/80Mhz */
@@ -1836,19 +1848,24 @@ sdioh_start(sdioh_info_t *sd, int stage)
 				sd->use_client_ints = TRUE;
 				sd->client_block_size[0] = 64;
 
-#if defined(CONFIG_ARCH_MESON)
+#if defined(CONFIG_ARCH_MESON) || defined(CONFIG_ARCH_ASTRA)
 				/* 4381a1 has to decrease the driver strength to 75% for VIM3 */
 				/* Avoid the SDIO -84 (EILSEQ) Illegal byte sequence problem. */
 				if (sd->func[0]->device == BCM4381_CHIP_ID ||
-				    sd->func[0]->device == BCM4382_CHIP_ID) {
+				    sd->func[0]->device == BCM4382_CHIP_ID ||
+					sd->func[0]->device == BCM4384_CHIP_ID) {
 #ifndef CONFIG_SD_DS_DEFAULT
 					sdioh_set_driver_strength(sd->func[0], 0x20);
 
-					/* With 22ohm resistors mouting, 4381WLBGA EVB
-					 * is OK for 200MHz sdclk
-					 */
-					if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
-						sdmmc_set_clock_rate(sd, 200*1000*1000);
+					if (dhd_sd_mmc_clk_rate) {
+						sdmmc_set_clock_rate(sd, dhd_sd_mmc_clk_rate);
+					} else {
+						/* With 22ohm resistors mouting, 4381WLBGA EVB
+						 * is OK for 200MHz sdclk
+						 */
+						if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
+							sdmmc_set_clock_rate(sd, 200*1000*1000);
+						}
 					}
 #endif /* CONFIG_SD_DS_DEFAULT */
 				/* 430132E only support clk rate up to 80Mhz */
@@ -1884,7 +1901,6 @@ sdioh_start(sdioh_info_t *sd, int stage)
 					}
 				}
 #endif /* CONFIG_ARCH_MESON */
-
 				if (sd->func[1]) {
 					/* Claim host controller */
 					sdio_claim_host(sd->func[1]);

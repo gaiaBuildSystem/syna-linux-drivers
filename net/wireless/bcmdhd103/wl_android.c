@@ -14514,11 +14514,13 @@ wl_cfg80211_static_if_open(struct net_device *net)
 		net->name, iftype, wl_iftype));
 
 #ifndef WL_STATIC_NMI_IF
+#ifdef WL_NAN
 	/* If feature not enabled, don't initialise FW interface */
 	if (IS_NMI_IFACE(net->name)) {
 		WL_ERR(("static aware i/f not supported\n"));
 		return BCME_OK;
 	}
+#endif /* WL_NAN */
 #endif /* WL_STATIC_NMI_IF */
 
 #if defined(DHD_USE_RANDMAC) || defined(WL_SOFTAP_RAND)
@@ -14590,13 +14592,17 @@ s32
 wl_cfg80211_post_static_ifdel(struct bcm_cfg80211 *cfg,
 		struct net_device *ndev, s32 ifidx, s32 bssidx)
 {
+#ifdef WL_NAN
 	if (IS_NMI_IFACE(ndev->name)) {
 		cfg->nmi_ndev_state = NDEV_STATE_FW_IF_DELETED;
 		WL_INFORM_MEM(("NMI interface de-linked\n"));
 	} else {
+#endif /* WL_NAN */
 		cfg->static_ndev_state = NDEV_STATE_FW_IF_DELETED;
 		WL_INFORM_MEM(("static I/F interface de-linked\n"));
+#ifdef WL_NAN
 	}
+#endif /* WL_NAN */
 	wl_cfg80211_update_iflist_info(cfg, ndev, ifidx, NULL,
 		bssidx, NULL, NDEV_STATE_FW_IF_DELETED);
 	wl_cfg80211_clear_per_bss_ies(cfg, ndev->ieee80211_ptr);

@@ -9253,6 +9253,9 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 	int err = 0;
 	uint8 clkctl = 0;
 #endif /* !BCMSPI */
+#ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
+	uint32 f1sig = 0;
+#endif /* DHD_ASTRA_CUST_CHIP_SUPPORT */
 
 	bus->alp_only = TRUE;
 	bus->sih = NULL;
@@ -9264,8 +9267,16 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 
 #if defined(DHD_DEBUG)
 	DHD_ERROR(("F1 signature read @0x18000000=0x%4x\n",
-		bcmsdh_reg_read(bus->sdh, si_enum_base(devid), 4)));
-#endif
+		f1sig = bcmsdh_reg_read(bus->sdh, si_enum_base(devid), 4)));
+#ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
+	/* Support 4381/4382/43456 only */
+	f1sig = f1sig & 0xffff;
+	if ((f1sig != 0x4345) && (f1sig != 0x4381) && (f1sig != 0x4382)) {
+		DHD_ERROR(("%s: NO supported chip 0x%4x \n", __FUNCTION__, f1sig));
+		goto fail;
+	}
+#endif /* DHD_ASTRA_CUST_CHIP_SUPPORT */
+#endif /* DHD_DEBUG */
 
 #ifndef BCMSPI	/* wake-wlan in gSPI will bring up the htavail/alpavail clocks. */
 

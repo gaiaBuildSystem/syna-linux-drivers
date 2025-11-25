@@ -126,8 +126,8 @@ struct bcmstrbuf {
 	unsigned int origsize;	/* unmodified orignal buffer size in bytes */
 };
 
-#define BCMSTRBUF_LEN(b)	(b->size)
-#define BCMSTRBUF_BUF(b)	(b->buf)
+#define BCMSTRBUF_LEN(b)	b->size
+#define BCMSTRBUF_BUF(b)	b->buf
 
 struct ether_addr;
 extern char *bcm_ether_ntoa(const struct ether_addr *ea, char *buf);
@@ -335,7 +335,7 @@ extern void bcm_mdelay(uint ms);
 /* variable access */
 #if defined(BCM_RECLAIM)
 extern bool _nvram_reclaim_enb;
-#define NVRAM_RECLAIM_ENAB() (_nvram_reclaim_enb)
+#define NVRAM_RECLAIM_ENAB() _nvram_reclaim_enb
 #ifdef BCMDBG
 #define NVRAM_RECLAIM_CHECK_EXT(name, ret)						\
 	if (NVRAM_RECLAIM_ENAB() && (bcm_attach_part_reclaimed == TRUE)) {		\
@@ -487,6 +487,9 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
 #define IOVT_UINT32	7	/* unsigned int 32 bits */
 #define IOVT_BUFFER	8	/* buffer is size-checked as per minlen */
 #define BCM_IOVT_VALID(type) (((unsigned int)(type)) <= IOVT_BUFFER)
+
+/* SMBM handle type */
+typedef uint16 smbm_handle_t;
 
 /* Initializer for IOV type strings */
 #define BCM_IOV_TYPE_INIT { \
@@ -1035,7 +1038,7 @@ struct fielddesc {
 };
 
 extern void bcm_binit(struct bcmstrbuf *b, char *buf, uint size);
-#define bcm_bsize(b) ((b)->size)
+#define bcm_bsize(b) (b)->size
 #define bcm_breset(b) do {bcm_binit(b, (b)->origbuf, (b)->origsize);} while (0)
 extern void bcm_bprhex(struct bcmstrbuf *b, const char *msg, bool newline,
 	const uint8 *buf, uint len);
@@ -1310,7 +1313,7 @@ extern bool id16_map_audit(void * id16_map_hndl);
 void bcm_add_64(uint32* r_hi, uint32* r_lo, uint32 offset);
 void bcm_sub_64(uint32* r_hi, uint32* r_lo, uint32 offset);
 
-#define MASK_32_BITS	(~0)
+#define MASK_32_BITS	~0
 #define MASK_8_BITS	((1 << 8) - 1)
 
 #define EXTRACT_LOW32(num)	(uint32)(num & MASK_32_BITS)
@@ -1557,8 +1560,8 @@ void counter_printlog(counter_tbl_t *ctr_tbl);
 #define CALL_SITE ((void*) 0)
 #endif
 #ifdef SHOW_LOGTRACE
-#define TRACE_LOG_BUF_MAX_SIZE 1900
-#define RTT_LOG_BUF_MAX_SIZE 1900
+#define TRACE_LOG_BUF_MAX_SIZE	2000
+#define RTT_LOG_BUF_MAX_SIZE	1900
 #define BUF_NOT_AVAILABLE	0
 #define NEXT_BUF_NOT_AVAIL	1
 #define NEXT_BUF_AVAIL		2
@@ -1733,7 +1736,7 @@ extern uint16 bcm_mwbmap_total_pktid(struct bcm_mwbmap * mwbmap_hdl);
 extern uint64 div_1K(uint64 q);
 extern uint64 div_1M(uint64 q);
 
-#define NS_PER_MS			(1000000u)
+#define NS_PER_MS			1000000u
 
 /* Stringizing */
 #define _BCM_STR(x) #x

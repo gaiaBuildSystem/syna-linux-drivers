@@ -52,7 +52,7 @@
 #define RWL_MAX_DATA_LEN	(512 + 8)	/* allow some extra bytes for '/n' termination */
 #define CBUF_LEN	(RWL_MAX_DATA_LEN + 64)  /* allow 64 bytes for header ("rwl...") */
 #else
-#define CBUF_LEN	(128)
+#define CBUF_LEN	128
 #endif /* RWL_DONGLE || UART_REFLECTOR */
 
 #ifndef LOG_BUF_LEN

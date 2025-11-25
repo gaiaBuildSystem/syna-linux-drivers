@@ -298,7 +298,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_ftm_ranging_ndpa {
 typedef struct dot11_ftm_ranging_ndpa dot11_ftm_ranging_ndpa_t;
 
 typedef struct dot11_ftm_sltf_subelmt dot11_ftm_sec_ltf_subie_params_t;
-#define DOT11_FTM_SLTF_PARAMS_SUB_IE_LEN (sizeof(dot11_ftm_sec_ltf_subie_params_t))
+#define DOT11_FTM_SLTF_PARAMS_SUB_IE_LEN sizeof(dot11_ftm_sec_ltf_subie_params_t)
 
 #define DOT11_FTM_RANGING_CMN_PARAM_SIZE DOT11_FTM_RANGING_PARAMS_FIXED_SIZE
 #define DOT11_FTM_CMN_RANGING_PARAMS_IE_LEN (sizeof(dot11_ftm_ranging_params_t) - TLV_EXT_HDR_LEN)
@@ -310,7 +310,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_ftm_ntb_params {
 	uint8 info[6];
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_ftm_ntb_params dot11_ftm_ntb_params_t;
-#define DOT11_FTM_NTB_PARAMS_SUB_IE_LEN (sizeof(dot11_ftm_ntb_params_t))
+#define DOT11_FTM_NTB_PARAMS_SUB_IE_LEN sizeof(dot11_ftm_ntb_params_t)
 #define DOT11_FTM_NTB_PARAMS_IE_LEN (DOT11_FTM_CMN_RANGING_PARAMS_IE_LEN + \
 	DOT11_FTM_NTB_PARAMS_SUB_IE_LEN)
 

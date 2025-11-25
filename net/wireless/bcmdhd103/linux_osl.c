@@ -652,9 +652,9 @@ osl_mallocz(osl_t *osh, uint size)
 }
 
 #if defined(L1_CACHE_BYTES)
-#define DMA_PAD (L1_CACHE_BYTES)
+#define DMA_PAD L1_CACHE_BYTES
 #else
-#define DMA_PAD (128u)
+#define DMA_PAD 128u
 #endif
 void *
 osl_dma_mallocz(osl_t *osh, uint size, uint *dmable_size)

@@ -155,7 +155,7 @@
 #endif
 
 /* Max pktids for each type of pkt, shared between host and dongle */
-#define MAX_PKTID_CTRL		(1024)
+#define MAX_PKTID_CTRL		1024
 #define MAX_PKTID_RX		(4 * 1024)
 #define MAX_PKTID_TX		(36 * 1024)
 
@@ -189,7 +189,7 @@ enum {
 #define BCMMSGBUF_API_IFIDX(a)		0
 #define BCMMSGBUF_API_SEQNUM(a)		0
 #define BCMMSGBUF_IOCTL_XTID(a)		0
-#define BCMMSGBUF_IOCTL_PKTID(a)	((a)->cmd_id)
+#define BCMMSGBUF_IOCTL_PKTID(a)	(a)->cmd_id
 
 #define BCMMSGBUF_SET_API_IFIDX(a, b)	BCMMSGBUF_DUMMY_REF(a, b)
 #define BCMMSGBUF_SET_API_SEQNUM(a, b)	BCMMSGBUF_DUMMY_REF(a, b)
@@ -198,10 +198,10 @@ enum {
 
 #else /* PCIE_API_REV1 */
 
-#define BCMMSGBUF_API_IFIDX(a)		((a)->if_id)
-#define BCMMSGBUF_IOCTL_PKTID(a)	((a)->pkt_id)
-#define BCMMSGBUF_API_SEQNUM(a)		((a)->u.seq.seq_no)
-#define BCMMSGBUF_IOCTL_XTID(a)		((a)->xt_id)
+#define BCMMSGBUF_API_IFIDX(a)		(a)->if_id
+#define BCMMSGBUF_IOCTL_PKTID(a)	(a)->pkt_id
+#define BCMMSGBUF_API_SEQNUM(a)		(a)->u.seq.seq_no
+#define BCMMSGBUF_IOCTL_XTID(a)		(a)->xt_id
 
 #define BCMMSGBUF_SET_API_IFIDX(a, b)	(BCMMSGBUF_API_IFIDX((a)) = (b))
 #define BCMMSGBUF_SET_API_SEQNUM(a, b)	(BCMMSGBUF_API_SEQNUM((a)) = (b))
@@ -1268,8 +1268,8 @@ typedef struct txbuf_aggr_tuple {
 } txbuf_aggr_tuple_t;
 
 #if defined(TX_PCIE_APP)
-#define NUM_TX_PKTS_AGGR_THRESHOLD (27u)
-#define AGGR_TUPLE_SIZE (sizeof(txbuf_aggr_tuple_t))
+#define NUM_TX_PKTS_AGGR_THRESHOLD 27u
+#define AGGR_TUPLE_SIZE sizeof(txbuf_aggr_tuple_t)
 #define TX_AGGR_BUF_SIZE (NUM_TX_PKTS_AGGR_THRESHOLD * AGGR_TUPLE_SIZE)
 #endif /* TX_PCIE_APP */
 
@@ -1370,7 +1370,7 @@ typedef host_txbuf_post_v1_t host_txbuf_post_t;
 #define BCMPCIE_TXPOST_RATE_PROFILE_IDX_MASK	0x07 /* The Tx profile index in the rate field */
 
 /* Tx Post Ext Flags bit definitions */
-#define BCMPCIE_TXPOST_AGGR_FLAGS_AGGR_PKT	(0x01u)
+#define BCMPCIE_TXPOST_AGGR_FLAGS_AGGR_PKT	0x01u
 
 /* H2D Txpost ring work items */
 typedef union txbuf_submit_item {
@@ -1710,7 +1710,7 @@ typedef struct tx_idle_flowring_resume_response {
 #define D2H_TXSTATUS_EXT_PKT_EXP_UCODE		0x0100 /**< pkt expired in ucode after deq */
 
 /* H2D Txpost aggregated work item */
-#define TXBUF_AGGR_CNT	(2u)
+#define TXBUF_AGGR_CNT		2u
 
 /* aggregated work item of txpost v2 */
 typedef struct host_txbuf_post_aggr_v2 {
@@ -1764,7 +1764,7 @@ typedef host_txbuf_post_aggr_v1_t host_txbuf_post_aggr_t;
 #endif
 
 /* D2H Txcompletion ring aggregated work item */
-#define TXCPL_AGGR_CNT		(4u)
+#define TXCPL_AGGR_CNT		4u
 
 /* head aggregated work item of txcpl */
 typedef struct host_txbuf_cmpl_aggr {
@@ -1778,7 +1778,7 @@ typedef struct host_txbuf_cmpl_aggr {
 	uint32 request_id[TXCPL_AGGR_CNT];
 } host_txbuf_cmpl_aggr_t;
 
-#define TXCPL_AGGR_CNT_EXT	(6u)
+#define TXCPL_AGGR_CNT_EXT	6u
 /* non-head aggregated work item of txcpl */
 typedef struct host_txbuf_cmpl_aggr_ext {
 	/** packet Identifier for the associated host buffer */
@@ -1786,7 +1786,7 @@ typedef struct host_txbuf_cmpl_aggr_ext {
 } host_txbuf_cmpl_aggr_ext_t;
 
 /* H2D Rxpost ring aggregated work items */
-#define RXBUF_AGGR_CNT	(2u)
+#define RXBUF_AGGR_CNT		2u
 
 /* aggregated work item of rxpost */
 typedef struct host_rxbuf_post_aggr {
@@ -1804,7 +1804,7 @@ typedef struct host_rxbuf_post_aggr {
 } host_rxbuf_post_aggr_t;
 
 /* APPV2 :H2D Rxpost ring aggregated work items */
-#define RXBUF_AGGR_CNT_V3	(16u)
+#define RXBUF_AGGR_CNT_V3	16u
 
 /* aggregated work item of rxpost */
 typedef struct host_rxbuf_post_v3 {
@@ -1823,7 +1823,7 @@ typedef union rxbuf_submit_item_v3 {
 } rxbuf_submit_item_v3_t;
 
 /* D2H Rxcompletion ring for aggregated work items */
-#define RXCPL_AGGR_CNT		(2u)
+#define RXCPL_AGGR_CNT		2u
 
 /* each rx buffer work item */
 typedef struct host_rxbuf_cmpl_pkt {
@@ -1849,7 +1849,7 @@ typedef struct host_rxbuf_cmpl_aggr {
 	host_rxbuf_cmpl_item_t	item[RXCPL_AGGR_CNT];
 } host_rxbuf_cmpl_aggr_t;
 
-#define RXCPL_AGGR_CNT_EXT	(5u)
+#define RXCPL_AGGR_CNT_EXT	5u
 /* non-head aggregated work item of rxcpl */
 typedef struct host_rxbuf_cmpl_aggr_ext {
 	/** rxbuffer work item */

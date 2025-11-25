@@ -1006,7 +1006,7 @@ typedef struct phy_periodic_counters_v11 {
 	uint32  debug_03;
 } phy_periodic_counters_v11_t;
 
-#define PHY_PERIODIC_COUNTERS_VER_12	(12u)
+#define PHY_PERIODIC_COUNTERS_VER_12	12u
 typedef struct phy_periodic_counters_v12 {
 	uint16 version;
 	uint16 len;
@@ -1166,7 +1166,7 @@ typedef struct phy_periodic_counters_v12 {
 	uint32  debug_03;
 } phy_periodic_counters_v12_t;
 
-#define PHY_PERIODIC_COUNTERS_VER_13	(13u)
+#define PHY_PERIODIC_COUNTERS_VER_13	13u
 typedef struct phy_periodic_counters_v13 {
 	uint16 version;
 	uint16 len;
@@ -1323,7 +1323,7 @@ typedef struct phy_periodic_counters_v13 {
 } phy_periodic_counters_v13_t;
 
 // From v12 for v30
-#define PHY_PERIODIC_COUNTERS_VER_14	(14u)
+#define PHY_PERIODIC_COUNTERS_VER_14	14u
 typedef struct phy_periodic_counters_v14 {
 	uint16 version;
 	uint16 len;
@@ -2048,7 +2048,7 @@ typedef struct phy_periodic_counters_v17 {
 	uint32	debug_cnt_05;
 } phy_periodic_counters_v17_t;
 
-#define PHY_PERIODIC_COUNTERS_VER_255	(255u)
+#define PHY_PERIODIC_COUNTERS_VER_255	255u
 typedef struct phy_periodic_counters_v255 {
 	/* Beacon */
 	uint32	rxbeaconmbss;		/* beacons received from member of BSS */
@@ -2327,7 +2327,7 @@ typedef struct phycal_log_core_v3 {
 	int32	rxs_ipoff; /* FDIQ Slope coeff Ip off */
 } phycal_log_core_v3_t;
 
-#define PHYCAL_LOG_VER1         (1u)
+#define PHYCAL_LOG_VER1         1u
 
 typedef struct phycal_log_v1 {
 	uint8  version; /* Logging structure version */
@@ -5973,7 +5973,7 @@ typedef struct phy_periodic_log_core_v5 {
 	int8	noise_dbm_ant;			/* from uCode shm read, afer converting to dBm */
 } phy_periodic_log_core_v5_t;
 
-#define PHY_NOISE_PWR_ARRAY_SIZE	(8u)
+#define PHY_NOISE_PWR_ARRAY_SIZE	8u
 typedef struct phy_periodic_log_core_v6 {
 	/* dccal dcoe & idacc */
 	uint16	dcoe_done_0;	/* dccal control register 44 */
@@ -7059,7 +7059,7 @@ typedef struct phy_periodic_scca_stats_v1 {
 	* b[5]:   bool asym_intf_fill_noise_buf;
 	* b[6]:   bool asym_intf_ncal_discard;
 	* b[7]:   bool slna_reg_saved;
-	* b[8]:   bool asym_intf_host_ext_usb;		//Host control related variable
+	* b[8]:   bool asym_intf_host_ext_usb;		// Host control related variable
 	* b[9]:   bool asym_intf_host_ext_usb_chg;	// Host control related variable
 	* b[10]:  bool asym_intf_host_en;		// Host control related variable
 	* b[11]:  bool asym_intf_host_enable;
@@ -7118,7 +7118,7 @@ typedef struct phy_periodic_scca_stats_v2 {
 	* b[5]:   bool asym_intf_fill_noise_buf;
 	* b[6]:   bool asym_intf_ncal_discard;
 	* b[7]:   bool slna_reg_saved;
-	* b[8]:   bool asym_intf_host_ext_usb;		//Host control related variable
+	* b[8]:   bool asym_intf_host_ext_usb;		// Host control related variable
 	* b[9]:   bool asym_intf_host_ext_usb_chg;	// Host control related variable
 	* b[10]:  bool asym_intf_host_en;		// Host control related variable
 	* b[11]:  bool asym_intf_host_enable;
@@ -7852,7 +7852,7 @@ typedef struct phy_periodic_sra_stats_v255 {
 	uint32	debug_sra_02;
 } phy_periodic_sra_stats_v255_t;
 
-#define PHY_PERIODIC_LOG_VER1         (1u)
+#define PHY_PERIODIC_LOG_VER1	1u
 
 typedef struct phy_periodic_log_v1 {
 	uint8  version; /* Logging structure version */
@@ -7863,8 +7863,8 @@ typedef struct phy_periodic_log_v1 {
 	phy_periodic_log_core_t phy_perilog_core[1];
 } phy_periodic_log_v1_t;
 
-#define PHYCAL_LOG_VER3		(3u)
-#define PHY_PERIODIC_LOG_VER3	(3u)
+#define PHYCAL_LOG_VER3		3u
+#define PHY_PERIODIC_LOG_VER3	3u
 
 /* 4387 onwards */
 typedef struct phy_periodic_log_v3 {
@@ -7882,7 +7882,7 @@ typedef struct phy_periodic_log_v3 {
 	phy_periodic_log_core_t phy_perilog_core[BCM_FLEX_ARRAY];
 } phy_periodic_log_v3_t;
 
-#define PHY_PERIODIC_LOG_VER5	(5u)
+#define PHY_PERIODIC_LOG_VER5	5u
 
 typedef struct phy_periodic_log_v5 {
 	uint8  version; /* Logging structure version */
@@ -7899,7 +7899,7 @@ typedef struct phy_periodic_log_v5 {
 	phy_periodic_log_core_v3_t phy_perilog_core[BCM_FLEX_ARRAY];
 } phy_periodic_log_v5_t;
 
-#define PHY_PERIODIC_LOG_VER6	(6u)
+#define PHY_PERIODIC_LOG_VER6	6u
 
 typedef struct phy_periodic_log_v6 {
 	uint8  version; /* Logging structure version */
@@ -7928,7 +7928,7 @@ typedef struct phycal_log_v3 {
 	phycal_log_core_v3_t phycal_log_core[BCM_FLEX_ARRAY];
 } phycal_log_v3_t;
 
-#define PHY_CAL_EVENTLOG_VER4		(4u)
+#define PHY_CAL_EVENTLOG_VER4		4u
 typedef struct phycal_log_v4 {
 	uint8  version; /* Logging structure version */
 	uint8  numcores; /* Number of cores for which core specific data present */
@@ -7936,7 +7936,7 @@ typedef struct phycal_log_v4 {
 	phy_phycal_v2_t phy_calibration;
 } phycal_log_v4_t;
 
-#define PHY_CAL_EVENTLOG_VER5		(5u)
+#define PHY_CAL_EVENTLOG_VER5		5u
 #define PHY_CAL_EVENTLOG_VER5_SIZE	544u
 typedef struct phycal_log_v5 {
 	uint8  version; /* Logging structure version */
@@ -7946,7 +7946,7 @@ typedef struct phycal_log_v5 {
 } phycal_log_v5_t;
 
 /* For 27.10 */
-#define PHY_CAL_EVENTLOG_VER6		(6u)
+#define PHY_CAL_EVENTLOG_VER6		6u
 typedef struct phycal_log_v6 {
 	uint8  version; /* Logging structure version */
 	uint8  numcores; /* Number of cores for which core specific data present */
@@ -7955,7 +7955,7 @@ typedef struct phycal_log_v6 {
 } phycal_log_v6_t;
 
 /* Trunk ONLY */
-#define PHY_CAL_EVENTLOG_VER255		(255u)
+#define PHY_CAL_EVENTLOG_VER255		255u
 #define PHY_CAL_EVENTLOG_VER255_SIZE	552u
 typedef struct phycal_log_v255 {
 	uint8  version; /* Logging structure version */
@@ -7966,9 +7966,9 @@ typedef struct phycal_log_v255 {
 
 /* Note: The version 2 is reserved for 4357 only. Future chips must not use this version. */
 
-#define MAX_CORE_4357		(2u)
-#define PHYCAL_LOG_VER2		(2u)
-#define PHY_PERIODIC_LOG_VER2	(2u)
+#define MAX_CORE_4357		2u
+#define PHYCAL_LOG_VER2		2u
+#define PHY_PERIODIC_LOG_VER2	2u
 
 typedef struct {
 	uint32	txallfrm;	/**< total number of frames sent, incl. Data, ACK, RTS, CTS,
@@ -8025,7 +8025,7 @@ typedef struct phy_periodic_log_v2 {
 	phy_periodic_log_core_t phy_perilog_core[MAX_CORE_4357];
 } phy_periodic_log_v2_t;
 
-#define PHY_PERIODIC_LOG_VER4	(4u)
+#define PHY_PERIODIC_LOG_VER4	4u
 
 /*
  * Note: The version 4 is reserved for 4357 Deafness Debug only.
@@ -8040,7 +8040,7 @@ typedef struct phy_periodic_log_v4 {
 	phy_periodic_log_core_v2_t phy_perilog_core[MAX_CORE_4357];
 } phy_periodic_log_v4_t;
 
-#define PHY_PERIODIC_LOG_VER7		(7u)
+#define PHY_PERIODIC_LOG_VER7		7u
 typedef struct phy_periodic_log_v7 {
 	uint8  version;		/* Logging structure version */
 	uint8  numcores;	/* Number of cores for which core specific data present */
@@ -8052,7 +8052,7 @@ typedef struct phy_periodic_log_v7 {
 	phy_periodic_log_core_t phy_perilog_core[BCM_FLEX_ARRAY];
 } phy_periodic_log_v7_t;
 
-#define PHY_PERIODIC_LOG_VER8		(8u)
+#define PHY_PERIODIC_LOG_VER8		8u
 typedef struct phy_periodic_log_v8 {
 	uint8  version;		/* Logging structure version */
 	uint8  numcores;	/* Number of cores for which core specific data present */
@@ -8071,7 +8071,7 @@ typedef struct phy_periodic_log_v8 {
 	phy_periodic_log_core_v5_t phy_perilog_core[BCM_FLEX_ARRAY];
 } phy_periodic_log_v8_t;
 
-#define PHY_PERIODIC_LOG_VER9	(9u)
+#define PHY_PERIODIC_LOG_VER9	9u
 typedef struct phy_periodic_log_v9 {
 	uint8  version;		/* Logging structure version */
 	uint8  numcores;	/* Number of cores for which core specific data present */
@@ -8112,7 +8112,7 @@ typedef struct phy_periodic_log_v10 {
 	phy_periodic_scca_stats_v1_t scca_counters_peri_log;
 } phy_periodic_log_v10_t;
 
-#define PHY_PERIODIC_LOG_VER11	(11u)
+#define PHY_PERIODIC_LOG_VER11	11u
 typedef struct phy_periodic_log_v11 {
 	uint8  version;		/* Logging structure version */
 	uint8  numcores;	/* Number of cores for which core specific data present */

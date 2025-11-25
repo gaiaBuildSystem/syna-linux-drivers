@@ -95,7 +95,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_mbo_ie_s {
 	uint8 attr[BCM_FLEX_ARRAY];    /* var len attributes */
 } BWL_POST_PACKED_STRUCT wifi_mbo_ie_t;
 
-#define MBO_IE_HDR_SIZE (OFFSETOF(wifi_mbo_ie_t, attr))
+#define MBO_IE_HDR_SIZE OFFSETOF(wifi_mbo_ie_t, attr)
 /* oui:3 bytes + oui type:1 byte */
 #define MBO_IE_NO_ATTR_LEN  4
 
@@ -269,7 +269,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_mbo_anqp_elem_s {
 	uint8 payload[BCM_FLEX_ARRAY];
 } BWL_POST_PACKED_STRUCT wifi_mbo_anqp_elem_t;
 
-#define MBO_ANQP_ELEM_HDR_SIZE (OFFSETOF(wifi_mbo_anqp_elem_t, payload))
+#define MBO_ANQP_ELEM_HDR_SIZE OFFSETOF(wifi_mbo_anqp_elem_t, payload)
 
 /* oui:3 bytes + oui type:1 byte + sub type:1 byte */
 #define MBO_ANQP_ELEM_NO_PAYLOAD_LEN  5

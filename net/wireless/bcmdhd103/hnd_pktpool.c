@@ -172,7 +172,7 @@ static void pktpool_avail_notify(pktpool_t *pktp);
 #define PKTPOOL_RXLFRAG(pktp) FALSE
 #endif
 
-#define RXLRAG_POOL_FREELIST_TAIL(pktp)	((pktp)->freelist_tail)
+#define RXLRAG_POOL_FREELIST_TAIL(pktp)	(pktp)->freelist_tail
 #ifdef RXLFRAGPOOL_SORT_RXFRAG_DBG
 static const char BCMPOST_TRAP_RODATA(pktpool_deq_print_1)[] =
         "\n%d removing buffer from the rxlfrag pool\n";
@@ -1746,18 +1746,18 @@ pktpool_t *pktpool_shared;
 #ifdef BCMFRAGPOOL
 pktpool_t *pktpool_shared_lfrag;
 pktpool_t *pktpool_shared_alfrag;
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 pktpool_t *pktpool_shared_alfrag_data;
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 pktpool_t *pktpool_shared_alfrag_mdata;
 #endif /* BCMFRAGPOOL */
 
 #ifdef BCMRESVFRAGPOOL
 resv_info_t *resv_pool_info;
 pktpool_t *pktpool_resv_alfrag;
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 pktpool_t *pktpool_resv_alfrag_data;
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 #endif /* BCMRESVFRAGPOOL */
 
 pktpool_t *pktpool_shared_rxlfrag;
@@ -1818,14 +1818,14 @@ BCMATTACHFN(hnd_pktpool_init)(osl_t *osh)
 		ASSERT(0);
 		goto error;
 	}
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 	pktpool_resv_alfrag_data = resv_pool_info->rip[RESV_FRAGPOOL_ALFRAG_DATA]->pktp;
 	if (pktpool_resv_alfrag_data == NULL) {
 		err = BCME_ERROR;
 		ASSERT(0);
 		goto error;
 	}
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 #endif	/* RESVFRAGPOOL */
 #endif /* FRAGPOOL */
 
@@ -1837,14 +1837,14 @@ BCMATTACHFN(hnd_pktpool_init)(osl_t *osh)
 		goto error;
 	}
 
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 	pktpool_shared_alfrag_data = MALLOCZ(osh, sizeof(pktpool_t));
 	if (pktpool_shared_alfrag_data == NULL) {
 		ASSERT(0);
 		err = BCME_NOMEM;
 		goto error;
 	}
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 	pktpool_shared_alfrag_mdata = MALLOCZ(osh, sizeof(pktpool_t));
 	if (pktpool_shared_alfrag_mdata == NULL) {
 		ASSERT(0);
@@ -1938,7 +1938,7 @@ BCMATTACHFN(hnd_pktpool_init)(osl_t *osh)
 	}
 	pktpool_setmaxlen(pktpool_shared_alfrag, SHARED_ALFRAG_POOL_LEN);
 
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 	n = 0;
 	if ((err = pktpool_init(osh, pktpool_shared_alfrag_data, &n, TXPKTALFRAG_DATA_BUFSZ, TRUE,
 			lbuf_alfrag_data, FALSE, 0, SHARED_ALFRAG_DATA_POOL_LEN >> 3)) != BCME_OK) {
@@ -1946,7 +1946,7 @@ BCMATTACHFN(hnd_pktpool_init)(osl_t *osh)
 		goto error;
 	}
 	pktpool_setmaxlen(pktpool_shared_alfrag_data, SHARED_ALFRAG_DATA_POOL_LEN);
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 	n = 0;
 	if ((err = pktpool_init(osh, pktpool_shared_alfrag_mdata, &n, TXPKTALFRAG_MDATA_BUFSZ, TRUE,
 			lbuf_alfrag_data, FALSE, 0, SHARED_ALFRAG_MDATA_POOL_LEN >> 3))
@@ -1975,7 +1975,7 @@ BCMATTACHFN(hnd_pktpool_init)(osl_t *osh)
 	}
 	pktpool_setmaxlen(pktpool_resv_alfrag, RESV_ALFRAG_POOL_LEN);
 
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 	/* resv alfrag data pool */
 	n = 0; /* IMPORTANT: DO NOT allocate any packets in resv pool */
 	if ((err = pktpool_init(osh, pktpool_resv_alfrag_data, &n, TXPKTALFRAG_DATA_BUFSZ, TRUE,
@@ -1984,7 +1984,7 @@ BCMATTACHFN(hnd_pktpool_init)(osl_t *osh)
 		goto error;
 	}
 	pktpool_setmaxlen(pktpool_resv_alfrag_data, RESV_ALFRAG_DATA_POOL_LEN);
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 #endif /* RESVFRAGPOOL */
 #if defined(BCMRXFRAGPOOL) && !defined(BCMRXFRAGPOOL_DISABLED)
 #if defined(URB) && !defined(URB_DISABLED)
@@ -2131,7 +2131,7 @@ BCMATTACHFN(hnd_pktpool_deinit)(osl_t *osh)
 		pktpool_shared_alfrag = (pktpool_t *)NULL;
 	}
 
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 	if (pktpool_shared_alfrag_data != NULL) {
 		if (pktpool_shared_alfrag_data->inited) {
 			pktpool_deinit(osh, pktpool_shared_alfrag_data);
@@ -2140,7 +2140,7 @@ BCMATTACHFN(hnd_pktpool_deinit)(osl_t *osh)
 		hnd_free(pktpool_shared_alfrag_data);
 		pktpool_shared_alfrag_data = (pktpool_t *)NULL;
 	}
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 	if (pktpool_shared_alfrag_mdata != NULL) {
 		if (pktpool_shared_alfrag_mdata->inited) {
 			pktpool_deinit(osh, pktpool_shared_alfrag_mdata);
@@ -2156,11 +2156,11 @@ BCMATTACHFN(hnd_pktpool_deinit)(osl_t *osh)
 		if (pktpool_resv_alfrag) {
 			pktpool_resv_alfrag = NULL;
 		}
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 		if (pktpool_resv_alfrag_data) {
 			pktpool_resv_alfrag_data = NULL;
 		}
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 		hnd_free(resv_pool_info);
 	}
 #endif /* RESVFRAGPOOL */
@@ -2218,11 +2218,11 @@ hnd_pktpool_refill(bool minimal)
 		pktpool_fill(pktpool_osh, pktpool_shared_alfrag, minimal);
 	}
 
-#if !defined(TX_MAC_APP) || defined(TX_MAC_APP_SIM)
+#if !defined(TX_MAC_APP)
 	if (POOL_ENAB(pktpool_shared_alfrag_data)) {
 		pktpool_fill(pktpool_osh, pktpool_shared_alfrag_data, minimal);
 	}
-#endif /* !TX_MAC_APP || TX_MAC_APP_SIM */
+#endif /* !TX_MAC_APP */
 	if (POOL_ENAB(pktpool_shared_alfrag_mdata)) {
 		pktpool_fill(pktpool_osh, pktpool_shared_alfrag_mdata, minimal);
 	}

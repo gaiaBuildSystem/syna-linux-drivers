@@ -240,7 +240,7 @@ BWL_PRE_PACKED_STRUCT struct member_of_brcm_prop_ie {
 typedef struct member_of_brcm_prop_ie member_of_brcm_prop_ie_t;
 
 #define MEMBER_OF_BRCM_PROP_IE_LEN	10	/* IE max length */
-#define MEMBER_OF_BRCM_PROP_IE_HDRLEN	(sizeof(member_of_brcm_prop_ie_t))
+#define MEMBER_OF_BRCM_PROP_IE_HDRLEN	sizeof(member_of_brcm_prop_ie_t)
 
 /* BRCM BTC IE */
 BWL_PRE_PACKED_STRUCT struct btc_brcm_prop_ie {
@@ -348,7 +348,7 @@ enum {
 /* BCM proprietary flag type for WL_DISCO_VSIE */
 #define SSE_OUI			"\x00\x00\xF0"
 #define VENDOR_ENTERPRISE_STA_OUI_TYPE	0x22
-#define MAX_VSIE_DISASSOC       (1)
+#define MAX_VSIE_DISASSOC       1
 #define DISCO_VSIE_LEN          0x09u
 
 /* This marks the end of a packed structure section. */

@@ -349,7 +349,7 @@ extern void ai_setint(const si_t *sih, int siflag);
 extern uint ai_corevendor(const si_t *sih);
 extern uint ai_corerev(const si_t *sih);
 extern uint ai_corerev_minor(const si_t *sih);
-extern volatile uint32 *ai_corereg_addr(si_t *sih, uint coreidx, uint regoff);
+extern volatile uint32 *ai_corereg_addr(const si_t *sih, uint coreidx, uint regoff);
 extern bool ai_iscoreup(const si_t *sih);
 extern volatile void *ai_setcoreidx(si_t *sih, uint coreidx);
 extern volatile void *ai_setcoreidx_2ndwrap(si_t *sih, uint coreidx);

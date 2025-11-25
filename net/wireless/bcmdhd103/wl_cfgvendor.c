@@ -9593,8 +9593,10 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 	int err = 0;
 	int i = 0;
 	u16 num_rate = 0;
+#ifndef LINKSTAT_EXT_SUPPORT
 	s32 chan;
 	chanspec_t chanspec = INVCHANSPEC;
+#endif /* !LINKSTAT_EXT_SUPPORT */
 	bss_peer_list_info_t *peer_list_info;
 	wl_bssload_t *bssload;
 	char *statsbuf;
@@ -10036,7 +10038,9 @@ static int wl_update_multi_link_stat(struct bcm_cfg80211 *cfg, struct net_device
 		}
 	}
 
+#ifndef LINKSTAT_EXT_SUPPORT
 exit:
+#endif /* !LINKSTAT_EXT_SUPPORT */
 	return err;
 }
 
@@ -12151,7 +12155,8 @@ exit:
 }
 #endif /* NDO_CONFIG_SUPPORT */
 
-#if !defined(BCMSUP_4WAY_HANDSHAKE) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0))
+#if !defined(BCMSUP_4WAY_HANDSHAKE) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)) \
+	|| defined(WL_DPP_OFFLD)
 static int wl_cfgvendor_set_pmk(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void *data, int len)
 {
@@ -12190,7 +12195,7 @@ static int wl_cfgvendor_set_pmk(struct wiphy *wiphy,
 exit:
 	return ret;
 }
-#endif /* !BCMSUP_4WAY_HANDSHAKE || LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) */
+#endif /* !BCMSUP_4WAY_HANDSHAKE || LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) || WL_DPP_OFFLD */
 
 static int wl_cfgvendor_get_driver_feature(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
@@ -14544,7 +14549,8 @@ const struct nla_policy mdnsoffload_attr_policy[MDNS_OFFLOAD_ATTR_MAX] = {
 	[MDNS_OFFLOAD_ATTR_RECORD_KEY] = { .type = NLA_U32 },
 	[MDNS_OFFLOAD_ATTR_QNAME] = { .type = NLA_NUL_STRING, .len = MDNS_QNAME_MAX_LEN -1 },
 	[MDNS_OFFLOAD_ATTR_PASSTHROUGH_BEHAVIOR] = { .type = NLA_U8 },
-	[MDNS_OFFLOAD_ATTR_MATCH_CRITERIA] = { .type = NLA_BINARY, .len = sizeof(rr_entry_t) * MDNS_MAX_RR },
+	[MDNS_OFFLOAD_ATTR_MATCH_CRITERIA] =
+	{ .type = NLA_BINARY, .len = sizeof(rr_entry_t) * MDNS_MAX_RR },
 };
 #endif /* WL_MDNS_OFFLOAD */
 
@@ -15485,7 +15491,8 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 #endif /* LINUX_VERSION >= 5.3 */
 	},
 #endif /* DHDTCPACK_SUPPRESS */
-#if !defined(BCMSUP_4WAY_HANDSHAKE) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0))
+#if !defined(BCMSUP_4WAY_HANDSHAKE) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)) \
+	|| defined(WL_DPP_OFFLD)
 	{
 		{
 			.vendor_id = OUI_BRCM,
@@ -15499,7 +15506,7 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 #endif /* LINUX_VERSION >= 5.3 */
 
 	},
-#endif /* !BCMSUP_4WAY_HANDSHAKE || LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) */
+#endif /* !BCMSUP_4WAY_HANDSHAKE || LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) || WL_DPP_OFFLD */
 	{
 		{
 			.vendor_id = OUI_BRCM,

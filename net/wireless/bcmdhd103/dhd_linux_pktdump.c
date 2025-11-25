@@ -441,6 +441,11 @@ dhd_dump_pkt_cnts_inc(dhd_pub_t *dhdp, bool tx, uint16 *pktfate, uint16 pkttype)
 		DHD_ERROR(("%s: pktcnts is NULL\n", __FUNCTION__));
 		return;
 	}
+#ifdef ARP_CHECK_SUPPORT
+	if ((pkttype == PKT_CNT_TYPE_ARP) && (!tx)) {
+		dhd_pub_save_arp_resp_tick(dhdp);
+	}
+#endif /* ARP_CHECK_SUPPORT */
 
 	if (!pktcnts->enabled || (tx && !pktfate)) {
 		return;
@@ -604,7 +609,13 @@ dhd_dump_pkt_enabled(dhd_pub_t *dhdp)
 #else
 static INLINE void
 dhd_dump_pkt_cnts_inc(dhd_pub_t *dhdp, bool tx, uint16 *pktfate, uint16 pkttype)
-{ }
+{
+#ifdef ARP_CHECK_SUPPORT
+	if ((pkttype == PKT_CNT_TYPE_ARP) && (!tx)) {
+		dhd_pub_save_arp_resp_tick(dhdp);
+	}
+#endif /* ARP_CHECK_SUPPORT */
+}
 static INLINE bool
 dhd_dump_pkt_enabled(dhd_pub_t *dhdp)
 {

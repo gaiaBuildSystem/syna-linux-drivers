@@ -200,7 +200,7 @@ typedef struct {
 #define PCIE_SHARED_H2D_MAGIC		0x12345678
 
 typedef uint16			pcie_hwa_db_index_t;	/* 16 bit HWA index (IPC Rev 7) */
-#define PCIE_HWA_DB_INDEX_SZ	(2u)			/* 2 bytes  sizeof(pcie_hwa_db_index_t) */
+#define PCIE_HWA_DB_INDEX_SZ	2u			/* 2 bytes  sizeof(pcie_hwa_db_index_t) */
 
 /**
  * Message rings convey messages between host and device. They are unidirectional, and are located
@@ -619,7 +619,7 @@ typedef struct {
 					       ((r_new) < (r) && (r_new) > (w) ? FALSE : TRUE))
 
 // This is a host side macro and should be moved to the host!!!
-#define	 HOST_RING_BASE(x)	((x)->dma_buf.va)
+#define	 HOST_RING_BASE(x)	(x)->dma_buf.va
 
 /* Trap types copied in the pciedev_shared.trap_addr */
 #define	FW_INITIATED_TRAP_TYPE	(0x1 << 7)

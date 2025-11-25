@@ -283,7 +283,7 @@ struct pci_driver {
 };
 
 #define MODULE_DEVICE_TABLE(type, name)
-#define PCI_ANY_ID (~0)
+#define PCI_ANY_ID ~0
 
 /* compatpci.c */
 #define pci_module_init pci_register_driver
@@ -941,7 +941,7 @@ Since netdev_priv() always gives us the aligned address, it will
 not match our unaligned address for < 2.6.24
 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
-#define DEV_PRIV(dev)	(dev->priv)
+#define DEV_PRIV(dev)	dev->priv
 #else
 #define DEV_PRIV(dev)	netdev_priv(dev)
 #endif
@@ -959,7 +959,7 @@ not match our unaligned address for < 2.6.24
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
 #define CAN_SLEEP()	((!in_atomic() && !irqs_disabled()))
 #else
-#define CAN_SLEEP()	(FALSE)
+#define CAN_SLEEP()	FALSE
 #endif
 
 #define KMALLOC_FLAG (CAN_SLEEP() ? GFP_KERNEL: GFP_ATOMIC)

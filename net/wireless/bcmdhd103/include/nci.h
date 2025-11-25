@@ -59,7 +59,7 @@ volatile void *nci_setcore(si_t *sih, uint coreid, uint coreunit);
 volatile void *nci_setcoreidx(const si_t *sih, uint coreidx);
 volatile void *nci_setcoreidx_wrap(const si_t *sih, uint coreidx, uint wrapper_idx);
 uint nci_findcoreidx(const si_t *sih, uint coreid, uint coreunit);
-volatile uint32 *nci_corereg_addr(si_t *sih, uint coreidx, uint regoff);
+volatile uint32 *nci_corereg_addr(const si_t *sih, uint coreidx, uint regoff);
 uint nci_corereg_writeonly(si_t *sih, uint coreidx, uint regoff, uint mask, uint val);
 uint nci_corereg(const si_t *sih, uint coreidx, uint regoff, uint mask, uint val);
 uint nci_corerev_minor(const si_t *sih);

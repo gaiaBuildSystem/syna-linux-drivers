@@ -370,6 +370,10 @@ bool ap_cfg_running = FALSE;
 bool ap_fw_loaded = FALSE;
 #endif /* defined(OEM_ANDROID) && defined(SOFTAP) */
 
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+extern uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx);
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
+
 #define CHIPID_MISMATCH	8
 
 #define DHD_VERSION "\nDongle Host Driver, version " EPI_VERSION_STR EPI_COMMIT_ID "\n"
@@ -606,6 +610,9 @@ enum {
 	IOV_CSI_VERSION,
 	IOV_CSI_CONFIG,
 #endif /* CSI_SUPPORT */
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	IOV_GETGWIP_ADDR,
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT*/
 	IOV_LAST
 };
 
@@ -818,6 +825,9 @@ const bcm_iovar_t dhd_iovars[] = {
 	{"csi_config", IOV_CSI_CONFIG,	 0, 0,	IOVT_BUFFER,	sizeof(uint32)},
 #endif /* CSI_SUPPORT */
 
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	{"get_gw_ip", IOV_GETGWIP_ADDR, 0, 0, IOVT_UINT32, sizeof(uint32)},
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 	/* --- add new iovars *ABOVE* this line --- */
 	{NULL, 0, 0, 0, 0, 0 }
 };
@@ -4693,6 +4703,13 @@ dhd_doiovar(dhd_pub_t *dhd_pub, int ifidx, const bcm_iovar_t *vi, uint32 actioni
 		break;
 #endif /* CSI_SUPPORT */
 
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	case IOV_GVAL(IOV_GETGWIP_ADDR):
+		*(uint *)arg = get_default_gateway_ip(dhd_pub, 0);
+		bcmerror = 0;
+		break;
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
+
 	default:
 		bcmerror = BCME_UNSUPPORTED;
 		break;
@@ -7020,6 +7037,23 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 #endif /* DHD_POST_EAPOL_M1_AFTER_ROAM_EVT */
 	case WLC_E_LINK:
 #ifdef PCIE_FULL_DONGLE
+		{
+			/*
+			 * ML-SoftAP teardown: Dongle FW sends 2 WLC_E_LINK [DOWN] events,
+			 * the 2nd one is for an ifname which is not known to dhd.
+			 * Skip the event in this case.
+			 */
+			uint8 ifindex_from_name;
+			ifindex_from_name = (uint8)dhd_ifname2idx(dhd_pub->info, event->ifname);
+			if (!flags && (ifindex_from_name != event->ifidx)) {
+				DHD_ERROR(("%s: WLC_E_LINK [%d] SKIP due to lookup mismatch. "
+					" ifname='%s' ifidx [expected=%d resolved=%d].\n",
+					__FUNCTION__, flags, event->ifname, event->ifidx,
+					ifindex_from_name));
+				break;
+			}
+		}
+
 		if (dhd_update_interface_link_status(dhd_pub, (uint8)dhd_ifname2idx(dhd_pub->info,
 			event->ifname), (uint8)flags) != BCME_OK) {
 			DHD_ERROR(("%s: dhd_update_interface_link_status Failed.\n",

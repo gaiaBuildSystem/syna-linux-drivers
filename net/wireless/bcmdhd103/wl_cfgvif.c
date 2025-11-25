@@ -1230,7 +1230,12 @@ wl_cfg80211_del_virtual_iface(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev)
 	ndev = wdev_to_ndev(wdev);
 #ifdef WL_STATIC_IF
 	/* interface delete is invalid for static interface */
-	if (IS_CFG80211_STATIC_IF(cfg, ndev) || (ndev && IS_NMI_IFACE(ndev->name))) {
+#ifdef WL_NAN
+	if (IS_CFG80211_STATIC_IF(cfg, ndev) || (ndev && IS_NMI_IFACE(ndev->name)))
+#else
+	if (IS_CFG80211_STATIC_IF(cfg, ndev))
+#endif /* WL_NAN */
+	{
 		WL_ERR(("Invalid request to delete static interface %s\n", ndev->name));
 		return -EINVAL;
 	}
@@ -1414,7 +1419,12 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 	netinfo = wl_get_netinfo_by_wdev(cfg, ndev->ieee80211_ptr);
 	if (!netinfo) {
 #ifdef WL_STATIC_IF
-		if (IS_CFG80211_STATIC_IF(cfg, ndev) || IS_NMI_IFACE(ndev->name)) {
+#ifdef WL_NAN
+		if (IS_CFG80211_STATIC_IF(cfg, ndev) || IS_NMI_IFACE(ndev->name))
+#else
+		if (IS_CFG80211_STATIC_IF(cfg, ndev))
+#endif /* WL_NAN */
+		{
 			/* Incase of static interfaces, the netinfo will be
 			 * allocated only when FW interface is initialized. So
 			 * store the value and use it during initialization.
@@ -1634,8 +1644,12 @@ wl_cfg80211_cleanup_virtual_ifaces(struct bcm_cfg80211 *cfg, bool rtnl_lock_reqd
 			/* Ensure interfaces are down before deleting */
 #ifdef WL_STATIC_IF
 			/* Avoiding cleaning static ifaces */
+#ifdef WL_NAN
 			if (!IS_CFG80211_STATIC_IF(cfg, iter->ndev) ||
 				!IS_NMI_IFACE(iter->ndev->name))
+#else
+			if (!IS_CFG80211_STATIC_IF(cfg, iter->ndev))
+#endif /* WL_NAN */
 #endif /* WL_STATIC_IF */
 			{
 				WL_INFORM(("Cleaning up iface:%s \n", iter->ndev->name));

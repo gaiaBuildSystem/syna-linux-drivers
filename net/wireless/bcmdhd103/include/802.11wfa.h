@@ -263,7 +263,7 @@ typedef BWL_PRE_PACKED_STRUCT struct owe_transition_mode_ie_s {
 	uint8 band_info; /* operating band info of the other virtual AP */
 	uint8 chan;      /* operating channel number of the other virtual AP */
 } BWL_POST_PACKED_STRUCT owe_transition_mode_ie_t;
-#define OWE_IE_HDR_SIZE (OFFSETOF(wifi_owe_ie_t, attr))
+#define OWE_IE_HDR_SIZE OFFSETOF(wifi_owe_ie_t, attr)
 /* oui:3 bytes + oui type:1 byte */
 #define OWE_IE_NO_ATTR_LEN  4
 
@@ -366,7 +366,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_query_action_vs_frmhdr {
 	uint8 dialog_token;	/* to match req/resp */
 	uint8 data[];		/* zero or more QoS Mgmt elements */
 } BWL_POST_PACKED_STRUCT dscp_policy_query_action_vs_frmhdr_t;
-#define DSCP_POLICY_QUERY_ACTION_FRAME_HDR_SIZE (sizeof(dscp_policy_query_action_vs_frmhdr_t))
+#define DSCP_POLICY_QUERY_ACTION_FRAME_HDR_SIZE sizeof(dscp_policy_query_action_vs_frmhdr_t)
 
 /* DSCP Policy request frame header */
 typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_req_action_vs_frmhdr {
@@ -378,7 +378,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_req_action_vs_frmhdr {
 	uint8 control;		/* request control */
 	uint8 data[];		/* zero or more QoS Mgmt elements */
 } BWL_POST_PACKED_STRUCT dscp_policy_req_action_vs_frmhdr_t;
-#define DSCP_POLICY_REQ_ACTION_FRAME_HDR_SIZE (sizeof(dscp_policy_req_action_vs_frmhdr_t))
+#define DSCP_POLICY_REQ_ACTION_FRAME_HDR_SIZE sizeof(dscp_policy_req_action_vs_frmhdr_t)
 
 /* DSCP Policy Response frame header */
 typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_resp_action_vs_frmhdr {
@@ -391,7 +391,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_resp_action_vs_frmhdr {
 	uint8 count;		/* Number of items in the data (Stauts List) */
 	uint8 data[];		/* Status List */
 } BWL_POST_PACKED_STRUCT dscp_policy_resp_action_vs_frmhdr_t;
-#define DSCP_POLICY_RESP_ACTION_FRAME_HDR_SIZE (sizeof(dscp_policy_resp_action_vs_frmhdr_t))
+#define DSCP_POLICY_RESP_ACTION_FRAME_HDR_SIZE sizeof(dscp_policy_resp_action_vs_frmhdr_t)
 
 /* WFA Capabilities IE */
 typedef BWL_PRE_PACKED_STRUCT struct wfa_cap_ie {
@@ -402,7 +402,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_cap_ie {
 	uint8 capabilities_len;	/* WFA capabilities length */
 	uint8 capabilities[];	/* WFA capability data + optional attributes */
 } BWL_POST_PACKED_STRUCT wfa_cap_ie_t;
-#define WFA_CAP_IE_HDR_SIZE (sizeof(wfa_cap_ie_t))
+#define WFA_CAP_IE_HDR_SIZE sizeof(wfa_cap_ie_t)
 
 /* QoS Mgmt IE */
 typedef BWL_PRE_PACKED_STRUCT struct qos_mgmt_ie {
@@ -412,7 +412,7 @@ typedef BWL_PRE_PACKED_STRUCT struct qos_mgmt_ie {
 	uint8 oui_type;		/* QOS_MGMT_VSIE_OUI_TYPE */
 	uint8 data[];		/* One or more QoS Mgmt attributes */
 } BWL_POST_PACKED_STRUCT qos_mgmt_ie_t;
-#define QOS_MGMT_IE_HDR_SIZE (sizeof(qos_mgmt_ie_t))
+#define QOS_MGMT_IE_HDR_SIZE sizeof(qos_mgmt_ie_t)
 
 /* DSCP Policy capability attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_capability_attr {
@@ -420,7 +420,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_capability_attr {
 	uint8 len;		/* length of data */
 	uint8 capabilities;	/* capabilities, 1 indicates DSCP Policy enabled */
 } BWL_POST_PACKED_STRUCT dscp_policy_capability_attr_t;
-#define DSCP_POLICY_CAPABILITY_ATTR_SIZE (sizeof(dscp_policy_capability_attr_t))
+#define DSCP_POLICY_CAPABILITY_ATTR_SIZE sizeof(dscp_policy_capability_attr_t)
 
 /* QoS Mgmt capability bits */
 typedef enum qos_mgmt_cap_bits {
@@ -464,7 +464,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_port_range_attr {
 	uint16 start_port;	/* port range (both are in network byte order): start port */
 	uint16 end_port;	/* end port */
 } BWL_POST_PACKED_STRUCT dscp_policy_port_range_attr_t;
-#define DSCP_POLICY_PORT_RANGE_ATTR_SIZE (sizeof(dscp_policy_port_range_attr_t))
+#define DSCP_POLICY_PORT_RANGE_ATTR_SIZE sizeof(dscp_policy_port_range_attr_t)
 
 /* DSCP Policy attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_attr {
@@ -474,7 +474,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_attr {
 	uint8 req_type;		/* 0(Add), 1(Remove), 2..255 (Reserved) */
 	uint8 dscp;		/* DSCP value associated with the policy */
 } BWL_POST_PACKED_STRUCT dscp_policy_attr_t;
-#define DSCP_POLICY_ATTR_SIZE (sizeof(dscp_policy_attr_t))
+#define DSCP_POLICY_ATTR_SIZE sizeof(dscp_policy_attr_t)
 
 /* DSCP Policy TCLAS attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_tclas_attr {
@@ -482,7 +482,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_tclas_attr {
 	uint8 len;		/* length of data */
 	uint8 data[];		/* frame classifier type 4 data */
 } BWL_POST_PACKED_STRUCT dscp_policy_tclas_attr_t;
-#define DSCP_POLICY_TCLAS_ATTR_SIZE (sizeof(dscp_policy_tclas_attr_t))
+#define DSCP_POLICY_TCLAS_ATTR_SIZE sizeof(dscp_policy_tclas_attr_t)
 
 /* DSCP Policy Domain Name attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_domain_name_attr {
@@ -490,7 +490,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dscp_policy_domain_name_attr {
 	uint8 len;		/* length of data */
 	uint8 data[];		/* domain name */
 } BWL_POST_PACKED_STRUCT dscp_policy_domain_name_attr_t;
-#define DSCP_POLICY_DOMAIN_NAME_ATTR_SIZE (sizeof(dscp_policy_domain_name_attr_t))
+#define DSCP_POLICY_DOMAIN_NAME_ATTR_SIZE sizeof(dscp_policy_domain_name_attr_t)
 
 /* WFA RSN/RSNXE Override Vendor Specific IE */
 #define WFA_RSN_OVERRIDE_OUI_TYPE_OFFSET	5u
@@ -502,7 +502,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_rsn_override_ie {
 	uint8 oui_type;         /* WFA_OUI_TYPE_RSN(XE)_OVERRIDE */
 	uint8 data[];           /* RSN/RSNXE IE attributes */
 } BWL_POST_PACKED_STRUCT wfa_rsn_override_ie_t;
-#define WFA_RSN_OVERRIDE_IE_SIZE (sizeof(wfa_rsn_override_ie_t))
+#define WFA_RSN_OVERRIDE_IE_SIZE sizeof(wfa_rsn_override_ie_t)
 
 /* WFA_RSN_SELECTION_IE definitions */
 #define RSN_SELECTION_RSNE	0u	/* RSNE */
@@ -515,7 +515,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_rsn_selection_ie {
 	uint8 oui_type;         /* WFA_OUI_TYPE_RSN_SELECTION */
 	uint8 data;		/* 0 = RSNE, 1 = RSNE Override , 2 = RSN Override 2 */
 } BWL_POST_PACKED_STRUCT wfa_rsn_selection_ie_t;
-#define WFA_RSN_SELECTION_IE_SIZE (sizeof(wfa_rsn_selection_ie_t))
+#define WFA_RSN_SELECTION_IE_SIZE sizeof(wfa_rsn_selection_ie_t)
 
 #define WFA_RSNOV_LINK_KDE_IE_DATA_OFFSET 7u
 typedef BWL_PRE_PACKED_STRUCT struct wfa_rsnov_link_kde_ie {
@@ -526,7 +526,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_rsnov_link_kde_ie {
 	uint8 link_id;		/* Link identifier */
 	uint8 data[];		/* The set of RSN Override, Override 2, RSNXE Overrie IEs */
 } BWL_POST_PACKED_STRUCT wfa_rsnov_link_kde_ie_t;
-#define WFA_RSNOV_LINK_KDE_IE_SIZE (sizeof(wfa_rsnov_link_kde_ie_t))
+#define WFA_RSNOV_LINK_KDE_IE_SIZE sizeof(wfa_rsnov_link_kde_ie_t)
 
 /* Wi-Fi Alliance Capabilities frame header */
 typedef BWL_PRE_PACKED_STRUCT struct wfa_capabilities_vs_frmhdr {
@@ -538,7 +538,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_capabilities_vs_frmhdr {
 					 * Wi-Fi Alliance Capabilities attributes
 					 */
 } BWL_POST_PACKED_STRUCT wfa_capabilities_action_vs_frmhdr_t;
-#define WFA_CAPABILITIES_ACTION_FRAME_HDR_SIZE (sizeof(wfa_capabilities_action_vs_frmhdr_t))
+#define WFA_CAPABILITIES_ACTION_FRAME_HDR_SIZE sizeof(wfa_capabilities_action_vs_frmhdr_t)
 
 /* Wi-Fi Alliance Capabilities attributes */
 typedef enum wfa_capabilities_attrs {
@@ -574,7 +574,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wfa_gen_cap_attr {
 				 * Certified Generations (0 or n (>=1))
 				 */
 } BWL_POST_PACKED_STRUCT wfa_gen_cap_attr_t;
-#define WFA_GEN_CAP_ATTR_SIZE (sizeof(wfa_gen_cap_attr_t))
+#define WFA_GEN_CAP_ATTR_SIZE sizeof(wfa_gen_cap_attr_t)
 
 /* DAR (Dynamic Analytics Report) frames */
 /* DAR action frame subtypes */
@@ -625,7 +625,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_af_req {
 				 * DAR attributes
 				 */
 } BWL_POST_PACKED_STRUCT dar_af_req_t;
-#define DAR_REQUEST_AF_REQ_HDR_SIZE (sizeof(dar_af_req_t))
+#define DAR_REQUEST_AF_REQ_HDR_SIZE sizeof(dar_af_req_t)
 
 /* DAR response action frame header */
 typedef BWL_PRE_PACKED_STRUCT struct dar_af_resp {
@@ -638,7 +638,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_af_resp {
 				 * DAR attributes.
 				 */
 } BWL_POST_PACKED_STRUCT dar_af_resp_t;
-#define DAR_RESP_AF_RESP_HDR_SIZE (sizeof(dar_af_resp_t))
+#define DAR_RESP_AF_RESP_HDR_SIZE sizeof(dar_af_resp_t)
 
 /* DAR report action frame header */
 typedef BWL_PRE_PACKED_STRUCT struct dar_af_report {
@@ -650,7 +650,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_af_report {
 				 * DAR attributes.
 				 */
 }  BWL_POST_PACKED_STRUCT dar_af_report_t;
-#define DAR_REPORT_AF_HDR_SIZE (sizeof(dar_af_report_t))
+#define DAR_REPORT_AF_HDR_SIZE sizeof(dar_af_report_t)
 
 /* DAR request attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dar_req_attr {
@@ -667,7 +667,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_req_attr {
 					 * or if report_method is not 0 (Periodic).
 					 */
 } BWL_POST_PACKED_STRUCT dar_req_attr_t;
-#define DAR_REQUEST_ATTR_SIZE (sizeof(dar_req_attr_t))
+#define DAR_REQUEST_ATTR_SIZE sizeof(dar_req_attr_t)
 
 /* DAR response attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dar_resp_attr {
@@ -676,7 +676,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_resp_attr {
 	uint8 request_id;		/* Non-zero value */
 	uint8 status_code;		/* status code */
 } BWL_POST_PACKED_STRUCT dar_resp_attr_t;
-#define DAR_RESP_ATTR_SIZE (sizeof(dar_resp_attr_t))
+#define DAR_RESP_ATTR_SIZE sizeof(dar_resp_attr_t)
 
 /* DAR report attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dar_report_attr {
@@ -709,7 +709,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_report_attr {
 	/* The actual measurement duration for the report in units of ms. */
 	uint16 report_measurement_duration;
 } BWL_POST_PACKED_STRUCT dar_report_attr_t;
-#define DAR_REPORT_ATTR_SIZE (sizeof(dar_report_attr_t))
+#define DAR_REPORT_ATTR_SIZE sizeof(dar_report_attr_t)
 
 /* DAR Latency statistics parameter presence bitmap */
 typedef enum dar_latency_statistics_parameter_presence_bits {
@@ -785,7 +785,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_attr {
 	 */
 	uint8 data[];
 } BWL_POST_PACKED_STRUCT dar_latency_statistics_attr_t;
-#define DAR_LATENCY_STATISTICS_ATTR_SIZE (sizeof(dar_latency_statistics_attr_t))
+#define DAR_LATENCY_STATISTICS_ATTR_SIZE sizeof(dar_latency_statistics_attr_t)
 
 /* DAR Latency statistics entry for report_type 0 */
 typedef BWL_PRE_PACKED_STRUCT struct dar_latency_statistics_entry_rt0 {
@@ -876,7 +876,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_radio_counters_attr {
 	 */
 	uint8 data[];
 } BWL_POST_PACKED_STRUCT dar_radio_counters_attr_t;
-#define DAR_RADIO_COUNTERS_ATTR_SIZE (sizeof(dar_radio_counters_attr_t))
+#define DAR_RADIO_COUNTERS_ATTR_SIZE sizeof(dar_radio_counters_attr_t)
 
 /* DAR radio counters attribute - Report Transmit Power field */
 typedef BWL_PRE_PACKED_STRUCT struct report_transmit_power {
@@ -907,7 +907,7 @@ typedef BWL_PRE_PACKED_STRUCT struct report_transmit_power {
 	 */
 	uint8 transmit_power_list[];
 } BWL_POST_PACKED_STRUCT report_transmit_power_t;
-#define REPORT_TRANSMIT_POWER_SIZE (sizeof(report_transmit_power_t))
+#define REPORT_TRANSMIT_POWER_SIZE sizeof(report_transmit_power_t)
 
 /* DAR radio counters attribute - Observed Cahnnel Utilization Fraction field */
 typedef BWL_PRE_PACKED_STRUCT struct observed_channel_utilization_fraction {
@@ -934,7 +934,7 @@ typedef BWL_PRE_PACKED_STRUCT struct observed_channel_utilization_fraction {
 	 */
 	uint8 data[];
 } BWL_POST_PACKED_STRUCT observed_channel_utilization_fraction_t;
-#define OBSERVED_CHANNEL_UTILIZATION_FRACTION_SIZE (sizeof(observed_channel_utilization_fraction_t))
+#define OBSERVED_CHANNEL_UTILIZATION_FRACTION_SIZE sizeof(observed_channel_utilization_fraction_t)
 
 /* DAR radio counters attribute - MPDU Count statistics field */
 typedef BWL_PRE_PACKED_STRUCT struct mpdu_count_statistics {
@@ -972,7 +972,7 @@ typedef BWL_PRE_PACKED_STRUCT struct mpdu_count_statistics {
 	 */
 	uint8 data[];
 } BWL_POST_PACKED_STRUCT mpdu_count_statistics_t;
-#define MPDU_COUNT_STATISTICS_SIZE (sizeof(mpdu_count_statistics_t))
+#define MPDU_COUNT_STATISTICS_SIZE sizeof(mpdu_count_statistics_t)
 
 /* DAR radio counters attribute - MPDU Count statistics information subfield */
 typedef BWL_PRE_PACKED_STRUCT struct mpdu_count_statistics_info_subfield {
@@ -1024,7 +1024,7 @@ typedef BWL_PRE_PACKED_STRUCT struct rts_statistics {
 	 */
 	uint8 data[];
 } BWL_POST_PACKED_STRUCT rts_statistics_t;
-#define RTS_STATISTICS_SIZE (sizeof(rts_statistics_t))
+#define RTS_STATISTICS_SIZE sizeof(rts_statistics_t)
 
 /* DAR radio counters attribute - RTS statistics information subfield */
 typedef BWL_PRE_PACKED_STRUCT struct rts_statistics_info_subfield {
@@ -1049,7 +1049,7 @@ typedef BWL_PRE_PACKED_STRUCT struct fcs_failure_count_subfield {
 	 */
 	uint32 fcs_failure_count;
 } BWL_POST_PACKED_STRUCT fcs_failure_count_subfield_t;
-#define FCS_FAILURE_COUNT_SUBFIELD_SIZE (sizeof(fcs_failure_count_subfield_t))
+#define FCS_FAILURE_COUNT_SUBFIELD_SIZE sizeof(fcs_failure_count_subfield_t)
 
 /* DAR radio counters attribute - FCS failure statistics */
 typedef BWL_PRE_PACKED_STRUCT struct fcs_failure_statistics {
@@ -1074,7 +1074,7 @@ typedef BWL_PRE_PACKED_STRUCT struct fcs_failure_statistics {
 	 */
 	uint8 fcs_failure_list[];
 } BWL_POST_PACKED_STRUCT fcs_failure_statistics_t;
-#define FCS_FAILURE_STATISTICS_SIZE (sizeof(fcs_failure_statistics_t))
+#define FCS_FAILURE_STATISTICS_SIZE sizeof(fcs_failure_statistics_t)
 
 /* DAR Control Plane Events attribute */
 typedef BWL_PRE_PACKED_STRUCT struct dar_control_plane_events_attr {
@@ -1090,7 +1090,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_control_plane_events_attr {
 	/* Control Plane Events Tuple List */
 	uint8 list[];
 } BWL_POST_PACKED_STRUCT dar_control_plane_events_attr_t;
-#define DAR_CONTROL_PLANE_EVENTS_ATTR_SIZE (sizeof(dar_control_plane_events_attr_t))
+#define DAR_CONTROL_PLANE_EVENTS_ATTR_SIZE sizeof(dar_control_plane_events_attr_t)
 
 typedef enum dar_control_plane_event_sub_category {
 	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_RESERVED		= 0u,
@@ -1098,11 +1098,11 @@ typedef enum dar_control_plane_event_sub_category {
 	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_BEACON_LOSS	= 2u,
 	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_SEQ_SN_JUMP	= 3u,
 	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_RTS_CTS_FLOODS	= 4u,
-	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_BA_NEGO_FAILUE	= 5u
+	DAR_CONTROL_PLANE_EVENT_SUB_CATEGORY_BA_NEGO_FAILURE	= 5u
 	/* 6 - 255 Reserved */
 } dar_control_plane_event_sub_category_t;
 
-#define DAR_CONTROL_PLANE_EVENT_RESERVED_LINK_ID	(0xFF)
+#define DAR_CONTROL_PLANE_EVENT_RESERVED_LINK_ID	0xFF
 /* DAR Control Plane Event Tuple field */
 typedef BWL_PRE_PACKED_STRUCT struct dar_control_plane_event_tuple {
 	/* Link ID, the four LSBs of the LinkID field indicates the link identifier,
@@ -1114,7 +1114,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dar_control_plane_event_tuple {
 	/* Sub Category Code */
 	uint8 sub_category_code;
 } BWL_POST_PACKED_STRUCT dar_control_plane_event_tuple_t;
-#define DAR_CONTROL_PLANE_EVENT_TUPLE_SIZE (sizeof(dar_control_plane_event_tuple_t))
+#define DAR_CONTROL_PLANE_EVENT_TUPLE_SIZE sizeof(dar_control_plane_event_tuple_t)
 
 /* This marks the end of a packed structure section. */
 #include <packed_section_end.h>

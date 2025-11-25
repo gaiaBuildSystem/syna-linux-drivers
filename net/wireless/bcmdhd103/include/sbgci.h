@@ -367,7 +367,11 @@ typedef volatile struct {
 	uint32 pgt_us_time_core1_lo;			/* 0xb14 */
 	uint32 pgt_us_time_core1_hi;			/* 0xb18 */
 	uint32 semaphorerelease;			/* 0xb1c */
-	uint32 PAD[PADRANGE(0xb20, 0xbfc)];		/* 0xb20-0xbfc */
+	uint32 PAD[PADRANGE(0xb20, 0xb28)];		/* 0xb20-0xb28 */
+	uint32 semaphorerequest_ext;			/* 0xb2c */
+	uint32 semaphorereserve_ext;			/* 0xb30 */
+	uint32 semaphorerelease_ext;			/* 0xb34 */
+	uint32 PAD[PADRANGE(0xb38, 0xbfc)];		/* 0xb38-0xbfc */
 	uint32 lhl_core_capab_adr;			/* 0xC00 */
 	uint32 lhl_main_ctl_adr;			/* 0xC04 */
 	uint32 lhl_pmu_ctl_adr;				/* 0xC08 */
@@ -521,6 +525,8 @@ typedef volatile struct {
 /* GCI Capabilities registers */
 #define GCI_CORE_CAP_0_COREREV_MASK			0xFF
 #define GCI_CORE_CAP_0_COREREV_SHIFT			0
+#define GCI_CORE_CAP_0_SEMNUM_MASK			0xF8000000
+#define GCI_CORE_CAP_0_SEMNUM_SHIFT			27u
 
 #define GCI_INDIRECT_ADDRESS_REG_REGINDEX_MASK		0x3F
 #define GCI_INDIRECT_ADDRESS_REG_REGINDEX_SHIFT		0

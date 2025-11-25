@@ -233,14 +233,14 @@ static const uint ch_per_blk_map[] = {
 #if defined(WL11BE) || defined(BCMWIFI_BW320MHZ)
 #define WFC_BW_EQ(bw, val)	WFC_2VALS_EQ(bw, val)
 #else
-#define WFC_BW_EQ(bw, val)	(FALSE)
+#define WFC_BW_EQ(bw, val)	FALSE
 #endif /* WL11BE || WL_BW320MHZ */
 
 /* compare bandwidth based on BCMWIFI_NON_CONT_CHAN */
 #ifdef BCMWIFI_NON_CONT_CHAN
 #define WFC_NCBW_EQ(bw, val)	WFC_2VALS_EQ(bw, val)
 #else
-#define WFC_NCBW_EQ(bw, val)	(FALSE)
+#define WFC_NCBW_EQ(bw, val)	FALSE
 #endif
 
 static void wf_chanspec_iter_firstchan(wf_chanspec_iter_t *iter);
@@ -2263,6 +2263,7 @@ wf_chspec_primary20_chspec(chanspec_t chspec)
 	return pri_chspec;
 }
 
+#ifndef OBSOLETE_CHANNEL2CHSPEC
 /* return chanspec given primary 20MHz channel and bandwidth
  * return 0 on error
  * does not support 6G
@@ -2332,9 +2333,10 @@ wf_channel2chspec(uint pri_ch, uint bw)
 
 	return chspec;
 }
+#endif // OBSOLETE_CHANNEL2CHSPEC
 
 /**
- * Return the primary 40MHz chanspec or a 40MHz or wider channel
+ * Return the primary 40MHz chanspec for a 40MHz or wider channel
  *
  * This function returns the chanspec for the primary 40MHz of an 80MHz or wider channel.
  * The primary 40MHz channel is the 40MHz sub-band that contains the primary 20MHz channel.
@@ -2378,6 +2380,58 @@ wf_chspec_primary40_chspec(chanspec_t chspec)
 		/* Create primary 40MHz chanspec */
 		chspec40 = (CHSPEC_BAND(chspec) | WL_CHANSPEC_BW_40 |
 		            sb | center_chan);
+	}
+
+	return chspec40;
+}
+
+/**
+ * Return the secondary 40MHz chanspec for an 80MHz or wider channel.
+ *
+ * This function returns the chanspec for the secondary 40MHz sub-band of an 80MHz or wider channel.
+ * The secondary 40MHz sub-band of an 80MHz channel is the 40MHz sub-band that does not contain
+ * the primary 20MHz channel. For wider BW channels, the secondary 40 of the primary 80 is returned.
+ * The returned 40MHz chanspec has the lower 20MHz sub-band set as primary.
+ *
+ * @param	chspec    input chanspec
+ *
+ * @return Returns the chanspec of the secondary 40MHz sub-band, or INVCHANSPEC if the input
+ *         chspec was < 80MHz, or some other problem was encountered.
+ */
+chanspec_t
+wf_chspec_secondary40_chspec(chanspec_t chspec)
+{
+	chanspec_t chspec40 = INVCHANSPEC;
+	uint center_chan = INVCHANNEL;
+	uint primary20;
+
+	ASSERT(!wf_chspec_malformed(chspec));
+
+	/* Start with the Primary 80 of the 80+ bw channel.
+	 * This will return INVCHANSPEC if the BW is less than 80.
+	 */
+	chspec = wf_chspec_primary80_chspec(chspec);
+	if (chspec != INVCHANSPEC) {
+		center_chan = wf_chspec_center_channel(chspec);
+		primary20 = wf_chspec_primary20_chan(chspec);
+
+		if (primary20 < center_chan) {
+			/* Primary 40MHz is on lower side, so the secondary is on
+			 * the upper side
+			 */
+			center_chan += CH_20MHZ_APART;
+		} else {
+			/* Primary 40MHz is on upper side, so the secondary is on
+			 * the lower side
+			 */
+			center_chan -= CH_20MHZ_APART;
+		}
+
+		/* center_chan is now the center channel of the secondary 40.
+		 * Arbitrarily set the primary channel to be the lower side-band.
+		 */
+		chspec40 = wf_create_chspec(center_chan - CH_10MHZ_APART, center_chan,
+		                            WL_CHANSPEC_BW_40, CHSPEC_BAND(chspec));
 	}
 
 	return chspec40;
@@ -2767,6 +2821,11 @@ wf_chspec_secondary80_chspec(chanspec_t chspec)
 
 	ASSERT(!wf_chspec_malformed(chspec));
 
+	/* if the chanspec is > 160MHz, use helper routine to find the primary 160 MHz channel */
+	if (CHSPEC_IS320(chspec)) {
+		chspec = wf_chspec_primary160_chspec(chspec);
+	}
+
 	if (CHSPEC_IS8080(chspec)) {
 		/* secondary sub-band is stored in seg1 */
 		if (CHSPEC_IS5G(chspec)) {
@@ -2981,14 +3040,13 @@ wf_get_all_ext(chanspec_t chspec, uint8 *pext)
 		return; /* nothing more to do since 40MHz chspec */
 	}
 	/* center 40MHz EXT */
-	t = wf_channel2chspec((IS_CTL_IN_L40(chspec) ?
-		pri_ch + CH_40MHZ_APART : pri_ch - CH_40MHZ_APART), WL_CHANSPEC_BW_40);
+	t = wf_chspec_secondary40_chspec(chspec);
 	GET_ALL_SB(t, &((pext)[2])); /* get the 20MHz side bands in 40MHz EXT */
 
 	if (CHSPEC_IS80(chspec)) {
 		return; /* nothing more to do since 80MHz chspec */
 	}
-	t = CH80MHZ_CHSPEC(wf_chspec_secondary80_channel(chspec), WL_CHANSPEC_CTL_SB_LLL);
+	t = wf_chspec_secondary80_chspec(chspec);
 	/* get the 20MHz side bands in 80MHz EXT (secondary) */
 	GET_ALL_SB(t, &((pext)[4]));
 }

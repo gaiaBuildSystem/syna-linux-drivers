@@ -235,7 +235,7 @@ typedef enum dhd_iface_mgmt_policy {
  * driver logic is to increase the DHD_IOCTL_MAXLEN size. This macro defines the "size"
  * of the buffer in which data is exchanged between the DHD App and DHD driver.
  */
-#define	DHD_IOCTL_MAXLEN	(16384)	/* max length ioctl buffer required */
+#define	DHD_IOCTL_MAXLEN	16384	/* max length ioctl buffer required */
 #define	DHD_IOCTL_SMLEN		256		/* "small" length ioctl buffer required */
 
 /*
@@ -243,7 +243,7 @@ typedef enum dhd_iface_mgmt_policy {
  * Ex:- DHD dump output buffer is more than 16K.
  */
 #define	DHD_IOCTL_MAXLEN_48K	(48 * 1024)
-#define	DHD_IOCTL_MAXLEN_32K	(32768u)
+#define	DHD_IOCTL_MAXLEN_32K	32768u
 #define DHD_DUMP_IOCTL_MAXLEN DHD_IOCTL_MAXLEN_48K
 
 /* common ioctl definitions */
@@ -332,11 +332,11 @@ typedef struct dhd_pktgen {
 #define DHD_MEMBYTES_FLAGS_SET_BAR(x, b)	((x) |= ((b) & DHD_MEMBYTES_FLAGS_BAR_MASK))
 
 /* Enter idle immediately (no timeout) */
-#define DHD_IDLE_IMMEDIATE	(-1)
+#define DHD_IDLE_IMMEDIATE	-1
 
 /* Values for idleclock iovar: other values are the sd_divisor to use when idle */
 #define DHD_IDLE_ACTIVE	0	/* Do not request any SD clock change when idle */
-#define DHD_IDLE_STOP   (-1)	/* Request SD clock be stopped (and use SD1 mode) */
+#define DHD_IDLE_STOP   -1	/* Request SD clock be stopped (and use SD1 mode) */
 
 enum dhd_maclist_xtlv_type {
 	DHD_MACLIST_XTLV_R = 0x1,
@@ -491,14 +491,14 @@ typedef struct dhd_tx_profile_protocol {
 	uint16	dest_port;
 } dhd_tx_profile_protocol_t;
 
-#define DHD_TX_PROFILE_DATA_LINK_LAYER	(2u)	/* data link layer protocols */
-#define DHD_TX_PROFILE_NETWORK_LAYER	(3u)	/* network layer protocols */
+#define DHD_TX_PROFILE_DATA_LINK_LAYER	2u	/* data link layer protocols */
+#define DHD_TX_PROFILE_NETWORK_LAYER	3u	/* network layer protocols */
 
-#define DHD_MAX_PROFILE_INDEX	(7u)	/* three bits are available to encode
+#define DHD_MAX_PROFILE_INDEX	7u	/* three bits are available to encode
 					   the tx profile index in the rate
 					   field in host_txbuf_post_t
 					 */
-#define DHD_MAX_PROFILES	(1u)	/* ucode only supports 1 profile atm */
+#define DHD_MAX_PROFILES	1u	/* ucode only supports 1 profile atm */
 
 #endif /* defined(DHD_TX_PROFILE) */
 

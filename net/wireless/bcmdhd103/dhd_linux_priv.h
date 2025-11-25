@@ -505,7 +505,24 @@ typedef struct dhd_info {
 #ifdef DHD_PCIE_WRAPPER_DUMP
 	struct proc_dir_entry *dhd_wrapper_dump_proc;
 #endif /* DHD_PCIE_WRAPPER_DUMP */
+#ifdef ARP_CHECK_SUPPORT
+	/* variable for ARP check functions */
+	bool arp_check_enable; /* Need to enable it in config file */
+	bool arp_trigger_start; /*set it for ARP req trigger */
+	bool arp_check_timer_valid;
+	uint arp_check_interval;
+	uint arp_check_timeout;
+	u32 gw_ipaddr; /* Saved gateway for Wlan0 */
+	timer_list_compat_t arp_check_timer;
+	u32 local_ipaddr; /* save local ip addr to send ARP req */
+	uint arp_tick_cnt; /* record the tick when recv ARP resp */
+	/* To send disassoc when ARP resp timeout */
+	struct delayed_work arp_disconnect_work;
+#endif /* ARP_CHECK_SUPPORT */
 } dhd_info_t;
+
+#define DHD_ARP_CHECK_INTERVAL 1000 /* ms */
+#define DHD_ARP_CHECK_TIMEOUT 30 /* tick interval *100ms */
 
 /** priv_link is the link between netdev and the dhdif and dhd_info structs. */
 typedef struct dhd_dev_priv {

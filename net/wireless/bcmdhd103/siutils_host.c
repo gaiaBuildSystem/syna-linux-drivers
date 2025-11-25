@@ -53,7 +53,10 @@
 #include <bcmsdh.h>
 #include <sbsdio.h>
 #include <sdio.h>
-#endif
+#ifdef BCMSPI
+#include <spid.h>
+#endif /* BCMSPI */
+#endif /* BCMSDIO */
 #include <hndsoc.h>
 #ifdef SOCI_NCI_BUS
 #include <nci.h>

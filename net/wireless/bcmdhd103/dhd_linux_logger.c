@@ -753,6 +753,7 @@ dhd_os_log_fill_buffer_kthread(void *ctxt)
 
 exit:
 	DHD_INFO(("%s: exit\n", __FUNCTION__));
+	tsk->parent = NULL;
 	KTHREAD_COMPLETE_AND_EXIT(&tsk->completed, 0);
 	return BCME_OK;
 }

@@ -1313,9 +1313,10 @@ void wl_cfgvendor_custom_advlog_roam_log(void *plog, uint32 armcycle);
 #endif /* WL_CFGVENDOR_CUST_ADVLOG */
 
 #define WIFI_CACHED_SCAN_RESULT_SIZE sizeof(wifi_cached_scan_result_t)
+#ifndef TIMESPEC64_TO_US
 #define TIMESPEC64_TO_US(ts)  (((ts).tv_sec * USEC_PER_SEC) + \
 		(ts).tv_nsec / NSEC_PER_USEC)
-
+#endif /* TIMESPEC64_TO_US */
 typedef enum {
 	ANDR_WIFI_ATTRIBUTE_CACHED_SCAN_INVALID                 = 0,
 	ANDR_WIFI_ATTRIBUTE_CACHED_SCAN_BOOT_TIMESTAMP		= 1,

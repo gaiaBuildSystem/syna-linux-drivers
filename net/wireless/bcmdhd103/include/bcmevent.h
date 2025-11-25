@@ -354,7 +354,8 @@ typedef union bcm_event_msg_u {
 #define WLC_E_SSID_MITIGATION           217     /* SSID mitigation event */
 #define WLC_E_REQUEST_CLM		218	/* Request CLM reload */
 #define WLC_E_REQUEST_TXCAP		219	/* Request TXCAP reload */
-#define WLC_E_LAST			220	/* highest val + 1 for range checking */
+#define WLC_E_OWE_PMK_INFO		220	/* Event to send the pmk and the pmkid for OWE */
+#define WLC_E_LAST			221	/* highest val + 1 for range checking */
 
 /* define an API for getting the string name of an event */
 extern const char *bcmevent_get_name(uint event_type);
@@ -774,17 +775,6 @@ typedef BWL_PRE_PACKED_STRUCT struct wl_event_rx_frame_data_v1 {
 } BWL_POST_PACKED_STRUCT wl_event_rx_frame_data_v1_t;
 
 #define BCM_RX_FRAME_DATA_VERSION_1 1u
-
-#ifndef WL_EVENT_RX_FRAME_DATA_ALIAS
-#ifdef WL_EVENT_RX_FRAME_DATA_ALIAS_ADDR
-#define BCM_RX_FRAME_DATA_VERSION BCM_RX_FRAME_DATA_VERSION_3
-typedef wl_event_rx_frame_data_v3_t wl_event_rx_frame_data_t;
-#else /* !WL_EVENT_RX_FRAME_DATA_ALIAS_ADDR */
-
-#define BCM_RX_FRAME_DATA_VERSION BCM_RX_FRAME_DATA_VERSION_1
-typedef wl_event_rx_frame_data_v1_t wl_event_rx_frame_data_t;
-#endif /* WL_EVENT_RX_FRAME_DATA_ALIAS_ADDR */
-#endif /* WL_EVENT_RX_FRAME_DATA_ALIAS */
 
 /* WLC_E_IF event data */
 typedef struct wl_event_data_if {
@@ -1521,7 +1511,7 @@ typedef struct wl_event_tvpm_mitigation {
 
 /* Event structures for sub health checks of PHY */
 
-#define WL_PHY_HC_DESENSE_STATS_VER (1)
+#define WL_PHY_HC_DESENSE_STATS_VER 1
 typedef struct wl_hc_desense_stats {
 	uint16 version;
 	uint16 chanspec;
@@ -1531,7 +1521,7 @@ typedef struct wl_hc_desense_stats {
 	int8 glitch_upd_wait; /* wait post ACI mitigation */
 } wl_hc_desense_stats_v1_t;
 
-#define WL_PHY_HC_TEMP_STATS_VER (1)
+#define WL_PHY_HC_TEMP_STATS_VER 1
 typedef struct wl_hc_temp_stats {
 	uint16 version;
 	uint16 chanspec;
@@ -1544,7 +1534,7 @@ typedef struct wl_hc_temp_stats {
 	uint8 pad[2];
 } wl_hc_temp_stats_v1_t;
 
-#define WL_PHY_HC_TEMP_STATS_VER_2 (2)
+#define WL_PHY_HC_TEMP_STATS_VER_2 2
 typedef struct {
 	uint16 version;
 	uint16 chanspec;
@@ -1552,7 +1542,7 @@ typedef struct {
 	uint8 pad[2];
 } wl_hc_temp_stats_v2_t;
 
-#define WL_PHY_HC_VCOCAL_STATS_VER (1)
+#define WL_PHY_HC_VCOCAL_STATS_VER 1
 typedef struct wl_hc_vcocal_stats {
 	uint16 version;
 	uint16 chanspec;
@@ -1568,7 +1558,7 @@ typedef struct wl_hc_vcocal_stats {
 	uint16 cc_auxcap;
 } wl_hc_vcocal_stats_v1_t;
 
-#define WL_PHY_HC_TXPWR_STATS_VER (1)
+#define WL_PHY_HC_TXPWR_STATS_VER 1
 typedef struct wl_hc_tx_stats {
 	uint16 version;
 	uint16 chanspec;
@@ -1582,7 +1572,7 @@ typedef struct wl_hc_tx_stats {
 	uint8 pad[3];
 } wl_hc_txpwr_stats_v1_t;
 
-#define WL_PHY_HC_TXPWR_STATS_VER_2 (2)
+#define WL_PHY_HC_TXPWR_STATS_VER_2 2
 typedef struct {
 	uint16 version;
 	uint16 chanspec;
@@ -1792,7 +1782,7 @@ typedef struct wlc_bcn_mute_miti_event_data_v3 {
 } wlc_bcn_mute_miti_event_data_v3_t;
 
 /* bcn_drift event data */
-#define WLC_BCN_DRIFT_EVENT_DATA_VER_1	(1u)
+#define WLC_BCN_DRIFT_EVENT_DATA_VER_1	1u
 typedef struct wlc_bcn_drift_event_data_v1 {
 	uint16	version;	/* Structure version number */
 	uint16	length;		/* Length of the whole struct */
@@ -1838,7 +1828,7 @@ typedef struct wl_event_mscs {
 #define WL_MSCS_EVENT_VERSION	1u
 
 /* MLO link information (WLC_E_MLO_LINK_INFO) event data */
-#define WL_MLO_LINK_INFO_EVENT_VERSION_1	(1u)
+#define WL_MLO_LINK_INFO_EVENT_VERSION_1	1u
 
 typedef enum wl_mlo_link_info_opcode {
 	WL_MLO_LINK_INFO_OPCODE_ADD		= 1,	/* MLO links addition */
@@ -1886,7 +1876,7 @@ typedef enum wl_icm_reason {
 } wl_icm_reason_t;
 
 /* ICM information (WLC_E_ICM) event data */
-#define WL_ICM_EVENT_VERSION_1	(1u)
+#define WL_ICM_EVENT_VERSION_1	1u
 
 /* ICM information event structure */
 typedef struct wl_icm_event_v1 {
@@ -1920,7 +1910,7 @@ typedef enum wl_c2c_events {
 } wl_c2c_events_e;
 
 /* OMI ULMU disabled reason code update event */
-#define WL_ULMU_DISABLE_REASON_UPD_EVENT_VERSION_1	(1u)
+#define WL_ULMU_DISABLE_REASON_UPD_EVENT_VERSION_1	1u
 typedef struct wl_ulmu_disable_reason_upd_event_v1 {
 	uint16	version;
 	uint16	length;
@@ -2004,10 +1994,10 @@ enum wl_eds_event_sub_type {
 typedef uint8 wl_eds_event_sub_type_t;
 
 /* WLC_E_EDS_MATCH_REPORT_EVENT */
-#define WL_EDS_MATCH_REPORT_EVENT_VERSION_1	(1u)
-#define WL_EDS_RADIO_INDICATOR_RADIO_ENC_MASK	(0x0Fu)
+#define WL_EDS_MATCH_REPORT_EVENT_VERSION_1	1u
+#define WL_EDS_RADIO_INDICATOR_RADIO_ENC_MASK	0x0Fu
 #define WL_EDS_RADIO_INDICATOR_BAND_SHIFT	4u
-#define WL_EDS_RADIO_INDICATOR_BAND_MASK	(0xF0u)
+#define WL_EDS_RADIO_INDICATOR_BAND_MASK	0xF0u
 /* low nibble indicates radio bitmap (wl_eds_radio_enc_t).
  * high nibble indicates band bitmap (wl_eds_radio_ind_band).
  */
@@ -2068,7 +2058,7 @@ enum wl_eds_validity_mask_bitpos {
 typedef uint8 wl_eds_validity_mask_t;
 
 /* WLC_E_EDS_FILTER_STATUS_EVENT */
-#define WL_EDS_FILTER_STATUS_EVENT_VERSION_1    (1u)
+#define WL_EDS_FILTER_STATUS_EVENT_VERSION_1    1u
 typedef struct wl_eds_filter_status_v1 {
 	uint8				filter_id;
 	wl_eds_radio_enc_t		radio_enc;
@@ -2088,7 +2078,7 @@ typedef struct wl_eds_filter_status_event_v1 {
 } wl_eds_filter_status_event_v1_t;
 
 /* WLC_E_EDS_STATUS_EVENT */
-#define WL_EDS_STATUS_EVENT_VERSION_1    (1u)
+#define WL_EDS_STATUS_EVENT_VERSION_1    1u
 typedef struct wl_eds_status_event_v1 {
 	uint16				version;
 	uint16				length;

@@ -789,7 +789,7 @@ dhd_tcpack_suppress(dhd_pub_t *dhdp, void *pkt)
 	DHD_TRACE(("%s %d: TCP pkt!\n", __FUNCTION__, __LINE__));
 
 	/* is it an ack ? Allow only ACK flag, not to suppress others. */
-	if (new_tcp_hdr[TCP_FLAGS_OFFSET] != TCP_FLAG_ACK) {
+	if (new_tcp_hdr[TCP_FLAGS_OFFSET] != DHD_TCP_FLAG_ACK) {
 		DHD_TRACE(("%s %d: Do not touch TCP flag 0x%x\n",
 			__FUNCTION__, __LINE__, new_tcp_hdr[TCP_FLAGS_OFFSET]));
 		goto exit;
@@ -1033,7 +1033,7 @@ dhd_tcpdata_info_get(dhd_pub_t *dhdp, void *pkt)
 
 	ASSERT(ip_total_len > ip_hdr_len + tcp_hdr_len);
 
-	if ((tcp_hdr[TCP_FLAGS_OFFSET] & TCP_FLAG_PSH) == 0) {
+	if ((tcp_hdr[TCP_FLAGS_OFFSET] & DHD_TCP_FLAG_PSH) == 0) {
 		DHD_TRACE(("%s %d: Not interested TCP DATA packet\n", __FUNCTION__, __LINE__));
 		goto exit;
 	}
@@ -1259,7 +1259,7 @@ dhd_tcpack_hold(dhd_pub_t *dhdp, void *pkt, int ifidx)
 	DHD_TRACE(("%s %d: TCP pkt!\n", __FUNCTION__, __LINE__));
 
 	/* is it an ack ? Allow only ACK flag, not to suppress others. */
-	if (new_tcp_hdr[TCP_FLAGS_OFFSET] != TCP_FLAG_ACK) {
+	if (new_tcp_hdr[TCP_FLAGS_OFFSET] != DHD_TCP_FLAG_ACK) {
 		DHD_TRACE(("%s %d: Do not touch TCP flag 0x%x\n",
 			__FUNCTION__, __LINE__, new_tcp_hdr[TCP_FLAGS_OFFSET]));
 		goto exit;
@@ -1454,8 +1454,8 @@ dhd_tcpdata_get_flag(dhd_pub_t *dhdp, void *pkt)
 
 	flags = (uint8)tcp_hdr[TCP_FLAGS_OFFSET];
 
-	if (flags & TCP_FLAG_SYN) {
-		if (flags & TCP_FLAG_ACK) {
+	if (flags & DHD_TCP_FLAG_SYN) {
+		if (flags & DHD_TCP_FLAG_ACK) {
 			return FLAG_SYNCACK;
 		}
 		return FLAG_SYNC;

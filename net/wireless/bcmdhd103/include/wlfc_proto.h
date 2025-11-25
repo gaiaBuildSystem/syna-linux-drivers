@@ -422,7 +422,7 @@ typedef enum {
 /* Firmware forced packet lifetime expiry */
 #define WLFC_CTL_PKTFLAG_FORCED_EXPIRED	10
 
-#define WLFC_CTL_PKTFLAG_MASK		(0x0f)	/* For 4-bit mask with one extra bit */
+#define WLFC_CTL_PKTFLAG_MASK		0x0f	/* For 4-bit mask with one extra bit */
 
 #if defined(PROP_TXSTATUS_DEBUG) && !defined(BINCMP)
 #define WLFC_DBGMESG(x) printf x
@@ -477,7 +477,7 @@ typedef enum {
 /** returns TRUE if 'd11 sequence reuse' has been agreed upon between host and dongle */
 #if defined(BCMPCIEDEV_ENABLED)
 /* GET_REUSESEQ is always TRUE in pciedev */
-#define WLFC_GET_REUSESEQ(x)	(TRUE)
+#define WLFC_GET_REUSESEQ(x)	TRUE
 #else
 #define WLFC_GET_REUSESEQ(x)	(((x) >> WLFC_MODE_REUSESEQ_SHIFT) & 1)
 #endif /* defined(BCMPCIEDEV_ENABLED) */

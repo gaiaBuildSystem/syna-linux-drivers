@@ -65,10 +65,10 @@ typedef struct bcm_tlv {
 #define BCM_TLV_NEXT(_tlv) (bcm_tlv_t *)((uint8 *)(_tlv)+ BCM_TLV_SIZE(_tlv))
 
 /* tlv length is restricted to 1 byte */
-#define BCM_TLV_MAX_DATA_SIZE (255)
+#define BCM_TLV_MAX_DATA_SIZE 255
 
 /* tlv header - two bytes */
-#define BCM_TLV_HDR_SIZE (OFFSETOF(bcm_tlv_t, data))
+#define BCM_TLV_HDR_SIZE OFFSETOF(bcm_tlv_t, data)
 
 /* Check that bcm_tlv_t fits into the given buffer len */
 #define bcm_valid_tlv(elt, buflen)					\
@@ -89,10 +89,10 @@ typedef struct bcm_tlv_ext {
 	(bcm_tlv_ext_t *)((uint8 *)(_tlv_ext)+ BCM_TLV_EXT_SIZE(_tlv_ext))
 
 /* tlv_ext length is restricted to 1 byte */
-#define BCM_TLV_EXT_MAX_DATA_SIZE (254u)
+#define BCM_TLV_EXT_MAX_DATA_SIZE 254u
 
 /* tlv_ext header - three bytes */
-#define BCM_TLV_EXT_HDR_SIZE (OFFSETOF(bcm_tlv_ext_t, data))
+#define BCM_TLV_EXT_HDR_SIZE OFFSETOF(bcm_tlv_ext_t, data)
 
 /* size of tlv_ext including data */
 #define BCM_TLV_EXT_SIZE(_tlv_ext) (BCM_TLV_EXT_HDR_SIZE + (_tlv_ext)->len)
@@ -375,7 +375,7 @@ struct bcm_xlv {
 };
 typedef struct bcm_xlv bcm_xlv_t;
 
-#define XLV_HDR_LEN		(OFFSETOF(bcm_xlv_t, data))
+#define XLV_HDR_LEN		OFFSETOF(bcm_xlv_t, data)
 #define XLV_TOTAL_LEN(xlv)	(BCM_XTLV_LEN(xlv) + XLV_HDR_LEN)
 
 struct bcm_xlvp {
@@ -398,18 +398,18 @@ struct bcm_const_ulvp {
 
 typedef struct bcm_const_ulvp bcm_const_ulvp_t;
 
-#define BCM_XTLV_GATHER_DESC_TUPLES_MAX		(3u)
+#define BCM_XTLV_GATHER_DESC_TUPLES_MAX		3u
 
 /* Bits 3..0 are for num tuples but really only 1..0 are used others are reserved
  * for now
  */
-#define BCM_XTLV_GATHER_DESC_NUM_TUPLES_MASK		(0x3u)
+#define BCM_XTLV_GATHER_DESC_NUM_TUPLES_MASK		0x3u
 /* Bit 4 indicates if the tuple is a container level descriptor set */
 /* Support for 2 level packing with one container and leaf level XTLVs */
 /* If set, the last tuple in the descriptor points to a another set of
  * gather XTLV descs
  */
-#define BCM_XTLV_GATHER_DESC_CONTAINER_MASK	(0x10u)
+#define BCM_XTLV_GATHER_DESC_CONTAINER_MASK	0x10u
 /* Bit 5 and later are reserved */
 
 #define BCM_XTLV_GATHER_DESC_NUM_TUPLES(desc)	\

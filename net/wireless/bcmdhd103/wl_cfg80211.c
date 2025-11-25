@@ -3885,7 +3885,12 @@ wl_cfg80211_post_ifcreate(struct net_device *ndev,
 	}
 
 #ifdef WL_STATIC_IF
-	if (IS_CFG80211_STATIC_IF_NAME(cfg, name) || IS_NMI_IFACE(name)) {
+#ifdef WL_NAN
+	if (IS_CFG80211_STATIC_IF_NAME(cfg, name) || IS_NMI_IFACE(name))
+#else
+	if (IS_CFG80211_STATIC_IF_NAME(cfg, name))
+#endif
+	{
 		new_ndev = wl_cfg80211_post_static_ifcreate(cfg, event, addr, iface_type);
 		if (!new_ndev) {
 			WL_ERR(("failed to get I/F pointer\n"));
@@ -3967,11 +3972,14 @@ fail:
 		cfg->static_ndev_state = NDEV_STATE_FW_IF_FAILED;
 		wl_cfg80211_update_iflist_info(cfg, new_ndev, event->ifidx, addr,
 			event->bssidx, event->name, NDEV_STATE_FW_IF_FAILED);
-	} else if (IS_NMI_IFACE(name)) {
+	}
+#ifdef WL_NAN
+	else if (IS_NMI_IFACE(name)) {
 		cfg->nmi_ndev_state = NDEV_STATE_FW_IF_FAILED;
 		wl_cfg80211_update_iflist_info(cfg, new_ndev, event->ifidx, addr,
 			event->bssidx, event->name, NDEV_STATE_FW_IF_FAILED);
 	}
+#endif /* WL_NAN */
 #endif /* WL_STATIC_IF */
 	if (new_ndev) {
 		/* wdev would be freed from netdev destructor call back */
@@ -4121,7 +4129,12 @@ _wl_cfg80211_post_ifdel(struct net_device *ndev, bool rtnl_lock_reqd, s32 ifidx)
 	}
 
 #ifdef WL_STATIC_IF
-	if (IS_CFG80211_STATIC_IF(cfg, ndev) || IS_NMI_IFACE(ndev->name)) {
+#ifdef WL_NAN
+	if (IS_CFG80211_STATIC_IF(cfg, ndev) || IS_NMI_IFACE(ndev->name))
+#else
+	if (IS_CFG80211_STATIC_IF(cfg, ndev))
+#endif /* WL_NAN */
+	{
 		ret = wl_cfg80211_post_static_ifdel(cfg, ndev, ifidx, netinfo->bssidx);
 	} else
 #endif /* WL_STATIC_IF */
@@ -14620,15 +14633,24 @@ wl_handle_sta_link_action(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 	switch (as->link_action) {
 		case WL_LINK_ASSOC_DONE:
 			ret = wl_handle_assoc_done(cfg, as);
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+			dhd_dev_set_arp_trigger(as->ndev, 1);
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 			break;
 		case WL_LINK_ASSOC_FAIL:
 			ret = wl_handle_assoc_fail(cfg, as, FALSE);
 			break;
 		case WL_LINK_DOWN:
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+			dhd_dev_set_arp_trigger(as->ndev, 0);
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 			ret = wl_handle_link_down(cfg, as);
 			break;
 		case WL_LINK_ROAM_DONE:
 			ret = wl_handle_roam_done(cfg, as);
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+			dhd_dev_set_arp_trigger(as->ndev, 1);
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 			break;
 		case WL_LINK_FORCE_DEAUTH:
 			wl_cfg80211_disassoc(as->ndev, WLAN_REASON_DEAUTH_LEAVING);
@@ -15862,6 +15884,9 @@ s32 wl_validate_bss_length(uint32 version, uint32 tot_len, uint32 ie_length)
 		break;
 	case 116:
 		len += sizeof(wl_bss_info_v116_t);
+		break;
+	case 117:
+		len += sizeof(wl_bss_info_v117_t);
 		break;
 	default:
 		/* If the version is not supported,

@@ -80,7 +80,7 @@
 /* Number of octents in master rank value. */
 #define NAN_MASTER_RANK_LEN     8
 /* NAN public action frame header size */
-#define NAN_PUB_ACT_FRAME_HDR_SIZE (OFFSETOF(nan_pub_act_frame_t, data))
+#define NAN_PUB_ACT_FRAME_HDR_SIZE OFFSETOF(nan_pub_act_frame_t, data)
 /* NAN network ID */
 #define NAN_NETWORK_ID		"\x51\x6F\x9A\x01\x00\x00"
 /* NAN Cluster ID common bytes length */
@@ -253,7 +253,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_ie_s {
 	uint8	attr[];	/* var len attributes */
 } BWL_POST_PACKED_STRUCT wifi_nan_ie_t;
 
-#define NAN_IE_HDR_SIZE	(OFFSETOF(wifi_nan_ie_t, attr))
+#define NAN_IE_HDR_SIZE	OFFSETOF(wifi_nan_ie_t, attr)
 
 /* master indication record  */
 typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_master_ind_attr_s {
@@ -403,7 +403,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_vendor_attr_s {
 	uint8	attr[BCM_FLEX_ARRAY];	/* var len attributes */
 } BWL_POST_PACKED_STRUCT wifi_nan_vendor_attr_t;
 
-#define NAN_VENDOR_HDR_SIZE	(OFFSETOF(wifi_nan_vendor_attr_t, attr))
+#define NAN_VENDOR_HDR_SIZE	OFFSETOF(wifi_nan_vendor_attr_t, attr)
 
 /* vendor specific attribute */
 typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_vndr_attr_s {
@@ -516,7 +516,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_ranging_setup_attr_s {
 	uint8 data[];	/* schedule entry list */
 } BWL_POST_PACKED_STRUCT wifi_nan_ranging_setup_attr_t;
 
-#define NAN_RANGE_SETUP_ATTR_OFFSET_TBM_INFO (OFFSETOF(wifi_nan_ranging_setup_attr_t, data))
+#define NAN_RANGE_SETUP_ATTR_OFFSET_TBM_INFO OFFSETOF(wifi_nan_ranging_setup_attr_t, data)
 
 typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_ranging_report_attr_s {
 	uint8 id;			/* 0x1C */
@@ -1301,7 +1301,7 @@ typedef BWL_PRE_PACKED_STRUCT struct nan2_pub_act_frame_s {
 	uint8 data[];
 } BWL_POST_PACKED_STRUCT nan2_pub_act_frame_t;
 
-#define NAN2_PUB_ACT_FRM_SIZE	(OFFSETOF(nan2_pub_act_frame_t, data))
+#define NAN2_PUB_ACT_FRM_SIZE	OFFSETOF(nan2_pub_act_frame_t, data)
 
 /* NAN Action Frame Subtypes */
 /* Subtype-0 is Reserved */
@@ -1694,7 +1694,7 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_svc_desc_ext_attr_s {
  * 10: GTKSA, IGTKSA, and BIGTKSA are supported;
  * 11: Reserved;
  */
-#define NAN_SEC_CIPHER_SUITE_CAP_DIS_GTK_IGTK_BIGTK     (0u)
+#define NAN_SEC_CIPHER_SUITE_CAP_DIS_GTK_IGTK_BIGTK     0u
 #define NAN_SEC_CIPHER_SUITE_CAP_DIS_BIGTK		(1u << 1u)
 #define NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK	(1u << 2u)
 
@@ -1702,18 +1702,18 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_svc_desc_ext_attr_s {
  * Bit 3 is 0 for 4 GTKSA replay counters, if GTKSA is supported
  * Bit 3 is 1 for 16 GTKSA replay counters, if GTKSA is supported
  */
-#define NAN_SEC_CIPHER_SUITE_CAP_GTK_REPLAY_4		(0u)
+#define NAN_SEC_CIPHER_SUITE_CAP_GTK_REPLAY_4		0u
 #define NAN_SEC_CIPHER_SUITE_CAP_GTK_REPLAY_16		(1u << 3u)
 
 /*
  * Bit 4 is 0: BIP-CMAC-128 is selected for transmit, if IGTKSA or BIGTKSA is supported
  * Bit 4 is 1: BIP-GMAC-256 is selected for transmit, if IGTKSA or BIGTKSA is supported
  */
-#define NAN_SEC_CIPHER_SUITE_CAP_BIP_CMAC_128		(0u)
+#define NAN_SEC_CIPHER_SUITE_CAP_BIP_CMAC_128		0u
 #define NAN_SEC_CIPHER_SUITE_CAP_BIP_GMAC_256		(1u << 4u)
 
 /* Bits 1-4 */
-#define NAN_SEC_CIPHER_SUITE_CAP_GROUP_SEC_MASK		(0x1Eu)
+#define NAN_SEC_CIPHER_SUITE_CAP_GROUP_SEC_MASK		0x1Eu
 
 #define NAN_SEC_BIP_ENABLED(cap)	((cap) & \
 	(NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK | \

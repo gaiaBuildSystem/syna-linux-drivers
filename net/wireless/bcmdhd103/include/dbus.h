@@ -123,7 +123,7 @@ enum {
 #define DBUS_BUFFER_SIZE_RX_NOAGG	2048
 
 /* Size of USB data packets that are transmitted in CPUless mode */
-#define DBUS_PACKET_SIZE_CPULESS	(8u)
+#define DBUS_PACKET_SIZE_CPULESS	8u
 
 /** DBUS types */
 enum {

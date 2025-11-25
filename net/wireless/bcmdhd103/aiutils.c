@@ -1156,7 +1156,7 @@ ai_corereg_writeonly(si_t *sih, uint coreidx, uint regoff, uint mask, uint val)
  * NULL.
  */
 volatile uint32 *
-BCMPOSTTRAPFN(ai_corereg_addr)(si_t *sih, uint coreidx, uint regoff)
+BCMPOSTTRAPFN(ai_corereg_addr)(const si_t *sih, uint coreidx, uint regoff)
 {
 	volatile uint32 *r = NULL;
 	bool fast = FALSE;

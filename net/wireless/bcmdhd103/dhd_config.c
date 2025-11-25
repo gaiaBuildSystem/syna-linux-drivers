@@ -1167,6 +1167,18 @@ dhd_preinit_config_proc(dhd_pub_t *dhd, int ifidx, char *name, char *value)
 		dhd_bus_aspm_enable_rc_ep(dhd->bus, var_int);
 	}
 #endif /* BCMPCIE */
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	else if (!strcasecmp(name, "arp_check_enab")) {
+		dhd->info->arp_check_enable = (bool)simple_strtol(value, NULL, 0);
+		DHD_ERROR(("%s: set the ARP CHECK enable to be %d\n", __FUNCTION__, dhd->info->arp_check_enable));
+	} else if (!strcasecmp(name, "arp_check_interval")) {
+		dhd->info->arp_check_interval = (uint)simple_strtol(value, NULL, 0);
+		DHD_ERROR(("%s: set the ARP CHECK interval to be %d\n", __FUNCTION__, dhd->info->arp_check_interval));
+	} else if (!strcasecmp(name, "arp_check_timeout")) {
+		dhd->info->arp_check_timeout = (uint)simple_strtol(value, NULL, 0);
+		DHD_ERROR(("%s: set the ARP CHECK timeout to be %d\n", __FUNCTION__, dhd->info->arp_check_timeout));
+	}
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 	/* other default */
 	else {
 		/* wlu_iovar_setint */

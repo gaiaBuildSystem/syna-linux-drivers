@@ -131,8 +131,8 @@
 /* Conditional compile for debug */
 /* #define BCM_RING_DEBUG */
 
-#define BCM_RING_EMPTY                      (-1)
-#define BCM_RING_FULL                       (-1)
+#define BCM_RING_EMPTY                      -1
+#define BCM_RING_FULL                       -1
 #define BCM_RING_NULL                       ((bcm_ring_t *)NULL)
 
 #if defined(BCM_RING_DEBUG)
@@ -495,7 +495,7 @@ typedef struct bcm_workq bcm_workq_t;
 
 #define BCM_WORKQ_NULL                  ((bcm_workq_t *)NULL)
 
-#define WORKQ_PEER(workq)               ((workq)->peer)
+#define WORKQ_PEER(workq)               (workq)->peer
 #define WORKQ_RING(workq)               (&((workq)->ring))
 #define WORKQ_PEER_RING(workq)          (&((workq)->peer->ring))
 

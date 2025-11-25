@@ -925,8 +925,11 @@ static int dhd_wifi_platform_load_sdio(void)
 				return err;
 			}
 #endif
+			adapter->load_fail = FALSE;
 
-			if (down_timeout(&dhd_chipup_sem, msecs_to_jiffies(POWERUP_WAIT_MS)) == 0) {
+			if ((down_timeout(&dhd_chipup_sem,
+				msecs_to_jiffies(POWERUP_WAIT_MS)) == 0) &&
+				(adapter->load_fail == FALSE)) {
 				dhd_bus_unreg_sdio_notify();
 				chip_up = TRUE;
 #ifndef CUSTOMER_HW_AMLOGIC

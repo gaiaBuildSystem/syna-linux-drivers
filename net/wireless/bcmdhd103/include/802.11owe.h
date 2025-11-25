@@ -60,7 +60,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_dh_param_ie {
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_dh_param_ie dot11_dh_param_ie_t;
 
-#define DOT11_DH_EXTID_OFFSET   (OFFSETOF(dot11_dh_param_ie_t, ext_id))
+#define DOT11_DH_EXTID_OFFSET   OFFSETOF(dot11_dh_param_ie_t, ext_id)
 
 #define DOT11_OWE_DH_PARAM_IE(_ie) (\
 	DOT11_MNG_IE_ID_EXT_MATCH(_ie, EXT_MNG_OWE_DH_PARAM_ID))

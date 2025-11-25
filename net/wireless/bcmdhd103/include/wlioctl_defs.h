@@ -55,9 +55,6 @@
 #define BCMWL_IOCTL_GUID \
 	{0xB4910A35, 0x88C5, 0x4328, { 0x90, 0x08, 0x9F, 0xB2, 0x00, 0x00, 0x0, 0x0 } }
 #endif /* EFI */
-/* All builds use the new 11ac ratespec/chanspec */
-#undef  D11AC_IOTYPES
-#define D11AC_IOTYPES
 
 #ifdef USE_LEGACY_RSPEC_DEFS
 typedef uint32 ratespec_t;
@@ -292,20 +289,6 @@ typedef uint32 ratespec_t;
 #define WL_SCANFLAGS_INCL_ORIG_RNR		0x800U	/* Include scan results with
 							* matching RNR BSS
 							*/
-/*  This is to re purpose the definition to firmware internal use.
- *  By repurposing these bit values can be used for host.
- *  These are moved to higher bits and defined in firmware.
- */
-#ifndef WL_SCANFLAGS_INT_SCANTYPE_HAS_ALIAS
-/* Mask bit for Assoc scan, Roam scan, Other FW scan, Host scan bit defines */
-#define WL_SCANFLAGS_CLIENT_MASK	0xF00u
-#define WL_SCANFLAGS_CLIENT_SHIFT	8
-#define WL_SCANFLAGS_ASSOCSCAN  0x100U   /* Assoc scan    */
-#define WL_SCANFLAGS_ROAMSCAN   0x200U   /* Roam scan     */
-#define WL_SCANFLAGS_FWSCAN     0x400U   /* Other FW scan */
-#define WL_SCANFLAGS_HOSTSCAN   0x800U   /* Host scan     */
-#endif /*  WL_SCANFLAGS_INT_SCANTYPE_HAS_ALIAS */
-
 #define WL_SCANFLAGS_LOW_POWER_SCAN     0x1000U /* LOW power scan, scheduled scan
 						* only on scancore
 						*/
@@ -355,8 +338,8 @@ typedef uint32 ratespec_t;
  * SCAN_PARALLEL_PASSIVE_5G ==> 5g-5g parallel scan
  * SCAN_PARALLEL_PASSIVE_2G ==> 2g-2g parallel scan
  */
-#define SCAN_PARALLEL_PASSIVE_5G	(0x40)
-#define SCAN_PARALLEL_PASSIVE_2G	(0x80)
+#define SCAN_PARALLEL_PASSIVE_5G	0x40
+#define SCAN_PARALLEL_PASSIVE_2G	0x80
 
 #define SCANOL_ENABLED			(1 << 0)
 #define SCANOL_BCAST_SSID		(1 << 1)
@@ -463,7 +446,7 @@ typedef uint32 ratespec_t;
  *	- PCL to be off
  */
 
-#define BCM_MAC_STATUS_INDICATION	(0x40010200L)
+#define BCM_MAC_STATUS_INDICATION	0x40010200L
 
 /* Values for TX Filter override mode */
 #define WLC_TXFILTER_OVERRIDE_DISABLED  0
@@ -561,8 +544,8 @@ typedef uint32 ratespec_t;
 					KEY_ALGO_MASK(CRYPTO_ALGO_AES_CCM256) | \
 					KEY_ALGO_MASK(CRYPTO_ALGO_AES_GCM) | \
 					KEY_ALGO_MASK(CRYPTO_ALGO_AES_GCM256))
-#define KEY_ALGO_MASK_TKIP		(KEY_ALGO_MASK(CRYPTO_ALGO_TKIP))
-#define KEY_ALGO_MASK_WAPI		(KEY_ALGO_MASK(CRYPTO_ALGO_SMS4))
+#define KEY_ALGO_MASK_TKIP		KEY_ALGO_MASK(CRYPTO_ALGO_TKIP)
+#define KEY_ALGO_MASK_WAPI		KEY_ALGO_MASK(CRYPTO_ALGO_SMS4)
 
 #define WSEC_GEN_MIC_ERROR	0x0001
 #define WSEC_GEN_REPLAY		0x0002
@@ -610,9 +593,9 @@ typedef uint32 ratespec_t;
 #define WSEC_TKIP_ENABLED(wsec)	((wsec) & TKIP_ENABLED)
 #define WSEC_AES_ENABLED(wsec)	((wsec) & AES_ENABLED)
 #else /* WLWSEC */
-#define WSEC_WEP_ENABLED(wsec)	(FALSE)
-#define WSEC_TKIP_ENABLED(wsec) (FALSE)
-#define WSEC_AES_ENABLED(wsec)	(FALSE)
+#define WSEC_WEP_ENABLED(wsec)	FALSE
+#define WSEC_TKIP_ENABLED(wsec) FALSE
+#define WSEC_AES_ENABLED(wsec)	FALSE
 #endif /* WLWSEC */
 
 /* Macros to check if algorithm is enabled */
@@ -649,7 +632,7 @@ typedef uint32 ratespec_t;
 #endif /* BCMWAPI_WPI */
 #endif /* BCMCCX */
 #else /* WLWSEC */
-#define WSEC_ENABLED(wsec)	(FALSE)
+#define WSEC_ENABLED(wsec)	FALSE
 #endif /* WLWSEC */
 
 #define WSEC_SES_OW_ENABLED(wsec)	((wsec) & SES_OW_ENABLED)
@@ -850,8 +833,8 @@ typedef uint32 ratespec_t;
 #define WLC_SET_EAP_RESTRICT			120
 #define WLC_SCB_AUTHORIZE			121
 #define WLC_SCB_DEAUTHORIZE			122
-//#define WLC_GET_WDSLIST			123 OBSOLETE
-//#define WLC_SET_WDSLIST			124 OBSOLETE
+// #define WLC_GET_WDSLIST			123 OBSOLETE
+// #define WLC_SET_WDSLIST			124 OBSOLETE
 #define WLC_GET_ATIM				125
 #define WLC_SET_ATIM				126
 #define WLC_GET_RSSI				127
@@ -865,8 +848,8 @@ typedef uint32 ratespec_t;
 #define WLC_GET_PHY_NOISE			135
 #define WLC_GET_BSS_INFO			136
 #define WLC_GET_PKTCNTS				137
-//#define WLC_GET_LAZYWDS			138 OBSOLETE
-//#define WLC_SET_LAZYWDS			139 OBSOLETE
+// #define WLC_GET_LAZYWDS			138 OBSOLETE
+// #define WLC_SET_LAZYWDS			139 OBSOLETE
 #define WLC_GET_BANDLIST			140
 #define WLC_GET_BAND				141
 #define WLC_SET_BAND				142
@@ -974,8 +957,8 @@ typedef uint32 ratespec_t;
 #define WLC_SET_RADAR				243
 #define WLC_SET_SPECT_MANAGMENT			244
 #define WLC_GET_SPECT_MANAGMENT			245
-//#define WLC_WDS_GET_REMOTE_HWADDR		246 OBSOLETE
-//#define WLC_WDS_GET_WPA_SUP			247 OBSOLETE
+// #define WLC_WDS_GET_REMOTE_HWADDR		246 OBSOLETE
+// #define WLC_WDS_GET_WPA_SUP			247 OBSOLETE
 #define WLC_SET_CS_SCAN_TIMER			248
 #define WLC_GET_CS_SCAN_TIMER			249
 #define WLC_MEASURE_REQUEST			250
@@ -1137,6 +1120,7 @@ typedef uint32 ratespec_t;
 /* a large TX Power as an init value to factor out of MIN() calculations,
  * keep low enough to fit in an int8, units are .25 dBm
  */
+/* TODO: Drop parens hereo once dropped in all files containing this define. */
 #define WLC_TXPWR_MAX		(127)	/* ~32 dBm = 1,500 mW */
 
 /* "diag" iovar argument and error code */
@@ -1290,7 +1274,7 @@ typedef uint32 ratespec_t;
 #define WLC_BW_320MHZ_BIT		(1u<<4u)
 
 /* Bandwidth capabilities */
-#define WLC_BW_CAP_20MHZ		(WLC_BW_20MHZ_BIT)
+#define WLC_BW_CAP_20MHZ		WLC_BW_20MHZ_BIT
 #define WLC_BW_CAP_40MHZ		(WLC_BW_40MHZ_BIT|WLC_BW_20MHZ_BIT)
 #define WLC_BW_CAP_80MHZ		(WLC_BW_80MHZ_BIT|WLC_BW_40MHZ_BIT| \
 					 WLC_BW_20MHZ_BIT)
@@ -1528,29 +1512,33 @@ typedef uint32 ratespec_t;
 #define WL_EVENTING_MASK_EXT_LEN	ROUNDUP(WLC_E_LAST, NBBY)/NBBY
 
 /* join preference types */
-#define WL_JOIN_PREF_RSSI			1u	/* by RSSI */
-#define WL_JOIN_PREF_WPA			2u	/* by akm and ciphers */
-#define WL_JOIN_PREF_BAND			3u	/* by 802.11 band */
-#define WL_JOIN_PREF_RSSI_DELTA			4u	/* by 802.11 band only if RSSI
-							 * delta condition matches
-							 */
-#define WL_JOIN_PREF_TRANS_PREF			5u	/* defined by requesting AP */
-#define WL_JOIN_PREF_RSN_PRIO			6u	/* by RSNE/RSNXE related
-							 * security priority
-							 */
-#define WL_JOIN_PREF_RSSI_PER_BAND		7u	/* RSSI boost value per band */
-#define WL_JOIN_PREF_SKIP_PSC			8u	/* Used to set flag to filter
-							 * PSC channel scan
-							 */
-#define WL_JOIN_PREF_6G_DISABLE			9u	/* Used to disable join/roam
-							 * 6G BSS target
-							 */
-#define WL_JOIN_PREF_ML_LINK_RSSI_BOOST		10u	/* Used to configure boost
-							 * for MLO targets
-							 */
-#define WL_JOIN_PREF_ML_SUB_LINK_WEIGHTAGE	11u	/* Percent weightage for
-							 * subsidary link
-							 */
+#define WL_JOIN_PREF_RSSI				1u	/* by RSSI */
+#define WL_JOIN_PREF_WPA				2u	/* by akm and ciphers */
+#define WL_JOIN_PREF_BAND				3u	/* by 802.11 band */
+#define WL_JOIN_PREF_RSSI_DELTA				4u	/* by 802.11 band only if RSSI
+								 * delta condition matches
+								 */
+#define WL_JOIN_PREF_TRANS_PREF				5u	/* defined by requesting AP */
+#define WL_JOIN_PREF_RSN_PRIO				6u	/* by RSNE/RSNXE related
+								 * security priority
+								 */
+#define WL_JOIN_PREF_RSSI_PER_BAND			7u	/* RSSI boost value per band */
+#define WL_JOIN_PREF_SKIP_PSC				8u	/* Used to set flag to filter
+								 * PSC channel scan
+								 */
+#define WL_JOIN_PREF_6G_DISABLE				9u	/* Used to disable join/roam
+								 * 6G BSS target
+								 */
+#define WL_JOIN_PREF_ML_LINK_RSSI_BOOST			10u	/* Used to configure boost
+								 * for MLO targets
+								 */
+#define WL_JOIN_PREF_ML_SUB_LINK_WEIGHTAGE		11u	/* Percent weightage for
+								 * subsidary link
+								 */
+#define WL_JOIN_PREF_ROAM_CHAN_CNT_RSSI_ACCEPT_EVAL	12u	/* Min channel count config
+								 * for doing RSSI acceptance
+								 * criteria eval
+								 */
 
 /* Join preference 6G disable Flag definition */
 #define WL_JP_6G_DISABLE_ROAM	(1u << 0u)	/* Used to set flag to disable join/roam to
@@ -1937,7 +1925,7 @@ typedef uint32 ratespec_t;
 #define WL_CHANIM_COUNT_US_RESET       0xfe
 
 /* flags used in scandb, indicates bss attributes of interest */
-#define WLC_SCANDB_CACHE_FLAG_NONE	(0u)		/* None */
+#define WLC_SCANDB_CACHE_FLAG_NONE	0u		/* None */
 #define WLC_SCANDB_CACHE_FLAG_HT_CAP	(1u << 0u)	/* HT capable */
 #define WLC_SCANDB_CACHE_FLAG_VHT_CAP	(1u << 1u)	/* VHT capable */
 #define WLC_SCANDB_CACHE_FLAG_HE_CAP	(1u << 2u)	/* HE capable */
@@ -2200,7 +2188,7 @@ typedef uint32 ratespec_t;
 #define WLC_ROAM_TRIGGER_AUTO		3 /* auto-detect environment */
 #define WLC_ROAM_TRIGGER_MAX_VALUE	3 /* max. valid value */
 
-#define WLC_ROAM_NEVER_ROAM_TRIGGER	(-100) /* Avoid Roaming by setting a large value */
+#define WLC_ROAM_NEVER_ROAM_TRIGGER	-100 /* Avoid Roaming by setting a large value */
 
 /* Preferred Network Offload (PNO, formerly PFN) defines */
 #define WPA_AUTH_PFN_ANY	0xffffffff	/* for PFN, match only ssid */
@@ -2472,8 +2460,8 @@ typedef uint32 ratespec_t;
 #define WL_TXPWR_OVERRIDE	(1U<<31)
 #define WL_TXPWR_NEG   (1U<<28)
 #define WL_TXPWR_DEV_CAT_MASK  0xC000000
-#define WL_TXPWR_DEV_CAT_SHIFT (26u)
-#define WL_TXPWR_DEV_CAT_MAX	(3u) /* Max dev cat is SP */
+#define WL_TXPWR_DEV_CAT_SHIFT 26u
+#define WL_TXPWR_DEV_CAT_MAX	3u /* Max dev cat is SP */
 
 /* phy types (returned by WLC_GET_PHYTPE) */
 #define	WLC_PHY_TYPE_A		0
@@ -2560,12 +2548,12 @@ typedef uint32 ratespec_t;
  *	        [01]    => enable UFC
  *	        [00]    => enalbe CTMODE
  */
-#define	CTMODE_DBG_CTMODE_EN	(0x1u)
-#define	CTMODE_DBG_UFC_EN	(0x2u)
-#define CTMODE_DBG_UFP_EN	(0x4u)
-#define	CTMODE_DBG_MPDU_THRESHOLD_SHIFT	(7u)
+#define	CTMODE_DBG_CTMODE_EN	0x1u
+#define	CTMODE_DBG_UFC_EN	0x2u
+#define CTMODE_DBG_UFP_EN	0x4u
+#define	CTMODE_DBG_MPDU_THRESHOLD_SHIFT	7u
 #define CTMODE_DBG_MPDU_THRESHOLD_MASK	((0x1FFu) << CTMODE_DBG_MPDU_THRESHOLD_SHIFT)
-#define	CTMODE_DBG_BYTES_THRESHOLD_SHIFT	(16u)
+#define	CTMODE_DBG_BYTES_THRESHOLD_SHIFT	16u
 #define CTMODE_DBG_BYTES_THRESHOLD_MASK	((0xFFFu) << CTMODE_DBG_BYTES_THRESHOLD_SHIFT)
 
 /* ====== SC use case configs ========= */
@@ -2700,13 +2688,14 @@ enum {
 	WL_REINIT_RC_RX_HW_ERR		  = 60, /* Rx HW error */
 	WL_REINIT_RC_URB_LEN_ERROR	  = 61, /* URB LEN error */
 	WL_REINIT_RC_PHY_BAD_ERROR	  = 62, /* PHY badness detected */
+	WL_REINIT_RC_UCODE_FORCE_REINIT	  = 63, /* re-init for any required ucode error */
 	WL_REINIT_RC_SUPPORTED_LAST	/* Use for app ONLY, DONOT use this in wlc code.
 					 * For wlc, use WL_REINIT_RC_VERSIONED_LAST
 					 */
 };
 
-#define WL_REINIT_RC_V2		(2u)
-#define WL_REINIT_RC_LAST_V2	(WL_REINIT_RC_RADIO_CRASH)
+#define WL_REINIT_RC_V2		2u
+#define WL_REINIT_RC_LAST_V2	WL_REINIT_RC_RADIO_CRASH
 
 #define WL_REINIT_RC_INVALID	255
 
@@ -2841,7 +2830,8 @@ enum wl_cnt_xtlv_id {
 	WL_CNT_XTLV_MCST_RXFRM_U32_V1 = 0x1108,
 	WL_CNT_XTLV_MCST_TXFRM_V1 = 0x1109,
 	WL_CNT_XTLV_MCST_TXFRM_U32_V1 = 0x110a,
-	/* 10 reserved for more counters */
+	WL_CNT_XTLV_MCST_DPS_MS_V1 = 0x110b,
+	/* 9 reserved for more counters */
 
 	/* scan slice */
 	WL_CNT_XTLV_MCST_SC_RXERR_V1 = 0x1115,
@@ -2871,6 +2861,7 @@ enum wl_cnt_xtlv_id {
 #define WL_CLM_EHT                 0x10000u /**< Flag for EHT */
 #define WL_CLM_MRU                 0x20000u /**< Flag for MRU */
 #define WL_CLM_VLP_TPC_FCC         0x40000u /**< Flag for VLP_TPC_FCC */
+#define WL_CLM_UHR                 0x80000u /**< Flag for UHR */
 #define WL_CLM_NO_320MHZ           0x200000u /**< Flag for NO_320MHZ */
 #define WL_CLM_NO_160_160MHZ       0x400000u /**< Flag for NO_160_160MHZ */
 #define WL_CLM_CBP_FCC             0x800000u /**< Flag for CBP_FCC */
@@ -2885,6 +2876,12 @@ enum wl_cnt_xtlv_id {
 #define WL_CLM_DFS_EU              (WL_CLM_DFS_TPC | WL_CLM_RADAR_TYPE_EU) /**< Flag for DFS EU */
 #define WL_CLM_PP                  0x8000000u /**< Flag for Punctured bandwidth allowed */
 #define WL_CLM_NO_FDSS		   0x10000000u /**< Flag for FDSS disabled for given country */
+
+/* Bit definitions for country_prep iovar response */
+typedef enum wl_country_prep_resp_bits {
+	WL_COUNTRY_PREP_RESP_NEED_CLM_BIT	= 0u,
+	WL_COUNTRY_PREP_RESP_NEED_TXCAP_BIT	= 1u
+} wl_country_prep_resp_bits_t;
 
 typedef enum sup_auth_status {
 	/* Basic supplicant authentication states */
@@ -3054,7 +3051,7 @@ enum wl_ifstats_xtlv_id {
  * If a new feature is added and that feature has sub-features that need to be reported,
  * add that feature here
  */
-#define CAPEXT_WL_FEATURE_ID_BASE		(2048u)
+#define CAPEXT_WL_FEATURE_ID_BASE		2048u
 enum capext_wl_feature_id {
 	CAPEXT_WL_FEATURE_RSVD		= (CAPEXT_WL_FEATURE_ID_BASE + 0),
 	/* WL top level feature id to hold and report bitmaps of features with and
@@ -3352,6 +3349,7 @@ enum wlc_capext_feature_bitpos {
 	WLC_CAPEXT_FEATURE_BITPOS_TXSHAPER		= 141,
 	WLC_CAPEXT_FEATURE_BITPOS_SLIMEMLSR		= 142,
 	WLC_CAPEXT_FEATURE_BITPOS_SCF			= 143,
+	WLC_CAPEXT_FEATURE_BITPOS_AP_BCN_SSID_MITIGATE	= 144,
 
 	WLC_CAPEXT_FEATURE_BITPOS_MAX
 };

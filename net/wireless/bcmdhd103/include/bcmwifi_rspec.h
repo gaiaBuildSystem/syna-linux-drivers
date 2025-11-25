@@ -124,10 +124,10 @@ typedef uint32 ratespec_bw_t;
  * to multiple users
  */
 #define RSPEC_UHR_LTF_GI(rspec)	(((rspec) & WL_RSPEC_UHR_GI_MASK) >> WL_RSPEC_UHR_GI_SHIFT)
-#define WL_RSPEC_UHR_2x_LTF_GI_0_8us	(0x0u)
-#define WL_RSPEC_UHR_2x_LTF_GI_1_6us	(0x1u)
-#define WL_RSPEC_UHR_4x_LTF_GI_0_8us	(0x2u)
-#define WL_RSPEC_UHR_4x_LTF_GI_3_2us	(0x3u)
+#define WL_RSPEC_UHR_2x_LTF_GI_0_8us	0x0u
+#define WL_RSPEC_UHR_2x_LTF_GI_1_6us	0x1u
+#define WL_RSPEC_UHR_4x_LTF_GI_0_8us	0x2u
+#define WL_RSPEC_UHR_4x_LTF_GI_3_2us	0x3u
 
 #define UHR_GI_TO_RSPEC(gi)	\
 	((ratespec_t)(((gi) << WL_RSPEC_UHR_GI_SHIFT) & WL_RSPEC_UHR_GI_MASK))
@@ -150,10 +150,10 @@ typedef uint32 ratespec_bw_t;
  * Table 36-32 Common field for OFDMA transmission
  */
 #define RSPEC_EHT_LTF_GI(rspec)	(((rspec) & WL_RSPEC_EHT_GI_MASK) >> WL_RSPEC_EHT_GI_SHIFT)
-#define WL_RSPEC_EHT_2x_LTF_GI_0_8us	(0x0u)
-#define WL_RSPEC_EHT_2x_LTF_GI_1_6us	(0x1u)
-#define WL_RSPEC_EHT_4x_LTF_GI_0_8us	(0x2u)
-#define WL_RSPEC_EHT_4x_LTF_GI_3_2us	(0x3u)
+#define WL_RSPEC_EHT_2x_LTF_GI_0_8us	0x0u
+#define WL_RSPEC_EHT_2x_LTF_GI_1_6us	0x1u
+#define WL_RSPEC_EHT_4x_LTF_GI_0_8us	0x2u
+#define WL_RSPEC_EHT_4x_LTF_GI_3_2us	0x3u
 #define WL_EHT_GI_TO_RSPEC(gi)	\
 	((ratespec_t)(((gi) << WL_RSPEC_EHT_GI_SHIFT) & WL_RSPEC_EHT_GI_MASK))
 #define WL_EHT_GI_TO_RSPEC_SET(rspec, gi)	((rspec & (~WL_RSPEC_EHT_GI_MASK)) | \
@@ -174,10 +174,10 @@ typedef uint32 ratespec_bw_t;
 
 /* GI for HE */
 #define RSPEC_HE_LTF_GI(rspec)	(((rspec) & WL_RSPEC_HE_GI_MASK) >> WL_RSPEC_HE_GI_SHIFT)
-#define WL_RSPEC_HE_1x_LTF_GI_0_8us	(0x0u)
-#define WL_RSPEC_HE_2x_LTF_GI_0_8us	(0x1u)
-#define WL_RSPEC_HE_2x_LTF_GI_1_6us	(0x2u)
-#define WL_RSPEC_HE_4x_LTF_GI_3_2us	(0x3u)
+#define WL_RSPEC_HE_1x_LTF_GI_0_8us	0x0u
+#define WL_RSPEC_HE_2x_LTF_GI_0_8us	0x1u
+#define WL_RSPEC_HE_2x_LTF_GI_1_6us	0x2u
+#define WL_RSPEC_HE_4x_LTF_GI_3_2us	0x3u
 #define RSPEC_ISHEGI(rspec)	(RSPEC_HE_LTF_GI(rspec) > WL_RSPEC_HE_1x_LTF_GI_0_8us)
 #define HE_GI_TO_RSPEC(gi)	(((ratespec_t)(gi) << WL_RSPEC_HE_GI_SHIFT) & WL_RSPEC_HE_GI_MASK)
 #define HE_GI_TO_RSPEC_SET(rspec, gi)	((rspec & (~WL_RSPEC_HE_GI_MASK)) | \
@@ -326,7 +326,7 @@ typedef uint32 ratespec_bw_t;
 #ifdef BCMWIFI_BW320MHZ
 #define RSPEC_IS320MHZ(rspec)	(RSPEC_BW(rspec) == WL_RSPEC_BW_320MHZ)
 #else
-#define RSPEC_IS320MHZ(rspec)	(FALSE)
+#define RSPEC_IS320MHZ(rspec)	FALSE
 #endif /* BCMWIFI_BW320MHZ */
 
 #define WL_RSPEC_BW(rspec)	(RSPEC_BW(rspec) >> WL_RSPEC_BW_SHIFT)

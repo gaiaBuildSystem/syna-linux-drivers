@@ -1889,7 +1889,7 @@ BCMPOSTTRAPFN(si_core_devmem_protect)(const si_t *sih, bool set)
  * NULL.
  */
 volatile uint32 *
-BCMPOSTTRAPFN(si_corereg_addr)(si_t *sih, uint coreidx, uint regoff)
+BCMPOSTTRAPFN(si_corereg_addr)(const si_t *sih, uint coreidx, uint regoff)
 {
 	if (CHIPTYPE(sih->socitype) == SOCI_AI)
 		return ai_corereg_addr(sih, coreidx, regoff);
@@ -3320,12 +3320,19 @@ BCMPOSTTRAPFN(si_srpwr_request)(const si_t *sih, uint32 mask, uint32 val)
 	volatile uint32 *fast_srpwr_addr = (volatile uint32 *)((uintptr)SI_ENUM_BASE(sih)
 					 + (uintptr)offset);
 
+	if (BUSTYPE(sih->bustype) == SDIO_BUS) {
+		uint idx;
+		idx = si_findcoreidx(sih, SDIOD_CORE_ID, 0);
+		fast_srpwr_addr = (volatile uint32 *)si_corereg_addr(sih, idx, offset);
+	}
+
 	if (mask || val) {
 		mask <<= SRPWR_REQON_SHIFT;
 		val  <<= SRPWR_REQON_SHIFT;
 
 		/* Return if requested power request is already set */
-		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
+		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS) ||
+			(BUSTYPE(sih->bustype) == SPI_BUS)) {
 			r = R_REG(sii->osh, fast_srpwr_addr);
 		} else {
 			r = si_corereg_pciefast_read(sih, offset);
@@ -3337,7 +3344,8 @@ BCMPOSTTRAPFN(si_srpwr_request)(const si_t *sih, uint32 mask, uint32 val)
 
 		r = (r & ~mask) | val;
 
-		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
+		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS) ||
+			(BUSTYPE(sih->bustype) == SPI_BUS)) {
 			W_REG(sii->osh, fast_srpwr_addr, r);
 			r = R_REG(sii->osh, fast_srpwr_addr);
 		} else {
@@ -3353,7 +3361,8 @@ BCMPOSTTRAPFN(si_srpwr_request)(const si_t *sih, uint32 mask, uint32 val)
 			si_srpwr_stat_spinwait(sih, mask2, val2);
 		}
 	} else {
-		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
+		if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS) ||
+			(BUSTYPE(sih->bustype) == SPI_BUS)) {
 			r = R_REG(sii->osh, fast_srpwr_addr);
 		} else {
 			r = si_corereg_pciefast_read(sih, offset);
@@ -3376,7 +3385,8 @@ BCMPOSTTRAPFN(si_srpwr_stat_spinwait)(const si_t *sih, uint32 mask, uint32 val)
 	mask <<= SRPWR_STATUS_SHIFT;
 	val <<= SRPWR_STATUS_SHIFT;
 
-	if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS)) {
+	if ((BUSTYPE(sih->bustype) == SI_BUS) || (BUSTYPE(sih->bustype) == SDIO_BUS) ||
+		(BUSTYPE(sih->bustype) == SPI_BUS)) {
 		SPINWAIT(((R_REG(sii->osh, fast_srpwr_addr) & mask) != val),
 			PMU_MAX_TRANSITION_DLY);
 		r = R_REG(sii->osh, fast_srpwr_addr) & mask;

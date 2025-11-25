@@ -142,7 +142,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_llc_snap_header {
 /* RFC1042 header used by 802.11 per 802.1H */
 #define RFC1042_HDR_LEN	(ETHER_HDR_LEN + DOT11_LLC_SNAP_HDR_LEN)	/* RCF1042 header length */
 
-#define SFH_LLC_SNAP_SZ	(RFC1042_HDR_LEN)
+#define SFH_LLC_SNAP_SZ	RFC1042_HDR_LEN
 
 #define COPY_SFH_LLCSNAP(dst, src) \
 	do { \
@@ -363,7 +363,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_tpc_rep {
 	uint8 margin;
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_tpc_rep dot11_tpc_rep_t;
-#define DOT11_MNG_IE_TPC_REPORT_SIZE	(sizeof(dot11_tpc_rep_t))
+#define DOT11_MNG_IE_TPC_REPORT_SIZE	sizeof(dot11_tpc_rep_t)
 #define DOT11_MNG_IE_TPC_REPORT_LEN	2	/* length of IE data, not including 2 byte header */
 
 BWL_PRE_PACKED_STRUCT struct dot11_supp_channels {
@@ -561,7 +561,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_rsnxe {
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_rsnxe dot11_rsnxe_t;
 
-#define RSNXE_CAP_LENGTH_MASK		(0x0f)
+#define RSNXE_CAP_LENGTH_MASK		0x0f
 #define RSNXE_CAP_LENGTH(cap)		((uint8)(cap) & RSNXE_CAP_LENGTH_MASK)
 #define RSNXE_SET_CAP_LENGTH(cap, len)\
 		(cap = (cap & ~RSNXE_CAP_LENGTH_MASK) | ((uint8)(len) & RSNXE_CAP_LENGTH_MASK))
@@ -892,7 +892,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dot11_esp_ie {
 	uint8		esp_info_lists[];
 } BWL_POST_PACKED_STRUCT dot11_esp_ie_t;
 
-#define DOT11_ESP_IE_HDR_SIZE	(OFFSETOF(dot11_esp_ie_t, esp_info_lists))
+#define DOT11_ESP_IE_HDR_SIZE	OFFSETOF(dot11_esp_ie_t, esp_info_lists)
 
 /* ESP Information list - 802.11-2016 9.4.2.174 */
 typedef BWL_PRE_PACKED_STRUCT struct dot11_esp_ie_info_list {
@@ -904,7 +904,7 @@ typedef BWL_PRE_PACKED_STRUCT struct dot11_esp_ie_info_list {
 	uint8		ppdu_dur;
 } BWL_POST_PACKED_STRUCT dot11_esp_ie_info_list_t;
 
-#define DOT11_ESP_IE_INFO_LIST_SIZE	(sizeof(dot11_esp_ie_info_list_t))
+#define DOT11_ESP_IE_INFO_LIST_SIZE	sizeof(dot11_esp_ie_info_list_t)
 
 #define DOT11_ESP_NBR_INFO_LISTS	4u	/* max nbr of esp information lists */
 #define DOT11_ESP_INFO_LIST_AC_BK	0u	/* access category of esp information list AC_BK */
@@ -1712,17 +1712,25 @@ enum dot11_tag_ids {
 #define EXT_MNG_TUNNELED_PASN_ID		143u
 #define DOT11_MNG_TUNNELED_PASN_ID		(DOT11_MNG_ID_EXT_ID + EXT_MNG_TUNNELED_PASN_ID)
 
-/* Draft 802.11bn DXX Table x-xx Element IDs */
-/* UHR_TBD: this needs to be updated to exact values */
-#define EXT_MNG_UHR_OP_ID			144u	/* UHR Operation */
+/* Draft 802.11bn D1.0 Table 9-130 Element IDs */
+#define EXT_MNG_UHR_OP_ID			151u	/* UHR Operation */
 #define DOT11_MNG_UHR_OP_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_UHR_OP_ID)
-#define EXT_MNG_UHR_CAP_ID			145u	/* UHR Capabilities */
+#define EXT_MNG_UHR_CAP_ID			152u	/* UHR Capabilities */
 #define DOT11_MNG_UHR_CAP_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_UHR_CAP_ID)
-
-#define EXT_MNG_SMD_INFO_ID			146u	/* SMD information */
+#define EXT_MNG_MAPC_ID				153u	/* MAPC */
+#define DOT11_MNG_MAPC_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_MAPC_ID)
+#define EXT_MNG_SMD_INFO_ID			154u	/* SMD information */
 #define DOT11_MNG_SMD_INFO_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_SMD_INFO_ID)
-#define EXT_MNG_ST_PARAM_ID			147u	/* SMD BSS Transition Parameters */
+#define EXT_MNG_ST_PARAM_ID			155u	/* SMD BSS Transition Parameters */
 #define DOT11_MNG_ST_PARAM_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_ST_PARAM_ID)
+#define EXT_MNG_EXT_CH_USAGE_ID			156u	/* Extended Channel Usage */
+#define DOT11_MNG_EXT_CH_USAGE_ID		(DOT11_MNG_ID_EXT_ID + EXT_MNG_EXT_CH_USAGE_ID)
+#define EXT_MNG_UHR_MODE_CHANGE_ID		157u	/* UHR Mode Change */
+#define DOT11_MNG_UHR_MODE_CHANGE_ID		(DOT11_MNG_ID_EXT_ID + EXT_MNG_UHR_MODE_CHANGE_ID)
+#define EXT_MNG_UHR_PARAMS_UPDATE_ID		158u	/* UHR Parameters Update */
+#define DOT11_MNG_UHR_PARAMS_UPDATE_ID		(DOT11_MNG_ID_EXT_ID + EXT_MNG_UHR_PARAMS_UPDATE_ID)
+#define EXT_MNG_TX_POWER_IND_ID			159u	/* Tx Power Indication */
+#define DOT11_MNG_TX_POWER_IND_ID		(DOT11_MNG_ID_EXT_ID + EXT_MNG_TX_POWER_IND_ID)
 
 /* For RCM see Draft P802.11bh_D1.0.pdf. The RCM extension IDs 250 and 251
  * are chosen temporarily until they get assigned by the ANA.
@@ -1995,8 +2003,7 @@ typedef struct dot11_extcap dot11_extcap_t;
 #define DOT11_ACTION_CAT_EHT		36u	/* EHT action frame */
 #define DOT11_ACTION_CAT_EHTP		37u	/* Protected EHT action frame */
 #define DOT11_ACTION_CAT_RCM		38u	/* RCM action - Draft P802.11bh_D1.0.pdf */
-/* UHR_TBD: Category code to be updated once it is define in spec */
-#define DOT11_ACTION_CAT_UHRP		39u	/* Protected UHR action frame */
+#define DOT11_ACTION_CAT_UHRP		43u	/* Protected UHR action frame */
 #define DOT11_ACTION_CAT_VSP		126	/* protected vendor specific */
 #define DOT11_ACTION_CAT_VS		127	/* category Vendor Specific */
 

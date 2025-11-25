@@ -176,6 +176,7 @@ typedef struct wifi_adapter_info {
 #if defined(BT_OVER_SDIO)
 	const char	*btfw_path;
 #endif /* defined (BT_OVER_SDIO) */
+	bool		load_fail;
 } wifi_adapter_info_t;
 
 typedef struct bcmdhd_wifi_platdata {

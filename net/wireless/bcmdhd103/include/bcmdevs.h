@@ -87,6 +87,7 @@
 #define MIMO_FPGA_ID		0x43f8		/* FPGA mimo minimacphy device id */
 #define BCM_JTAGM2_ID		0x43f9		/* BCM alternate jtagm device id */
 #define SDHCI_FPGA_ID		0x43fa		/* Standard SDIO Host Controller FPGA */
+#define SPIH_FPGA2_ID		0x43fc		/* PCI SPI Host Controller FPGA */
 #define	BCM4710_DEVICE_ID	0x4710		/* 4710 primary function 0 */
 #define	BCM47XX_AUDIO_ID	0x4711		/* 47xx audio codec */
 #define	BCM47XX_V90_ID		0x4712		/* 47xx v90 codec */

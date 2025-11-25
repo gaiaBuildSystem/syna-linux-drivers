@@ -239,14 +239,14 @@ BWL_PRE_PACKED_STRUCT struct mesh_peer_mgmt_ie_common {
 	uint16	local_link_id;
 } BWL_POST_PACKED_STRUCT;
 typedef struct mesh_peer_mgmt_ie_common mesh_peer_mgmt_ie_common_t;
-#define MESH_PEER_MGMT_IE_OPEN_LEN	(4)
+#define MESH_PEER_MGMT_IE_OPEN_LEN	4
 
 BWL_PRE_PACKED_STRUCT struct mesh_peer_mgmt_ie_cfm {
 	mesh_peer_mgmt_ie_common_t	common;
 	uint16	peer_link_id;
 } BWL_POST_PACKED_STRUCT;
 typedef struct mesh_peer_mgmt_ie_cfm mesh_peer_mgmt_ie_cfm_t;
-#define MESH_PEER_MGMT_IE_CONF_LEN	(6)
+#define MESH_PEER_MGMT_IE_CONF_LEN	6
 
 BWL_PRE_PACKED_STRUCT struct mesh_peer_mgmt_ie_close {
 	mesh_peer_mgmt_ie_common_t	common;
@@ -256,7 +256,7 @@ BWL_PRE_PACKED_STRUCT struct mesh_peer_mgmt_ie_close {
 	uint16	reason_code;
 } BWL_POST_PACKED_STRUCT;
 typedef struct mesh_peer_mgmt_ie_close mesh_peer_mgmt_ie_close_t;
-#define MESH_PEER_MGMT_IE_CLOSE_LEN	(6)
+#define MESH_PEER_MGMT_IE_CLOSE_LEN	6
 
 struct mesh_config_ie {
 	uint8	activ_path_sel_prot_id;
@@ -268,7 +268,7 @@ struct mesh_config_ie {
 	uint8	mesh_cap;
 };
 typedef struct mesh_config_ie mesh_config_ie_t;
-#define MESH_CONFIG_IE_LEN	(7)
+#define MESH_CONFIG_IE_LEN		7
 
 /* Mesh peering states */
 #define MESH_PEERING_IDLE               0

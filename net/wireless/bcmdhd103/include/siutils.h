@@ -360,7 +360,7 @@ extern uint si_corereg_writeonly(si_t *sih, uint coreidx, uint regoff, uint mask
 extern uint si_corereg_writearr(si_t *sih, uint coreidx, uint regoff, uint *mask, uint *val,
 		uint num_vals);
 extern uint si_pmu_corereg(si_t *sih, uint32 idx, uint regoff, uint mask, uint val);
-extern volatile uint32 *si_corereg_addr(si_t *sih, uint coreidx, uint regoff);
+extern volatile uint32 *si_corereg_addr(const si_t *sih, uint coreidx, uint regoff);
 extern volatile void *si_coreregs(const si_t *sih);
 extern uint si_wrapperreg(const si_t *sih, uint32 offset, uint32 mask, uint32 val);
 extern uint si_core_wrapperreg(si_t *sih, uint32 coreidx, uint32 offset, uint32 mask, uint32 val);
@@ -1044,20 +1044,9 @@ bool si_srpwr_cap(si_t *sih);
  *   WL BackPlane (WLBP):
  *      ARM, TCM, Main, Aux
  *      Host needs to power up
+ * all our current dongles are multi-backplane
  */
-#ifdef BCMDONGLEHOST
-#define MULTIBP_CAP(sih)	(BCM4378_CHIP(sih->chip) || BCM4383_CHIP(sih->chip) || \
-				BCM4381_CHIP(sih->chip) || BCM4382_CHIP(sih->chip) || \
-				BCM4384_CHIP(sih->chip) || BCM4387_CHIP(sih->chip) || \
-				BCM4388_CHIP(sih->chip) || BCM4389_CHIP(sih->chip) || \
-				BCM4390_CHIP(sih->chip) || BCM4397_CHIP(sih->chip) || \
-				BCM4399_CHIP(sih->chip))
-
-// Please leave this UNRELEASEDCHIP MOG wrapper in place even if there is nothing inside it
-
-#else /* dongles */
-#define MULTIBP_CAP(sih)	TRUE	/* all our current dongles are multi-backplane */
-#endif /* BCMDONGLEHOST */
+#define MULTIBP_CAP(sih)	(!BCM4355_CHIP(sih->chip) ? TRUE : FALSE)
 
 #define MULTIBP_ENAB(sih)      ((sih) && (sih)->_multibp_enable)
 

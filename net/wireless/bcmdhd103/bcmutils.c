@@ -1931,10 +1931,10 @@ bcm_iovar_lencheck(const bcm_iovar_t *vi, void *arg, uint len, bool set)
 #define BCM_MWBMAP_ITEMS_MAX    (64 * 1024)  /* May increase to 64K */
 #endif /*   DONGLEBUILD */
 
-#define BCM_MWBMAP_BITS_WORD    (NBITS(uint32))
+#define BCM_MWBMAP_BITS_WORD    NBITS(uint32)
 #define BCM_MWBMAP_WORDS_MAX    (BCM_MWBMAP_ITEMS_MAX / BCM_MWBMAP_BITS_WORD)
 #define BCM_MWBMAP_WDMAP_MAX    (BCM_MWBMAP_WORDS_MAX / BCM_MWBMAP_BITS_WORD)
-#define BCM_MWBMAP_SHIFT_OP     (5)
+#define BCM_MWBMAP_SHIFT_OP     5
 #define BCM_MWBMAP_MODOP(ix)    ((ix) & (BCM_MWBMAP_BITS_WORD - 1))
 #define BCM_MWBMAP_DIVOP(ix)    ((ix) >> BCM_MWBMAP_SHIFT_OP)
 #define BCM_MWBMAP_MULOP(ix)    ((ix) << BCM_MWBMAP_SHIFT_OP)
@@ -3582,7 +3582,7 @@ static spinlock_t dbgobj_lock;
 #define	BCM_OBJDBG_LOCK           spin_lock_irqsave
 #define	BCM_OBJDBG_UNLOCK         spin_unlock_irqrestore
 #else
-#define BCM_OBJDBG_COUNT          (256)
+#define BCM_OBJDBG_COUNT          256
 #define BCM_OBJDBG_LOCK_INIT()
 #define	BCM_OBJDBG_LOCK_DESTROY()
 #define BCM_OBJDBG_LOCK(x, y)

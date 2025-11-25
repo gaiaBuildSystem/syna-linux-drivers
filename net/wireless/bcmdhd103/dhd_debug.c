@@ -170,6 +170,11 @@ struct event_log_table fw_verbose_level_map[] = {
 	{2, EVENT_LOG_TAG_SCAN_ERROR, EVENT_LOG_SET_ERROR, "SCAN_ERROR"},
 	{1, EVENT_LOG_TAG_SCAN_TRACE_LOW, EVENT_LOG_SET_PRSRV, "SCAN_TRACE_LOW"},
 	{1, EVENT_LOG_TAG_SCAN_TRACE_HIGH, EVENT_LOG_SET_WL, "SCAN_TRACE_HIGH"},
+	/* do not process below EL on astra to prevent pcie tput dip */
+#ifdef CONFIG_ARCH_ASTRA
+	{4, EVENT_LOG_TAG_ECOUNTERS_TIME_DATA, EVENT_LOG_SET_WL, "ECOUNTERS_TIME_DATA"},
+	{4, EVENT_LOG_TAG_STATS, EVENT_LOG_SET_WL, "TAG_STATS"},
+#endif /* CONFIG_ARCH_ASTRA */
 };
 
 /* reference tab table */

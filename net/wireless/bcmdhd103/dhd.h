@@ -1957,8 +1957,10 @@ typedef struct dhd_pub {
 	bool submit_count_WAR;	/* submission count WAR */
 	bool bt_logging_enabled;
 #endif	/* BTLOG */
+#ifdef OEM_ANDROID
 	uint wbtext_policy;	/* wbtext policy of dongle */
 	bool wbtext_support;	/* for product policy only */
+#endif /* OEM_ANDROID */
 #ifdef PCIE_OOB
 	bool	d2h_no_oob_dw;
 #endif /* PCIE_OOB */
@@ -4131,6 +4133,10 @@ void dhd_aoe_hostip_clr(dhd_pub_t *dhd, int idx);
 void dhd_aoe_arp_clr(dhd_pub_t *dhd, int idx);
 int dhd_arp_get_arp_hostip_table(dhd_pub_t *dhd, void *buf, int buflen, int idx);
 void dhd_arp_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx);
+#if defined(ARP_CHECK_SUPPORT)
+int dhd_dev_set_arp_trigger(struct net_device *dev, int val);
+extern int dhd_pub_save_arp_resp_tick(dhd_pub_t *dhdp);
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 
 #ifdef WL_MDNS_OFFLOAD
@@ -4297,8 +4303,13 @@ extern void dhd_os_general_spin_unlock(dhd_pub_t *pub, unsigned long flags);
 #define DHD_BAR2_SWITCH_LOCK(lock, flags)   ((flags) = osl_spin_lock(lock))
 #define DHD_BAR2_SWITCH_UNLOCK(lock, flags) osl_spin_unlock((lock), (flags))
 
+#if defined(CONFIG_ARCH_ASTRA) && defined(BCMSDIO) && defined(__linux__)
+#define DHD_BUS_PWR_REQ_LOCK(lock, flags)	mutex_lock(&_dhd_sdio_pwrreq_lock_)
+#define DHD_BUS_PWR_REQ_UNLOCK(lock, flags)	mutex_unlock(&_dhd_sdio_pwrreq_lock_);
+#else
 #define DHD_BUS_PWR_REQ_LOCK(lock, flags)	((flags) = osl_spin_lock(lock))
 #define DHD_BUS_PWR_REQ_UNLOCK(lock, flags)	osl_spin_unlock((lock), (flags))
+#endif /* CONFIG_ARCH_ASTRA && BCMSDIO && __linux__ */
 
 #ifdef PCIE_INB_DW
 #define DHD_BUS_DONGLE_DS_LOCK(lock, flags)	((flags) = osl_spin_lock(lock))

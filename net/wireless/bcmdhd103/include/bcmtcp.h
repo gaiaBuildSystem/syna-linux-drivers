@@ -61,12 +61,12 @@
 #define TCP_PORT_LEN		2	/* TCP port field length */
 
 /* 8bit TCP flag field */
-#define TCP_FLAG_URG            0x20
-#define TCP_FLAG_ACK            0x10
-#define TCP_FLAG_PSH            0x08
-#define TCP_FLAG_RST            0x04
-#define TCP_FLAG_SYN            0x02
-#define TCP_FLAG_FIN            0x01
+#define DHD_TCP_FLAG_URG            0x20
+#define DHD_TCP_FLAG_ACK            0x10
+#define DHD_TCP_FLAG_PSH            0x08
+#define DHD_TCP_FLAG_RST            0x04
+#define DHD_TCP_FLAG_SYN            0x02
+#define DHD_TCP_FLAG_FIN            0x01
 
 #define TCP_HLEN_MASK           0xf000
 #define TCP_HLEN_SHIFT          12

@@ -61,7 +61,7 @@ BWL_PRE_PACKED_STRUCT struct mmic_ie {
 } BWL_POST_PACKED_STRUCT;
 typedef struct mmic_ie mmic_ie_t;
 
-#define DOT11_MMIC_IE_HDR_SIZE (OFFSETOF(mmic_ie_t, mic))
+#define DOT11_MMIC_IE_HDR_SIZE OFFSETOF(mmic_ie_t, mic)
 
 /* This marks the end of a packed structure section. */
 #include <packed_section_end.h>

@@ -62,7 +62,7 @@
 #define EVENT_LOG_TAG_BUS_SETUP	10
 #define EVENT_LOG_TAG_BUS_MISC	11
 
-#define EVENT_LOG_TAG_SRSCAN		22
+#define EVENT_LOG_TAG_UNUSED_22		22	/* obsolete EVENT_LOG_TAG_SRSCAN */
 #define EVENT_LOG_TAG_PWRSTATS_INFO	23
 
 /* Timestamp logging for plotting. */
@@ -722,8 +722,11 @@
 #define EVENT_LOG_TAG_QOS_DAR_ERROR		518
 #define EVENT_LOG_TAG_QOS_DAR_INFO		519
 
+/* Packet dump feature - dumps 802.11 frames to event log */
+#define EVENT_LOG_TAG_PKT_DUMP			520
+
 /* EVENT_LOG_TAG_MAX	= Set to the same value of last tag, not last tag + 1 */
-#define EVENT_LOG_TAG_MAX			519
+#define EVENT_LOG_TAG_MAX			520
 
 typedef enum wl_el_set_type_def {
 	EVENT_LOG_SET_TYPE_DEFAULT = 0, /* flush the log buffer when it is full - Default option */

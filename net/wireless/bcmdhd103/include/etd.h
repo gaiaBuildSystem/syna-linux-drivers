@@ -141,28 +141,28 @@ typedef enum etd_subcode_psmassert {
  * general failures due to which no tag/subcode are updated. This leads to difficulty in
  * identification of reinit cases. subcode's MSB 8 bits are used here for identification.
  */
-#define ETD_SUBCODE_ERR_MASK			(0xFF000000u)
-#define ETD_SUBCODE_ERR_SHIFT			(24u)
+#define ETD_SUBCODE_ERR_MASK			0xFF000000u
+#define ETD_SUBCODE_ERR_SHIFT			24u
 #define ETD_SUBCODE_ERR_UPDATE(subcode, ec)	(((subcode) & ~ETD_SUBCODE_ERR_MASK) |	\
 							(ec << ETD_SUBCODE_ERR_SHIFT))
 
 /* ec is one of below */
-#define ETD_SUBCODE_ERR_NOCLK			(0x01u)
-#define ETD_SUBCODE_ERR_DATACP			(0x02u)
-#define ETD_SUBCODE_ERR_REGCP			(0x03u)
-#define ETD_SUBCODE_ERR_PHYDMP			(0x04u)
-#define ETD_SUBCODE_ERR_SLEPT			(0x05u)
-#define ETD_SUBCODE_ERR_MAXLEN			(0x06u)
-#define ETD_SUBCODE_ERR_OTHREINIT		(0x07u)
+#define ETD_SUBCODE_ERR_NOCLK			0x01u
+#define ETD_SUBCODE_ERR_DATACP			0x02u
+#define ETD_SUBCODE_ERR_REGCP			0x03u
+#define ETD_SUBCODE_ERR_PHYDMP			0x04u
+#define ETD_SUBCODE_ERR_SLEPT			0x05u
+#define ETD_SUBCODE_ERR_MAXLEN			0x06u
+#define ETD_SUBCODE_ERR_OTHREINIT		0x07u
 
 /* sub codes corresponding to TAG_TRAP_ERR_ATTN. This is of the format:
  *  31.........16		15 ........ 0
  *  wlan err attn codes		cmn err attn codes
  */
-#define ETDSC_ERR_ATTN_CMN_MASK				(0xFFFFu)
-#define ETDSC_ERR_ATTN_CMN_SHIFT			(0u)
-#define ETDSC_ERR_ATTN_FN0_MASK				(0xFFFF0000u)
-#define ETDSC_ERR_ATTN_FN0_SHIFT			(16u)
+#define ETDSC_ERR_ATTN_CMN_MASK				0xFFFFu
+#define ETDSC_ERR_ATTN_CMN_SHIFT			0u
+#define ETDSC_ERR_ATTN_FN0_MASK				0xFFFF0000u
+#define ETDSC_ERR_ATTN_FN0_SHIFT			16u
 
 /* cmn */
 #define ETDSC_PCIE_ERR_ATTN_CMN_UNKNOWNTYPE		(0x1u << 9u)	/* Unknown Header Type err
@@ -269,7 +269,7 @@ typedef struct hnd_ext_trap_axi_sr_err_v1
 	uint32 sr_dig_gci_status_0;
 } hnd_ext_trap_axi_sr_err_v1_t;
 
-#define HND_EXT_TRAP_PSMWD_INFO_VER_1	(1u)
+#define HND_EXT_TRAP_PSMWD_INFO_VER_1	1u
 typedef struct hnd_ext_trap_psmwd_v1 {
 	uint16 xtag;
 	uint16 version; /* version of the information following this */
@@ -305,7 +305,7 @@ typedef struct hnd_ext_trap_psmwd_v1 {
 	uint16 pad;
 } hnd_ext_trap_psmwd_v1_t;
 
-#define HND_EXT_TRAP_PSMWD_INFO_VER_2	(2u)
+#define HND_EXT_TRAP_PSMWD_INFO_VER_2	2u
 typedef struct hnd_ext_trap_psmwd_v2 {
 	uint16 xtag;
 	uint16 version; /* version of the information following this */
@@ -345,7 +345,7 @@ typedef struct hnd_ext_trap_psmwd_v2 {
 	uint16 shm_txphyerr_cnt;
 } hnd_ext_trap_psmwd_v2_t;
 
-#define HND_EXT_TRAP_PSMWD_INFO_VER_3	(3u)
+#define HND_EXT_TRAP_PSMWD_INFO_VER_3	3u
 typedef struct hnd_ext_trap_psmwd_v3 {
 	uint16 xtag;
 	uint16 version; /* version of the information following this */
@@ -514,7 +514,7 @@ typedef struct hnd_ext_trap_macsusp {
 	uint16 shm_ucode_dbgst;
 } hnd_ext_trap_macsusp_t;
 
-#define HND_EXT_TRAP_MACENAB_INFO_VER_1		(1u)
+#define HND_EXT_TRAP_MACENAB_INFO_VER_1		1u
 typedef struct hnd_ext_trap_macenab_v1 {
 	uint16 xtag;
 	uint8 version; /* version of the information following this */
@@ -539,7 +539,7 @@ typedef struct hnd_ext_trap_macenab_v1 {
 	uint16 PAD;
 } hnd_ext_trap_macenab_v1_t;
 
-#define HND_EXT_TRAP_MACENAB_INFO_VER_2		(2u)
+#define HND_EXT_TRAP_MACENAB_INFO_VER_2		2u
 typedef struct hnd_ext_trap_macenab_v2 {
 	uint16 xtag;
 	uint8 version; /* version of the information following this */
@@ -565,7 +565,7 @@ typedef struct hnd_ext_trap_macenab_v2 {
 	uint16 PAD;
 } hnd_ext_trap_macenab_v2_t;
 
-#define HND_EXT_TRAP_PHY_INFO_VER_1 (1)
+#define HND_EXT_TRAP_PHY_INFO_VER_1 1
 typedef struct hnd_ext_trap_phydbg {
 	uint16 err;
 	uint16 RxFeStatus;
@@ -645,7 +645,7 @@ typedef struct hnd_ext_trap_phydbg_v2 {
 	uint32 additional_regs[BCM_FLEX_ARRAY];
 } hnd_ext_trap_phydbg_v2_t;
 
-#define HND_EXT_TRAP_PHY_INFO_VER_3		(3)
+#define HND_EXT_TRAP_PHY_INFO_VER_3		3
 typedef struct hnd_ext_trap_phydbg_v3 {
 	uint8 version;
 	uint8 len;
@@ -761,8 +761,8 @@ typedef struct hnd_ext_trap_macphytxerr_v2 {
 	uint32 recv_fifo_status[3][2]; /* Rcv Status0 & Rcv Status1 for 3 Rx fifos */
 } hnd_ext_trap_macphytxerr_v2_t;
 
-#define HND_EXT_TRAP_PCIE_ERR_ATTN_VER_1	(1u)
-#define MAX_AER_HDR_LOG_REGS			(4u)
+#define HND_EXT_TRAP_PCIE_ERR_ATTN_VER_1	1u
+#define MAX_AER_HDR_LOG_REGS			4u
 typedef struct hnd_ext_trap_pcie_err_attn_v1 {
 	uint8 version;
 	uint8 pad[3];
@@ -789,7 +789,7 @@ typedef struct eventlog_trap_buf_info {
 	uint32 buf_addr;
 } eventlog_trap_buf_info_t;
 
-#define HND_MEM_HC_FB_MEM_VER_1	(1u)
+#define HND_MEM_HC_FB_MEM_VER_1	1u
 typedef struct hnd_ext_trap_fb_mem_err {
 	uint16 version;
 	uint16 reserved;
@@ -814,15 +814,15 @@ void BCMPOSTTRAPFN(etd_write_trap_reason_subcode)(uint32 tsc);
 extern bool _etd_enab;
 
 #if defined(ROM_ENAB_RUNTIME_CHECK)
-	#define ETD_ENAB(pub)	(_etd_enab)
+	#define ETD_ENAB(pub)	_etd_enab
 #elif defined(ETD_DISABLED)
-	#define ETD_ENAB(pub)	(FALSE)
+	#define ETD_ENAB(pub)	FALSE
 #else
-	#define ETD_ENAB(pub)	(TRUE)
+	#define ETD_ENAB(pub)	TRUE
 #endif
 
 #else
-#define ETD_ENAB(pub)		(FALSE)
+#define ETD_ENAB(pub)		FALSE
 #endif /* WLETD */
 
 #endif /* !LANGUAGE_ASSEMBLY */

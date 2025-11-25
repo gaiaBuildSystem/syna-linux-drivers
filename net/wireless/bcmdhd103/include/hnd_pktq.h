@@ -227,7 +227,7 @@ extern void spktq_filter(struct spktq *spq, pktq_filter_t fltr, void* fltr_ctx,
 #define pktqprec_empty(pq, prec)		((pq)->q[prec].n_pkts == 0)
 #define pktqprec_peek(pq, prec)			((pq)->q[prec].head)
 #define pktqprec_peek_tail(pq, prec)	((pq)->q[prec].tail)
-#define spktq_peek_tail(pq)		((pq)->q.tail)
+#define spktq_peek_tail(pq)		(pq)->q.tail
 #ifdef HND_PKTQ_THREAD_SAFE
 extern int pktqprec_avail_pkts(struct pktq *pq, int prec);
 extern bool pktqprec_full(struct pktq *pq, int prec);
@@ -265,13 +265,13 @@ extern void *pktq_mpeek(struct pktq *pq, uint prec_bmp, int *prec_out);
 
 /* operations on packet queue as a whole */
 
-#define pktq_n_pkts_tot(pq)	((int)(pq)->n_pkts_tot)
-#define pktq_max(pq)		((int)(pq)->max_pkts)
+#define pktq_n_pkts_tot(pq)	(int)(pq)->n_pkts_tot
+#define pktq_max(pq)		(int)(pq)->max_pkts
 #define pktq_empty(pq)		((pq)->n_pkts_tot == 0)
-#define spktq_n_pkts(spq)	((int)(spq)->q.n_pkts)
+#define spktq_n_pkts(spq)	(int)(spq)->q.n_pkts
 #define spktq_empty(spq)	((spq)->q.n_pkts == 0)
 
-#define spktq_max(spq)		((int)(spq)->q.max_pkts)
+#define spktq_max(spq)		(int)(spq)->q.max_pkts
 #define spktq_empty(spq)	((spq)->q.n_pkts == 0)
 #ifdef HND_PKTQ_THREAD_SAFE
 extern int pktq_avail(struct pktq *pq);

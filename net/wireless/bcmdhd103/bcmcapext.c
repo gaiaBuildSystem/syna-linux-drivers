@@ -79,9 +79,9 @@
 
 #define CAPEXT_SUBFEATURE_MAP(bitpos, str) { bitpos, str }
 #ifdef BCMDONGLEHOST
-#define CAPEXT_CAPS_NUM_MAX			(224u)
+#define CAPEXT_CAPS_NUM_MAX			224u
 #else
-#define CAPEXT_CAPS_NUM_MAX			(1024u)
+#define CAPEXT_CAPS_NUM_MAX			1024u
 #endif
 
 typedef struct capext_output_buffer_ctx_s {
@@ -416,6 +416,8 @@ static const capext_bitpos_to_string_map_t capext_wl_features_subfeature_map[] =
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_MPF_SCAN, "mpf_scan"),
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_MRSNO, "mrsno"),
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_AOP_SCAN, "aop_scan"),
+	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_AP_BCN_SSID_MITIGATE,
+	"ap_bcn_ssid_mitigate"),
 
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_MAX, NULL)
 };

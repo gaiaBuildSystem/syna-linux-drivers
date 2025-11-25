@@ -537,6 +537,9 @@ wbrc_init(void)
 
 	pr_info("%s\n", __func__);
 
+	if (g_wbrc_data)
+		return 0;
+
 	wbrc_data = vzalloc(sizeof(struct wbrc_pvt_data));
 	if (wbrc_data == NULL) {
 		return -ENOMEM;

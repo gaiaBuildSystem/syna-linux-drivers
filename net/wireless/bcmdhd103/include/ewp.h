@@ -99,7 +99,7 @@ typedef struct ewp_hw_info {
 #define EWP_INFO_COEX_CPU_INFO		5u		// coex_cpu_info_addr
 #endif /* COEX_CPU */
 
-#define EWP_INFO_ETB_CONFIG		6u		//etb_config_info_addr
+#define EWP_INFO_ETB_CONFIG		6u		// etb_config_info_addr
 
 #define EWP_INFO_VER 0x1u
 typedef struct ewp_info {

@@ -85,10 +85,8 @@
 #define RTE_REAL_D3_D0		0x891F	/* Transition from real D3/D0. */
 #define RTERXCMPLCHAINENABLE	0x8920	/* Chained RxCompletion Enable */
 #define RTEGRADIO_STAT		0x8921	/* Radio Stat */
-#define RTEDEVGETSTATSTYPE	0x8922	/* Get flowring stats type from WL */
-#define RTEDEVGETSTATSBITMAP	0x8923	/* Get flowring stats bitmap from WL */
 /* Ensure last RTE IOCTL define val is assigned to RTEIOCTLEND */
-#define RTEIOCTLEND		0x8923  /* LAST RTE IOCTL value */
+#define RTEIOCTLEND		0x8921  /* LAST RTE IOCTL value */
 
 #define RTE_IOCTL_QUERY		0x00
 #define RTE_IOCTL_SET		0x01
@@ -424,6 +422,16 @@ typedef struct smbm_dump_info {
 	uint8 smb_status;	/**< returns smbm_status_t */
 	uint8 smbm_usr_hndl_cnt; /**< MAX Number of SMBM users. */
 	uint16 reserved;
+
+	/* SMB Memory stats */
+	uint32 arena_size;	/* Total Heap size */
+	uint32 arena_free;	/* Heap memory available or free */
+	uint32 inuse_size;	/* Heap memory currently in use */
+	uint32 inuse_hwm;	/* High watermark of memory - reclaimed memory */
+	uint32 inuse_overhead;	/* tally of allocated mem_t blocks */
+	uint32 inuse_total;	/* Heap in-use + Heap overhead memory  */
+	uint32 free_lwm;        /* Least free size since reclaim */
+	uint32 mf_count;        /* Malloc failure count */
 	char   val[BCM_FLEX_ARRAY]; /**< For formatted text output */
 } smbm_dump_resp_info_v0_t;
 
@@ -502,7 +510,8 @@ typedef enum {
 	SMBM_TEST_SMBM_MFREE		= 2u,	/** free SMB Memory using address */
 	SMBM_TEST_SWITCH_TO_WLAN	= 3u,	/** Switch SMB to WLAN */
 	SMBM_TEST_SWITCH_TO_BT		= 4u,	/** Switch SMB to BT */
-	SMBM_TEST_MEMDIAG		= 5u	/** Memory diag test */
+	SMBM_TEST_MEMDIAG		= 5u,	/** Memory diag test */
+	SMBM_TEST_ACCESS_IN_BT_MODE	= 6u	/** WLAN Memory access test with SMBM owner BT */
 } smbm_subcmd_test_id_t;
 
 #define SMBM_TEST_VER_0 0
@@ -629,9 +638,11 @@ typedef struct hnd_gpdma_cmd {
 } hnd_gpdma_cmd_t;
 
 typedef struct hnd_gpdma_cmd_payload_v1 {
-	uint8 coalesce_descr;	/* Coalesce descriptors? */
-	uint8 verify_data;	/* verify data contents at the end of each DMA transfer */
-	uint16 num_iterations;	/* Number of test iterations */
+	uint8	coalesce_descr;	/* Coalesce descriptors? */
+	uint8	verify_data;	/* verify data contents at the end of each DMA transfer */
+	uint16	num_iterations;	/* Number of test iterations */
+	uint8	async;		/* async or sync gpdma */
+	uint8	pad[3];		/* pad */
 } hnd_gpdma_cmd_payload_v1_t;
 
 /*
@@ -643,6 +654,9 @@ typedef enum {
 	HND_GPDMA_SUBCMD_INBOUND_SYNC = 2u,	/* SYNC DMA read from HW memories */
 	HND_GPDMA_SUBCMD_OUTBOUND_SYNC = 3u,	/* SYNC DMA write to HW memories */
 	HND_GPDMA_SUBCMD_CONCURRENT_SYNC = 4u,	/* SYNC concurrent read/write */
+	HND_GPDMA_SUBCMD_INBOUND_ASYNC = 5u,	/* ASYNC DMA read from HW memories */
+	HND_GPDMA_SUBCMD_OUTBOUND_ASYNC = 6u,	/* ASYNC DMA write to HW memories */
+	HND_GPDMA_SUBCMD_CONCURRENT_ASYNC = 7u,	/* ASYNC concurrent read/write */
 	HND_GPDMA_SUBCMD_MAX
 } hnd_gpdma_subcmd_id_t;
 #endif /* _dngl_ioctl_h_ */

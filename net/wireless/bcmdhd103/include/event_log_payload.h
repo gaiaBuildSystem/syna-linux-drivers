@@ -71,7 +71,7 @@ typedef struct enhanced_ts_message {
 	uint8 data[];
 } ets_msg_t;
 
-#define ENHANCED_TS_MSG_VERSION_1 (1u)
+#define ENHANCED_TS_MSG_VERSION_1 1u
 
 /**
  * Enhanced timestamp message, version 1
@@ -86,7 +86,7 @@ typedef struct enhanced_ts_message_v1 {
 /**
  * Enhanced timestamp message, version 2
  */
-#define ENHANCED_TS_MSG_VERSION_2 (2u)
+#define ENHANCED_TS_MSG_VERSION_2 2u
 typedef struct enhanced_ts_message_v2 {
 	uint64 sysuptime_ns;		/* sysuptime in ns */
 	uint64 ets_write_ptm_time;	/* PTM time at ETS message */
@@ -132,7 +132,7 @@ typedef struct txq_summary {
 	uint16 plen[BCM_FLEX_ARRAY];  /* array of lengths of each prec/fifo in the queue */
 } txq_summary_t;
 
-#define TXQ_SUMMARY_LEN                   (OFFSETOF(txq_summary_t, plen))
+#define TXQ_SUMMARY_LEN                   OFFSETOF(txq_summary_t, plen)
 #define TXQ_SUMMARY_FULL_LEN(num_q)       (TXQ_SUMMARY_LEN + (num_q) * sizeof(uint16))
 
 typedef struct txq_summary_v2 {
@@ -146,7 +146,7 @@ typedef struct txq_summary_v2 {
 	uint16 plen[BCM_FLEX_ARRAY];  /* array of lengths of each prec/fifo in the queue */
 } txq_summary_v2_t;
 
-#define TXQ_SUMMARY_V2_LEN                (OFFSETOF(txq_summary_v2_t, plen))
+#define TXQ_SUMMARY_V2_LEN                OFFSETOF(txq_summary_v2_t, plen)
 #define TXQ_SUMMARY_V2_FULL_LEN(num_q)    (TXQ_SUMMARY_V2_LEN + (num_q) * sizeof(uint16))
 
 /**
@@ -165,7 +165,7 @@ typedef struct scb_subq_summary {
 	uint16 plen[BCM_FLEX_ARRAY];  /* array of lengths of each prec/fifo in the queue */
 } scb_subq_summary_t;
 
-#define SCB_SUBQ_SUMMARY_LEN              (OFFSETOF(scb_subq_summary_t, plen))
+#define SCB_SUBQ_SUMMARY_LEN              OFFSETOF(scb_subq_summary_t, plen)
 #define SCB_SUBQ_SUMMARY_FULL_LEN(num_q)  (SCB_SUBQ_SUMMARY_LEN + (num_q) * sizeof(uint16))
 
 /* scb_subq_summary_t.flags for APPS */
@@ -218,7 +218,7 @@ typedef struct bsscfg_q_summary {
 	uint16 plen[BCM_FLEX_ARRAY]; /* array of lengths of each prec/fifo in the queue */
 } bsscfg_q_summary_t;
 
-#define BSSCFG_Q_SUMMARY_LEN              (OFFSETOF(bsscfg_q_summary_t, plen))
+#define BSSCFG_Q_SUMMARY_LEN              OFFSETOF(bsscfg_q_summary_t, plen)
 #define BSSCFG_Q_SUMMARY_FULL_LEN(num_q)  (BSSCFG_Q_SUMMARY_LEN + (num_q) * sizeof(uint16))
 
 /**
@@ -235,7 +235,7 @@ typedef struct xtlv_uc_txs {
 	uint32 w[BCM_FLEX_ARRAY];   /* var len array of words */
 } xtlv_uc_txs_t;
 
-#define XTLV_UCTXSTATUS_LEN                (OFFSETOF(xtlv_uc_txs_t, w))
+#define XTLV_UCTXSTATUS_LEN                OFFSETOF(xtlv_uc_txs_t, w)
 #define XTLV_UCTXSTATUS_FULL_LEN(words)    (XTLV_UCTXSTATUS_LEN + (words) * sizeof(uint32))
 
 #define SCAN_SUMMARY_VERSION_1	1u
@@ -815,7 +815,7 @@ typedef struct {
 /* AMPDU_RX module's per-slice counters. Sent by ecounters as subtype of
  * WL_IFSTATS_XTLV_RX_AMPDU_STATS ecounters type
  */
-#define WLC_AMPDU_RX_STATS_V1	(1u)
+#define WLC_AMPDU_RX_STATS_V1	1u
 typedef struct wlc_ampdu_rx_stats {
 	uint16 version;
 	uint16 len;
@@ -1221,11 +1221,11 @@ typedef struct prsv_periodic_log_hdr {
 	uint16 length;
 } prsv_periodic_log_hdr_t;
 
-#define ROAM_LOG_VER_1	(1u)
-#define ROAM_LOG_VER_2	(2u)
-#define ROAM_LOG_VER_3	(3u)
-#define ROAM_LOG_VER_4	(4u)
-#define ROAM_SSID_LEN	(32u)
+#define ROAM_LOG_VER_1	1u
+#define ROAM_LOG_VER_2	2u
+#define ROAM_LOG_VER_3	3u
+#define ROAM_LOG_VER_4	4u
+#define ROAM_SSID_LEN	32u
 typedef struct roam_log_trig_v1 {
 	prsv_periodic_log_hdr_t hdr;
 	int8 rssi;
@@ -1529,7 +1529,7 @@ typedef struct event_log_buffer {
 	uint8 data[];	/* the payload of interest */
 } event_log_buffer_t;
 
-#define XTLV_EVENT_LOG_BUFFER_LEN		(OFFSETOF(event_log_buffer_t, data))
+#define XTLV_EVENT_LOG_BUFFER_LEN		OFFSETOF(event_log_buffer_t, data)
 #define XTLV_EVENT_LOG_BUFFER_FULL_LEN(buf_len)	ALIGN_SIZE((XTLV_EVENT_LOG_BUFFER_LEN + \
 							(buf_len) * sizeof(uint8)), sizeof(uint32))
 
@@ -1570,7 +1570,7 @@ typedef struct event_log_rte_dvfs_fsm_struct {
 } event_log_rte_dvfs_fsm_struct_t;
 
 /* Slotted BSS timer reference for RX deafness debug */
-#define WLC_SLOTTED_BSS_TIMEREF_VERSION_1	(1u)
+#define WLC_SLOTTED_BSS_TIMEREF_VERSION_1	1u
 typedef struct wlc_slotted_bss_timeref_v1 {
 	uint16 version;
 	uint8 wlc_unit;	/* WLC unit that triggered generation of this timestamp */
@@ -1594,7 +1594,7 @@ typedef struct wlc_slotted_bss_timeref_v2 {
 	wlc_slotted_bss_timeref_values_v1_t timerefs[];
 } wlc_slotted_bss_timeref_v2_t;
 
-#define	TRIG_LOG_EVENTS_XTLV_CONTAINER_VERSION_1	(1u)
+#define	TRIG_LOG_EVENTS_XTLV_CONTAINER_VERSION_1	1u
 typedef struct trig_log_events_xtlv_container {
 	uint16	version;	/**< see definition of TRIG_LOG_EVENTS_XTLV_CONTAINER_VERSION */
 	uint16	len;		/**< length of data including all paddings. */
@@ -1606,7 +1606,7 @@ typedef struct trig_log_events_xtlv_container {
 } trig_log_events_xtlv_container_v1_t;
 
 /* Bus device HTOD RX dump info. Sent in triggered log events container above */
-#define PCIEDEV_HTOD_RX_INFO_VERSION_1		(1u)
+#define PCIEDEV_HTOD_RX_INFO_VERSION_1			1u
 typedef struct pciedev_htod_rx_ring_info_v1 {
 	uint16 version;
 	uint16 g_rxcplist_max;
@@ -1624,7 +1624,7 @@ typedef struct pciedev_htod_rx_ring_info_v1 {
 } pciedev_htod_rx_ring_info_v1_t;
 
 /* WL RX fifo overflow info. Sent in triggered log events container above */
-#define WLC_RX_FIFO_DMA_NUM				(3u)
+#define WLC_RX_FIFO_DMA_NUM				3u
 typedef struct wlc_rx_fifo_overflow_info_v1 {
 	uint8 unit;
 	uint8 rxfifo_bitmap;
@@ -1663,7 +1663,7 @@ typedef struct wlc_rx_fifo_overflow_info_v1 {
 
 /* Data structures for transferring channel switch histogram data to host */
 
-#define CHSW_HISTOGRAM_HOST_ENTRY_VERSION_1 (1u)
+#define CHSW_HISTOGRAM_HOST_ENTRY_VERSION_1 1u
 
 typedef struct chsw_histogram_host_entry_v1 {
 	uint8 version;
@@ -1673,7 +1673,7 @@ typedef struct chsw_histogram_host_entry_v1 {
 	uint32 buckets[];
 } chsw_histogram_host_entry_v1_t;
 
-#define CHSW_HISTOGRAM_HOST_DATA_VERSION_1 (1u)
+#define CHSW_HISTOGRAM_HOST_DATA_VERSION_1 1u
 
 typedef struct chsw_histogram_host_data_v1 {
 	uint8 version;

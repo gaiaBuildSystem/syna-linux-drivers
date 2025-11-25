@@ -167,6 +167,13 @@
 #include <dhd_cfg80211.h>
 #endif /* WL_CFG80211 */
 
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+#include <net/arp.h>
+#include <net/route.h>
+#include <linux/skbuff.h>
+#include <linux/etherdevice.h>
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
+
 #ifdef AMPDU_VO_ENABLE
 /* Enabling VO AMPDU to reduce FER */
 #include <802.1d.h>
@@ -238,6 +245,13 @@ int enable_mq = TRUE;
 module_param(enable_mq, int, 0644);
 int mq_select_disable = FALSE;
 #endif
+
+#define DEFAULT_WIFI_ON_FAIL_MAX_TRY	3
+#ifndef CUSTOM_WIFI_ON_FAIL_MAX_TRY
+#define CUSTOM_WIFI_ON_FAIL_MAX_TRY	DEFAULT_WIFI_ON_FAIL_MAX_TRY
+#endif
+int wifion_retry_max = CUSTOM_WIFI_ON_FAIL_MAX_TRY;
+module_param(wifion_retry_max, int, 0644);
 
 #ifdef DHD_FWTRACE
 #include <dhd_fwtrace.h>
@@ -442,6 +456,13 @@ static struct notifier_block dhd_inetaddr_notifier = {
  * created in the kernel notifier link list (with 'next' pointing to itself)
  */
 static bool dhd_inetaddr_notifier_registered = FALSE;
+
+#ifdef ARP_CHECK_SUPPORT
+static void dhd_cleanup_arp_check_error_work(dhd_info_t *dhd);
+static void dhd_arp_check_error_handler(struct work_struct *work);
+uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx);
+void dhd_arp_check_timer(void *data);
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 #ifdef WL_STATIC_IF
 static bool dhd_is_static_ndev_active(dhd_pub_t *dhdp);
@@ -633,7 +654,6 @@ char firmware_path[MOD_PARAM_PATHLEN] = CONFIG_BCMDHD_FW_PATH;
 char nvram_path[MOD_PARAM_PATHLEN] = CONFIG_BCMDHD_NVRAM_PATH;
 char clm_path[MOD_PARAM_PATHLEN] = CONFIG_BCMDHD_CLM_PATH;
 #endif /* DHD_LINUX_STD_FW_API */
-
 char txcap_path[MOD_PARAM_PATHLEN];
 char signature_path[MOD_PARAM_PATHLEN];
 #ifdef DHD_UCODE_DOWNLOAD
@@ -6826,6 +6846,12 @@ dhd_stop(struct net_device *net)
 					dhd_inetaddr_notifier_registered = FALSE;
 					unregister_inetaddr_notifier(&dhd_inetaddr_notifier);
 				}
+#ifdef ARP_CHECK_SUPPORT
+				if (dhd->arp_check_timer_valid) {
+					dhd->arp_check_timer_valid = FALSE;
+					del_timer_sync(&dhd->arp_check_timer);
+				}
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
 				if (dhd_inet6addr_notifier_registered) {
@@ -7165,6 +7191,7 @@ dhd_open(struct net_device *net)
 #endif
 	int ifidx;
 	int32 ret = 0;
+	uint32 try_cnt = 0;
 
 	DHD_PRINT(("%s: ENTER\n", __FUNCTION__));
 
@@ -7368,10 +7395,18 @@ dhd_open(struct net_device *net)
 			ret = dhd_bus_get(&dhd->pub, WLAN_MODULE);
 			wl_android_set_wifi_on_flag(TRUE);
 #else
+retry:
 			ret = wl_android_wifi_on(net);
 #endif /* BT_OVER_SDIO */
 #endif /* WLAN_ACCEL_BOOT */
 			if (ret != 0) {
+				if (try_cnt < wifion_retry_max) {
+					wl_android_wifi_off(net, TRUE);
+					try_cnt++;
+					DHD_ERROR(("%s: wl_android_wifi_on retry %d\n",
+						__FUNCTION__, try_cnt));
+					goto retry;
+				}
 				DHD_ERROR(("%s : wl_android_wifi_on failed (%d)\n",
 					__FUNCTION__, ret));
 				/* Set chip big hammer */
@@ -7497,6 +7532,14 @@ dhd_open(struct net_device *net)
 				dhd_inetaddr_notifier_registered = TRUE;
 				register_inetaddr_notifier(&dhd_inetaddr_notifier);
 			}
+#ifdef ARP_CHECK_SUPPORT
+			if (!dhd->arp_check_timer_valid) {
+				dhd->arp_check_timer_valid = TRUE;
+				INIT_DELAYED_WORK(&dhd->arp_disconnect_work,
+						dhd_arp_check_error_handler);
+				init_timer_compat(&dhd->arp_check_timer, dhd_arp_check_timer, dhd);
+			}
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
 			if (!dhd_inet6addr_notifier_registered) {
@@ -7952,6 +7995,7 @@ dhd_get_ifp_by_ndev(dhd_pub_t *dhdp, struct net_device *ndev)
 	return NULL;
 }
 
+#ifdef WL_STATIC_IF
 bool
 dhd_is_static_ndev(dhd_pub_t *dhdp, struct net_device *ndev)
 {
@@ -7970,7 +8014,6 @@ dhd_is_static_ndev(dhd_pub_t *dhdp, struct net_device *ndev)
 	return FALSE;
 }
 
-#ifdef WL_STATIC_IF
 /* While registering static I/F, the actual ifidx, bssidx and dngl_name are not known.
  * This function lets to update the dhdinfo->iflist after the firmware interface is initialised.
  */
@@ -9980,6 +10023,17 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		dhd_inetaddr_notifier_registered = TRUE;
 		register_inetaddr_notifier(&dhd_inetaddr_notifier);
 	}
+#ifdef ARP_CHECK_SUPPORT
+	if (!dhd->arp_check_timer_valid) {
+		dhd->arp_check_timer_valid = TRUE;
+		/* disable arp check by default, will enable it from config file */
+		dhd->arp_check_enable = FALSE;
+		dhd->arp_check_interval = DHD_ARP_CHECK_INTERVAL;
+		dhd->arp_check_timeout = DHD_ARP_CHECK_TIMEOUT;
+		INIT_DELAYED_WORK(&dhd->arp_disconnect_work, dhd_arp_check_error_handler);
+		init_timer_compat(&dhd->arp_check_timer, dhd_arp_check_timer, dhd);
+	}
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
@@ -10384,6 +10438,7 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 	if (dhdinfo->fw_path[0] == '\0') {
 		if (adapter && adapter->fw_path && adapter->fw_path[0] != '\0')
 			fw = adapter->fw_path;
+
 	}
 	if (dhdinfo->nv_path[0] == '\0') {
 		if (adapter && adapter->nv_path && adapter->nv_path[0] != '\0')
@@ -10437,7 +10492,7 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 		nv = nvram_get(var);
 	}
 	DHD_PRINT(("dhd:%d: fw path:%s nv path:%s\n", dhdinfo->unit, fw, nv));
-#endif /* DHD_LINUX_STD_FW_API */
+#endif
 
 	if (fw && fw[0] != '\0') {
 		fw_len = strlen(fw);
@@ -10486,7 +10541,6 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 		}
 #endif /* DHD_USE_SINGLE_NVRAM_FILE */
 	}
-
 	if (signature_path[0] != '\0') {
 		sig_len = strlen(signature_path);
 		if (sig_len >= sig_path_len) {
@@ -10520,14 +10574,13 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 
 	/* fw_path and nv_path are not mandatory */
 	if (dhdinfo->fw_path[0] == '\0') {
-		DHD_ERROR(("%s:firmware path not found\n", __FUNCTION__));
+		DHD_ERROR(("firmware path not found\n"));
 		return FALSE;
 	}
 	if (dhdinfo->nv_path[0] == '\0') {
-		DHD_ERROR(("%s:nvram path not found\n", __FUNCTION__));
+		DHD_ERROR(("nvram path not found\n"));
 		return FALSE;
 	}
-
 
 	return TRUE;
 }
@@ -10835,11 +10888,16 @@ dhd_bus_start(dhd_pub_t *dhdp)
 #endif /* DHD_DEBUG && BCMSDIO */
 	ret = dhd_sync_with_dongle(&dhd->pub);
 	if (ret < 0) {
+		wifi_adapter_info_t *adapter = dhd->adapter;
 		DHD_GENERAL_LOCK(&dhd->pub, flags);
 		dhd->wd_timer_valid = FALSE;
 		DHD_GENERAL_UNLOCK(&dhd->pub, flags);
 		del_timer_sync(&dhd->timer);
 		DHD_ERROR(("%s failed to sync with dongle\n", __FUNCTION__));
+		adapter->load_fail = TRUE;
+#if defined(OEM_ANDROID) && defined(BCMLXSDMMC)
+		up(&dhd_registration_sem);
+#endif /* defined(OEM_ANDROID) && defined(BCMLXSDMMC) */
 		DHD_OS_WD_WAKE_UNLOCK(&dhd->pub);
 		return ret;
 	}
@@ -11707,9 +11765,14 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 #if defined(BCMSUP_4WAY_HANDSHAKE)
 	uint32 sup_wpa = 1;
 #endif /* BCMSUP_4WAY_HANDSHAKE */
+#ifdef CUSTOM_SDIO_CREDTRIG
+	uint32 credtrig = CUSTOM_SDIO_CREDTRIG;
+#endif /* CUSTOM_SDIO_CREDTRIG */
 
 	uint32 frameburst = CUSTOM_FRAMEBURST_SET;
+#ifdef OEM_ANDROID
 	uint wnm_bsstrans_resp = 0;
+#endif /* OEM_ANDROID */
 	uint32 enable_memuse = 1;
 #ifdef DHD_PM_CONTROL_FROM_FILE
 	uint power_mode = PM_FAST;
@@ -11797,6 +11860,16 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* !SUPPORT_MULTIPLE_CHIPS */
 	}
 #endif /* CUSTOMER_HW4_DEBUG */
+
+#if defined(BCMSDIO)
+	/* set the bus credit trigger threshold */
+#ifdef CUSTOM_SDIO_CREDTRIG
+	ret = dhd_iovar(dhd, 0, "bus:credtrig", (char *)&credtrig, sizeof(credtrig), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s set bus:credtrig failed %d\n", __FUNCTION__, ret));
+	}
+#endif /* CUSTOM_SDIO_CREDTRIG */
+#endif /* BCMSDIO */
 
 	/* query for 'ver' to get version info from firmware */
 	bzero(buf, sizeof(buf));
@@ -12466,6 +12539,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 	/* ND offload version supported */
 	dhd->ndo_version = dhd_ndo_get_version(dhd);
 
+#ifdef OEM_ANDROID
 	/* check dongle supports wbtext (product policy) or not */
 	dhd->wbtext_support = FALSE;
 	if (dhd_wl_ioctl_get_intiovar(dhd, "wnm_bsstrans_resp", &wnm_bsstrans_resp,
@@ -12486,6 +12560,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 		}
 	}
 #endif /* !WBTEXT */
+#endif /* OEM_ANDROID */
 
 #ifdef DHD_NON_DMA_M2M_CORRUPTION
 	/* check pcie non dma loopback */
@@ -12743,7 +12818,9 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 	uint32 wl_ap_isolate;
 #endif /* PCIE_FULL_DONGLE */
 	uint32 frameburst = CUSTOM_FRAMEBURST_SET;
+#ifdef OEM_ANDROID
 	uint wnm_bsstrans_resp = 0;
+#endif /* OEM_ANDROID */
 #ifdef SUPPORT_SET_CAC
 	uint32 cac = 1;
 #endif /* SUPPORT_SET_CAC */
@@ -12760,6 +12837,9 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 #if defined(BCMSDIO)
 	uint32 dongle_align = DHD_SDALIGN;
 	uint32 glom = CUSTOM_GLOM_SETTING;
+#ifdef CUSTOM_SDIO_CREDTRIG
+	uint32 credtrig = CUSTOM_SDIO_CREDTRIG;
+#endif /* CUSTOM_SDIO_CREDTRIG */
 #endif /* defined(BCMSDIO) */
 	uint bcn_timeout = CUSTOM_BCN_TIMEOUT;
 	uint scancache_enab = TRUE;
@@ -13421,6 +13501,13 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 	}
 #endif /* ASSOC_PREFER_RSSI_THRESH */
 #if defined(BCMSDIO)
+	/* set the bus credit trigger threshold */
+#ifdef CUSTOM_SDIO_CREDTRIG
+	ret = dhd_iovar(dhd, 0, "bus:credtrig", (char *)&credtrig, sizeof(credtrig), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s set bus:credtrig failed %d\n", __FUNCTION__, ret));
+	}
+#endif /* CUSTOM_SDIO_CREDTRIG */
 	/* Match Host and Dongle rx alignment */
 	ret = dhd_iovar(dhd, 0, "bus:txglomalign", (char *)&dongle_align, sizeof(dongle_align),
 			NULL, 0, TRUE);
@@ -14338,6 +14425,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* NDO_CONFIG_SUPPORT */
 	}
 
+#ifdef OEM_ANDROID
 	/* check dongle supports wbtext (product policy) or not */
 	dhd->wbtext_support = FALSE;
 	if (dhd_wl_ioctl_get_intiovar(dhd, "wnm_bsstrans_resp", &wnm_bsstrans_resp,
@@ -14358,6 +14446,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		}
 	}
 #endif /* !WBTEXT */
+#endif /* OEM_ANDROID */
 
 #ifdef DHD_NON_DMA_M2M_CORRUPTION
 	/* check pcie non dma loopback */
@@ -14788,6 +14877,166 @@ aoe_update_host_ipv4_table(dhd_pub_t *dhd_pub, u32 ipa, bool add, int idx)
 #endif
 }
 
+#ifdef ARP_CHECK_SUPPORT
+int dhd_dev_set_arp_trigger(struct net_device *dev, int val)
+{
+	dhd_info_t *dhd = DHD_DEV_INFO(dev);
+	dhd->arp_trigger_start = val;
+	if (val && dhd->arp_check_enable) {
+		if (dhd->arp_check_timer_valid) {
+			/* may need dhcp, so set longer timer */
+			dhd->arp_tick_cnt = -1; /* set max value avoid disconnect at first timer */
+			mod_timer(&dhd->arp_check_timer, jiffies +
+				msecs_to_jiffies(2 * dhd->arp_check_interval));
+		}
+	}
+	return 0;
+}
+
+int dhd_pub_save_arp_resp_tick(dhd_pub_t *dhdp)
+{
+	dhd_info_t *dhd = dhdp->info;
+	dhd->arp_tick_cnt = dhdp->tickcnt;
+	return 0;
+}
+
+static void dhd_arp_check_error_handler(struct work_struct *work)
+{
+	dhd_info_t *dhd;
+	struct delayed_work *dw = to_delayed_work(work);
+	struct net_device *ndev;
+
+	/* Ignore compiler warnings due to -Werror=cast-qual */
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+	dhd = container_of(dw, dhd_info_t, arp_disconnect_work);
+	GCC_DIAGNOSTIC_POP();
+
+	if (dhd && dhd->iflist[0]) {
+		ndev = dhd->iflist[0]->net;
+	} else {
+		DHD_ERROR(("%s: return as NULL pointer\n", __FUNCTION__));
+		return;
+	}
+	DHD_ERROR(("Disassoc for arp check timeout at %s\n",
+		ndev->name));
+#ifdef WL_CFG80211
+	wl_cfg80211_disassoc(ndev, WLAN_REASON_DEAUTH_LEAVING);
+#endif /* WL_CFG80211 */
+}
+
+static void
+dhd_cleanup_arp_check_error_work(dhd_info_t *dhd)
+{
+
+	if (!dhd) {
+		DHD_ERROR(("%s: dhdinfo is NULL\n", __FUNCTION__));
+		return;
+	}
+
+	cancel_delayed_work_sync(&dhd->arp_disconnect_work);
+}
+
+void dhd_arp_check_timer(void *data)
+{
+	dhd_info_t *dhd = (dhd_info_t *)data;
+	struct net_device *ndev;
+	if (!dhd->arp_check_timer_valid) {
+		DHD_ERROR(("arp trigger timer_valid, return\n"));
+		return;
+	}
+	if (!dhd->arp_trigger_start || !dhd->arp_check_enable) {
+		DHD_ERROR(("arp trigger not set/enabled, return\n"));
+		return;
+	}
+	/* check gw get correctly */
+	if (dhd->gw_ipaddr  == 0) {
+		dhd->gw_ipaddr = get_default_gateway_ip(&dhd->pub, 0);
+		/* check gw again */
+		if (dhd->gw_ipaddr  == 0) {
+			DHD_ERROR(("get gw failed, try it again with a timer interval %d\n",
+					dhd->arp_check_interval));
+			mod_timer(&dhd->arp_check_timer,
+					jiffies + msecs_to_jiffies(dhd->arp_check_interval));
+			return;
+		}
+	}
+	if (dhd->iflist[0] == NULL) {
+		DHD_ERROR(("%s: Invalid Interface\n", __FUNCTION__));
+		return;
+	}
+	ndev = dhd->iflist[0]->net;
+
+	DHD_TRACE(("%s: enter %d, tickcnt = %d vs %d \t delta=%d\n", __func__, __LINE__,
+			dhd->pub.tickcnt, dhd->arp_tick_cnt, dhd->pub.tickcnt - dhd->arp_tick_cnt));
+	if ((dhd->pub.tickcnt > dhd->arp_tick_cnt) &&
+			((dhd->pub.tickcnt - dhd->arp_tick_cnt) > dhd->arp_check_timeout)) {
+		/* try to disconnect the network */
+		dhd->arp_trigger_start = 0;
+		schedule_delayed_work(&dhd->arp_disconnect_work,
+			msecs_to_jiffies(dhd->arp_check_interval));
+		return;
+
+	}
+
+	/* try to trigger ARP request */
+	arp_send(ARPOP_REQUEST, ETH_P_ARP, dhd->gw_ipaddr, ndev, dhd->local_ipaddr,
+		NULL, ndev->dev_addr, NULL);
+
+	/* trigger next arp req */
+	mod_timer(&dhd->arp_check_timer, jiffies + msecs_to_jiffies(dhd->arp_check_interval));
+	return;
+}
+
+/* Get gateway IP (ipv4 */
+uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx)
+{
+	struct rtable *rt;
+	struct flowi4 fl4;
+	uint32 gateway_ip = 0;
+	dhd_info_t *dhd = (dhd_info_t *)dhdp->info;
+	struct net_device *dev = NULL;
+
+	if (dhd == NULL || dhd->iflist[ifidx] == NULL) {
+		DHD_ERROR(("%s: Invalid Interface\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+	memset(&fl4, 0, sizeof(fl4));
+	dev =  dhd->iflist[ifidx]->net;
+	if (dev->flags & IFF_UP) {
+		memset(&fl4, 0, sizeof(fl4));
+
+		/* fill ARP structure */
+		fl4.flowi4_oif = dev->ifindex;
+		fl4.daddr = htonl(0x08080808);          /* destination IP:8.8.8.8 */
+		fl4.saddr = 0;
+		fl4.__fl_common.flowic_tos = 0;
+		fl4.__fl_common.flowic_scope = RT_SCOPE_UNIVERSE;
+		fl4.__fl_common.flowic_proto = IPPROTO_IP;
+
+		/* get gate way items */
+		rt = ip_route_output_key(dev_net(dev), &fl4);
+		DHD_TRACE(("%s: enter %d, rt=%p,name=%s\n", __func__, __LINE__, rt, dev->name));
+		if (!IS_ERR(rt)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+			DHD_TRACE(("rt_gw_family=%d, rt_gw4=%d\n", rt->rt_gw_family, rt->rt_gw4));
+			if (rt->rt_gw_family == AF_INET && rt->rt_gw4) {
+				/* get gateway based on next trace */
+				gateway_ip = rt->rt_gw4;
+			}
+#else
+			if (rt->rt_gateway) {
+				gateway_ip = rt->rt_gateway;
+			}
+#endif /* KERNEL_VER >= KERNEL_VERSION(5,0,0) */
+
+		}
+
+	}
+
+	return gateway_ip;
+}
+#endif /* ARP_CHECK_SUPPORT */
+
 /* this function is only for IP address */
 /*
  * Notification mechanism from kernel to our driver. This function is called by the Linux kernel
@@ -14850,6 +15099,20 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 		DHD_ARPOE(("%s: [%s] Up IP: 0x%x\n",
 			__FUNCTION__, ifa->ifa_label, ifa->ifa_address));
 
+#ifdef ARP_CHECK_SUPPORT
+		if (idx == 0) {
+			dhd->gw_ipaddr = get_default_gateway_ip(dhd_pub, idx);
+			DHD_ERROR(("%s: gw_ipaddr = %x\n", __FUNCTION__, dhd->gw_ipaddr));
+			dhd->arp_trigger_start = 1;
+			if (dhd->arp_check_timer_valid) {
+				/* set max value avoid disconnect at first timer */
+				dhd->arp_tick_cnt = -1;
+				mod_timer(&dhd->arp_check_timer,
+					jiffies + msecs_to_jiffies(dhd->arp_check_interval));
+			}
+			dhd->local_ipaddr = ifa->ifa_address;
+		}
+#endif /* ARP_CHECK_SUPPORT */
 		/*
 		 * Skip if Bus is not in a state to transport the IOVAR
 		 * (or) the Dongle is not ready.
@@ -14875,10 +15138,11 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 
 #if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
 		primary_ndev = dhd_linux_get_primary_netdev(dhd_pub);
-		/* Update mDNS offload host ipv4 address only when the primary interface is in station mode */
+		/* Update mDNS offload host ipv4 address only when the primary interface is */
+		/* in station mode */
 		if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
 			DHD_ERROR(("%s:add aliased IP to MDNS hostip cache\n",
-						__FUNCTION__));
+					__FUNCTION__));
 			mdns_update_host_ipv4_table(dhd_pub, ifa->ifa_address, TRUE, idx);
 		}
 #endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
@@ -14888,6 +15152,12 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 		DHD_ARPOE(("%s: [%s] Down IP: 0x%x\n",
 			__FUNCTION__, ifa->ifa_label, ifa->ifa_address));
 		dhd->pend_ipaddr = 0;
+#ifdef ARP_CHECK_SUPPORT
+		if (idx == 0) {
+			dhd->gw_ipaddr = 0;
+			dhd->arp_trigger_start = 0;
+		}
+#endif /* ARP_CHECK_SUPPORT */
 #ifdef AOE_IP_ALIAS_SUPPORT
 		/* HOSTAPD will be returned at first */
 		DHD_ARPOE(("%s:interface is down, AOE clr all for this if\n",
@@ -14904,9 +15174,10 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 
 #if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
 			primary_ndev = dhd_linux_get_primary_netdev(dhd_pub);
-			if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
+			if (primary_ndev &&
+				(primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION)) {
 				DHD_ERROR(("%s:delete aliased IP to MDNS hostip cache\n",
-							__FUNCTION__));
+						__FUNCTION__));
 				dhd_mdns_hostip_clr(&dhd->pub, idx);
 			}
 #endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
@@ -14978,7 +15249,8 @@ dhd_inet6_work_handler(void *dhd_info, void *event_data, u8 event)
 		}
 #if defined(WL_MDNS_OFFLOAD) && defined(WL_CFG80211)
 		primary_ndev = dhd_linux_get_primary_netdev(dhdp);
-		/* Update mDNS offload host ipv6 address only when the primary interface is in station mode */
+		/* Update mDNS offload host ipv6 address only when the primary interface is */
+		/* in station mode */
 		if (primary_ndev && primary_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_STATION) {
 			ret = dhd_mdns_add_ipv6(dhdp, &ndo_work->ipv6_addr[0],
 					ndo_work->if_idx);
@@ -15014,11 +15286,11 @@ dhd_inet6_work_handler(void *dhd_info, void *event_data, u8 event)
 			ret = dhd_mdns_remove_ipv6(dhdp, ndo_work->if_idx);
 			if (ret < 0) {
 				DHD_ERROR(("%s: Removing host ipv6 for MDNS failed %d\n",
-							__FUNCTION__, ret));
+						__FUNCTION__, ret));
 				goto done;
 			} else
 				DHD_ERROR(("%s: Removing host ipv6 for MDNS success %d\n",
-							__FUNCTION__, ret));
+						__FUNCTION__, ret));
 		}
 #endif /* WL_MDNS_OFFLOAD && WL_CFG80211 */
 
@@ -15527,6 +15799,14 @@ void dhd_detach(dhd_pub_t *dhdp)
 	}
 
 #ifdef ARP_OFFLOAD_SUPPORT
+#ifdef ARP_CHECK_SUPPORT
+	if (dhd->arp_check_timer_valid) {
+		dhd->arp_check_timer_valid = FALSE;
+		dhd->arp_check_enable = FALSE;
+		del_timer_sync(&dhd->arp_check_timer);
+	}
+	dhd_cleanup_arp_check_error_work(dhd);
+#endif /* ARP_CHECK_SUPPORT */
 	if (dhd_inetaddr_notifier_registered) {
 		dhd_inetaddr_notifier_registered = FALSE;
 		unregister_inetaddr_notifier(&dhd_inetaddr_notifier);
@@ -20585,7 +20865,8 @@ dhd_d2m_memdump_state_read(struct file *file, char __user *ubuf,
 		}
 
 		DHD_ERROR(("%s: @@@ no data to block dump\n", __FUNCTION__));
-		if (wait_event_interruptible(g_d2m_dbgfs.memdump_wq, atomic_read(&g_d2m_dbgfs.memdump_active)))
+		if (wait_event_interruptible(g_d2m_dbgfs.memdump_wq,
+				atomic_read(&g_d2m_dbgfs.memdump_active)))
 			return -ERESTARTSYS;
 	}
 
@@ -20601,7 +20882,7 @@ dhd_d2m_memdump_state_read(struct file *file, char __user *ubuf,
 		count = g_d2m_dbgfs.memdump_size - pos;
 
 	ret = copy_to_user(ubuf, (void *)((uintptr_t)g_d2m_dbgfs.dhdp->soc_ram + (*(int *)ppos)),
-				count);
+			count);
 	if (ret) {
 		DHD_ERROR(("#DHD memory dump left %d bytes : %d\n", ret));
 	}
@@ -20636,12 +20917,13 @@ dhd_d2m_dbgdump_state_read(struct file *file, char __user *ubuf,
 		}
 
 		DHD_ERROR(("%s: @@@ no data to block dump\n", __FUNCTION__));
-		if (wait_event_interruptible(g_d2m_dbgfs.dbgdump_wq, atomic_read(&g_d2m_dbgfs.dbgdump_active)))
+		if (wait_event_interruptible(g_d2m_dbgfs.dbgdump_wq,
+				atomic_read(&g_d2m_dbgfs.dbgdump_active)))
 			return -ERESTARTSYS;
 	}
 
 	ret = dhd_dump_buf_to_user_copy(&g_d2m_dbgfs.dbgdump_seg_ctx,
-				ppos, ubuf, count, &isover);
+			ppos, ubuf, count, &isover);
 	if (isover) {
 		atomic_set(&g_d2m_dbgfs.dbgdump_active, 0);
 		dhd_dump_buf_free(&g_d2m_dbgfs.dbgdump_seg_ctx);
@@ -20663,14 +20945,14 @@ static void dhd_d2m_create(dhd_pub_t *dhdp)
 {
 	if (g_d2m_dbgfs.debugfs_dir) {
 		/* memory dump */
-		g_d2m_dbgfs.debugfs_memdump = debugfs_create_file("memdump", 0644, g_d2m_dbgfs.debugfs_dir,
-			NULL, &dhd_d2m_memdump_state_ops);
+		g_d2m_dbgfs.debugfs_memdump = debugfs_create_file("memdump", 0644,
+			g_d2m_dbgfs.debugfs_dir, NULL, &dhd_d2m_memdump_state_ops);
 		init_waitqueue_head(&g_d2m_dbgfs.memdump_wq);
 		atomic_set(&g_d2m_dbgfs.memdump_active, 0);
 
 		/* debug log dump */
-		g_d2m_dbgfs.debugfs_dbgdump = debugfs_create_file("dbgdump", 0644, g_d2m_dbgfs.debugfs_dir,
-			NULL, &dhd_d2m_dbgdump_state_ops);
+		g_d2m_dbgfs.debugfs_dbgdump = debugfs_create_file("dbgdump", 0644,
+			g_d2m_dbgfs.debugfs_dir, NULL, &dhd_d2m_dbgdump_state_ops);
 		init_waitqueue_head(&g_d2m_dbgfs.dbgdump_wq);
 		atomic_set(&g_d2m_dbgfs.dbgdump_active, 0);
 		dhd_dump_buf_init(&g_d2m_dbgfs.dbgdump_seg_ctx);

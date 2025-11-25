@@ -61,7 +61,7 @@ extern "C" {
 #ifdef BCMPKTPOOL
 #define POOL_ENAB(pool)		((pool) && (pool)->inited)
 #else /* BCMPKTPOOL */
-#define POOL_ENAB(bus)		(FALSE)
+#define POOL_ENAB(bus)		FALSE
 #endif /* BCMPKTPOOL */
 
 #ifndef PKTPOOL_LEN_MAX
@@ -112,10 +112,10 @@ typedef struct {
 	void *arg;
 } pktpool_cbextn_info_t;
 
-#define PKTPOOL_RESV_MODE_OFF	(0)	/* resv mode is not enabled */
-#define PKTPOOL_RESV_MODE_ON	(1u)	/* Use resv resource if ran out of regular resource */
-#define PKTPOOL_RESV_MODE_CRIT	(2u)	/* Only critical reserve resources are available */
-#define PKTPOOL_RESV_MODE_DROP	(3u)	/* If resv resource are critcally low, use it & drop pkts */
+#define PKTPOOL_RESV_MODE_OFF	0	/* resv mode is not enabled */
+#define PKTPOOL_RESV_MODE_ON	1u	/* Use resv resource if ran out of regular resource */
+#define PKTPOOL_RESV_MODE_CRIT	2u	/* Only critical reserve resources are available */
+#define PKTPOOL_RESV_MODE_DROP	3u	/* If resv resource are critcally low, use it & drop pkts */
 
 #ifdef BCMDBG_POOL
 /* pkt pool debug states */
@@ -242,13 +242,13 @@ extern int pktpool_avail(pktpool_t *pktpool);
 bool pktpool_validate_freelist(pktpool_t *pktp);
 
 #define POOLPTR(pp)         ((pktpool_t *)(pp))
-#define POOLID(pp)          (POOLPTR(pp)->id)
+#define POOLID(pp)          POOLPTR(pp)->id
 
 #define POOLSETID(pp, ppid) (POOLPTR(pp)->id = (ppid))
 
-#define pktpool_tot_pkts(pp)  (POOLPTR(pp)->n_pkts)   /**< n_pkts = avail + in_use <= max_pkts */
-#define pktpool_max_pkt_bytes(pp)    (POOLPTR(pp)->max_pkt_bytes)
-#define pktpool_max_pkts(pp)  (POOLPTR(pp)->maxlen)
+#define pktpool_tot_pkts(pp)  POOLPTR(pp)->n_pkts   /**< n_pkts = avail + in_use <= max_pkts */
+#define pktpool_max_pkt_bytes(pp)    POOLPTR(pp)->max_pkt_bytes
+#define pktpool_max_pkts(pp)  POOLPTR(pp)->maxlen
 
 /*
  * ----------------------------------------------------------------------------
@@ -263,18 +263,18 @@ bool pktpool_validate_freelist(pktpool_t *pktp);
  * in place of a 32bit pool pointer in each packet.
  * ----------------------------------------------------------------------------
  */
-#define PKTPOOL_INVALID_ID          (0)
-#define PKTPOOL_MAXIMUM_ID          (15)
+#define PKTPOOL_INVALID_ID          0
+#define PKTPOOL_MAXIMUM_ID          15
 
 /* Registry of pktpool(s) */
 /* Pool ID to/from Pool Pointer converters */
-#define PKTPOOL_ID2PTR(id)		(get_pktpools_registry(id))
-#define PKTPOOL_PTR2ID(pp)		(POOLID(pp))
+#define PKTPOOL_ID2PTR(id)		get_pktpools_registry(id)
+#define PKTPOOL_PTR2ID(pp)		POOLID(pp)
 
 /* Registry size is one larger than max pools, as slot #0 is reserved */
-#define PKTPOOLREG_RSVD_ID		(0U)
-#define PKTPOOLREG_RSVD_PTR		(POOLPTR(0xdeaddead))
-#define PKTPOOLREG_FREE_PTR		(POOLPTR(NULL))
+#define PKTPOOLREG_RSVD_ID		0U
+#define PKTPOOLREG_RSVD_PTR		POOLPTR(0xdeaddead)
+#define PKTPOOLREG_FREE_PTR		POOLPTR(NULL)
 
 #ifndef PKTID_POOL
 /* max pktids reserved for pktpool is updated properly in Makeconf */
@@ -294,37 +294,37 @@ extern int pktpool_stats_dump(pktpool_t *pktp, pktpool_stats_t *stats);
 #endif /* BCMDBG_POOL */
 
 #ifdef BCMPKTPOOL
-#define SHARED_POOL		(pktpool_shared)
+#define SHARED_POOL		pktpool_shared
 extern pktpool_t *pktpool_shared;
 #ifdef BCMFRAGPOOL
-#define SHARED_FRAG_POOL	(pktpool_shared_lfrag)
+#define SHARED_FRAG_POOL	pktpool_shared_lfrag
 extern pktpool_t *pktpool_shared_lfrag;
-#define SHARED_ALFRAG_POOL	(pktpool_shared_alfrag)
+#define SHARED_ALFRAG_POOL	pktpool_shared_alfrag
 extern pktpool_t *pktpool_shared_alfrag;
-#define SHARED_ALFRAG_DATA_POOL	(pktpool_shared_alfrag_data)
+#define SHARED_ALFRAG_DATA_POOL	pktpool_shared_alfrag_data
 extern pktpool_t *pktpool_shared_alfrag_data;
-#define SHARED_ALFRAG_MDATA_POOL	(pktpool_shared_alfrag_mdata)
+#define SHARED_ALFRAG_MDATA_POOL	pktpool_shared_alfrag_mdata
 extern pktpool_t *pktpool_shared_alfrag_mdata;
 #endif /* BCMFRAGPOOL */
 
 #ifdef BCMRESVFRAGPOOL
-#define RESV_FRAG_POOL		(NULL)
-#define RESV_ALFRAG_POOL	(pktpool_resv_alfrag)
-#define RESV_ALFRAG_DATA_POOL	(pktpool_resv_alfrag_data)
-#define RESV_POOL_INFO		(resv_pool_info)
+#define RESV_FRAG_POOL		NULL
+#define RESV_ALFRAG_POOL	pktpool_resv_alfrag
+#define RESV_ALFRAG_DATA_POOL	pktpool_resv_alfrag_data
+#define RESV_POOL_INFO		resv_pool_info
 #else
 #define RESV_FRAG_POOL		((struct pktpool *)NULL)
-#define RESV_POOL_INFO		(NULL)
+#define RESV_POOL_INFO		NULL
 #endif /* BCMRESVFRAGPOOL */
 
 /** PCIe SPLITRX related */
-#define SHARED_RXFRAG_POOL	(pktpool_shared_rxlfrag)
+#define SHARED_RXFRAG_POOL	pktpool_shared_rxlfrag
 extern pktpool_t *pktpool_shared_rxlfrag;
 /* Pool to allow dma_rxreclaim() to complete even if SHARED_RXFRAG_POOL is empty. */
-#define SHARED_RXRECLAIM_POOL	(pktpool_rxlfrag_reclaim)
+#define SHARED_RXRECLAIM_POOL	pktpool_rxlfrag_reclaim
 extern pktpool_t *pktpool_rxlfrag_reclaim;
 
-#define SHARED_RXDATA_POOL	(pktpool_shared_rxdata)
+#define SHARED_RXDATA_POOL	pktpool_shared_rxdata
 extern pktpool_t *pktpool_shared_rxdata;
 
 int hnd_pktpool_init(osl_t *osh);

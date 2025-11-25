@@ -135,12 +135,12 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 })
 
 #if !defined(OSL_SYSUPTIME)
-#define OSL_SYSUPTIME() (0)
+#define OSL_SYSUPTIME() 0
 #define OSL_SYSUPTIME_NOT_DEFINED 1
 #endif /* !defined(OSL_SYSUPTIME) */
 
 #if !defined(OSL_SYSUPTIME_US)
-#define OSL_SYSUPTIME_US() (0)
+#define OSL_SYSUPTIME_US() 0
 #define OSL_SYSUPTIME_US_NOT_DEFINED 1
 #endif /* !defined(OSL_SYSUPTIME) */
 
@@ -167,16 +167,16 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 #endif /* OSL_GET_SYSTZTIME */
 
 #if !defined(OSL_CPU_COUNTS_PER_US)
-#define OSL_CPU_COUNTS_PER_US() (0)
+#define OSL_CPU_COUNTS_PER_US() 0
 #define OSL_CPU_COUNTS_PER_US_NOT_DEFINED 1
 #endif /* !defined(OSL_CPU_COUNTS_PER_US) */
 
 #if !defined(OSL_GET_PMU_ACCU_TICK_US)
-#define OSL_GET_PMU_ACCU_TICK_US(val) (0)
+#define OSL_GET_PMU_ACCU_TICK_US(val) 0
 #endif /* !OSL_GET_PMU_ACCU_TICK_US */
 
 #if !defined(OSL_GET_PMU_ACCU_TICK64_US)
-#define OSL_GET_PMU_ACCU_TICK64_US(val) (0)
+#define OSL_GET_PMU_ACCU_TICK64_US(val) 0
 #endif /* !OSL_GET_PMU_ACCU_TICK64_US */
 
 #ifndef OSL_SYS_HALT
@@ -200,7 +200,7 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 #endif /* DMB */
 
 #ifndef OSL_MEM_AVAIL
-#define OSL_MEM_AVAIL()	(0xffffffff)
+#define OSL_MEM_AVAIL()	0xffffffff
 #endif
 
 #ifndef OSL_OBFUSCATE_BUF
@@ -208,15 +208,15 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 #endif	/* OSL_OBFUSCATE_BUF */
 
 #if !defined(PKTC_DONGLE)
-#define	PKTCGETATTR(skb)	(0)
+#define	PKTCGETATTR(skb)	0
 #define	PKTCSETATTR(skb, f, p, b) BCM_REFERENCE(skb)
 #define	PKTCCLRATTR(skb)	BCM_REFERENCE(skb)
-#define	PKTCCNT(skb)		(1)
+#define	PKTCCNT(skb)		1
 #define	PKTCLEN(skb)		PKTLEN(NULL, skb)
-#define	PKTCGETFLAGS(skb)	(0)
+#define	PKTCGETFLAGS(skb)	0
 #define	PKTCSETFLAGS(skb, f)	BCM_REFERENCE(skb)
 #define	PKTCCLRFLAGS(skb)	BCM_REFERENCE(skb)
-#define	PKTCFLAGS(skb)		(0)
+#define	PKTCFLAGS(skb)		0
 #define	PKTCSETCNT(skb, c)	BCM_REFERENCE(skb)
 #define	PKTCINCRCNT(skb)	BCM_REFERENCE(skb)
 #define	PKTCADDCNT(skb, c)	BCM_REFERENCE(skb)
@@ -248,7 +248,7 @@ do { \
 #endif
 
 #ifndef PKTGETPROFILEIDX
-#define PKTGETPROFILEIDX(p)		(-1)
+#define PKTGETPROFILEIDX(p)		-1
 #endif
 
 #ifndef PKTCLRPROFILEIDX
@@ -261,54 +261,54 @@ do { \
 
 /* Lbuf with fraglist */
 #ifndef PKTFRAGPKTID
-#define PKTFRAGPKTID(osh, lb)		(0)
+#define PKTFRAGPKTID(osh, lb)		0
 #endif
 #ifndef PKTSETFRAGPKTID
 #define PKTSETFRAGPKTID(osh, lb, id)	BCM_REFERENCE(osh)
 #endif
 #ifndef PKTFRAGTOTNUM
-#define PKTFRAGTOTNUM(osh, lb)		(0)
+#define PKTFRAGTOTNUM(osh, lb)		0
 #endif
 #ifndef PKTSETFRAGTOTNUM
 #define PKTSETFRAGTOTNUM(osh, lb, tot)	BCM_REFERENCE(osh)
 #endif
 #ifndef PKTFRAGTOTLEN
-#define PKTFRAGTOTLEN(osh, lb)		(0)
+#define PKTFRAGTOTLEN(osh, lb)		0
 #endif
 #ifndef PKTSETFRAGTOTLEN
 #define PKTSETFRAGTOTLEN(osh, lb, len)	BCM_REFERENCE(osh)
 #endif
 #ifndef PKTIFINDEX
-#define PKTIFINDEX(osh, lb)		(0)
+#define PKTIFINDEX(osh, lb)		0
 #endif
 #ifndef PKTSETIFINDEX
 #define PKTSETIFINDEX(osh, lb, idx)	BCM_REFERENCE(osh)
 #endif
 #ifndef PKTGETLF
-#define	PKTGETLF(osh, len, send, lbuf_type)	(0)
+#define	PKTGETLF(osh, len, send, lbuf_type)	0
 #endif
 
 /* in rx path, reuse totlen as used len */
 #ifndef PKTFRAGUSEDLEN
-#define PKTFRAGUSEDLEN(osh, lb)			(0)
+#define PKTFRAGUSEDLEN(osh, lb)			0
 #endif
 #ifndef PKTSETFRAGUSEDLEN
 #define PKTSETFRAGUSEDLEN(osh, lb, len)		BCM_REFERENCE(osh)
 #endif
 #ifndef PKTFRAGLEN
-#define PKTFRAGLEN(osh, lb, ix)			(0)
+#define PKTFRAGLEN(osh, lb, ix)			0
 #endif
 #ifndef PKTSETFRAGLEN
 #define PKTSETFRAGLEN(osh, lb, ix, len)		BCM_REFERENCE(osh)
 #endif
 #ifndef PKTFRAGDATA_LO
-#define PKTFRAGDATA_LO(osh, lb, ix)		(0)
+#define PKTFRAGDATA_LO(osh, lb, ix)		0
 #endif
 #ifndef PKTSETFRAGDATA_LO
 #define PKTSETFRAGDATA_LO(osh, lb, ix, addr)	BCM_REFERENCE(osh)
 #endif
 #ifndef PKTFRAGDATA_HI
-#define PKTFRAGDATA_HI(osh, lb, ix)		(0)
+#define PKTFRAGDATA_HI(osh, lb, ix)		0
 #endif
 #ifndef PKTSETFRAGDATA_HI
 #define PKTSETFRAGDATA_HI(osh, lb, ix, addr)	BCM_REFERENCE(osh)
@@ -320,7 +320,7 @@ do { \
 
 /* RX FRAG */
 #ifndef PKTISRXFRAG
-#define PKTISRXFRAG(osh, lb)		(0)
+#define PKTISRXFRAG(osh, lb)		0
 #endif
 #ifndef PKTSETRXFRAG
 #define PKTSETRXFRAG(osh, lb)		BCM_REFERENCE(osh)
@@ -331,7 +331,7 @@ do { \
 
 /* TX FRAG */
 #ifndef PKTISTXFRAG
-#define PKTISTXFRAG(osh, lb)		(0)
+#define PKTISTXFRAG(osh, lb)		0
 #endif
 #ifndef PKTSETTXFRAG
 #define PKTSETTXFRAG(osh, lb)		BCM_REFERENCE(osh)
@@ -339,7 +339,7 @@ do { \
 
 /* TX ALFRAG */
 #ifndef PKTISTXALFRAG
-#define PKTISTXALFRAG(osh, lb)		(0)
+#define PKTISTXALFRAG(osh, lb)		0
 #endif
 #ifndef PKTSETTXALFRAG
 #define PKTSETTXALFRAG(osh, lb)		BCM_REFERENCE(osh)
@@ -350,32 +350,32 @@ do { \
 
 /* RX ALFRAG */
 #ifndef PKT_IS_RX_ALFRAG
-#define PKT_IS_RX_ALFRAG(osh, lb)	(0)
+#define PKT_IS_RX_ALFRAG(osh, lb)	0
 #endif
 #ifndef PKT_SET_RX_ALFRAG
-#define PKT_SET_RX_ALFRAG(osh, lb)	(BCM_REFERENCE(osh))
+#define PKT_SET_RX_ALFRAG(osh, lb)	BCM_REFERENCE(osh)
 #endif
 #ifndef PKT_RESET_RX_ALFRAG
-#define PKT_RESET_RX_ALFRAG(osh, lb)	(BCM_REFERENCE(osh))
+#define PKT_RESET_RX_ALFRAG(osh, lb)	BCM_REFERENCE(osh)
 #endif
 
 #ifndef PKTNUMMPDUS
-#define PKTNUMMPDUS(osh, lb)		(1)
+#define PKTNUMMPDUS(osh, lb)		1
 #endif
 #ifndef PKTNUMPKTS
-#define PKTNUMPKTS(osh, lb)		(1)
+#define PKTNUMPKTS(osh, lb)		1
 #endif
 
 #ifndef PKTISHWCSO
-#define PKTISHWCSO(osh, lb)		(FALSE)
+#define PKTISHWCSO(osh, lb)		FALSE
 #endif
 
 #ifndef PKTISSUBMSDUTOEHDR
-#define PKTISSUBMSDUTOEHDR(osh, lb)	(FALSE)
+#define PKTISSUBMSDUTOEHDR(osh, lb)	FALSE
 #endif
 
 #ifndef PKT_IS_HOST_SFHLLC
-#define PKT_IS_HOST_SFHLLC(osh, lb)	(FALSE)
+#define PKT_IS_HOST_SFHLLC(osh, lb)	FALSE
 #endif
 
 #ifndef PKT_SET_HOST_SFHLLC
@@ -383,7 +383,7 @@ do { \
 #endif
 
 #ifndef PKT_IS_HOST_SFHLLC_DONE
-#define PKT_IS_HOST_SFHLLC_DONE(osh, lb)	(FALSE)
+#define PKT_IS_HOST_SFHLLC_DONE(osh, lb)	FALSE
 #endif
 
 #ifndef PKT_SET_HOST_SFHLLC_DONE
@@ -392,7 +392,7 @@ do { \
 
 /* Need Rx completion used for AMPDU reordering */
 #ifndef PKTNEEDRXCPL
-#define PKTNEEDRXCPL(osh, lb)           (TRUE)
+#define PKTNEEDRXCPL(osh, lb)           TRUE
 #endif
 #ifndef PKTSETNORXCPL
 #define PKTSETNORXCPL(osh, lb)          BCM_REFERENCE(osh)
@@ -401,13 +401,13 @@ do { \
 #define PKTRESETNORXCPL(osh, lb)        BCM_REFERENCE(osh)
 #endif
 #ifndef PKTISFRAG
-#define PKTISFRAG(osh, lb)		(0)
+#define PKTISFRAG(osh, lb)		0
 #endif
 #ifndef PKTFRAGISCHAINED
-#define PKTFRAGISCHAINED(osh, i)	(0)
+#define PKTFRAGISCHAINED(osh, i)	0
 #endif
 #ifndef PKTISHDRCONVTD
-#define PKTISHDRCONVTD(osh, lb)		(0)
+#define PKTISHDRCONVTD(osh, lb)		0
 #endif
 
 /* Forwarded pkt indication */
@@ -505,6 +505,8 @@ do { \
 
 #ifndef BCMDBGPERF
 #define PERF_TRACE_START(id)				do {} while (0)
+#define PERF_TRACE_START2(id)				do {} while (0)
+#define PERF_TRACE_START3(id)				do {} while (0)
 #define PERF_TRACE_END(id)				do {} while (0)
 #define PERF_TRACE_END2(id, mycounters)			do {} while (0)
 #define PERF_TRACE_END3(id, mycounters, coreunit)	do {} while (0)

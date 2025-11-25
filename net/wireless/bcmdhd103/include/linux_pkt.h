@@ -166,7 +166,7 @@
 	({BCM_REFERENCE(skb); 0;})
 #define PKTSETID(skb, id)       BCM_EXTENSION \
 	({BCM_REFERENCE(skb); BCM_REFERENCE(id);})
-#define PKTIDAVAIL()            (0xFFFFFFFFu)
+#define PKTIDAVAIL()            0xFFFFFFFFu
 #define PKTSHRINK(osh, m)		BCM_EXTENSION \
 	({BCM_REFERENCE(osh); m;})
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)) && defined(TSQ_MULTIPLIER)
@@ -263,7 +263,7 @@ extern void osl_pkt_orphan_partial(struct sk_buff *skb);
 #define	PKTSKIPCT(osh, skb)		BCM_EXTENSION \
 	({BCM_REFERENCE(osh); BCM_REFERENCE(skb);})
 
-#define PKTFRAGLEN(osh, lb, ix)		(0)
+#define PKTFRAGLEN(osh, lb, ix)		0
 #define PKTSETFRAGLEN(osh, lb, ix, len)	BCM_REFERENCE(osh)
 
 #define	PKTSETTOBR(osh, skb)		BCM_EXTENSION \
@@ -455,7 +455,7 @@ extern struct sk_buff *osl_pkt_tonative(osl_t *osh, void *pkt);
 	({BCM_REFERENCE(skb); 0;})
 #define PKTSETID(skb, id)       BCM_EXTENSION \
 	({BCM_REFERENCE(skb); BCM_REFERENCE(id);})
-#define PKTIDAVAIL()            (0xFFFFFFFFu)
+#define PKTIDAVAIL()            0xFFFFFFFFu
 
 #ifdef BCMDBG_PKT /* pkt logging for debugging */
 extern void *linux_pktget(osl_t *osh, uint len, int line, char *file);
@@ -504,18 +504,18 @@ extern void osl_pktlist_remove(osl_t *osh, void *p);
 #define PKTALLOCED(osh)		osl_pktalloced(osh)
 extern uint osl_pktalloced(osl_t *osh);
 
-#define PKTPOOLHEAPCOUNT()            (0u)
+#define PKTPOOLHEAPCOUNT()            0u
 
 #if !defined(BCMDONGLEHOST) && !defined(DONGLEBUILD)
-#define PKT_IS_HOST_SFHLLC(osh, lb)		(FALSE)
+#define PKT_IS_HOST_SFHLLC(osh, lb)		FALSE
 #define PKT_SET_HOST_SFHLLC(osh, lb)		BCM_EXTENSION \
 	({;})
-#define PKT_IS_HOST_SFHLLC_DONE(osh, lb)	(FALSE)
+#define PKT_IS_HOST_SFHLLC_DONE(osh, lb)	FALSE
 #define PKT_SET_HOST_SFHLLC_DONE(osh, lb)	BCM_EXTENSION \
 	({;})
 #define PKT_RESET_HOST_SFHLLC(osh, lb)		BCM_EXTENSION \
 	({;})
-#define PKTISPKTFETCHED(osh, lb)		(FALSE)
+#define PKTISPKTFETCHED(osh, lb)		FALSE
 
 #define PKTTAG_SCB_HANDLE	20u
 
@@ -532,16 +532,16 @@ extern uint osl_pktalloced(osl_t *osh);
 #define PKT_SET_FRAMEID(lb, id)			BCM_EXTENSION \
 	({BCM_REFERENCE(lb); BCM_REFERENCE(id);})
 /* Used for rev88 and above */
-#define PKTFRAGRINGINDEX(osh, lb)		(0u)
-#define PKTFRAGFLOWRINGID(osh, lb)		(0u)
-#define PKTFRAGFLOWRINGID(osh, lb)		(0u)
+#define PKTFRAGRINGINDEX(osh, lb)		0u
+#define PKTFRAGFLOWRINGID(osh, lb)		0u
+#define PKTFRAGFLOWRINGID(osh, lb)		0u
 
 #define PKTRXCPLID(osh, lb)			BCM_EXTENSION \
 	({BCM_REFERENCE(osh); BCM_REFERENCE(lb);0u;})
 
 /* ============MLO========================= */
 /* MLO related */
-#define PKT_GET_LINKINFO(lb, link)		(0u)
+#define PKT_GET_LINKINFO(lb, link)		0u
 #define PKT_SET_PREF_LINKID(lb, val)		(lb = val)
 #define PKT_GET_PREF_LINKID(lb)			NULL
 #define PKT_SET_LINKINFO(lb, link, val)		BCM_EXTENSION \

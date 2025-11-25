@@ -142,10 +142,6 @@ typedef struct {
 #define CHSPEC_CTLOVLP(sp1, sp2, sep)	\
 	((uint)ABS(wf_chspec_ctlchan(sp1) - wf_chspec_ctlchan(sp2)) < (uint)(sep))
 
-/* All builds use the new 11ac ratespec/chanspec */
-#undef  D11AC_IOTYPES
-#define D11AC_IOTYPES
-
 /* For contiguous channel bandwidth other than 320Mhz */
 #define WL_CHANSPEC_CHAN_MASK		0x00ffu
 #define WL_CHANSPEC_CHAN_SHIFT		0u
@@ -311,17 +307,17 @@ typedef struct {
 #ifdef BCMWIFI_BW160MHZ
 #define CHSPEC_IS160(chspec)	(CHSPEC_BW(chspec) == WL_CHANSPEC_BW_160)
 #else
-#define CHSPEC_IS160(chspec)	(FALSE)
+#define CHSPEC_IS160(chspec)	FALSE
 #endif
 #ifdef BCMWIFI_NON_CONT_CHAN
 #define CHSPEC_IS8080(chspec)	(CHSPEC_BW(chspec) == WL_CHANSPEC_BW_8080)
 #else
-#define CHSPEC_IS8080(chspec)	(FALSE)
+#define CHSPEC_IS8080(chspec)	FALSE
 #endif
 #ifdef BCMWIFI_BW320MHZ
 #define CHSPEC_IS320(chspec)	(CHSPEC_BW(chspec) == WL_CHANSPEC_BW_320)
 #else
-#define CHSPEC_IS320(chspec)	(FALSE)
+#define CHSPEC_IS320(chspec)	FALSE
 #endif
 
 #define CHSPEC_IS40_UNCOND(chspec)	(CHSPEC_BW(chspec) == WL_CHANSPEC_BW_40)
@@ -494,7 +490,7 @@ typedef struct {
 #define CHSPEC_IS20_5G_6G(chspec)	((CHSPEC_BW(chspec) == WL_CHANSPEC_BW_20) && \
 					(CHSPEC_IS5G(chspec) || CHSPEC_IS6G(chspec)))
 #else
-#define CHSPEC_IS_5G_6G(chspec)		(CHSPEC_IS5G(chspec))
+#define CHSPEC_IS_5G_6G(chspec)		CHSPEC_IS5G(chspec)
 #define CHSPEC_IS20_5G_6G(chspec)	((CHSPEC_BW(chspec) == WL_CHANSPEC_BW_20) && \
 					CHSPEC_IS5G(chspec))
 #endif
@@ -563,8 +559,6 @@ typedef struct {
 	(chanspec_t)((chanspec_t)(channel) | WL_LCHANSPEC_BW_20 | \
 	WL_LCHANSPEC_CTL_SB_NONE | (((channel) <= CH_MAX_2G_CHANNEL) ? \
 	WL_LCHANSPEC_BAND_2G : WL_LCHANSPEC_BAND_5G))
-
-#define GET_ALL_EXT wf_get_all_ext
 
 /*
  * WF_CHAN_FACTOR_* constants are used to calculate channel frequency
@@ -803,6 +797,11 @@ chanspec_t wf_chspec_primary20_chspec(chanspec_t chspec) BCMCONSTFN;
 chanspec_t wf_chspec_primary40_chspec(chanspec_t chspec) BCMCONSTFN;
 
 /**
+ * Return the secondary 40MHz chanspec for an 80MHz or wider channel.
+ */
+chanspec_t wf_chspec_secondary40_chspec(chanspec_t chspec) BCMCONSTFN;
+
+/**
  * Return the chanspec band for a given frequency.
  */
 chanspec_band_t wf_mhz2chanspec_band(uint freq) BCMCONSTFN;
@@ -831,6 +830,7 @@ int wf_channel2mhz(uint channel, uint start_factor) BCMCONSTFN;
 chanspec_t wf_chspec_80(uint8 center_channel, uint8 primary_channel) BCMCONSTFN;
 chanspec_t wf_chspec_80(uint8 center_channel, uint8 primary_channel);
 
+#ifndef OBSOLETE_CHANNEL2CHSPEC
 /**
  * Convert ctl chan and bw to chanspec
  *
@@ -841,6 +841,7 @@ chanspec_t wf_chspec_80(uint8 center_channel, uint8 primary_channel);
  *
  */
 uint16 wf_channel2chspec(uint ctl_ch, uint bw) BCMCONSTFN;
+#endif // OBSOLETE_CHANNEL2CHSPEC
 
 /*
  * Returns the 80+80 MHz chanspec corresponding to the following input parameters

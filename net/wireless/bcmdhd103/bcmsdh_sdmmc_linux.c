@@ -160,7 +160,7 @@ static void sdioh_remove(struct sdio_func *func)
 static int bcmsdh_sdmmc_probe(struct sdio_func *func,
                               const struct sdio_device_id *id)
 {
-	int ret = 0;
+	int ret = 0, count = 0;
 
 	if (func == NULL)
 		return -EINVAL;
@@ -172,8 +172,18 @@ static int bcmsdh_sdmmc_probe(struct sdio_func *func,
 	sd_info(("Function#: 0x%04x\n", func->num));
 
 	/* 4318 doesn't have function 2 */
-	if ((func->num == 2) || (func->num == 1 && func->device == 0x4))
-		ret = sdioh_probe(func);
+	if ((func->num == 2) || (func->num == 1 && func->device == 0x4)) {
+		do{
+			ret = sdioh_probe(func);
+			if(0 == ret){
+				sd_info(("%s: sdioh_probe ok.\n", __FUNCTION__));
+				break;
+			}
+			sd_err(("%s: sdioh_probe has errors, retry.\n", __FUNCTION__));
+			msleep(50);
+			count ++;
+		}while(ret && count < 3);
+	}
 
 	return ret;
 }
@@ -299,8 +309,19 @@ static int dummy_probe(struct sdio_func *func,
 		sd_err(("%s: class=0x%x; vendor=0x%x; device=0x%x\n", __FUNCTION__,
 			id->class, id->vendor, id->device));
 		if ((id->vendor != SDIO_VENDOR_ID_BROADCOM) &&
-			(id->vendor != SDIO_VENDOR_ID_SYNAPTICS))
+			(id->vendor != SDIO_VENDOR_ID_SYNAPTICS)) {
 				return -ENODEV;
+			}
+#ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
+		/* Only support 4384 */
+		if ((id->vendor != SDIO_VENDOR_ID_BROADCOM) ||
+			(id->device != 0xffff)) {
+				sd_err(("%s: NO supported chip \n", __FUNCTION__));
+				return -ENODEV;
+		} else {
+			sd_err(("%s: Found supported chip \n", __FUNCTION__));
+		}
+#endif
 	}
 
 	if (func && (func->num != 2)) {

@@ -481,7 +481,7 @@ typedef struct {
 } wl_cnt_wlc_t;
 
 /* he counters Version 1 */
-#define HE_COUNTERS_V1		(1)
+#define HE_COUNTERS_V1		1
 typedef struct wl_he_cnt_wlc_v1 {
 	uint32 he_rxtrig_myaid;
 	uint32 he_rxtrig_rand;
@@ -503,7 +503,7 @@ typedef struct wl_he_cnt_wlc_v1 {
 } wl_he_cnt_wlc_v1_t;
 
 /* he counters Version 2 */
-#define HE_COUNTERS_V2		(2)
+#define HE_COUNTERS_V2		2
 typedef struct wl_he_cnt_wlc_v2 {
 	uint16 version;
 	uint16 len;
@@ -529,8 +529,8 @@ typedef struct wl_he_cnt_wlc_v2 {
 
 /* he counters Version 3 */
 #define WL_RU_TYPE_MAX			6
-#define WL_EHT_RU_TYPE_MAX	(16u)
-#define HE_COUNTERS_V3		(3)
+#define WL_EHT_RU_TYPE_MAX	16u
+#define HE_COUNTERS_V3		3
 
 typedef struct wl_he_cnt_wlc_v3 {
 	uint16 version;
@@ -578,7 +578,7 @@ typedef struct wl_he_cnt_wlc_v3 {
 } wl_he_cnt_wlc_v3_t;
 
 /* he counters Version 4 */
-#define HE_COUNTERS_V4		(4)
+#define HE_COUNTERS_V4		4
 typedef struct wl_he_cnt_wlc_v4 {
 	uint16 version;
 	uint16 len;
@@ -636,7 +636,7 @@ typedef struct wl_he_cnt_wlc_v4 {
 } wl_he_cnt_wlc_v4_t;
 
 /* he counters Version 5 */
-#define HE_COUNTERS_V5		(5)
+#define HE_COUNTERS_V5		5
 typedef struct wl_he_cnt_wlc_v5 {
 	uint16 version;
 	uint16 len;
@@ -697,7 +697,7 @@ typedef struct wl_he_cnt_wlc_v5 {
 } wl_he_cnt_wlc_v5_t;
 
 /* HE counters Version 6 structure definitions */
-#define HE_COUNTERS_V6		(6u)
+#define HE_COUNTERS_V6		6u
 
 /* Rev GE88 HE Tx counters (SW based) */
 typedef struct wl_he_tx_cnt_ge88_v1 {
@@ -733,7 +733,7 @@ typedef struct wl_he_cnt_wlc_v6 {
 } wl_he_cnt_wlc_v6_t;
 
 /*  HE counters version 7 meant for HE ecounters only */
-#define HE_COUNTERS_V7		(7)
+#define HE_COUNTERS_V7		7
 typedef struct wl_he_cnt_wlc_v7 {
 	uint16 version;
 	uint16 len;
@@ -811,7 +811,7 @@ typedef struct wl_he_cnt_wlc_v7 {
 } wl_he_cnt_wlc_v7_t;
 
 /* he omi counters Version 1 */
-#define HE_OMI_COUNTERS_V1		(1)
+#define HE_OMI_COUNTERS_V1		1
 typedef struct wl_he_omi_cnt_wlc_v1 {
 	uint16 version;
 	uint16 len;
@@ -856,7 +856,7 @@ typedef struct wl_he_omi_cnt_v2 {
 } wl_he_omi_cnt_v2_t;
 
 /* he omi counters Version 2 */
-#define HE_OMI_COUNTERS_V2		(2u)
+#define HE_OMI_COUNTERS_V2		2u
 typedef struct wl_he_omi_cnt_wlc_v2 {
 	uint16	version;
 	uint16	len;
@@ -923,7 +923,7 @@ typedef struct wlc_dyn_bw_cnt_v2 {
 	uint32 dyn_bw_tx_data160_cnt;
 } wlc_dyn_bw_cnt_v2_t;
 
-#define WLC_DYN_BW_BLK_CNT_VERSION_V1              (1u)
+#define WLC_DYN_BW_BLK_CNT_VERSION_V1              1u
 
 typedef struct wlc_dyn_bw_blk_cnt_v1 {
 	uint16 version;
@@ -950,7 +950,7 @@ typedef struct wlc_dyn_bw_blk_cnt_v1 {
 	uint32 rx_cts160;
 } wlc_dyn_bw_blk_cnt_v1_t;
 
-#define WLC_DYN_BW_CNT_VERSION_V3              (3u)
+#define WLC_DYN_BW_CNT_VERSION_V3              3u
 
 typedef struct wlc_dyn_bw_cnt_v3 {
 	uint16 version;
@@ -961,7 +961,7 @@ typedef struct wlc_dyn_bw_cnt_v3 {
 	uint8  cnts[];
 } wlc_dyn_bw_cnt_v3_t;
 
-#define WLC_DATA_BW_BLK_CNT_VERSION_V1              (1u)
+#define WLC_DATA_BW_BLK_CNT_VERSION_V1              1u
 
 typedef struct wlc_data_bw_blk_cnt_v1 {
 	uint16 version;
@@ -995,7 +995,7 @@ typedef struct wlc_data_bw_blk_cnt_v1 {
 	uint32 rx_data160;
 } wlc_data_bw_blk_cnt_v1_t;
 
-#define WLC_DATA_BW_CNT_VERSION_V1              (1u)
+#define WLC_DATA_BW_CNT_VERSION_V1              1u
 
 typedef struct wlc_data_bw_cnt_v1 {
 	uint16 version;
@@ -1007,7 +1007,7 @@ typedef struct wlc_data_bw_cnt_v1 {
 } wlc_data_bw_cnt_v1_t;
 
 /* mesh pkt counters Version 1 */
-#define MESH_PKT_COUNTERS_V1		(1)
+#define MESH_PKT_COUNTERS_V1		1
 typedef struct wl_mesh_pkt_cnt_v1 {
 	// RX Mesh Data counts
 
@@ -1057,8 +1057,8 @@ typedef struct wl_sc_slim_scan_cnts_v1 {
 
 /* WL_IFSTATS_XTLV_WL_SLICE_TXBF */
 /* beamforming counters version 1 */
-#define TXBF_ECOUNTERS_V1	(1u)
-#define WL_TXBF_CNT_ARRAY_SZ	(8u)
+#define TXBF_ECOUNTERS_V1	1u
+#define WL_TXBF_CNT_ARRAY_SZ	8u
 typedef struct wl_txbf_ecounters_v1 {
 	uint16 version;
 	uint16 len;
@@ -3504,8 +3504,8 @@ typedef struct bus_metrics {
 	uint32 disconnect_dur;	/**< msecs in bus, usecs for user */
 } bus_metrics_t;
 
-#define BUS_DUMP_PARAM_VER_1		(1u)
-#define SUB_CMD_MAX			(32u)
+#define BUS_DUMP_PARAM_VER_1		1u
+#define SUB_CMD_MAX			32u
 typedef struct bus_dump_param {
 	uint16	version;		/**< version */
 	uint16	len;			/**< length */
@@ -5866,7 +5866,7 @@ typedef struct phy_ecounter_stats_v255 {
 } phy_ecounter_stats_v255_t;
 
 /* Durations for each bt task in millisecond */
-#define WL_BTCX_DURSTATS_VER_2 (2u)
+#define WL_BTCX_DURSTATS_VER_2 2u
 typedef struct wlc_btcx_durstats_v2 {
 	uint16 version;			/* version number of struct */
 	uint16 valid;			/* validity of this struct */
@@ -5905,7 +5905,7 @@ typedef struct wlc_btcx_durstats_v2 {
 	uint16 bt_disable_dual_bt_dur;		/* Duration of Dual BT disable */
 } wlc_btcx_durstats_v2_t;
 
-#define WL_BTCX_DURSTATS_VER_1 (1u)
+#define WL_BTCX_DURSTATS_VER_1 1u
 typedef struct wlc_btcx_durstats_v1 {
 	uint16 version;			/* version number of struct */
 	uint16 valid;			/* validity of this struct */
@@ -6043,7 +6043,7 @@ typedef struct ecounters_trigger_reason {
 #define WL_LQM_CURRENT_BSS_VALID 0x1
 #define WL_LQM_TARGET_BSS_VALID 0x2
 
-#define WL_PERIODIC_COMPACT_CNTRS_VER_1 (1)
+#define WL_PERIODIC_COMPACT_CNTRS_VER_1 1
 typedef struct {
 	uint16 version;
 	uint16 PAD;
@@ -6101,7 +6101,7 @@ typedef struct {
 	uint32	txbcnfrm;	/**< beacons transmitted */
 } wl_periodic_compact_cntrs_v1_t;
 
-#define WL_PERIODIC_COMPACT_CNTRS_VER_2 (2)
+#define WL_PERIODIC_COMPACT_CNTRS_VER_2 2
 typedef struct {
 	uint16 version;
 	uint16 PAD;
@@ -6163,7 +6163,7 @@ typedef struct {
 	uint32 pm_dur;		/* Total sleep time in PM, msecs */
 } wl_periodic_compact_cntrs_v2_t;
 
-#define WL_PERIODIC_COMPACT_CNTRS_VER_3 (3)
+#define WL_PERIODIC_COMPACT_CNTRS_VER_3 3
 typedef struct {
 	uint16 version;
 	uint16 PAD;
@@ -6226,7 +6226,7 @@ typedef struct {
 	uint32 rxholes;		/* Count of missed packets from peer */
 } wl_periodic_compact_cntrs_v3_t;
 
-#define WL_PERIODIC_COMPACT_CNTRS_VER_4 (4)
+#define WL_PERIODIC_COMPACT_CNTRS_VER_4 4
 typedef struct {
 	uint16 version;
 	uint16 PAD;
@@ -6298,7 +6298,7 @@ typedef struct {
 	uint32	mac_rxfilter;	/* Pkts filtered due to class/auth state mismatch */
 } wl_periodic_compact_cntrs_v4_t;
 
-#define WL_PERIODIC_COMPACT_CNTRS_VER_5 (5)
+#define WL_PERIODIC_COMPACT_CNTRS_VER_5 5
 typedef struct {
 	uint16 version;
 	uint8	PAD;
@@ -6373,7 +6373,7 @@ typedef struct {
 	uint32	mac_rxfilter;	/* Pkts filtered due to class/auth state mismatch */
 } wl_periodic_compact_cntrs_v5_t;
 
-#define WL_PERIODIC_COMPACT_HE_CNTRS_VER_1 (1)
+#define WL_PERIODIC_COMPACT_HE_CNTRS_VER_1 1
 typedef struct {
 	uint16 version;
 	uint16 len;
@@ -6390,7 +6390,7 @@ typedef struct {
 	uint32 he_txtbppdu;
 } wl_compact_he_cnt_wlc_v1_t;
 
-#define WL_PERIODIC_COMPACT_HE_CNTRS_VER_2 (2)
+#define WL_PERIODIC_COMPACT_HE_CNTRS_VER_2 2
 typedef struct {
 	uint16 version;
 	uint16 len;
@@ -6419,7 +6419,7 @@ typedef struct {
 	uint32 he_null_fifo_empty;
 } wl_compact_he_cnt_wlc_v2_t;
 
-#define WL_PERIODIC_COMPACT_HE_CNTRS_VER_3 (3)
+#define WL_PERIODIC_COMPACT_HE_CNTRS_VER_3 3
 typedef struct {
 	uint16 version;
 	uint16 len;
@@ -6450,7 +6450,7 @@ typedef struct {
 	uint32 he_null_fifo_empty;
 } wl_compact_he_cnt_wlc_v3_t;
 
-#define WL_PERIODIC_TXBF_CNTRS_VER_1 (1)
+#define WL_PERIODIC_TXBF_CNTRS_VER_1 1
 /* for future versions of this data structure, can consider wl_txbf_ecounters_t
  * which contains the full list of txbf dump counters
  */
@@ -6468,7 +6468,7 @@ typedef struct {
 	uint32	txsf;
 } wl_periodic_txbf_cntrs_v1_t;
 
-#define WL_PERIODIC_TXBF_CNTRS_VER_2 (2)
+#define WL_PERIODIC_TXBF_CNTRS_VER_2 2
 typedef struct {
 	uint16	version;
 	uint8	link_id;
@@ -6501,7 +6501,7 @@ typedef struct {
 	wl_rx_signal_metric_t target_bss;
 } wl_lqm_t;
 
-#define WL_PERIODIC_IF_STATE_VER_1 (1)
+#define WL_PERIODIC_IF_STATE_VER_1 1
 typedef struct wl_if_state_compact {
 	uint8 version;
 	uint8 assoc_state;
@@ -6515,7 +6515,7 @@ typedef struct wl_if_state_compact {
 	chanspec_t chanspec;
 } wl_if_state_compact_t;
 
-#define WL_EVENT_STATISTICS_VER_1 (1)
+#define WL_EVENT_STATISTICS_VER_1 1
 /* Event based statistics ecounters */
 typedef struct {
 	uint16 version;
@@ -6525,7 +6525,7 @@ typedef struct {
 	uint32 txdeauthivalclass;
 } wl_event_based_statistics_v1_t;
 
-#define WL_EVENT_STATISTICS_VER_2 (2)
+#define WL_EVENT_STATISTICS_VER_2 2
 /* Event based statistics ecounters */
 typedef struct {
 	uint16 version;
@@ -6541,7 +6541,7 @@ typedef struct {
 	int16 deauth_rssi;                      /* deauth pkt rssi */
 } wl_event_based_statistics_v2_t;
 
-#define WL_EVENT_STATISTICS_VER_3 (3)
+#define WL_EVENT_STATISTICS_VER_3 3
 /* Event based statistics ecounters */
 typedef struct {
 	uint16 version;
@@ -6575,7 +6575,7 @@ typedef struct {
 	uint16 PAD;
 } wl_event_based_statistics_v3_t;
 
-#define WL_EVENT_STATISTICS_VER_4 (4u)
+#define WL_EVENT_STATISTICS_VER_4 4u
 /* Event based statistics ecounters */
 typedef struct {
 	uint16 version;
@@ -6593,7 +6593,7 @@ typedef struct {
 
 /* ##### SC/ Sc offload/ WBUS related ecounters */
 
-#define WL_SC_PERIODIC_COMPACT_CNTRS_VER_1 (1)
+#define WL_SC_PERIODIC_COMPACT_CNTRS_VER_1 1
 typedef struct {
 	uint16	version;
 	uint16	PAD;
@@ -6621,7 +6621,7 @@ typedef struct {
 	uint16	sc_down_cnt;	/* Number of times sc down happened */
 } wl_sc_periodic_compact_cntrs_v1_t;
 
-#define WL_SC_PERIODIC_COMPACT_CNTRS_VER_2 (2)
+#define WL_SC_PERIODIC_COMPACT_CNTRS_VER_2 2
 typedef struct {
 	uint16	version;
 	uint8	PAD;
@@ -6653,7 +6653,7 @@ typedef struct {
 	uint16	sc_down_cnt;	/* Number of times sc down happened */
 } wl_sc_periodic_compact_cntrs_v2_t;
 
-#define WL_WBUS_PERIODIC_CNTRS_VER_1 (1)
+#define WL_WBUS_PERIODIC_CNTRS_VER_1 1
 typedef struct {
 	uint16 version;
 	uint16 PAD;
@@ -6669,7 +6669,7 @@ typedef struct {
 	uint16 num_accept_ok;		/* Number of accept ok */
 } wl_wbus_periodic_cntrs_v1_t;
 
-#define WL_STA_OFLD_CNTRS_VER_1 (1)
+#define WL_STA_OFLD_CNTRS_VER_1 1
 typedef struct {
 	uint16	version;
 	uint16	PAD;
@@ -6683,7 +6683,7 @@ typedef struct {
 	uint8	sc_ofld_last_enter_fail_reason;
 } wl_sta_ofld_cntrs_v1_t;
 
-#define WL_STA_OFLD_CNTRS_VER_2 (2u)
+#define WL_STA_OFLD_CNTRS_VER_2 2u
 typedef struct {
 	uint16	version;
 	uint16	PAD;
@@ -6960,7 +6960,7 @@ typedef struct wl_infra_enh_stats_v2 {
 	uint32 rxdur_multicast;	/**< multicast RX duration (include rxdur_broadcast) */
 } wl_if_infra_enh_stats_v2_t;
 
-#define WL_INFRA_STATS_HE_VERSION_V1	(1u)
+#define WL_INFRA_STATS_HE_VERSION_V1	1u
 /* Associated stats type: WL_IFSTATS_INFRA_SPECIFIC_HE */
 typedef struct wl_infra_stats_he {
 	uint16 version;			/**< version of the structure */
@@ -6988,7 +6988,7 @@ typedef struct wl_infra_stats_he {
 	uint64 ulofdma_mpdu_bytes;
 } wl_if_infra_stats_he_t;
 
-#define WL_RX_MPDU_LOST_CNT_VERSION	(1u)
+#define WL_RX_MPDU_LOST_CNT_VERSION	1u
 typedef struct rx_mpdu_lost_cnt {
 	uint16	version;
 	uint16	length;
@@ -7085,7 +7085,7 @@ enum wl_chan_stats_xtlv {
 };
 
 /* WL_CHAN_STATS_XTLV_CHANSPEC_CONTAINER above carries payload below */
-#define WL_CHANCNTR_HDR_VER_1	(1u)
+#define WL_CHANCNTR_HDR_VER_1	1u
 typedef struct wlc_chan_cntr_hdr_v1 {
 	uint16 version;		/* Already in use. So keep it */
 	uint16 PAD;
@@ -7097,7 +7097,7 @@ typedef struct wlc_chan_cntr_hdr_v1 {
 	uint32 data[];
 } wlc_chan_cntr_hdr_v1_t;
 
-#define WL_CHANCNTR_HDR_VER_2	(2u)
+#define WL_CHANCNTR_HDR_VER_2	2u
 typedef struct wlc_chan_cntr_hdr_v2 {
 	uint16 version;		/* Already in use. So keep it */
 	chanspec_t chanspec;	/* Dont add any fields above this */
@@ -7115,6 +7115,7 @@ typedef struct wlc_chan_cntr_hdr_v2 {
 enum wl_chan_stats_chanspec_xtlv {
 	WL_CHAN_STATS_XTLV_CHANSPEC_RSVD = 0,
 	WL_CHAN_STATS_XTLV_CHANSPEC_MACSTATS = 1,
+	WL_CHAN_STATS_XTLV_CHANSPEC_NAV_HIST = 2,
 	WL_CHAN_STATS_XTLV_CHANSPEC_MAX
 };
 
@@ -7139,6 +7140,29 @@ typedef struct wl_chan_macstats_v1 {
 	uint32 rxf1ovfl;	/**< number of receive fifo 1 overflows */
 	uint32 txrtsfail;	/**< number of rts transmission failure that reach retry limit */
 } wl_chan_macstats_v1_t;
+
+/* NAV histogram reporting */
+#define WL_CHAN_STATS_NAV_HISTOGRAM_VER_1       1u
+
+/* Number of NAV histogram bins */
+#define WL_CHAN_STATS_NAV_NUM_BINS	6u
+
+/**
+ * NAV histogram structure
+ *
+ * nav_hist[] array indices correspond to NAV duration ranges:
+ *   [0] = 0-1023 us
+ *   [1] = 1024-2047 us
+ *   [2] = 2048-4095 us
+ *   [3] = 4096-8191 us
+ *   [4] = 8192-16383 us
+ *   [5] = 16384-32767 us
+ */
+typedef struct wl_chan_stats_nav_hist_v1 {
+	uint16	version;				/* Structure version */
+	uint16	length;					/* Length of entire structure */
+	uint32	nav_hist[WL_CHAN_STATS_NAV_NUM_BINS];	/* NAV histogram bins */
+} wl_chan_stats_nav_hist_v1_t;
 
 /* For ecounters: Per peer stats are configured for an interface. Report will contain per peer
  * stats for the configured interface. Note that some per-peer stats are split into per-slice stats
@@ -7304,7 +7328,7 @@ typedef struct wl_missed_dtim_info_ecounters_v1 {
 
 /* Flat structures for reporting with Ecounters */
 /* Rev Ge88 RX unified macstats - version 1 */
-#define WL_CNT_UCODE_MCST_UNIFIED_RX_V1	(1u)
+#define WL_CNT_UCODE_MCST_UNIFIED_RX_V1	1u
 
 typedef struct wl_cnt_ucode_mcst_unified_rx_v1 {
 	uint16 version;
@@ -7436,7 +7460,7 @@ typedef struct wl_cnt_ucode_mcst_unified_rx_v1 {
 } wl_cnt_ucode_mcst_unified_rx_v1_t;
 
 /* Rev Ge88 RXERR version 1 */
-#define WL_CNT_UCODE_MCST_RXERR_V1	(1u)
+#define WL_CNT_UCODE_MCST_RXERR_V1	1u
 
 /* RX error related counters. Counters collected from noncontiguous SHM locations  */
 typedef struct wl_cnt_ucode_mcst_rxerr_v1 {
@@ -7456,7 +7480,7 @@ typedef struct wl_cnt_ucode_mcst_rxerr_v1 {
 } wl_cnt_ucode_mcst_rxerr_v1_t;
 
 /* Rev Ge88 TX unified specific macstats - version 1 */
-#define WL_CNT_UCODE_MCST_UNIFIED_TX_V1	(1u)
+#define WL_CNT_UCODE_MCST_UNIFIED_TX_V1	1u
 
 typedef struct wl_cnt_ucode_mcst_unified_tx_v1 {
 	uint16 version;
@@ -7547,7 +7571,7 @@ typedef struct wl_cnt_ucode_mcst_unified_tx_v1 {
 } wl_cnt_ucode_mcst_unified_tx_v1_t;
 
 /* For ecounters only */
-#define HE_OMI_COUNTERS_ECNTR_V3		(3u)
+#define HE_OMI_COUNTERS_ECNTR_V3		3u
 typedef struct wl_he_omi_cnt_v3 {
 	uint16 version;
 	uint16 len;
@@ -7571,7 +7595,7 @@ typedef struct wl_he_omi_cnt_v3 {
 } wl_he_omi_cnt_v3_t;
 
 /* For ecounters only */
-#define HE_TX_COUNTERS_ECNTR_V2		(2u)
+#define HE_TX_COUNTERS_ECNTR_V2		2u
 /* Rev GE88 HE Tx counters (SW based) */
 typedef struct wl_he_tx_cnt_v2 {
 	uint16 version;
@@ -7584,7 +7608,7 @@ typedef struct wl_he_tx_cnt_v2 {
 	uint32 txehtru[WL_EHT_RU_TYPE_MAX];
 } wl_he_tx_cnt_v2_t;
 
-#define HE_RX_COUNTERS_ECNTR_V2		(2u)
+#define HE_RX_COUNTERS_ECNTR_V2		2u
 /* Rev GE88 HE Rx counters (SW based) */
 typedef struct wl_he_rx_cnt_v2 {
 	uint16 version;
@@ -7597,8 +7621,8 @@ typedef struct wl_he_rx_cnt_v2 {
 } wl_he_rx_cnt_v2_t;
 
 /* iov counters reporting Version 1 */
-#define WL_CNT_REQ_VER_1	(1u)
-#define WL_CNT_RESP_VER_1	(1u)
+#define WL_CNT_REQ_VER_1	1u
+#define WL_CNT_RESP_VER_1	1u
 
 /* IOV Counters Flags */
 #define IOV_COUNTERS_REPORTING_RESERVED		(1 << 0u) /* RESERVED bit */
@@ -7829,7 +7853,7 @@ typedef struct wl_cnt_phy_rx_stats_block_v1 {
 	uint32 dmd_mode1;
 } wl_cnt_phy_rx_stats_block_v1_t;
 
-#define WL_CNT_PHY_RX_STATS_V1		(1u)
+#define WL_CNT_PHY_RX_STATS_V1		1u
 typedef struct wl_cnt_phy_rx_stats_v1_t {
 	uint16	version;
 	uint16	len;
@@ -8081,6 +8105,10 @@ typedef struct {
 	uint32	he_phyru_rx;		/**< Number of PHY RU Frames received */
 	uint32	be_muppducnt;		/**< EHT BE MU PPDU count */
 	uint32	rx_uhr_elr_ppdu_cnt;	/**< UHR ELR PPDU count */
+	uint32	dps_ss_lc_exit;		/**< DPS ScanSlice LowCap exit count */
+	uint32	dps_ss_lc_enter;	/**< DPS ScanSlice LowCap entry count */
+	uint32	dps_idps_enter;		/**< DPS IDPS entry count */
+	uint32	dps_idps_exit;		/**< DPS IDPS exit count */
 } wl_cnt_mcst_rxfrm_v1_t;
 
 /* RXFRM counter reporting container */
@@ -8447,4 +8475,61 @@ typedef struct {
 
 	wl_cnt_mcst_sc_rxfrm_v1_t cnt_wrap[];
 } wl_cnt_mcst_sc_rxfrm_container_v1_t;
+
+/* full flat structure for reporting
+ * This will updated as a compact set of ucode counters are defined for reporting to host
+ * DPS main slice counters which are mostly corresponding to option2 implementation
+ */
+typedef struct {
+	uint16 chanspec;		/**< chanspec at the time stats were collected */
+	uint8  blk_id;			/**< stats block id from where stats were collected */
+	uint8  link_idx;		/**< Link idx if infra_sta is associated */
+
+	/* 16 bit accumulated counters */
+	uint32	dps_rxstrt;		/**< Number of received frames with a good PLCP
+					 * (i.e. passing parity check)
+					 */
+	uint32	dps_rxrts;		/**< Number of received RTS frames */
+	uint32	dps_rxcts;		/**< Number of received CTS frames */
+	uint32	dps_rxbeaconmbss;	/**< beacons rx'd from member of BSS */
+	uint32	dps_rxback;		/**< number of rx'd BARs */
+	uint32	dps_rxbadplcp;		/**< parity check of the PLCP header failed */
+	uint32	dps_rxcrsglitch;	/**< PHY was able to correlate the preamble but not the
+					 * header
+					 */
+	uint32	dps_rxnodelim;		/**< # of not valid delim -> ampdu parser */
+	uint32	dps_rxtoolate;		/**< receive too late */
+	uint32	dps_rxrsptmout;		/**< rx'd rsp frame timeout */
+	uint32	dps_he_rxtrig_drop_cnt;	/**< # of trigger frames dropped */
+	uint32	dps_sctrg_rxcrs_drop_cnt;	/**< # of trigger frames dropped due to CRS */
+	uint32	dps_sctrg_drop_cnt;	/**< # of trigger frames dropped */
+	uint32	dps_rxanyerr;		/**< Any RX error that is not counted by other counters */
+	uint32	dps_rxbadfcs;		/**< # of frames with CRC check failed */
+	uint32	dps_myaid;		/**< # of rx'd frames with myaid */
+	uint32	dps_rx_murts;		/**< # of rx'd MU-RTS frames */
+	uint32	dps_rx_bsrp;		/**< # of rx'd BSRP frames */
+	uint32	dps_rxgoodfcs;		/**< # of rx'd goodfcs cnts */
+	uint32	dps_txstrt;		/**< Number of transmitted frames with a good PLCP
+					 * (i.e. passing parity check)
+					 */
+	uint32	dps_txrts;		/**< Number of transmitted RTS frames */
+	uint32	dps_txcts;		/**< Number of transmitted CTS frames */
+	uint32	dps_txmpdu;		/**< Number of transmitted MPDUs */
+	uint32	dps_txampdu;		/**< Number of transmitted AMPDUs */
+	uint32	dps_txack;		/**< Number of transmitted ACK frames */
+	uint32	dps_txback;		/**< number of tx'd BARs */
+	uint32	dps_txphyerror;		/**< TX phyerr - reported in txs for driver queued frames */
+	uint32	dps_ctmode_ufc_cnt;	/**< Number of UFCs with CT mode enabled */
+	uint32	dps_ms_lc_exit;		/**< # of DPS MainSlice LowCap exit */
+	uint32	dps_ms_lc_enter;	/**< # of DPS MainSlice LowCap enter */
+} wl_cnt_mcst_dps_ms_v1_t;
+
+/* DPS MainSlice counter reporting container */
+typedef struct {
+	uint8 num_blks;
+	uint8 PAD[3];
+
+	wl_cnt_mcst_dps_ms_v1_t cnt_wrap[];
+} wl_cnt_mcst_dps_ms_container_v1_t;
+
 #endif /* _wlioctl_counters_h_ */

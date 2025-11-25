@@ -896,6 +896,8 @@ typedef volatile struct pcie_serdes_regs {
 
 #define DAR_BPDEBUGINFO_SEL(rev)	(REV_GE_135(rev) ? PCIE_REG_OFF(dar_bpDebugInfoSel) : 0u)
 #define DAR_BPDEBUGINFO(rev)		(REV_GE_135(rev) ? PCIE_REG_OFF(dar_bpDebugInfo) : 0u)
+#define DAR_BPDEBUGINFOSEL_NUM_MASK	0xF
+#define DAR_BPDEBUGINFOSEL_NUM_SHIFT	0
 
 /* DAR BP DebugInfo Select bits */
 #define DAR_BPDI_SEL_DBGBUS1		0

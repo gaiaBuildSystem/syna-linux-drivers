@@ -335,7 +335,7 @@ typedef float64 float_t;
 #define	ON	1  /* ON = 1 */
 #endif
 
-#define	AUTO	(-1) /* Auto = -1 */
+#define	AUTO	-1 /* Auto = -1 */
 
 /* define PTRSZ, INLINE */
 
@@ -435,7 +435,7 @@ typedef UINTN         uintptr;
 #define DISCARD_QUAL(ptr, type) ((type *)(uintptr)(ptr))
 #define INLINE
 #define INLINE_ALWAYS	INLINE
-#define	AUTO	(-1) /* Auto = -1 */
+#define	AUTO	-1 /* Auto = -1 */
 #define	ON	1  /* ON = 1 */
 #define	OFF	0
 
