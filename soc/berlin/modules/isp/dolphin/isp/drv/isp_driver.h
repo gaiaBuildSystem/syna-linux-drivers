@@ -53,6 +53,7 @@ typedef struct isp_device_t {
 	struct clk **isp_clks;
 	struct proc_dir_entry *dev_procdir;
 	struct mutex isp_mutex;
+	struct reset_control *rst;
 
 	isp_module_ctx mod_ctx[ISP_MODULE_MAX];
 	struct i2c_adapter *i2c;

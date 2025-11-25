@@ -299,21 +299,15 @@ void DhubInitialization(SIGN32 cpuId, UNSG32 dHubBaseAddr, UNSG32 hboSramAddr,
 
 void ISPSS_DhubInit(SIGN32 cpuId)
 {
-	static int alreadyInitialized;
+	ISPSS_REG_WRITE32(0xF9140000, 0);
 
-	if (!alreadyInitialized) {
-		ISPSS_REG_WRITE32(0xF9140000, 0);
+	ISPSS_InitDhubContext(ISPSS_DHUB_128bBCM_TYPE_64b,
+			MEMMAP_ISPSS_BCM_REG_BASE, MEMMAP_ISPSS_DUMMY_REG_BASE);
 
-		ISPSS_InitDhubContext(ISPSS_DHUB_128bBCM_TYPE_64b,
-				MEMMAP_ISPSS_BCM_REG_BASE, MEMMAP_ISPSS_DUMMY_REG_BASE);
-
-		DhubInitialization(cpuId, ISPSS_TSB_DHUB_BASE, ISPSS_TSB_HBO_SRAM_BASE,
-				&ISPSS_TSB_dhubHandle, ISPSS_TSB_config,
-				ISPSS_TSB_NUM_OF_CHANNELS, DHUB_TYPE_128BIT);
-		DhubInitialization(cpuId, ISPSS_FWR_DHUB_BASE, ISPSS_FWR_HBO_SRAM_BASE,
-				&ISPSS_FWR_dhubHandle, ISPSS_FWR_config,
-				ISPSS_FWR_NUM_OF_CHANNELS, DHUB_TYPE_128BIT);
-
-		alreadyInitialized = 1;
-	}
+	DhubInitialization(cpuId, ISPSS_TSB_DHUB_BASE, ISPSS_TSB_HBO_SRAM_BASE,
+			&ISPSS_TSB_dhubHandle, ISPSS_TSB_config,
+			ISPSS_TSB_NUM_OF_CHANNELS, DHUB_TYPE_128BIT);
+	DhubInitialization(cpuId, ISPSS_FWR_DHUB_BASE, ISPSS_FWR_HBO_SRAM_BASE,
+			&ISPSS_FWR_dhubHandle, ISPSS_FWR_config,
+			ISPSS_FWR_NUM_OF_CHANNELS, DHUB_TYPE_128BIT);
 }

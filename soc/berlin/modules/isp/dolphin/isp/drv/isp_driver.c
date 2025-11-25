@@ -508,6 +508,7 @@ static int isp_probe(struct platform_device *pdev)
 	}
 
 	reset_control_deassert(rst);
+	isp_dev->rst = rst;
 
 	isp_clks = devm_kzalloc(dev,
 		sizeof(struct clk *) * ARRAY_SIZE(isp_clock_list), GFP_KERNEL);
@@ -669,20 +670,33 @@ static void isp_shutdown(struct platform_device *pdev)
 static int isp_suspend(struct device *dev)
 {
 	isp_device *isp_dev = dev_get_drvdata(dev);
+	u32 i;
 
 	isp_trace(dev, "%s\n", __func__);
 
 	//Suspend all ISP modules
 	isp_invoke_mod_suspend(isp_dev, isp_dev->mod_ctx);
 
+	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++)
+		clk_disable_unprepare(isp_dev->isp_clks[i]);
+
 	return 0;
 }
 
 static int isp_resume(struct device *dev)
 {
+	int ret = 0;
 	isp_device *isp_dev = dev_get_drvdata(dev);
 
 	isp_trace(dev, "%s\n", __func__);
+
+	reset_control_deassert(isp_dev->rst);
+
+	ret = isp_enable_clocks(dev, isp_dev->isp_clks);
+	if (ret) {
+		isp_error(dev, "isp clock enable failed...!\n");
+		return ret;
+	}
 
 	//Resume all ISP modules
 	isp_invoke_mod_resume(isp_dev, isp_dev->mod_ctx);

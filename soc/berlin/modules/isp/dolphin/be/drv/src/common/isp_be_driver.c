@@ -14,6 +14,7 @@
 
 #include "ispbe_api.h"
 #include "ispbe_err.h"
+#include "ispSS_reg.h"
 
 #define ISP_BE_NAME                "isp-be"
 
@@ -79,6 +80,17 @@ memory_init_failed:
 	return result;
 }
 
+static int isp_be_resume(struct device *dev)
+{
+	pr_info( "%s\n", __func__);
+
+	ispss_dhub_init();
+
+	return 0;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(isp_be_pmops, NULL, isp_be_resume);
+
 /* Compatible string for device tree match */
 static const struct of_device_id isp_be_match_types[] = {
 	{.compatible = "syna,dolphin-isp-be"},
@@ -93,6 +105,7 @@ static struct platform_driver isp_be_driver = {
 	.driver         = {
 		.name           = ISP_BE_NAME,
 		.of_match_table = isp_be_match_types,
+		.pm             = &isp_be_pmops
 	},
 };
 
