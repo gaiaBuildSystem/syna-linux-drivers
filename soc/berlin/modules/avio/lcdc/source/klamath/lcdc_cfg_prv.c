@@ -3,6 +3,7 @@
  * Copyright (C) 2025 Synaptics Incorporated
  */
 #include "lcdc.h"
+#include "syna_lcdc_drv.h"
 #include "syna_lcdc_dev.h"
 #include "lcdc_cfg_prv.h"
 #include "avio_io.h"
