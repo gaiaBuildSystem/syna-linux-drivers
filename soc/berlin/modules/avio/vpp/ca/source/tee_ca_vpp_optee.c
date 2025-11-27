@@ -158,6 +158,9 @@ int VPP_CA_Initialize(ENUM_TA_UUID_TYPE uuidType, struct device *dev)
 			goto cleanup2;
 		}
 		TAVPPInstance[index].session = sess_arg.session;
+		ret = tee_client_system_session(g_vppCaContext.context, sess_arg.session);
+		if (ret)
+			pr_warn("failed to switch to system session\n");
 
 		ret = VPP_CA_alloc(TAVPP_PASS_SHMSIZE, (void **)&(TAVPPInstance[index].Shm));
 		if (ret) {
