@@ -24,6 +24,7 @@ struct isp_dma_heap_dev {
 };
 
 struct isp_dma_buf {
+	struct berlin_meta          *bm_meta;
 	struct device               *dev;
 	void                        *vaddr;//Virtual address of kernel space only frmae
 	void                        *paddr;//Physical address frame

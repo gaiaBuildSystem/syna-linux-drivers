@@ -12,6 +12,7 @@
 #include <uapi/bm.h>
 #include <media/videobuf2-memops.h>
 #include "isp_dma_heap.h"
+#include "berlin_meta.h"
 
 DEFINE_MUTEX(isp_dma_heap_mutex);
 static bool isp_dma_heap_memdev_init;
@@ -310,6 +311,11 @@ void *get_isp_dma_heap_alloc(struct isp_dma_heap_dev *memdev,
 			goto failed_cpu_access;
 		}
 
+		buf->bm_meta = bm_fetch_meta(buf->cookie);
+		if (!buf->bm_meta) {
+			pr_err("bm refuse to fetch meta\n");
+		}
+
 		buf->paddr_pt = (void *)buf->pt_param.phy_addr;
 	} else if (memdev->mem_type == SHM_NONSECURE_CONTIG) {
 
@@ -522,16 +528,6 @@ static int vb2_dma_heap_get_flags(struct dma_buf *dmabuf, unsigned long *flags)
 	return 0;
 }
 
-/* static void *vb2_dma_heap_get_meta(struct dma_buf *dbuf)
- * {
- *		struct isp_dma_buf *buf = dbuf->priv;
- *		struct dma_buf *isp_dma_heap_dbuf = buf->cookie;
- *		if (isp_dma_heap_dbuf->ops->get_meta)
- *			return isp_dma_heap_dbuf->ops->get_meta(isp_dma_heap_dbuf);
- *		return 0;
- *	}
- */
-
 static const struct dma_buf_ops vb2_dma_heap_dmabuf_ops = {
 	.attach = vb2_dma_heap_dmabuf_ops_attach,
 	.detach = vb2_dma_heap_dmabuf_ops_detach,
@@ -544,7 +540,6 @@ static const struct dma_buf_ops vb2_dma_heap_dmabuf_ops = {
 	.mmap = vb2_dma_heap_dmabuf_ops_mmap,
 	.release = vb2_dma_heap_dmabuf_ops_release,
 	.get_flags = vb2_dma_heap_get_flags,
-	//.get_meta = vb2_dma_heap_get_meta,
 };
 
 
@@ -637,6 +632,7 @@ static void *vb2_isp_dma_heap_attach_dmabuf(struct vb2_buffer *vb,
 	struct isp_dma_buf *buf;
 	struct dma_buf_attachment *dba;
 	int ret = 0;
+	berlin_meta_t *data;
 
 	if (dbuf->size < size)
 		return ERR_PTR(-EFAULT);
@@ -648,15 +644,16 @@ static void *vb2_isp_dma_heap_attach_dmabuf(struct vb2_buffer *vb,
 	if (!buf)
 		return ERR_PTR(-ENOMEM);
 
-	ret = bm_fetch_pt(dbuf, &buf->pt_param);
-	if (ret) {
-		pr_debug("bm refuse to register: %d\n", ret);
-		/* At this point we don't know if the memory is contiguous or not. For the
-		 * contiguous case, error should not be returned, attach should still happen
-		 */
-	} else {
+	data = (berlin_meta_t *) (*(unsigned long *)(dbuf->priv));
+	if(data) {
+		ret = bm_fetch_pt(dbuf, &buf->pt_param);
+		if (ret) {
+			pr_err("bm failed to fetch pt: %d\n", ret);
+			return ERR_PTR(-ENOMEM);
+		}
 		buf->paddr_pt = (void *)buf->pt_param.phy_addr;
 	}
+
 	buf->dev = dev;
 	buf->vb = vb;
 	buf->cookie = dbuf;
