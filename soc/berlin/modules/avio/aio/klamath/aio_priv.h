@@ -109,9 +109,7 @@ enum aio_ch_xid {
 	AIO_ID_I2S2_RX = 3,
 	AIO_ID_I2S3_TX = 4,
 	AIO_ID_I2S3_RX = 5,
-	AIO_ID_I2S3_DUMMY = 6,
 	AIO_ID_BCM = 7,
-	AIO_ID_I2S3_DUMMY = 8,
 	AIO_ID_PDM_IN = 9,
 	AIO_ID_I2S_MAX_NUM,
 };
