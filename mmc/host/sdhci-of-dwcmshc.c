@@ -148,6 +148,7 @@ struct dwcmshc_priv {
 	u8			drv_strength;
 	bool			dll_cal;
 	bool			mode1_tune;
+	bool			tuned_after_txdelay;
 	u32			dll_delay_offset;
 };
 
@@ -741,9 +742,9 @@ static void dwcmshc_set_uhs_signaling(struct sdhci_host *host,
 
 	if (txdelay) {
 		dwcmshc_set_phy_tx_delay(host, txdelay);
-		if (timing == MMC_TIMING_MMC_HS400) {
-			sdhci_reset_tuning(host);
-			sdhci_execute_tuning(host->mmc, MMC_SEND_TUNING_BLOCK_HS200);
+		if (timing == MMC_TIMING_MMC_HS400 && !priv->tuned_after_txdelay) {
+			mmc_retune_needed(host->mmc);
+			priv->tuned_after_txdelay = true;
 		}
 	}
 }
@@ -761,13 +762,18 @@ static int dwcmshc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		if (host->tuning_mode != SDHCI_TUNING_MODE_1)
 			dwcmshc_retune_setup(host);
 	} else {
+		u32 tmp = MMC_CAP2_NO_SD | MMC_CAP2_NO_SDIO;
+
 		sdhci_reset_tuning(host);
 		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
 		sdhci_writew(host, clk & ~SDHCI_CLOCK_CARD_EN, SDHCI_CLOCK_CONTROL);
 		val = vendor_rdl(host, vendor_ptr, AT_CTRL_R);
 		val &= ~SWIN_TH_EN;
 		val &= ~RPT_TUNE_ERR;
-		val |= AT_EN;
+		if ((host->mmc->caps2 & tmp) == tmp && !priv->tuned_after_txdelay)
+			val &= ~AT_EN;
+		else
+			val |= AT_EN;
 		vendor_wrl(host, vendor_ptr, AT_CTRL_R, val);
 		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
 	}
@@ -1008,6 +1014,8 @@ static int dwcmshc_resume(struct device *dev)
 			return ret;
 		}
 	}
+
+	priv->tuned_after_txdelay = false;
 
 	return sdhci_resume_host(host);
 }
