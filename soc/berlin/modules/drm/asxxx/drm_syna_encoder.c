@@ -212,6 +212,9 @@ syna_encoder_helper_mode_set(struct drm_encoder *encoder,
 			VPP_Clock_Set_Rate(PIXEL_CLOCK_RATE(lcdcConfig.pixclock));
 	}
 
+	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index])
+		drm_panel_prepare(dev_priv->panel[crtc_index]);
+
 	syna_vpp_load_config(crtc_index, &lcdcConfig);
 }
 
