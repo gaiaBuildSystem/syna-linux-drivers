@@ -11831,7 +11831,8 @@ static chip_name_map_t chip_name_map[] = {
 #ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
 	{BCM4345_CHIP_ID,  0x9, "fw_sd_bcm43456.bin",  "bcmdhd_sd_43456.cal",  "bcmdhd_clm_43456.blob",  NULL},
 #endif
-	{BCM4612_CHIP_ID,  0x1, "fw_sd_bcm4612.bin",   "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
+	{BCM43012_CHIP_ID, 0x2, "fw_sd_bcm430132.bin", "bcmdhd_sd_430132.cal", "bcmdhd_clm_430132.blob",   NULL},
+	{BCM43012_CHIP_ID, 0x4, "fw_sd_bcm430132e.bin","bcmdhd_sd_430132e.cal","bcmdhd_clm_430132e.blob",   NULL},
 #endif
 };
 
