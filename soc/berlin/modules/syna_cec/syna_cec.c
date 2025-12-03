@@ -71,6 +71,9 @@ static int cec_get_device_type_from_addr (int logAddr)
 
 static irqreturn_t syna_cec_irq_thread_handler(int irq, void *data)
 {
+#ifdef CEC_PLATFORM_DEBUG
+	int i;
+#endif
 	struct cec_device_t *cec = (struct cec_device_t *)data;
 
 	if (cec->tx_done) {
@@ -84,7 +87,7 @@ static irqreturn_t syna_cec_irq_thread_handler(int irq, void *data)
 		memcpy(msg.msg, cec->rx_buf, msg.len);
 #ifdef CEC_PLATFORM_DEBUG
 		pr_info("CEC RX data length (%d)\n", cec->rx_buf_cnt);
-		for(int i = 0; i < cec->rx_buf_cnt;i++)
+		for (i = 0; i < cec->rx_buf_cnt; i++)
 			pr_info("RX data (%d) : 0x%x\n", i, cec->rx_buf[i]);
 #endif
 		cec_received_msg(cec->adap, &msg);
@@ -97,78 +100,78 @@ static irqreturn_t syna_cec_irq_thread_handler(int irq, void *data)
 static irqreturn_t cec_devices_isr(int irq, void *data)
 {
 	struct cec_device_t *cec = (struct cec_device_t *)data;
-	unsigned short reg = 0;
+	unsigned short reg;
 	int sts_info;
 	int intr;
 	int i;
-	u8 dptr_len = 0;
-	u8 value = 0;
+	u8 dptr_len;
+	u8 value;
 
 	// Read CEC status register
-	berlin_cec_reg_read(cec, CEC_INTR_STATUS0_REG_ADDR, &value, 1);
+	syna_cec_reg_read(cec, CEC_INTR_STATUS0_REG_ADDR, &value, 1);
 	reg = (unsigned short) value;
-	berlin_cec_reg_read(cec, CEC_INTR_STATUS1_REG_ADDR, &value, 1);
+	syna_cec_reg_read(cec, CEC_INTR_STATUS1_REG_ADDR, &value, 1);
 	reg |= ((unsigned short) value << 8);
 
 #ifdef CEC_PLATFORM_DEBUG
 	pr_info("%s: intr reg (0x%x)\n", __func__, reg);
 #endif
-	// Clear berlin_cec_enable_interrupta
-	if (reg & BERLIN_CEC_INTR_TX_FAIL) {
-		intr = BERLIN_CEC_INTR_TX_FAIL;
-		berlin_cec_get_fail_status(cec, BERLIN_CEC_MODE_TX, &sts_info, reg);
+	// Clear syna_cec_enable_interrupta
+	if (reg & SYNA_CEC_INTR_TX_FAIL) {
+		intr = SYNA_CEC_INTR_TX_FAIL;
+		syna_cec_get_fail_status(cec, SYNA_CEC_MODE_TX, &sts_info, reg);
 		cec->tx_status = sts_info;
 		value = 0;
-		berlin_cec_reg_write(cec, CEC_RDY_ADDR, &value, 1);
-		berlin_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_RDY_ADDR, &value, 1);
+		syna_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		value &= ~(intr & 0x00ff);
-		berlin_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		cec->tx_done = true;
 		return IRQ_WAKE_THREAD;
 	}
-	if (reg & BERLIN_CEC_INTR_TX_COMPLETE) {
-		intr = BERLIN_CEC_INTR_TX_COMPLETE;
+	if (reg & SYNA_CEC_INTR_TX_COMPLETE) {
+		intr = SYNA_CEC_INTR_TX_COMPLETE;
 		value = 0;
-		berlin_cec_reg_write(cec, CEC_RDY_ADDR, &value, 1);
-		berlin_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_RDY_ADDR, &value, 1);
+		syna_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		value &= ~(intr & 0x00ff);
-		berlin_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		cec->tx_done = true;
 		cec->tx_status = CEC_TX_STATUS_OK;
 		return IRQ_WAKE_THREAD;
 	}
-	if (reg & BERLIN_CEC_INTR_RX_FAIL) {
-		intr = BERLIN_CEC_INTR_RX_FAIL;
-		berlin_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+	if (reg & SYNA_CEC_INTR_RX_FAIL) {
+		intr = SYNA_CEC_INTR_RX_FAIL;
+		syna_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		value &= ~(intr & 0x00ff);
-		berlin_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		cec->rx_done = false;
 		cec->rx_buf_cnt = 0;
 		value = 0;
-		berlin_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
 		value = 1;
-		berlin_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
 	}
-	if (reg & BERLIN_CEC_INTR_RX_COMPLETE) {
-		intr = BERLIN_CEC_INTR_RX_COMPLETE;
-		berlin_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+	if (reg & SYNA_CEC_INTR_RX_COMPLETE) {
+		intr = SYNA_CEC_INTR_RX_COMPLETE;
+		syna_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		value &= ~(intr & 0x00ff);
-		berlin_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		// read cec mesg from rx buffer
-		berlin_cec_reg_read(cec, CEC_RX_FIFO_DPTR, &dptr_len, 1);
+		syna_cec_reg_read(cec, CEC_RX_FIFO_DPTR, &dptr_len, 1);
 		cec->rx_buf_cnt = dptr_len;
 		value = 0x01;
 		for (i = 0; i < dptr_len; i++) {
-			berlin_cec_reg_read(cec, CEC_RX_BUF_READ_REG_ADDR, &cec->rx_buf[i], 1);
-			berlin_cec_reg_write(cec, CEC_TOGGLE_FOR_READ_REG_ADDR, &value, 1);
+			syna_cec_reg_read(cec, CEC_RX_BUF_READ_REG_ADDR, &cec->rx_buf[i], 1);
+			syna_cec_reg_write(cec, CEC_TOGGLE_FOR_READ_REG_ADDR, &value, 1);
 		}
 		value = 0;
-		berlin_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
 		value = 1;
-		berlin_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
-		berlin_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_RX_RDY_ADDR, &value, 1);
+		syna_cec_reg_read(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		value |= (intr & 0x00ff);
-		berlin_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
+		syna_cec_reg_write(cec, CEC_INTR_ENABLE0_REG_ADDR, &value, 1);
 		cec->rx_done = true;
 		return IRQ_WAKE_THREAD;
 	}
@@ -177,38 +180,25 @@ static irqreturn_t cec_devices_isr(int irq, void *data)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static void cec_disable_irq(struct device *dev)
-{
-	struct cec_device_t *cec_dev = dev_get_drvdata(dev);
-	if (cec_dev->isr_en_state && (atomic_dec_if_positive(&cec_dev->irq_stat) == 0)) {
-		/* disable cec interrupt */
-		disable_irq_nosync(cec_dev->cec_irq);
-	}
-}
-
-static void cec_enable_irq(struct device *dev)
-{
-	struct cec_device_t *cec_dev = dev_get_drvdata(dev);
-	if (cec_dev->isr_en_state && atomic_add_unless(&cec_dev->irq_stat, 1, 1)) {
-		/* disable cec interrupt */
-		enable_irq(cec_dev->cec_irq);
-	}
-}
-
 static int cec_suspend(struct device *dev)
 {
+	struct cec_device_t *cec_dev = dev_get_drvdata(dev);
+
 	pr_info("cec_suspend\n");
 
-	cec_disable_irq(dev);
+	disable_irq_nosync(cec_dev->cec_irq);
 
 	return 0;
 }
 
 static int cec_resume(struct device *dev)
 {
+	struct cec_device_t *cec_dev = dev_get_drvdata(dev);
+
 	pr_info("cec_resume\n");
 
-	cec_enable_irq(dev);
+	enable_irq(cec_dev->cec_irq);
+
 	return 0;
 }
 #endif
@@ -220,10 +210,9 @@ static int syna_cec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 #ifdef CEC_PLATFORM_DEBUG
 	pr_info("%s log addr (%d)\n", __func__, logical_addr);
 #endif
-	if (logical_addr != CEC_LOG_ADDR_INVALID)
-	{
+	if (logical_addr != CEC_LOG_ADDR_INVALID) {
 		u8 dev_type = cec_get_device_type_from_addr(logical_addr);
-		berlin_cec_enable_log_addr (cec_dev, true, dev_type, logical_addr);
+		syna_cec_enable_log_addr (cec_dev, true, dev_type, logical_addr);
 	}
 
 	return 0;
@@ -232,14 +221,11 @@ static int syna_cec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 static int syna_cec_adap_enable(struct cec_adapter *adap, bool enable)
 {
 	struct cec_device_t *cec_dev = adap->priv;
-	if (enable)
-	{
-		berlin_cec_load_default_val(cec_dev);
-	}
-	else
-	{
-		berlin_cec_set_mode (cec_dev, BERLIN_CEC_MODE_TX, false);
-		berlin_cec_set_mode (cec_dev, BERLIN_CEC_MODE_RX, false);
+	if (enable) {
+		syna_cec_load_default_val(cec_dev);
+	} else {
+		syna_cec_set_mode (cec_dev, SYNA_CEC_MODE_TX, false);
+		syna_cec_set_mode (cec_dev, SYNA_CEC_MODE_RX, false);
 	}
 	return 0;
 }
@@ -247,21 +233,20 @@ static int syna_cec_adap_enable(struct cec_adapter *adap, bool enable)
 static int syna_cec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 				   u32 signal_free_time_ms, struct cec_msg *msg)
 {
-	//bool retry_xfer = signal_free_time_ms == CEC_SIGNAL_FREE_TIME_RETRY;
 	struct cec_device_t *cec_dev = adap->priv;
 
 #ifdef CEC_PLATFORM_DEBUG
-	u8 i = 0;
+	u8 i;
 	pr_info("%s: length (%d), SF time (%d)\n", __func__, msg->len, signal_free_time_ms);
-	for(i = 0; i < msg->len;i++)
+	for (i = 0; i < msg->len; i++)
 	   pr_info("data (%d) : 0x%x\n", i, msg->msg[i]);
 #endif
 	if (cec_dev->msg_in_transmit == true) {
 		pr_err("Transit is in progress\n");
 		return -EBUSY;
 	}
-	if ((berlin_cec_rx_line_status(cec_dev) & 0x01) == 0x01) {	// line free
-		berlin_cec_transmit_data (cec_dev, msg, signal_free_time_ms);
+	if ((syna_cec_rx_line_status(cec_dev) & 0x01) == 0x01) {	// line free
+		syna_cec_transmit_data (cec_dev, msg, signal_free_time_ms);
 	} else {
 		memcpy(&cec_dev->msg, msg, sizeof(struct cec_msg));
 		cec_dev->msg_in_transmit = true;
@@ -296,12 +281,12 @@ static enum hrtimer_restart cec_transmit_timer_callback(struct hrtimer *timer)
 	cec_dev->tx_counter++;
 	curr_time = ktime_get();
 
-	if ((berlin_cec_rx_line_status(cec_dev) & 0x01) == 0x01) {
+	if ((syna_cec_rx_line_status(cec_dev) & 0x01) == 0x01) {
 		cec_dev->tx_counter = 0;
 		elapsed_ns = ktime_to_ns(ktime_sub(curr_time, cec_dev->tx_time));
-		for(i = 0; i < cec_dev->msg.len;i++)
+		for (i = 0; i < cec_dev->msg.len; i++)
 		if (elapsed_ns <= CEC_MSG_TX_TIMEOUT) {
-			berlin_cec_transmit_data (cec_dev, &cec_dev->msg, cec_dev->signal_free_time_ms);
+			syna_cec_transmit_data (cec_dev, &cec_dev->msg, cec_dev->signal_free_time_ms);
 		} else {
 			pr_warn("CEC msg aborted due to timeout\n");
 			cec_transmit_attempt_done(cec_dev->adap, CEC_TX_STATUS_ABORTED);
@@ -358,9 +343,9 @@ static int cec_probe(struct platform_device *pdev)
 	of_node_put(sub_node);
 
 	cec_dev = devm_kzalloc(&pdev->dev, sizeof(struct cec_device_t), GFP_KERNEL);
-	if (!cec_dev) {
+	if (!cec_dev)
 		return -ENOMEM;
-	}
+
 	platform_set_drvdata(pdev, cec_dev);
 
 	cec_dev->cec_irq = platform_get_irq(pdev, 0);
@@ -369,7 +354,7 @@ static int cec_probe(struct platform_device *pdev)
 
 	cec_resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	cec_dev->cec_virt_addr = devm_ioremap_resource(&pdev->dev, cec_resource);
-	if (IS_ERR(cec_dev->cec_virt_addr)){
+	if (IS_ERR(cec_dev->cec_virt_addr)) {
 		res = PTR_ERR(cec_dev->cec_virt_addr);
 		goto err_ioremap;
 	}
@@ -385,8 +370,6 @@ static int cec_probe(struct platform_device *pdev)
 			"Unable to request interrupt for device\n");
 		goto err_irq;
 	}
-	cec_dev->isr_en_state = 1;
-	atomic_set(&cec_dev->irq_stat, 1);
 
 	cec_dev->adap = cec_allocate_adapter(&syna_cec_ops, cec_dev, CEC_DEVICE_NAME,
 			CEC_CAP_DEFAULTS | CEC_CAP_MONITOR_ALL |
@@ -431,9 +414,8 @@ static RET_TYPE cec_remove(struct platform_device *pdev)
 {
 	struct cec_device_t *cec_dev = platform_get_drvdata(pdev);
 
-	if (cec_dev->msg_in_transmit) {
+	if (cec_dev->msg_in_transmit)
 		hrtimer_cancel(&cec_dev->rx_line_poll_timer);
-	}
 
 	// Unregister CEC adapter
 	cec_notifier_cec_adap_unregister(cec_dev->notifier, cec_dev->adap);
@@ -450,7 +432,7 @@ MODULE_DEVICE_TABLE(of, cec_match);
 static SIMPLE_DEV_PM_OPS(cec_pmops, cec_suspend,
 			 cec_resume);
 
-static struct platform_driver berlin_cec_driver = {
+static struct platform_driver syna_cec_driver = {
 	.probe = cec_probe,
 	.remove = cec_remove,
 	.driver = {
@@ -459,7 +441,7 @@ static struct platform_driver berlin_cec_driver = {
 		   .pm = &cec_pmops,
 	},
 };
-module_platform_driver(berlin_cec_driver);
+module_platform_driver(syna_cec_driver);
 
 MODULE_AUTHOR("synaptics");
 MODULE_DESCRIPTION("cec module driver");

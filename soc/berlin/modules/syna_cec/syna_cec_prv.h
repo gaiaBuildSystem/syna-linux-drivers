@@ -49,10 +49,10 @@
 #define CEC_MAX_RETX_COUNT 2
 
 // Conditions on which retransmission should be attempted
-#define CEC_RETX_CONDN      (BERLIN_CEC_INTR_TX_FAIL_NOACK | \
-                            BERLIN_CEC_INTR_TX_FAIL_RESP_TIMEOUT | \
-                            BERLIN_CEC_INTR_TX_FAIL_INFO_NONE | \
-                            BERLIN_CEC_INTR_TX_FAIL_COLL_DET)
+#define CEC_RETX_CONDN      (SYNA_CEC_INTR_TX_FAIL_NOACK | \
+                            SYNA_CEC_INTR_TX_FAIL_RESP_TIMEOUT | \
+                            SYNA_CEC_INTR_TX_FAIL_INFO_NONE | \
+                            SYNA_CEC_INTR_TX_FAIL_COLL_DET)
 
 // Maximum time-out for Tx msg interrupt (just for safety in case we miss interrupt or system failure)
 #define CEC_MSG_TX_TOTAL_TIMEOUT (36000)
@@ -88,68 +88,68 @@ typedef enum CEC_CMD_ID_T
  *-----------------------------------------------------------------------------
  */
 /* CEC Transmit type */
-typedef enum tagberlin_cec_tx_type
+typedef enum tagsyna_cec_tx_type
 {
-	BERLIN_CEC_TX_TYPE_FIRST   = 0,
-	BERLIN_CEC_TX_TYPE_UNICAST = 0,
-	BERLIN_CEC_TX_TYPE_BROADCAST,
-	BERLIN_CEC_TX_TYPE_MAX
-} berlin_cec_tx_type, *Pberlin_cec_tx_type;
+	SYNA_CEC_TX_TYPE_FIRST   = 0,
+	SYNA_CEC_TX_TYPE_UNICAST = 0,
+	SYNA_CEC_TX_TYPE_BROADCAST,
+	SYNA_CEC_TX_TYPE_MAX
+} syna_cec_tx_type, *Psyna_cec_tx_type;
 
 /* CEC Mode */
-typedef enum tagberlin_cec_mode
+typedef enum tagsyna_cec_mode
 {
-	BERLIN_CEC_MODE_FIRST  = 0,
-	BERLIN_CEC_MODE_TX  = 0,
-	BERLIN_CEC_MODE_RX,
-	BERLIN_CEC_MODE_MAX
-} berlin_cec_mode, *Pberlin_cec_mode;
+	SYNA_CEC_MODE_FIRST  = 0,
+	SYNA_CEC_MODE_TX  = 0,
+	SYNA_CEC_MODE_RX,
+	SYNA_CEC_MODE_MAX
+} syna_cec_mode, *Psyna_cec_mode;
 
 /* CEC status information */
-typedef enum tagberlin_cec_sts_info
+typedef enum tagsyna_cec_sts_info
 {
-	BERLIN_CEC_STS_INFO_NONE = 0x00,
+	SYNA_CEC_STS_INFO_NONE = 0x00,
 
-	BERLIN_CEC_STS_TX_FAIL_INFO_NONE,
+	SYNA_CEC_STS_TX_FAIL_INFO_NONE,
 	// Follower not giving a ACK bit
-	BERLIN_CEC_STS_TX_FAIL_NOACK,
+	SYNA_CEC_STS_TX_FAIL_NOACK,
 	// Follower acked the message
-	BERLIN_CEC_STS_TX_ACKED,
+	SYNA_CEC_STS_TX_ACKED,
 	// Transmission of data did not start within time speciifed by response timer
-	BERLIN_CEC_STS_TX_FAIL_RESP_TIMEOUT,
+	SYNA_CEC_STS_TX_FAIL_RESP_TIMEOUT,
 	// Collision detected on CEC line
-	BERLIN_CEC_STS_TX_FAIL_COLL_DET = 0x08,
+	SYNA_CEC_STS_TX_FAIL_COLL_DET = 0x08,
 	// Signal free time check failed, lost the arbitration
-	BERLIN_CEC_STS_TX_FAIL_SIG_FREE_TIME,
+	SYNA_CEC_STS_TX_FAIL_SIG_FREE_TIME,
 
-	BERLIN_CEC_STS_RX_FAIL_INFO_NONE,
+	SYNA_CEC_STS_RX_FAIL_INFO_NONE,
 	// High-to-low transition occurred on CEC line after safe sampling period of
 	// data bit duration
-	BERLIN_CEC_STS_RX_FAIL_TRANS_AFTER_SSP,
+	SYNA_CEC_STS_RX_FAIL_TRANS_AFTER_SSP,
 	// No reception after waiting for a high-to-low transition on CEC line for data bit
-	BERLIN_CEC_STS_RX_FAIL_NO_TRANS_FOR_DATA_BIT,
+	SYNA_CEC_STS_RX_FAIL_NO_TRANS_FOR_DATA_BIT,
 	// No reception after waiting for a high-to-low transition on CEC line
 	// when ACK bit was due to be placed
-	BERLIN_CEC_STS_RX_FAIL_NO_TRANS_FOR_ACK_BIT,
+	SYNA_CEC_STS_RX_FAIL_NO_TRANS_FOR_ACK_BIT,
 	// Data bit total time interval is less than the time specified by CEC spec
-	BERLIN_CEC_STS_RX_FAIL_LOW_DB_TIME,
+	SYNA_CEC_STS_RX_FAIL_LOW_DB_TIME,
 	// Data bit total time interval is more than the time specified by CEC spec
-	BERLIN_CEC_STS_RX_FAIL_HIGH_DB_TIME
-} berlin_cec_sts_info, *Pberlin_cec_sts_info;
+	SYNA_CEC_STS_RX_FAIL_HIGH_DB_TIME
+} syna_cec_sts_info, *Psyna_cec_sts_info;
 
 /*-----------------------------------------------------------------------------
  * Structures
  *-----------------------------------------------------------------------------
  */
-typedef struct tagBERLIN_CEC_TX_DATA
+typedef struct tagSYNA_CEC_TX_DATA
 {
-	berlin_cec_tx_type  txType;
+	syna_cec_tx_type  txType;
 	u8  retxCondn;
 	u8  retxCount;
 	u8  txDataLen;
 	u8  txDataBuf[16];
 	u32 txTime;
-} BERLIN_CEC_TX_DATA, *PBERLIN_CEC_TX_DATA;
+} SYNA_CEC_TX_DATA, *PSYNA_CEC_TX_DATA;
 /*-----------------------------------------------------------------------------
  * Function Prototypes
  *-----------------------------------------------------------------------------
@@ -160,11 +160,10 @@ typedef struct tagBERLIN_CEC_TX_DATA
  * PARAMS   : *cec_dev - Pointer to CEC object
  *		  : fail_mode - Failure mode (Tx or Rx mode)
  *		  : *p_sts_info- Pointer to return status information
- * RETURN   : 0, on success
- *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_get_fail_status (struct cec_device_t *cec_dev,
-							  berlin_cec_mode fail_mode, int *p_sts_info, u16 intr_status);
+void syna_cec_get_fail_status(struct cec_device_t *cec_dev,
+				syna_cec_mode fail_mode, int *p_sts_info,
+				u16 intr_status);
 
 /******************************************************************************
  * FUNCTION : Writes block of data starting at specified register address
@@ -173,23 +172,18 @@ int berlin_cec_get_fail_status (struct cec_device_t *cec_dev,
  *		  : length   - Length of data to be written
  *		  : buf_write - Flag to indicate if data has to be written to
  *		  :		  - BCM buffer or to register immediately
- * RETURN   : 0, on success
- *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_reg_write (struct cec_device_t *cec_dev,
-						 u32 start_addr, u8 *p_data_buf,
-						 u32 length);
+void syna_cec_reg_write(struct cec_device_t *cec_dev, u32 start_addr,
+			  u8 *p_data_buf, u32 length);
 
 /******************************************************************************
  * FUNCTION : Reads block of data starting at specified register address
  * PARAMS   : *cec_dev - Pointer to CEC object
  *		  : p_data_buf - Pointer to data buffer (Output)
  *		  : length   - Length of data to be read
- * RETURN   : 0, on success
- *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_reg_read (struct cec_device_t *cec_dev,
-						 u32 start_addr, u8 *p_data_buf, u32 length);
+void syna_cec_reg_read(struct cec_device_t *cec_dev, u32 start_addr,
+			 u8 *p_data_buf, u32 length);
 
 /*-----------------------------------------------------------------------------
  * Function Prototypes
@@ -198,10 +192,8 @@ int berlin_cec_reg_read (struct cec_device_t *cec_dev,
 /******************************************************************************
  * FUNCTION : Loads default values of CEC block to registers
  * PARAMS   : *cec_dev - Pointer to CEC object
- * RETURN   : 0, on success
- *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_load_default_val(struct cec_device_t *cec_dev);
+void syna_cec_load_default_val(struct cec_device_t *cec_dev);
 
 /******************************************************************************
  * FUNCTION : Sets/Resets transmit/receive mode
@@ -213,7 +205,7 @@ int berlin_cec_load_default_val(struct cec_device_t *cec_dev);
  * RETURN   : 0, on success
  *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_set_mode (struct cec_device_t *cec_dev, berlin_cec_mode cec_mode,
+int syna_cec_set_mode (struct cec_device_t *cec_dev, syna_cec_mode cec_mode,
 					bool enable);
 
 /******************************************************************************
@@ -221,7 +213,7 @@ int berlin_cec_set_mode (struct cec_device_t *cec_dev, berlin_cec_mode cec_mode,
  * PARAMS   : *cec_dev - Pointer to CEC object
  * RETURN   : RX line status
  *****************************************************************************/
-u8 berlin_cec_rx_line_status(struct cec_device_t *cec_dev);
+u8 syna_cec_rx_line_status(struct cec_device_t *cec_dev);
 /******************************************************************************
  * FUNCTION : Sends data to the transmit FIFO and initiates transfer on the
  *		  : CEC line, It also monitors for tx errors and handles
@@ -233,7 +225,7 @@ u8 berlin_cec_rx_line_status(struct cec_device_t *cec_dev);
  * RETURN   : 0, on success
  *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_transmit_data(struct cec_device_t *cec_dev, struct cec_msg *msg, int signal_free_time);
+int syna_cec_transmit_data(struct cec_device_t *cec_dev, struct cec_msg *msg, int signal_free_time);
 
 /******************************************************************************
  * FUNCTION : Reads data from the receive FIFO (Data is read until the FIFO
@@ -244,7 +236,7 @@ int berlin_cec_transmit_data(struct cec_device_t *cec_dev, struct cec_msg *msg, 
  * RETURN   : 0, on success
  *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_receive_data(struct cec_device_t *cec_dev, u8 *p_data_len, u8 *p_data_buf);
+int syna_cec_receive_data(struct cec_device_t *cec_dev, u8 *p_data_len, u8 *p_data_buf);
 
 /******************************************************************************
  * FUNCTION : Handles CEC interrupt
@@ -257,9 +249,9 @@ int berlin_cec_receive_data(struct cec_device_t *cec_dev, u8 *p_data_len, u8 *p_
  * RETURN   : 0, on success
  *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_handle_interrupt(struct cec_device_t *cec_dev, u16 *p_intr_field,
+int syna_cec_handle_interrupt(struct cec_device_t *cec_dev, u16 *p_intr_field,
 						   u8 *p_intr_data_len, u8 *p_intr_data,
-						   PBERLIN_CEC_TX_DATA p_tx_data,u16 reg);
+						   PSYNA_CEC_TX_DATA p_tx_data,u16 reg);
 /******************************************************************************
  * FUNCTION : Controls logical address at given index
  * PARAMS   : *cec_dev	 - Pointer to CEC object
@@ -268,23 +260,8 @@ int berlin_cec_handle_interrupt(struct cec_device_t *cec_dev, u16 *p_intr_field,
  * RETURN   : 0, on success
  *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_enable_log_addr (struct cec_device_t *cec_dev,
+int syna_cec_enable_log_addr (struct cec_device_t *cec_dev,
 						  bool enable, u8 addr_index, u8 log_addr);
-
-/******************************************************************************
- * FUNCTION : Handles the given interrupt(s)
- * PARAMS   : *cec_dev - Pointer to CEC object
- *		  : p_intr_field - Pointer to return interrupt field (Output)
- *		  : p_intr_data_len - Pointer to return interrupt data length (Output)
- *		  : p_intr_data - Pointer to interrupt data (Output)
- *		  : p_tx_data - Pointer to transmit data in case it is required
- *		  : for a retransmission attempt
- * RETURN   : 0, on success
- *		  : Error code, otherwise
- *****************************************************************************/
-int berlin_cec_handle_interrupt(struct cec_device_t *cec_dev, u16 *p_intr_field,
-						   u8 *p_intr_data_len, u8 *p_intr_data,
-						   PBERLIN_CEC_TX_DATA p_tx_data,u16 reg);
 
 /******************************************************************************
  * FUNCTION : Gets device type from address
@@ -296,7 +273,7 @@ int berlin_cec_handle_interrupt(struct cec_device_t *cec_dev, u16 *p_intr_field,
  * RETURN   : 0, on success
  *		  : Error code, otherwise
  *****************************************************************************/
-int berlin_cec_get_device_type_from_addr (struct cec_device_t *cec_dev,
+int syna_cec_get_device_type_from_addr (struct cec_device_t *cec_dev,
 						  bool enable, u8 addrIndex, u8 logAddr);
 
 #endif // __SYNA_CEC_PRIV_H__

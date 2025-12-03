@@ -19,31 +19,35 @@
 #define CEC_IOCTL_RX_MSG_BUF    0xbeef0003
 
 /* CEC interrupt status */
-#define BERLIN_CEC_INTR_NONE                0x0000
-#define BERLIN_CEC_INTR_TX_UNICAST_NOACK    0x0001
-#define BERLIN_CEC_INTR_TX_BRDCAST_NOACK    0x0002
-#define BERLIN_CEC_INTR_TX_COLLISION        0x0004
-#define BERLIN_CEC_INTR_TX_SFT_FAIL         0x2008
-#define BERLIN_CEC_INTR_TX_FAIL             0x200F
-#define BERLIN_CEC_INTR_TX_COMPLETE         0x0010
-#define BERLIN_CEC_INTR_RX_COMPLETE         0x0020
-#define BERLIN_CEC_INTR_RX_LOW_DT_ERROR     0x0040
-#define BERLIN_CEC_INTR_RX_HIGH_DT_ERROR    0x0080
-#define BERLIN_CEC_INTR_RX_FAIL             0x00C0
-#define BERLIN_CEC_INTR_TX_FIFO_FULL        0x0100
-#define BERLIN_CEC_INTR_TX_FIFO_EMPTY       0x0200
-#define BERLIN_CEC_INTR_RX_FIFO_FULL        0x0400
-#define BERLIN_CEC_INTR_RX_FIFO_EMPTY       0x0800
-#define BERLIN_CEC_INTR_WAKEUP              0x1000
-#define BERLIN_CEC_INTR_ALL                 (BERLIN_CEC_INTR_TX_FAIL	   |\
-                                            BERLIN_CEC_INTR_TX_COMPLETE   |\
-                                            BERLIN_CEC_INTR_RX_COMPLETE   |\
-                                            BERLIN_CEC_INTR_RX_FAIL	   |\
-                                            BERLIN_CEC_INTR_TX_FIFO_FULL  |\
-                                            BERLIN_CEC_INTR_TX_FIFO_EMPTY |\
-                                            BERLIN_CEC_INTR_RX_FIFO_FULL  |\
-                                            BERLIN_CEC_INTR_RX_FIFO_EMPTY |\
-                                            BERLIN_CEC_INTR_WAKEUP)
+#define SYNA_CEC_INTR_NONE                0x0000
+#define SYNA_CEC_INTR_TX_UNICAST_NOACK    0x0001
+#define SYNA_CEC_INTR_TX_BRDCAST_NOACK    0x0002
+#define SYNA_CEC_INTR_TX_COLLISION        0x0004
+#define SYNA_CEC_INTR_TX_SFT_FAIL         0x2008
+#define SYNA_CEC_INTR_TX_FAIL             0x200F
+#define SYNA_CEC_INTR_TX_COMPLETE         0x0010
+#define SYNA_CEC_INTR_RX_COMPLETE         0x0020
+#define SYNA_CEC_INTR_RX_LOW_DT_ERROR     0x0040
+#define SYNA_CEC_INTR_RX_HIGH_DT_ERROR    0x0080
+#define SYNA_CEC_INTR_RX_FAIL             0x00C0
+#define SYNA_CEC_INTR_TX_FIFO_FULL        0x0100
+#define SYNA_CEC_INTR_TX_FIFO_EMPTY       0x0200
+#define SYNA_CEC_INTR_RX_FIFO_FULL        0x0400
+#define SYNA_CEC_INTR_RX_FIFO_EMPTY       0x0800
+#define SYNA_CEC_INTR_WAKEUP              0x1000
+#define SYNA_CEC_INTR_ALL                 (SYNA_CEC_INTR_TX_FAIL        |\
+                                            SYNA_CEC_INTR_TX_COMPLETE   |\
+                                            SYNA_CEC_INTR_RX_COMPLETE   |\
+                                            SYNA_CEC_INTR_RX_FAIL       |\
+                                            SYNA_CEC_INTR_TX_FIFO_FULL  |\
+                                            SYNA_CEC_INTR_TX_FIFO_EMPTY |\
+                                            SYNA_CEC_INTR_RX_FIFO_FULL  |\
+                                            SYNA_CEC_INTR_RX_FIFO_EMPTY |\
+                                            SYNA_CEC_INTR_WAKEUP)
+#define SYNA_CEC_INTR_RX_TX_STAT          (SYNA_CEC_INTR_TX_FAIL |\
+                                            SYNA_CEC_INTR_TX_COMPLETE |\
+                                            SYNA_CEC_INTR_RX_COMPLETE |\
+                                            SYNA_CEC_INTR_RX_FAIL)
 
 // --  CEC
 #define CEC_TOGGLE_FOR_WRITE_REG_ADDR       0x0000

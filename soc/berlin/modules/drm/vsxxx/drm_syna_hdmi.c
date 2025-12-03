@@ -171,23 +171,20 @@ static int syna_hdmi_connector_helper_get_modes(struct drm_connector *connector)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
 		drm_connector_update_edid_property(connector, hdmi_edid->edid);
 		num_modes = drm_add_edid_modes(connector, (struct edid*)hdmi_edid->edid);
+#if IS_ENABLED(CONFIG_CEC_CORE)
+		cec_notifier_set_phys_addr_from_edid(syna_hdmi->cec, hdmi_edid->edid);
+#endif
 #else
 		drm_connector_update_edid_property(connector, hdmi_edid);
 		num_modes = drm_add_edid_modes(connector, hdmi_edid);
+#if IS_ENABLED(CONFIG_CEC_CORE)
+		cec_notifier_set_phys_addr_from_edid(syna_hdmi->cec, hdmi_edid);
+#endif
 #endif
 
 		kfree(hdmi_edid);
 	}
-#if IS_ENABLED(CONFIG_CEC_CORE)
-	if (connector->display_info.source_physical_address != CEC_PHYS_ADDR_INVALID && syna_hdmi->cec) {
-		pr_info("Setting CEC physical address to 0x%04x\n", connector->display_info.source_physical_address);
-		cec_notifier_set_phys_addr(syna_hdmi->cec, connector->display_info.source_physical_address);
-	} else {
-		pr_warn("Cannot set CEC physical address: %s\n",
-				connector->display_info.source_physical_address == CEC_PHYS_ADDR_INVALID ?
-				"Invalid address" : "CEC notifier not initialized");
-	}
-#endif
+
 
 	if (num_modes && len) {
 		struct drm_display_mode *pref_mode_user = NULL;
