@@ -231,7 +231,7 @@ int m2m_wrapper_init(struct device *dev)
 	return ret;
 
 error:
-	for (int i = 0; i < TSP_FIGO_NR; i++) {
+	for (i = 0; i < TSP_FIGO_NR; i++) {
 		if (shadow_dma_buff.shadow_dmabuf_heap_buf[i].dmabuf) {
 			dma_buf_put(shadow_dma_buff.shadow_dmabuf_heap_buf[i].dmabuf);
 			shadow_dma_buff.shadow_dmabuf_heap_buf[i].dmabuf = NULL;
