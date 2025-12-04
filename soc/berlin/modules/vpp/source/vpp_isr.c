@@ -198,7 +198,7 @@ void VPP_CreateISRTask(void)
 	vpp_isr_task = kthread_run(VPP_ISR_Task, NULL, "VPP ISR Thread");
 	if (IS_ERR(vpp_isr_task))
 		return;
-
+	sched_set_fifo(vpp_isr_task);
 }
 
 void VPP_StopISRTask(void)

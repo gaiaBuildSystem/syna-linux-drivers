@@ -171,6 +171,7 @@ static int syna_early_load(struct drm_device *dev)
 			err = PTR_ERR(thread[crtc_index]);
 			goto err_thread_cleanup;
 		}
+		sched_set_fifo(thread[crtc_index]);
 	}
 
 	syna_set_irq_enabled(true);
