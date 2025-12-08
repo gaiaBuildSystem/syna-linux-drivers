@@ -838,7 +838,6 @@ d250_prep_cyclic(struct dma_chan *chan, dma_addr_t buf_addr,
 	dma_addr_t src, dst, phys, mem_addr;
 	size_t xfer_len, step_max;
 	struct d350_desc *desc;
-	struct scatterlist *sg;
 	struct d350_sg *dsg;
 	int sglen, i;
 
@@ -852,7 +851,7 @@ d250_prep_cyclic(struct dma_chan *chan, dma_addr_t buf_addr,
 	step_max = ((1UL << 16) - 1) << tsz;
 
 	periods = buf_len / period_len;
-	sglen = DIV_ROUND_UP(sg_dma_len(sg), step_max) * periods;
+	sglen = DIV_ROUND_UP(period_len, step_max) * periods;
 
 	desc = kzalloc(struct_size(desc, sg, sglen), GFP_NOWAIT);
 	if (!desc)
