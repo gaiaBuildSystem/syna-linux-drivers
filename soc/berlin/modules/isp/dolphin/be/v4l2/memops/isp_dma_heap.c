@@ -319,6 +319,12 @@ void *get_isp_dma_heap_alloc(struct isp_dma_heap_dev *memdev,
 		buf->paddr_pt = (void *)buf->pt_param.phy_addr;
 	} else if (memdev->mem_type == SHM_NONSECURE_CONTIG) {
 
+		buf->bm_meta = bm_fetch_meta(buf->cookie);
+		if (!buf->bm_meta) {
+			pr_err("non-contig bm refuse to fetch meta\n");
+			goto failed_cpu_access;
+		}
+
 		ret = dma_buf_vmap(buf->db_attach->dmabuf, buf->map);
 		if (!ret && buf->map->vaddr) {
 			buf->vaddr = buf->map->vaddr;
@@ -632,7 +638,6 @@ static void *vb2_isp_dma_heap_attach_dmabuf(struct vb2_buffer *vb,
 	struct isp_dma_buf *buf;
 	struct dma_buf_attachment *dba;
 	int ret = 0;
-	berlin_meta_t *data;
 
 	if (dbuf->size < size)
 		return ERR_PTR(-EFAULT);
@@ -644,13 +649,13 @@ static void *vb2_isp_dma_heap_attach_dmabuf(struct vb2_buffer *vb,
 	if (!buf)
 		return ERR_PTR(-ENOMEM);
 
-	data = (berlin_meta_t *) (*(unsigned long *)(dbuf->priv));
-	if(data) {
-		ret = bm_fetch_pt(dbuf, &buf->pt_param);
-		if (ret) {
-			pr_err("bm failed to fetch pt: %d\n", ret);
-			return ERR_PTR(-ENOMEM);
-		}
+	ret = bm_fetch_pt(dbuf, &buf->pt_param);
+	if (ret) {
+		pr_debug("bm refuse to register: %d\n", ret);
+		/* At this point we don't know if the memory is contiguous or not. For the
+		 * contiguous case, error should not be returned, attach should still happen
+		 */
+	} else {
 		buf->paddr_pt = (void *)buf->pt_param.phy_addr;
 	}
 
