@@ -3253,6 +3253,43 @@ static ssize_t gpuinfo_show(struct device *dev, struct device_attribute *attr, c
 }
 static DEVICE_ATTR_RO(gpuinfo);
 
+static ssize_t gpu_util_show(struct device *dev,
+                             struct device_attribute *attr, char *buf)
+{
+#ifdef CONFIG_MALI_MIDGARD_DVFS
+	struct kbase_device *kbdev;
+	struct kbasep_pm_metrics cur, diff;
+	static struct kbasep_pm_metrics sampled;
+	u64 total_time;
+	unsigned int utilization;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	memcpy(&cur, &kbdev->pm.backend.metrics.values, sizeof(cur));
+
+	diff.time_busy = cur.time_busy - sampled.time_busy;
+	diff.time_idle = cur.time_idle - sampled.time_idle;
+	memcpy(&sampled, &cur, sizeof(struct kbasep_pm_metrics));
+
+	total_time = diff.time_busy + diff.time_idle;
+	if (total_time == 0) {
+		utilization = 0;
+	} else {
+		utilization = (unsigned int)((diff.time_busy * 100) / total_time);
+	}
+
+	return sysfs_emit(buf, "%u\n", utilization);
+#else
+	return sysfs_emit(buf, "unknown\n");
+#endif
+}
+
+static DEVICE_ATTR_RO(gpu_util);
+
 /**
  * dvfs_period_store - Store callback for the dvfs_period sysfs file.
  * @dev:   The device with sysfs file is for
@@ -5651,6 +5688,7 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_soft_job_timeout.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_gpuinfo.attr,
+	&dev_attr_gpu_util.attr,
 	&dev_attr_dvfs_period.attr,
 	&dev_attr_pm_poweroff.attr,
 	&dev_attr_reset_timeout.attr,
