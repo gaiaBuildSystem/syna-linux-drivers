@@ -671,11 +671,17 @@ static int isp_suspend(struct device *dev)
 {
 	isp_device *isp_dev = dev_get_drvdata(dev);
 	u32 i;
+	int ret;
 
 	isp_trace(dev, "%s\n", __func__);
 
 	//Suspend all ISP modules
 	isp_invoke_mod_suspend(isp_dev, isp_dev->mod_ctx);
+
+	/* Set the CSI0 clock back to 600MHz, to match the default clk rate */
+	ret = clk_set_rate(isp_dev->isp_clks[ISP_CLK_ISP_CSI0CLK], 600000000);
+	if (ret)
+		isp_error(dev, "isp clock enable failed...!\n");
 
 	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++)
 		clk_disable_unprepare(isp_dev->isp_clks[i]);

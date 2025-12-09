@@ -89,6 +89,17 @@ typedef enum isp_ioctls_t {
 	ISP_MODULE_IOCTL,
 } ISP_IOCTLS;
 
+enum ISP_CLK {
+	ISP_CLK_TXE_SCCLK = 0,
+	ISP_CLK_ISPCLK,
+	ISP_CLK_ISS_SYSCLK,
+	ISP_CLK_ISP_BECLK,
+	ISP_CLK_ISP_DSCCLK,
+	ISP_CLK_ISP_CSI0CLK,
+	ISP_CLK_ISP_CSI1CLK,
+	ISP_CLK_MAX,
+};
+
 typedef isp_module_fops* (*isp_mod_get_fops)(void);
 
 #endif /* __ISP_DRIVER_H__ */
