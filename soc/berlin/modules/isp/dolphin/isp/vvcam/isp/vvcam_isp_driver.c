@@ -70,6 +70,7 @@
 #ifdef DOLPHIN
 #include <linux/of.h>
 #include <linux/gpio/consumer.h>
+#include <linux/delay.h>
 #endif
 
 #include "vvcam_isp_driver.h"
@@ -87,7 +88,6 @@
 #define ISP_ISP_INTR_STS_REG    0x5c4
 #define ISP_ISP_INTR_CLR_REG    0x5c8
 
-#define MAX_SENSOR              0x2
 #endif
 
 
@@ -292,8 +292,6 @@ static int vvcam_isp_parse_params(struct vvcam_isp_dev *isp_dev,
 {
     struct resource *res;
 #ifdef DOLPHIN
-    struct gpio_desc *reset_gpio[MAX_SENSOR];
-    struct gpio_desc *enable_gpio[MAX_SENSOR];
     int i = 0;
 #endif
 
@@ -321,17 +319,17 @@ static int vvcam_isp_parse_params(struct vvcam_isp_dev *isp_dev,
     }
 #ifdef DOLPHIN
     for (i = 0; i < MAX_SENSOR; i++) {
-        reset_gpio[i] = devm_gpiod_get_index(&pdev->dev, "reset", i, GPIOD_OUT_LOW);
-        if (IS_ERR(reset_gpio[i]))
+        isp_dev->reset_gpio[i] = devm_gpiod_get_index(&pdev->dev, "reset", i, GPIOD_OUT_LOW);
+        if (IS_ERR(isp_dev->reset_gpio[i]))
             dev_err(&pdev->dev, "failed to fetch reset pin of sensor device %d!\n", i);
         else
-            gpiod_set_value_cansleep(reset_gpio[i], 1);
+            gpiod_set_value_cansleep(isp_dev->reset_gpio[i], 1);
 
-        enable_gpio[i] = devm_gpiod_get_index(&pdev->dev, "enable", i, GPIOD_OUT_LOW);
-        if (IS_ERR(enable_gpio[i]))
+        isp_dev->enable_gpio[i] = devm_gpiod_get_index(&pdev->dev, "enable", i, GPIOD_OUT_LOW);
+        if (IS_ERR(isp_dev->enable_gpio[i]))
             dev_err(&pdev->dev, "failed to fetch enable pin of sensor device %d!\n", i);
         else
-            gpiod_set_value_cansleep(enable_gpio[i], 1);
+            gpiod_set_value_cansleep(isp_dev->enable_gpio[i], 1);
     }
 #else
     isp_dev->mi_irq = platform_get_irq(pdev, 1);
@@ -372,7 +370,9 @@ static int vvcam_isp_probe(struct platform_device *pdev)
     int ret = 0;
     struct vvcam_isp_dev *isp_dev;
     char *ispdev_name;
+    struct device *dev;
 
+    dev = &pdev->dev;
     isp_dev = devm_kzalloc(&pdev->dev,
                 sizeof(struct vvcam_isp_dev), GFP_KERNEL);
     if (!isp_dev)
@@ -432,6 +432,7 @@ static int vvcam_isp_probe(struct platform_device *pdev)
         dev_err(&pdev->dev, "can't request isp irq\n");
         goto error_request_isp_irq;
     }
+    dev_set_drvdata(dev, isp_dev);
 #else
 
     ret = devm_request_irq(&pdev->dev, isp_dev->isp_irq, vvcam_isp_irq_handler,
@@ -513,22 +514,44 @@ static int vvcam_isp_remove(struct platform_device *pdev)
 static int vvcam_isp_system_suspend(struct device *dev)
 {
     int ret = 0;
+    int i = 0;
+    struct vvcam_isp_dev *isp_dev = dev_get_drvdata(dev);
+
     ret = pm_runtime_force_suspend(dev);
     if (ret) {
         dev_err(dev, "force suspend %s failed\n", dev_name(dev));
         return ret;
     }
+    for (i = 0; i < MAX_SENSOR; i++) {
+        gpiod_set_value_cansleep(isp_dev->reset_gpio[i], 0);
+        gpiod_set_value_cansleep(isp_dev->enable_gpio[i], 0);
+    }
+
     return ret;
 }
 
 static int vvcam_isp_system_resume(struct device *dev)
 {
     int ret = 0;
+    int i = 0;
+    struct vvcam_isp_dev *isp_dev = dev_get_drvdata(dev);
+
     ret = pm_runtime_force_resume(dev);
     if (ret) {
         dev_err(dev, "force resume %s failed\n", dev_name(dev));
         return ret;
     }
+    for (i = 0; i < MAX_SENSOR; i++) {
+        gpiod_set_value_cansleep(isp_dev->reset_gpio[i], 0);
+        gpiod_set_value_cansleep(isp_dev->enable_gpio[i], 0);
+        msleep(1);
+
+        gpiod_set_value_cansleep(isp_dev->reset_gpio[i], 1);
+        msleep(1);
+
+        gpiod_set_value_cansleep(isp_dev->enable_gpio[i], 1);
+    }
+
     return ret;
 }
 

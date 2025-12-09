@@ -64,6 +64,7 @@
 #include "vvcam_isp.h"
 #include "vvcam_event.h"
 
+#define MAX_SENSOR              0x2
 #define VVCAM_ISP_NAME "vvcam-isp"
 
 #define VVCAM_ISP_EVENT_ELEMS 10
@@ -87,6 +88,8 @@ struct vvcam_isp_dev {
     struct tasklet_struct stat_tasklet;
     spinlock_t stat_lock;
     uint32_t refcnt;
+    struct gpio_desc *reset_gpio[MAX_SENSOR];
+    struct gpio_desc *enable_gpio[MAX_SENSOR];
 };
 
 struct vvcam_isp_fh {
