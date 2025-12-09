@@ -28,7 +28,7 @@
 #include <linux/version.h>
 #include <linux/interrupt.h>
 #include <linux/uaccess.h>
-
+#include <linux/clk.h>
 /*************************************************************************
  * Local head files
  */
@@ -84,6 +84,7 @@ struct m2m_session {
 };
 
 struct m2m_device_t {
+	struct clk *tsp_clk_core;
 	unsigned char *dev_name;
 	struct cdev cdev;
 	struct device *dev;
@@ -824,6 +825,8 @@ static int m2m_drv_exit(struct m2m_device_t *pdev)
 	debugfs_remove_recursive(pdev->sess_debug_root);
 	debugfs_remove_recursive(pdev->debug_root);
 
+	clk_disable_unprepare(pdev->tsp_clk_core);
+
 	return 0;
 }
 
@@ -860,6 +863,15 @@ static int m2m_drv_probe(struct platform_device *pdev)
 		goto err_fail;
 	}
 
+	m2m_device.tsp_clk_core = devm_clk_get_optional(&pdev->dev, "core");
+	if (IS_ERR(m2m_device.tsp_clk_core)) {
+		ret = PTR_ERR(m2m_device.tsp_clk_core);
+		pr_err("error in getting core clk handle: %d\n", ret);
+		goto err_clk_get;
+	}
+
+	clk_prepare_enable(m2m_device.tsp_clk_core);
+
 	ret = alloc_chrdev_region(&m2m_device.dev_id, 0, M2M_MAX_DEVS, M2M_DEVICE_NAME);
 	if (ret < 0) {
 		pr_err("alloc_chrdev_region() failed for ovp\n");
@@ -875,6 +887,8 @@ static int m2m_drv_probe(struct platform_device *pdev)
 err_drv_init:
 	unregister_chrdev_region(m2m_device.dev_id, M2M_MAX_DEVS);
 err_alloc_chrdev_region:
+	clk_disable_unprepare(m2m_device.tsp_clk_core);
+err_clk_get:
 	iounmap(m2m_device.intr_virt_addr);
 err_fail:
 	pr_err("%s failed !!! (%d)\n", __func__, ret);
