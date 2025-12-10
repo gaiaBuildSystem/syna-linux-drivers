@@ -33,6 +33,7 @@ typedef enum __VPP_BUILD_IN_FRAME_TYPE__ {
 	VPP_BUILD_IN_FRAME_TYPE_MAX,
 } VPP_BUILD_IN_FRAME_TYPE;
 
+#define GET_MAX_CRTC_FOR_MODE(mode) MAX_CRTC
 
 VPP_BUILD_IN_FRAME_TYPE syna_get_buidin_frame_type(ENUM_PLANE_ID plane_id);
 struct drm_encoder *syna_encoder_create(struct drm_device *dev,

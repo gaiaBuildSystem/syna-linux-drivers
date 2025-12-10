@@ -40,6 +40,10 @@ typedef enum __VPP_BUILD_IN_FRAME_TYPE__ {
 					(PLANE == PLANE_GFX1)) \
 					INDX = PLANE; \
 			}
+
+#define GET_MAX_CRTC_FOR_MODE(mode) \
+	((mode != VPP_VOUT_DUAL_MODE_PIP) ? 1 : MAX_CRTC)
+
 void syna_push_default_buildin_frames_for_crtc(int crtc_id);
 void syna_push_buildin_frame(u32 plane);
 void syna_push_builtin_frames(void);

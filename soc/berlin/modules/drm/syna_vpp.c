@@ -998,6 +998,7 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 	int ret, i;
 	fastlogo_info_t fl_info;
 	VPP_WIN vpp_res_info;
+	int crtcs;
 
 	if (!dev_priv->vpp_config_param.logo_enable) {
 		for (i = 0; i < MAX_CRTC; i++)
@@ -1007,7 +1008,9 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
                 return;
 	}
 
-	for (i = 0; i < MAX_CRTC; i++) {
+	crtcs = GET_MAX_CRTC_FOR_MODE(dev_priv->vpp_config_param.display_mode);
+
+	for (i = 0; i < crtcs; i++) {
 		if (!syna_vpp_get_disp_info(dev, i, &fl_info)) {
 			dev_priv->vpp_fastlogo_buf_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
 			dev_priv->vpp_fl_descr_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
