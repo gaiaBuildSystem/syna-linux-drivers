@@ -212,9 +212,6 @@ syna_encoder_helper_mode_set(struct drm_encoder *encoder,
 			VPP_Clock_Set_Rate(PIXEL_CLOCK_RATE(lcdcConfig.pixclock));
 	}
 
-	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index])
-		drm_panel_prepare(dev_priv->panel[crtc_index]);
-
 	syna_vpp_load_config(crtc_index, &lcdcConfig);
 }
 
@@ -223,8 +220,10 @@ static void syna_encoder_helper_enable(struct drm_encoder *encoder)
 	int crtc_index = (encoder->encoder_type == DRM_MODE_ENCODER_DSI) ? 1 : 0;
 	struct syna_drm_private *dev_priv = encoder->dev->dev_private;
 
-	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index])
+	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index]) {
+		drm_panel_prepare(dev_priv->panel[crtc_index]);
 		drm_panel_enable(dev_priv->panel[crtc_index]);
+	}
 }
 
 static void syna_encoder_helper_disable(struct drm_encoder *encoder)
@@ -234,6 +233,7 @@ static void syna_encoder_helper_disable(struct drm_encoder *encoder)
 	MIPI_DSIH_INFO *pMipiDsiInfo = dev_priv->pMipiDsiInfo;
 
 	if(dev_priv->connector[crtc_index] && dev_priv->panel[crtc_index]) {
+		drm_panel_unprepare(dev_priv->panel[crtc_index]);
 		drm_panel_disable(dev_priv->panel[crtc_index]);
 
 		if(encoder->encoder_type == DRM_MODE_ENCODER_DSI) {
