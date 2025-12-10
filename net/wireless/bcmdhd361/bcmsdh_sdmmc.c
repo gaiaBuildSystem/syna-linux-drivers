@@ -368,7 +368,7 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 		}
 	}
 
-#if defined(CONFIG_ARCH_MESON)
+#if defined(CONFIG_ARCH_MESON) || defined(CONFIG_ARCH_ASTRA)
 	/* Changing the drive strength value of the 4612 and 4611 dongle from the default to A. */
 	if ((func->device == BCM4612_CHIP_ID) || (func->device == BCM4611_CHIP_ID)) {
 		if (*dhd_sd_mmc_ds == DRVSTRN_IGNORE_CHAR) {
@@ -378,9 +378,10 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 		/* Save the device ID for Wi-Fi reset next time */
 		sd->func[0]->device = func->device;
 	}
-	/* 43436s/43436p/43436pp/430132 only support clk rate up to SDR50/50Mhz */
+	/* 43436s/43436p/43436pp/430132/4612 only support clk rate up to SDR50/50MHz */
 	if ((func->device == BCM43430_CHIP_ID) ||
-		(func->device == BCM43012_CHIP_ID)) {
+		(func->device == BCM43012_CHIP_ID) ||
+		(func->device == BCM4612_CHIP_ID)) {
 		if (sdmmc_get_timing(sd) > MMC_TIMING_UHS_SDR50) {
 			/* Current timing is higher than SDR50, reduce timing to SDR50. */
 			sdmmc_set_timing(sd, MMC_TIMING_UHS_SDR50);
@@ -1754,7 +1755,7 @@ sdioh_start(sdioh_info_t *sd, int stage)
 						sdioh_set_driver_strength(sd->func[0], (DTS_vals[ds_offset]));
 					}
 				}
-#if defined(CONFIG_ARCH_MESON)
+#if defined(CONFIG_ARCH_MESON) || defined(CONFIG_ARCH_ASTRA)
 				/* Changing the drive strength value of the 4612 dongle
 				 * from the default to A.
 				 */
@@ -1765,9 +1766,10 @@ sdioh_start(sdioh_info_t *sd, int stage)
 						sdioh_set_driver_strength(sd->func[0], 0x10);
 					}
 				}
-				/* 43436s/43436p/43436pp/430132 only support clk rate up to 50Mhz */
+				/* 43436s/43436p/43436pp/430132/4612 only support clk rate up to 50MHz */
 				if ((sd->func[0]->device == BCM43430_CHIP_ID) ||
-					(sd->func[0]->device == BCM43012_CHIP_ID)) {
+					(sd->func[0]->device == BCM43012_CHIP_ID) ||
+					(sd->func[0]->device == BCM4612_CHIP_ID)) {
 					if (sdmmc_get_timing(sd) > MMC_TIMING_UHS_SDR50) {
 						/* Current timing is higher than SDR50,
 						 * reduce timing to SDR50.
