@@ -28,7 +28,7 @@ int wrap_VPP_Init_Recovery(VPP_MEM_LIST *shm_list,
 	VPP_MIPI_CONFIG_PARAMS *pResCfg = vpp_config_param.mipi_resinfo_params;
 	avio_fastlogo_info display_info = avio_get_fastlogo_status();
 
-	if (!display_info.u.status)
+	if (display_info.u.status)
 		return 0;
 
 	/* Always assume ampless boot and NTZ version flow for ASxxx family.
