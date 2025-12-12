@@ -6,6 +6,7 @@
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 #include <linux/err.h>
+#include <linux/io.h>
 #include <sound/soc.h>
 #include <sound/tlv.h>
 #include <linux/gpio/consumer.h>
@@ -430,6 +431,11 @@ static int dmic_pdm_trigger_start(struct snd_pcm_substream *ss,
 
 	snd_printd("%s: ss(0x%p) dai(0x%p)\n", __func__, ss, dai);
 
+	/* Configure DMIC control register if available */
+	if (dmic->ctrl_reg) {
+		writel(dmic->ctrl_reg_value, dmic->ctrl_reg);
+	}
+
 	dmic_module_enable(dmic->aio_handle, 1);
 
 	for (i = 0; i < MAX_DMIC_MODULES; i++) {
@@ -692,7 +698,24 @@ static int dmic_pdm_probe(struct platform_device *pdev)
 
 	snd_printk("%s done irqc %d,  max ch inuse %d\n", __func__,
 		   dmic->irqc, dmic->max_ch_inuse);
-	return ret;
+
+	/* Read DMIC control register configuration from DTS */
+	u32 dmic_ctrl_reg[2];
+	ret = of_property_read_u32_array(np, "dmic-mux-reg", dmic_ctrl_reg, 2);
+	if (!ret) {
+		u32 ctrl_reg_addr = dmic_ctrl_reg[0];
+		dmic->ctrl_reg_value = dmic_ctrl_reg[1];
+
+		dmic->ctrl_reg = ioremap(ctrl_reg_addr, 4);
+		if (!dmic->ctrl_reg) {
+			snd_printk("%s Failed to map DMIC control register at 0x%x\n",
+				__func__, ctrl_reg_addr);
+			ret = -ENOMEM;
+			goto error;
+		}
+	}
+
+	return 0;
 
 error:
 	close_aio(dmic->aio_handle);
@@ -707,6 +730,12 @@ static RET_TYPE dmic_pdm_remove(struct platform_device *pdev)
 	struct dmic_data *dmic;
 
 	dmic = (struct dmic_data *)dev_get_drvdata(dev);
+
+	/* Unmap DMIC control register if it was mapped */
+	if (dmic && dmic->ctrl_reg) {
+		iounmap(dmic->ctrl_reg);
+		dmic->ctrl_reg = NULL;
+	}
 
 	/*close aio handle of alsa if have opened*/
 	if (dmic && dmic->aio_handle) {

@@ -51,6 +51,10 @@ struct dmic_data {
 	bool dpath_clk_en;
 
 	void *aio_handle;
+
+	/* DMIC control register configuration */
+	void __iomem *ctrl_reg;
+	u32 ctrl_reg_value;
 };
 
 #endif
