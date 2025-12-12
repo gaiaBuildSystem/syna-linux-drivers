@@ -89,6 +89,7 @@ typedef struct AVIO_MODULE_FUNC_TABLE_T {
 typedef struct AVIO_MODULE_T {
 	AVIO_MODULE_FUNC_TABLE func;
 	char is_probed;
+	char is_opened;
 	char *module_name;
 	void *pCtxData;
 } AVIO_MODULE;

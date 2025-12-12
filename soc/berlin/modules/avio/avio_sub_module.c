@@ -305,8 +305,10 @@ static void avio_sub_module_close_n_module(int n)
 	for (i = 0; i < n; i++) {
 		AVIO_MODULE_FUNC_TABLE *fops = &g_avio_module[i].func;
 
-		if (fops->close)
+		if (fops->close) {
 			(*fops->close)(g_avio_module[i].pCtxData);
+			g_avio_module[i].is_opened = false;
+		}
 	}
 }
 
@@ -458,8 +460,10 @@ void avio_sub_module_unregister(AVIO_MODULE_TYPE sub_module)
 		AVIO_MODULE_FUNC_TABLE *fops = &g_avio_module[sub_module].func;
 
 		//Invoke exit sequence for dynamically unloading
-		if (fops->close)
+		if (fops->close) {
 			(*fops->close)(g_avio_module[sub_module].pCtxData);
+			g_avio_module[sub_module].is_opened = false;
+		}
 		if (fops->exit)
 			(*fops->exit)(g_avio_module[sub_module].pCtxData);
 
@@ -483,15 +487,28 @@ void *avio_sub_module_get_ctx(AVIO_MODULE_TYPE sub_module)
 
 int avio_sub_module_dhub_init(void)
 {
+	struct AVIO_MODULE_T * avio_dhub = &g_avio_module[AVIO_MODULE_TYPE_DHUB];
+
+	if(avio_dhub->is_opened){
+		return 0;
+	}
+
 	int err = 0;
 	AVIO_MODULE_FUNC_TABLE *fops = NULL;
 
 	avio_trace("avio_module:%s:%d\n", __func__, __LINE__);
-	fops = &g_avio_module[AVIO_MODULE_TYPE_DHUB].func;
+
+	fops = &avio_dhub->func;
 	if (fops->open) {
-		err = (*fops->open)(g_avio_module[AVIO_MODULE_TYPE_DHUB].pCtxData);
-		if (err)
+		/* Need to set is_opened to true before open to avoid the
+		* multiple open
+		*/
+		avio_dhub->is_opened = true;
+		err = (*fops->open)(avio_dhub->pCtxData);
+		if (err) {
+			avio_dhub->is_opened = false;
 			avio_trace("dhub open failed: %x\n", err);
+		}
 	}
 	return err;
 }
