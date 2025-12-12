@@ -129,7 +129,8 @@ static long vpu_driver_ioctl_unlocked(struct file *filp, unsigned int cmd,
 
 			cpumask_clear(&cpu_mask);
 			cpumask_set_cpu(i % num_online_cpus(), &cpu_mask);
-			return irq_set_affinity_hint(pVpuHwCtx->irq, &cpu_mask);
+			return irq_set_affinity_hint(pVpuHwCtx->irq,
+						     &cpu_mask);
 		}
 		break;
 	case VPU_IOCTL_ENTRY_CRITICAL:
@@ -242,6 +243,7 @@ static int syna_vpu_amp_disconnect(struct syna_vpu_auxiliary_device *auxdev)
 {
 	VPU_HW_IP_CTX *pVpuHwCtx = dev_get_drvdata(&auxdev->dev);
 
+	irq_set_affinity_hint(pVpuHwCtx->irq, NULL);
 	devm_free_irq(&auxdev->dev, auxdev->irq, (void *)pVpuHwCtx);
 
 	return 0;
