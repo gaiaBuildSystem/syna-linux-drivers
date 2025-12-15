@@ -599,12 +599,6 @@ static int berlin_pcm_probe(struct platform_device *pdev)
 	if (!is_avio_driver_initialized())
 		return -EPROBE_DEFER;
 
-	ret = avio_sub_module_dhub_init();
-	if (ret) {
-		snd_printk("%s: dhub open failed: %x\n", __func__, ret);
-		return ret;
-	}
-
 	chip = devm_kzalloc(dev, sizeof(struct berlin_chip), GFP_KERNEL);
 	if (chip == NULL)
 		return -ENOMEM;
