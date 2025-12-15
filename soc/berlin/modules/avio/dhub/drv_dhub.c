@@ -284,8 +284,9 @@ static int drv_dhub_open(void *h_dhub_ctx)
 	unsigned int vpp_vec_num, vec_num;
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 
+	/* Return success if already init */
 	if (!hDhubCtx->dhub_open_state)
-		return err;
+		return 0;
 
 	if (hDhubCtx->dhub_open_state & 0x1) {
 		err = drv_dhub_initialize_dhub(h_dhub_ctx);
