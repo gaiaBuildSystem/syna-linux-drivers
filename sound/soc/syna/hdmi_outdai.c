@@ -336,7 +336,7 @@ static void hdmi_set_channel_mask(struct hdmi_priv *hdmi)
 }
 
 
-static int hdmi_set_samplerate(struct hdmi_priv *hdmi, int freq, int bclk, int hbr)
+static int hdmi_set_samplerate(struct hdmi_priv *hdmi, int freq, u32 bclk, int hbr)
 {
 	int div;
 	const struct mclk_info *mclk = NULL;
@@ -579,7 +579,7 @@ static int hdmi_set_audioformat(u32 channel_numbers, u32 channel_mask,
 static int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
 {
 	u32 fs, samp_size, clk_factor, mfs;
-	u32 i2s_mode, i2s_DFM, i2s_CFM, channel_numbers, uiBitDepth;
+	u32 i2s_mode, i2s_DFM, i2s_CFM, channel_numbers, uiBitDepth, bclk;
 	u32 audioFmt;
 	int ret = 0;
 	/*
@@ -644,7 +644,11 @@ static int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
 	hdmi->i2s_dfm = i2s_DFM;
 	hdmi->i2s_cfm = i2s_CFM;
 
-	ret = hdmi_set_samplerate(hdmi, mfs, clk_factor*fs, hdmi->hbr);
+	if (hdmi->fmt == DD_PLUS || hdmi->fmt == DOLBY_MAT)
+		bclk = clk_factor*mfs;
+	else
+		bclk = clk_factor*fs;
+	ret = hdmi_set_samplerate(hdmi, mfs, bclk, hdmi->hbr);
 	if (ret < 0) {
 		snd_printk("hdmi_set_samplerate fail %d\n", ret);
 		return ret;
