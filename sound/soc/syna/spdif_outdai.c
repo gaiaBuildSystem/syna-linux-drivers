@@ -18,12 +18,16 @@
 				| SNDRV_PCM_FMTBIT_S24_3LE \
 				| SNDRV_PCM_FMTBIT_S32_LE)
 
+static const char * const spdifo_daifmt_text[] = {"OFF", "ON"};
+static SOC_ENUM_SINGLE_EXT_DECL(spdifo_daifmt, spdifo_daifmt_text);
+
 struct spdifo_priv {
 	struct device *dev;
 	const char *dev_name;
 	unsigned int spdif_irq;
 	u32 spdif_chid;
 	u32 mode;
+	u32 daifmt;
 	bool spdif_requested;
 	void *aio_handle;
 };
@@ -37,8 +41,31 @@ static void outdai_set_spdif_clk(struct spdifo_priv *out, u32 div)
 		snd_printk("aio_setspdifclk() return error(ret=%d)\n", ret);
 }
 
+static int spdifo_daifmt_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct spdifo_priv *outdai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	ucontrol->value.enumerated.item[0] = outdai->daifmt;
+
+	return 0;
+}
+
+static int spdifo_daifmt_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct spdifo_priv *outdai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	outdai->daifmt = ucontrol->value.enumerated.item[0];
+
+	return 0;
+}
+
 static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
-	//TODO: add dai control here
+	SOC_ENUM_EXT("SPDIFO DAIFMT", spdifo_daifmt,
+		spdifo_daifmt_get, spdifo_daifmt_put),
 };
 
 /*
@@ -93,6 +120,13 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 	ssparams.mode = SPDIFO_MODE;
 	ssparams.irq = &outdai->spdif_irq;
 	ssparams.dev_name = outdai->dev_name;
+
+	if(outdai->daifmt)
+		ssparams.dai_fmt = DAI_FMT_IEC61937;
+	else
+		ssparams.dai_fmt = DAI_FMT_PCM;
+
+	snd_printd("spdif dai_fmt(%d)\n", ssparams.dai_fmt);
 	ret = berlin_pcm_request_dma_irq(substream, &ssparams);
 	if (ret == 0)
 		outdai->spdif_requested = true;
@@ -134,13 +168,14 @@ static int berlin_outdai_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		snd_printd("%s: dainame %s, cmd: %d\n", __func__, outdai->dev_name, cmd);
+		snd_printd("spdif:%s: dainame %s, cmd: %d\n", __func__, outdai->dev_name, cmd);
 		aio_set_aud_ch_mute(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 0);
 		aio_set_aud_ch_flush(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 0);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		snd_printd("spdif:%s: dainame %s, cmd: %d\n", __func__, outdai->dev_name, cmd);
 		aio_set_aud_ch_mute(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 1);
 		aio_set_aud_ch_flush(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 1);
 		break;

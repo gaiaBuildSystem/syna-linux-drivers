@@ -7,7 +7,7 @@
 #include <sound/soc.h>
 
 void berlin_playback_set_ch_mode(struct snd_pcm_substream *ss,
-									u32 ch_num, u32 *ch, u32 mode);
+									u32 ch_num, u32 *ch, u32 mode, u32 dai_fmt);
 int berlin_playback_hw_free(struct snd_pcm_substream *ss);
 int berlin_playback_hw_params(struct snd_pcm_substream *ss,
 								struct snd_pcm_hw_params *p);

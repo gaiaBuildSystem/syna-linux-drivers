@@ -198,7 +198,7 @@ int berlin_pcm_request_dma_irq(struct snd_pcm_substream *substream,
 					   params->ch_shift_check);
 	else if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		berlin_playback_set_ch_mode(substream, chid_num, ch,
-					    params->mode);
+					    params->mode, params->dai_fmt);
 
 	return err;
 }
@@ -214,7 +214,7 @@ void berlin_pcm_free_dma_irq(struct snd_pcm_substream *substream,
 		berlin_capture_set_ch_mode(substream, 0, 0, 0,
 					false, false, false, 0, 0);
 	else if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		berlin_playback_set_ch_mode(substream, 0, 0, 0);
+		berlin_playback_set_ch_mode(substream, 0, 0, 0, 0);
 
 	for (i = 0; i < irq_num; i++)
 		free_irq(irq[i], (void *)substream);

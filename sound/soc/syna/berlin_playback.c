@@ -1316,7 +1316,7 @@ berlin_direct_playback_transfer(struct snd_pcm_substream *substream,
 }
 
 void berlin_playback_set_ch_mode(struct snd_pcm_substream *ss,
-				 u32 ch_num, u32 *ch, u32 mode)
+				 u32 ch_num, u32 *ch, u32 mode, u32 dai_fmt)
 {
 	struct snd_pcm_runtime *runtime = ss->runtime;
 	struct berlin_playback *bp = runtime->private_data;
@@ -1327,6 +1327,19 @@ void berlin_playback_set_ch_mode(struct snd_pcm_substream *ss,
 	}
 
 	if (bp) {
+		if (dai_fmt) {
+			if (mode == I2SO_MODE)
+				bp->data_format = data_format_pcm;
+			else if (mode == SPDIFO_MODE || mode == HDMIO_MODE) {
+				if (dai_fmt == DAI_FMT_IEC61937)
+					bp->data_format = data_format_iec61937;
+				else
+					bp->data_format = data_format_pcm;
+			}
+			snd_printd("dai_fmt %d, mode %d, data_format:%d ss:%p\n",
+				dai_fmt, mode, bp->data_format, ss);
+		}
+
 		if (mode == I2SO_MODE && bp->data_format == data_format_pcm)
 			bp->i2s_ch = ch ? ch[0] : 0;
 		else if (mode == SPDIFO_MODE)

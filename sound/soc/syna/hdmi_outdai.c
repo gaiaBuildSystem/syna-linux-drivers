@@ -22,6 +22,9 @@
 				| SNDRV_PCM_FMTBIT_S24_3LE \
 				| SNDRV_PCM_FMTBIT_S32_LE) \
 
+static const char * const hdmio_daifmt_text[] = {"OFF", "ON"};
+static SOC_ENUM_SINGLE_EXT_DECL(hdmio_daifmt, hdmio_daifmt_text);
+
 struct hdmi_priv {
 	struct device *dev;
 	const char *dev_name;
@@ -39,6 +42,7 @@ struct hdmi_priv {
 	u32 i2s_cfm;
 	u32 fmt;
 	u32 format;
+	u32 daifmt;
 	u8  ch_map[8];
 	struct workqueue_struct *wq;
 	struct delayed_work trigger_work;
@@ -670,8 +674,31 @@ static int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
 	return ret;
 }
 
+static int hdmio_daifmt_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct hdmi_priv *outdai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	ucontrol->value.enumerated.item[0] = outdai->daifmt;
+
+	return 0;
+}
+
+static int hdmio_daifmt_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct hdmi_priv *outdai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	outdai->daifmt = ucontrol->value.enumerated.item[0];
+
+	return 0;
+}
+
 static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
-	//TODO: add dai control here
+	SOC_ENUM_EXT("HDMIO DAIFMT", hdmio_daifmt,
+		hdmio_daifmt_get, hdmio_daifmt_put),
 };
 
 static int berlin_outdai_startup(struct snd_pcm_substream *substream,
@@ -790,6 +817,12 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 	ssparams.mode = HDMIO_MODE;
 	ssparams.irq = &hdmi->irq;
 	ssparams.dev_name = hdmi->dev_name;
+	if (hdmi->daifmt)
+		ssparams.dai_fmt = DAI_FMT_IEC61937;
+	else
+		ssparams.dai_fmt = DAI_FMT_PCM;
+
+	snd_printd("hdmi dai_fmt(%d)\n", ssparams.dai_fmt);
 	ret = berlin_pcm_request_dma_irq(substream, &ssparams);
 	if (ret == 0)
 		hdmi->requested = true;

@@ -40,6 +40,15 @@ enum berlin_xrun_t {
 #define SPDIFO_MODE	(I2SI_MODE << 5)
 #define HDMIO_MODE	(I2SI_MODE << 6)
 
+/* used to identify dai's format
+ * different dai may have different format at the same time
+ * ex. spdif: pcm
+ *     hdmi : iec61937
+ */
+#define DAI_FMT_NOT_SET 	0
+#define DAI_FMT_PCM 		1
+#define DAI_FMT_IEC61937 	2
+
 // Support up to MAX_CHANNELS audio channels, MAX_CHANNELS/2 dhub channels
 #define MAX_CHID		(MAX_CHANNELS >> 1)
 
@@ -78,6 +87,7 @@ struct berlin_ss_params {
 	bool interleaved;
 	bool dummy_data;
 	bool enable_mic_mute;
+	u32 dai_fmt;
 	bool ch_shift_check;	/* for dmic multi-channel shift check */
 	unsigned int *irq;
 	const char *dev_name;
