@@ -73,7 +73,7 @@ static int syna_lcdc_connector_helper_get_modes(struct drm_connector *connector)
 	return num_modes;
 }
 
-static int syna_lcdc_connector_helper_mode_valid(struct drm_connector *connector,
+static enum drm_mode_status syna_lcdc_connector_helper_mode_valid(struct drm_connector *connector,
 						struct drm_display_mode *mode)
 {
 	return MODE_OK;

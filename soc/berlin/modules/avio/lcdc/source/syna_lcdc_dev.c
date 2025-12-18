@@ -179,8 +179,8 @@ static void syna_lcdc_set_hw_init(struct syna_lcdc_dev *dev)
 					lcdc_ctrl.uCTRL5_cpu_cmd_shift1 = 1;//cpu_mux_exp_en | cpu_cmd_shift1
 					break;
 				case SYNA_LCDC_MODE_0:
-					lcdc_ctrl.uCTRL5_cpu_mux_exp_en = 1; //cpu_mux_exp_en
 				default:
+					lcdc_ctrl.uCTRL5_cpu_mux_exp_en = 1; //cpu_mux_exp_en
 					break;
 			}
 		}

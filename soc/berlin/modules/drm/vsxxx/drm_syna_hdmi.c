@@ -228,7 +228,7 @@ static int syna_check_mode_enabled(int res_id, struct syna_conn_hdmi *syna_hdmi)
 	return -1;
 }
 
-static int syna_hdmi_connector_helper_mode_valid(struct drm_connector *connector,
+static enum drm_mode_status syna_hdmi_connector_helper_mode_valid(struct drm_connector *connector,
 						struct drm_display_mode *mode)
 {
 	int res_id = MV_VPP_GetResIndex(mode->hdisplay, mode->vdisplay,
