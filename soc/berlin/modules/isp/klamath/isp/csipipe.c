@@ -165,9 +165,7 @@ static uint32_t CSI_PIPE_GetCamFormat(uint32_t fmt)
 	case MEDIA_BUS_FMT_SRGGB10_1X10:
 	case MEDIA_BUS_FMT_SBGGR10_1X10:
 	case MEDIA_BUS_FMT_SGBRG10_1X10:
-		//TODO Use RAW16 here
-		op_fmt = CAM_PIXFMT_RAW8;
-		//op_fmt = CAM_PIXFMT_RAW16;
+		op_fmt = CAM_PIXFMT_RAW16;
 		break;
 	case MEDIA_BUS_FMT_RGB565_2X8_LE:
 	case MEDIA_BUS_FMT_RGB565_2X8_BE:
