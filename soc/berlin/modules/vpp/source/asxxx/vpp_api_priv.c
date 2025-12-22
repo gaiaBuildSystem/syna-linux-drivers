@@ -17,7 +17,11 @@ static int VPP_Configure_Lcdc(SYNA_LCDC_NUM lcdcid, SYNA_LCDC_CONFIG *lcdcparams
 		return 0;
 
 	/* Set the Pixel Clock Before the TG configuration */
-	VPP_Clock_Set_Rate(PIXEL_CLOCK_RATE(lcdcparams->pixclock));
+	if (lcdcid == SYNA_LCDC_1)
+		VPP_Clock_Set_Rate(PIXEL_CLOCK_RATE(lcdcparams->pixclock));
+	else
+		VPP_Clock_Set_Rate_Ext(PIXEL_CLOCK_RATE(lcdcparams->pixclock));
+
 	return wrap_MV_VPP_LoadConfigTable(VOUT_TFT, lcdcid, lcdcparams);
 }
 
