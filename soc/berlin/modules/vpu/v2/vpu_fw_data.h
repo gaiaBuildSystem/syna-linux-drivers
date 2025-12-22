@@ -198,7 +198,7 @@ enum syna_frame_field {
 };
 
 /* ***VPU firmware APIs begins here*** */
-/* VPU Firmware version: 34790 */
+/* VPU Firmware version: 34865 */
 #ifdef __KERNEL__
 enum syna_dec_channel
 {
@@ -551,6 +551,7 @@ struct syna_venc_strm_config
 	unsigned int matrix_coeffs;
 	unsigned char svctLevel;
 	int svcQpDelta;
+	unsigned char outputMbInfo;
 	unsigned char simulcast;
 	unsigned int sliceSize;
 	unsigned int cirStart;
