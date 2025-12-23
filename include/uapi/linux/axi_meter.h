@@ -35,6 +35,7 @@
 #define MYNA2_MC_CNT_NUM	8
 #define PLATYPUS_MC_CNT_NUM	8
 #define DOLPHIN_MC_CNT_NUM	16
+#define SL261X_MC_CNT_NUM	8
 #define MAX_MC_CNT_NUM		16
 #define MAX_AXI_CNT_NUM		12
 #define MC_EVT_INVALID		0xffff
@@ -59,6 +60,7 @@ enum mc_counter_type {
 	MYNA_AXI_MC_TYPE,
 	PLATYPUS_AXI_MC_TYPE,
 	MYNA2_AXI_MC_TYPE,
+	SL261X_AXI_MC_TYPE,
 	MAX_AXI_MC_TYPE,
 };
 

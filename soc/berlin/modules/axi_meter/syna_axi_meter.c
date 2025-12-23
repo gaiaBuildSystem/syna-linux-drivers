@@ -80,6 +80,16 @@
 #define PLATYPUS_MC_WRAP_PC0			0x03E4
 #define PLATYPUS_MC_WRAP_PC1			0x03EC
 
+#define SL261X_AXI_PCNT_CTRL			0x0048
+#define SL261X_AXI_MST0_0			0x004C
+#define SL261X_MST0_0_PCNT			0x0064
+#define SL261X_MST0_1_PCNT			0x0098
+#define SL261X_MC_CNT_CTRL			0x0230
+#define SL261X_MC_CNT_CTRL1			0x0234
+#define SL261X_MC_CNT_CTRL2			0x0238
+#define SL261X_MC_WRAP_PC0			0x0240
+#define SL261X_MC_WRAP_PC1			0x0248
+
 #define MC_CTRL1_EVT_NUM		5
 #define MC_EVT_BW			6
 #define MC_EVT_MASK			((1<<MC_EVT_BW) - 1)
@@ -93,6 +103,7 @@
 #define MYNA2_AXI_CNT_NUM		6
 #define PLATYPUS_AXI_CNT_NUM		12
 #define DOLPHIN_AXI_CNT_NUM		12
+#define SL261X_AXI_CNT_NUM		6
 #define CNT_MST_OFF			4
 
 #define RA_MC6Ctrl_AxiPCntCTRL		0x001C
@@ -264,6 +275,17 @@ static const u32 dolphin_axi_cnt_ctrl_bit[DOLPHIN_AXI_CNT_NUM + 1] =
 	BIT(DOLPHIN_AXI_CNT_NUM) - 1,
 };
 
+static const u32 sl261x_axi_cnt_ctrl_bit[SL261X_AXI_CNT_NUM + 1] =
+{
+	BIT(0),
+	BIT(1),
+	BIT(2),
+	BIT(3),
+	BIT(4),
+	BIT(5),
+	BIT(SL261X_AXI_CNT_NUM) - 1,
+};
+
 /* default axi counter mask id*/
 static const u32 as370_axi_default_id[AS370_AXI_CNT_NUM] =
 {
@@ -291,7 +313,6 @@ static const u32 myna2_axi_default_id[MYNA2_AXI_CNT_NUM] =
 	(0x0007 << 16) + 0x0006,       /* Mstr0_4: DSP */
 	(0x0000 << 16) + 0x0000,       /* Mstr1_0: NPU */
 };
-
 
 static const u32 platypus_axi_default_id[PLATYPUS_AXI_CNT_NUM] =
 {
@@ -327,6 +348,16 @@ static const u32 dolphin_axi_default_id[DOLPHIN_AXI_CNT_NUM] =
 
 	(0x0001 << 16) + 0x0001,	/* Mstr4_0 ISP */
 	(0x0001 << 16) + 0x0000,	/* Mstr4_1 OTHERS */
+};
+
+static const u32 sl261x_axi_default_id[SL261X_AXI_CNT_NUM] =
+{
+	(0x0003 << 16) + 0x0000,	/* Mstr0_0: CPU */
+	(0x0003 << 16) + 0x0003,	/* Mstr0_1: MTEST */
+	(0x0003 << 16) + 0x0002,	/* Mstr0_2: DXBAR (CS, PXBAR(EMMC+SDIO+USB2+DMA+GE), MCU) */
+	(0x0007 << 16) + 0x0001,	/* Mstr0_3: AIO */
+	(0x0007 << 16) + 0x0005,	/* Mstr0_4: VID */
+	(0x0000 << 16) + 0x0000,	/* Mstr1_0: GPU+NPU */
 };
 
 static const struct cnt_hw_data as37x_hw_data =
@@ -529,6 +560,46 @@ static const struct cnt_hw_data dolphin_hw_data =
 	.axi_cnt_off = RA_mc_wrap_Mstr0_0_PCnt,
 };
 
+static const struct cnt_hw_data sl261x_hw_data =
+{
+	.type = SL261X_AXI_MC_TYPE,
+	/* mc counter content */
+	.ctl_off =  {	SL261X_MC_CNT_CTRL,
+			0
+		    },
+	.ctl1_off = {	SL261X_MC_CNT_CTRL1,
+			0
+		    },
+	.ctl2_off = {	SL261X_MC_CNT_CTRL2,
+			0
+		    },
+	.pc0_off =  {	SL261X_MC_WRAP_PC0,
+			0
+		    },
+	.pc1_off =  {	SL261X_MC_WRAP_PC1,
+			0
+		    },
+	.ovf_off =  {	SL261X_MC_WRAP_PC0 + 4,
+			0
+		    },
+	.mc_cnt_num = SL261X_MC_CNT_NUM,
+
+	/* axi counter content */
+	.axi_cnt_num = SL261X_AXI_CNT_NUM,
+	.ctl_bit = sl261x_axi_cnt_ctrl_bit,
+	.ctl_all = BIT(SL261X_AXI_CNT_NUM) - 1,
+	.mst_off = SL261X_AXI_MST0_0,
+	.def_id = sl261x_axi_default_id,
+	.latch_base = SL261X_AXI_PCNT_CTRL,
+	.latch_lsf = 12,
+	.en_base = SL261X_AXI_PCNT_CTRL,
+	.en_lsf = 6,
+	.clr_base = SL261X_AXI_PCNT_CTRL,
+	.clr_lsf = 0,
+	.axi_cnt_dist = SL261X_MST0_1_PCNT - SL261X_MST0_0_PCNT,
+	.axi_cnt_off = SL261X_MST0_0_PCNT,
+};
+
 struct axi_meter_priv {
 	struct platform_device *pdev;
 	const char *dev_name;
@@ -557,6 +628,8 @@ static const struct of_device_id syna_axi_meter_dt_ids[] = {
 	  .data = &myna2_hw_data},
 	{ .compatible = "syna,platypus-axi-meter",
 	  .data = &platypus_hw_data},
+	{ .compatible = "syna,sl261x-axi-meter",
+	  .data = &sl261x_hw_data},
 	{}
 };
 MODULE_DEVICE_TABLE(of, syna_axi_meter_dt_ids);
