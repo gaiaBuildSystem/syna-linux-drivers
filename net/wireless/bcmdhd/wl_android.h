@@ -169,8 +169,8 @@ s32 wl_netlink_send_msg(int pid, int type, int seq, const void *data, size_t siz
 #define FREQ_STR		"freq="
 #define APCS_MAX_2G_CHANNELS	11
 #define APCS_MAX_RETRY		10
-#define APCS_DEFAULT_2G_CH	1
-#define APCS_DEFAULT_5G_CH	149
+#define APCS_DEFAULT_2G_CH	8
+#define APCS_DEFAULT_5G_CH	157
 #define APCS_DEFAULT_6G_CH	5
 
 int wl_android_set_ap_mac_list(struct net_device *dev, int macmode, struct maclist *maclist);

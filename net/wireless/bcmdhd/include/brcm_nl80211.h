@@ -72,10 +72,10 @@ enum wl_vendor_subcmd {
 #define APCS_MAX_RETRY          10
 #endif /* APCS_MAX_RETRY */
 #ifndef APCS_DEFAULT_2G_CH
-#define APCS_DEFAULT_2G_CH      1
+#define APCS_DEFAULT_2G_CH      8
 #endif /* APCS_DEFAULT_2G_CH */
 #ifndef APCS_DEFAULT_5G_CH
-#define APCS_DEFAULT_5G_CH      149
+#define APCS_DEFAULT_5G_CH      157
 #endif /* APCS_DEFAULT_5G_CH */
 #ifndef APCS_DEFAULT_6G_CH
 #define APCS_DEFAULT_6G_CH      5

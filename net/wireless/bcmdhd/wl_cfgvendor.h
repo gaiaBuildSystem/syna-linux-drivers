@@ -1125,13 +1125,34 @@ int wl_cfgvendor_notify_supp_event_str(const char *evt_name, const char *fmt, ..
 
 #if (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags) \
-	cfg80211_vendor_event_alloc(wiphy, wdev, len, type, kflags);
+#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags)  \
+	cfg80211_vendor_event_alloc(wiphy, wdev, len, type, kflags)
+#define CFG80211_VENDOR_EVENT(msg, kflags)  cfg80211_vendor_event(msg, kflags)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags)  \
+({                                                                   \
+    UNUSED_PARAMETER(wdev);                                          \
+    cfg80211_vendor_event_alloc(wiphy, len, type, kflags);           \
+})
+#define CFG80211_VENDOR_EVENT(msg, kflags)  cfg80211_vendor_event(msg, kflags)
 #else
-#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags) \
-	cfg80211_vendor_event_alloc(wiphy, len, type, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
-	/* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
+/* kernel < 3.14 doesn't provide vendor event alloc */
+#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags)  \
+({                                                                   \
+    UNUSED_PARAMETER(wiphy);                                         \
+    UNUSED_PARAMETER(wdev);                                          \
+    UNUSED_PARAMETER(len);                                           \
+    UNUSED_PARAMETER(type);                                          \
+    UNUSED_PARAMETER(kflags);                                        \
+    NULL;                                                            \
+})
+#define CFG80211_VENDOR_EVENT(msg, kflags)                           \
+({                                                                   \
+    UNUSED_PARAMETER(msg);                                           \
+    UNUSED_PARAMETER(kflags);                                        \
+})
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) */
+
 int wl_cfgvendor_nan_send_async_disable_resp(struct wireless_dev *wdev);
 
 #ifdef DHD_PKT_LOGGING
