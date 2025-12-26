@@ -573,6 +573,7 @@ static int dmic_pdm_probe(struct platform_device *pdev)
 	int ret;
 	u32 i = 0;
 	int channel_setup;
+	u32 dmic_ctrl_reg[2];
 
 	//Defer probe until dependent soc module/s are probed/initialized
 	if (!is_avio_driver_initialized())
@@ -700,7 +701,6 @@ static int dmic_pdm_probe(struct platform_device *pdev)
 		   dmic->irqc, dmic->max_ch_inuse);
 
 	/* Read DMIC control register configuration from DTS */
-	u32 dmic_ctrl_reg[2];
 	ret = of_property_read_u32_array(np, "dmic-mux-reg", dmic_ctrl_reg, 2);
 	if (!ret) {
 		u32 ctrl_reg_addr = dmic_ctrl_reg[0];
