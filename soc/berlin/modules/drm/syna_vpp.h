@@ -89,11 +89,11 @@ int syna_vpp_get_bm_details(struct dma_buf *dma_buf,
 		       struct bm_pt_param *pt_param,
 		       struct berlin_meta **bm_meta);
 void syna_vpp_push_fastlogo_frame(struct drm_device *dev);
-int syna_vpp_read_logo_from_emmc_device(struct drm_device *dev,
-						int width,
-						int height,
-						VPP_WIN *vpp_res_info,
-						void* plogobuf);
+
+int syna_load_uboot_logo(VPP_MEM_LIST *vpp_mem_list,
+			 VPP_MEM *vpp_mem_handle,
+			 int disp_id,
+			 VPP_WIN *vpp_res_info);
 void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID);
 void syna_vpp_pop_fl_frame(int crtcID, int planeID);
 void syna_fbcon_start_work(struct work_struct *work);

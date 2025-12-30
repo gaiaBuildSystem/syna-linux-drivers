@@ -1005,10 +1005,10 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 
 	if (!dev_priv->vpp_config_param.logo_enable) {
 		for (i = 0; i < MAX_CRTC; i++)
-                        dev_priv->is_fl_frame_freed[i] = 1;
+			dev_priv->is_fl_frame_freed[i] = 1;
 
-                syna_push_builtin_frames();
-                return;
+		syna_push_builtin_frames();
+		return;
 	}
 
 	crtcs = GET_MAX_CRTC_FOR_MODE(dev_priv->vpp_config_param.display_mode);
@@ -1019,23 +1019,14 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 			dev_priv->vpp_fl_descr_handle[i] = devm_kmalloc(dev->dev, sizeof(VPP_MEM), GFP_KERNEL);
 
 			if (dev_priv->vpp_fastlogo_buf_handle[i] && dev_priv->vpp_fl_descr_handle[i]) {
-				memset(dev_priv->vpp_fastlogo_buf_handle[i], 0, sizeof(VPP_MEM));
-				dev_priv->vpp_fastlogo_buf_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(fl_info.width * fl_info.height * LOGO_BYTES_PER_PIXEL);
-				ret = VPP_MEM_AllocateMemory(vpp_mem_list, VPP_MEM_TYPE_DMA,
-					dev_priv->vpp_fastlogo_buf_handle[i], 0);
-				if (ret) {
-					pr_err("Failed to Alloc mem P[%d]W[%d]H[%d]\n", i,
-								fl_info.width,
-								fl_info.height);
-					goto err_memory_cleanup;
-				}
+				/* Allocate memory and load U-Boot logo */
+				ret = syna_load_uboot_logo(
+					vpp_mem_list,
+					dev_priv->vpp_fastlogo_buf_handle[i],
+					i,
+					&vpp_res_info);
 
-				if (!syna_vpp_read_logo_from_emmc_device(dev,
-									fl_info.width,
-									fl_info.height,
-									&vpp_res_info,
-									dev_priv->vpp_fastlogo_buf_handle[i]->k_addr)) {
-
+				if (!ret) {
 					memset(dev_priv->vpp_fl_descr_handle[i], 0, sizeof(VPP_MEM));
 					dev_priv->vpp_fl_descr_handle[i]->size = VPP_SHM_4K_ALIGN_ROUNDUP(sizeof(VPP_VBUF));
 					ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
