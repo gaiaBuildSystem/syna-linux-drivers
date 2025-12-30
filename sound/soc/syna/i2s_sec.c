@@ -251,12 +251,12 @@ static int i2s_sec_hw_params(struct snd_pcm_substream *substream,
 	else
 		return ret;
 
-	if (sec->is_master) {
+	if (aio_i2s_get_mclk_cfg(fs, sec->sample_period, &mclk) && !mclk) {
+		snd_printk("fail to get mclk config");
+		return -EINVAL;
+	}
 
-		if (aio_i2s_get_mclk_cfg(fs, sec->sample_period, &mclk) && !mclk) {
-			snd_printk("fail to get mclk config");
-			return -EINVAL;
-		}
+	if (sec->is_master) {
 		/* pll */
 		berlin_set_pll(sec->aio_handle, mclk->apll_id, mclk->apllrate);
 		/* mclk */
