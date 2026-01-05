@@ -102,7 +102,6 @@ static void i2s_pri_loopback_shutdown(struct snd_pcm_substream *ss,
 	snd_printd("%s: start %p %p\n", __func__, ss, dai);
 	pri_loopback_ch_mute(lpbk, 1);
 	pri_loopback_ch_en(lpbk, 0);
-	aio_i2s_clk_sync_reset(lpbk->aio_handle, AIO_ID_MIC4_RX);
 }
 
 static int i2s_pri_loopback_hw_params(struct snd_pcm_substream *ss,
