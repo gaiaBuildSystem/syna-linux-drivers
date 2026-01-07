@@ -7,7 +7,8 @@ vpu-$(CONFIG_BERLIN_VPU_V4L2)	+= v2/vpu_drv.o \
 				   v2/vpu_dmaheap.o \
 				   v2/vpu_enc_drv.o \
 				   v2/vpu_dec_drv.o \
-				   v2/vpu_enc_ctrls.o
+				   v2/vpu_enc_ctrls.o \
+				   v2/vpu_dec_ctrls.o
 
 ccflags-y += -I$(srctree)/drivers/synaptics/include
 ccflags-y += -Werror

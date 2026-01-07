@@ -26,14 +26,13 @@
 #include "v4g_iommu_mtr.h"
 #include "vpu_kernel_compatibility_wrap.h"
 #include "vpu_dec_drv.h"
+#include "vpu_dec_ctrls.h"
 
 /* NOTE: one second is not enough, how comes */
 #define DEC_V4G_TIMEOUT_DELAY		(2000U)
 
 #define SYNA_DEFAULT_FRAMERATE_NUM	(60000U)
 #define SYNA_DEFAULT_FRAMERATE_DENOM	(1001U)
-
-#define SYNA_DEC_MAX_CTRLS_HINT		(7)
 
 #define SYNA_V4G_DEC_NAME "syna-v4g-vdec"
 #define SYNA_V4G_STR "synaptics-v4g"
@@ -45,7 +44,7 @@
 #define vdpu_err(vpu, fmt, arg...)	\
 		v4l2_err(&vpu->v4l2_dev, fmt, ##arg)
 
-static int vdpu_debug;
+int vdpu_debug = 0;
 module_param(vdpu_debug, int, 0660);
 MODULE_PARM_DESC(vdpu_debug, "video decoder debug level");
 
@@ -260,123 +259,7 @@ static inline void vdpu_es_mark_ts(struct syna_vcodec_ctx *ctx, uint32_t index,
 	vpu_buf->timestamp = timestamp;
 }
 
-static int vidioc_vdec_s_ctrl(struct v4l2_ctrl *ctrl)
-{
-	struct syna_vcodec_ctx *ctx;
-	struct syna_vdec_config *p;
-	struct syna_vpu_dev *vpu;
-	int ret;
 
-	ctx = container_of(ctrl->handler, struct syna_vcodec_ctx, ctrl_handler);
-	vpu = ctx->vpu;
-	p = ctx->dec_params;
-
-	switch (ctrl->id) {
-	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE:
-		ctx->enable_user_dpb = ctrl->val;
-		ret = 0;
-		break;
-	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY:
-		ctx->n_user_dpb = ctrl->val;
-		if (ctx->enable_user_dpb) {
-			p->user_dpb_size = ctx->n_user_dpb;
-		} else {
-			switch (ctx->src_fmt.pixelformat) {
-			case V4L2_PIX_FMT_VP8:
-			case V4L2_PIX_FMT_VP9:
-			case V4L2_PIX_FMT_AV1:
-				p->user_dpb_size = 8;
-				break;
-			default:
-				p->user_dpb_size = 0;
-				break;
-			}
-		}
-		ret = 0;
-		/* Firmware can't update this value during the decoding */
-		break;
-	default:
-		vdpu_dbg(vpu, 2, "unknown ctrl id = %d", ctrl->id);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-}
-
-static int vidioc_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
-{
-	struct syna_vcodec_ctx *ctx;
-	struct syna_vpu_dev *vpu;
-	int ret;
-
-	ctx = container_of(ctrl->handler, struct syna_vcodec_ctx, ctrl_handler);
-	vpu = ctx->vpu;
-
-	switch (ctrl->id) {
-	case V4L2_CID_MIN_BUFFERS_FOR_CAPTURE:
-		ctrl->val = ctx->req_dpb_size;
-		ret = 0;
-		break;
-	default:
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-}
-
-static const struct v4l2_ctrl_ops syna_vpu_dec_ctrl_ops = {
-	.s_ctrl = vidioc_vdec_s_ctrl,
-	.g_volatile_ctrl = vidioc_g_volatile_ctrl,
-};
-
-static int syna_vdec_ctrls_setup(struct syna_vcodec_ctx *ctx)
-{
-	struct v4l2_ctrl_handler *handler = &ctx->ctrl_handler;
-	const struct v4l2_ctrl_ops *ops = &syna_vpu_dec_ctrl_ops;
-
-	v4l2_ctrl_handler_init(handler, SYNA_DEC_MAX_CTRLS_HINT);
-
-	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_H264_PROFILE,
-			       V4L2_MPEG_VIDEO_H264_PROFILE_HIGH_10,
-			       ~((1 << V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
-				 (1 << V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
-				 (1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
-				 (1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH) |
-				 (1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH_10)),
-			       V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE);
-
-	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
-			       V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10,
-			       0, V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN);
-
-	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_VP8_PROFILE,
-			       V4L2_MPEG_VIDEO_VP8_PROFILE_3,
-			       0, V4L2_MPEG_VIDEO_VP8_PROFILE_0);
-
-	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_VP9_PROFILE,
-			       V4L2_MPEG_VIDEO_VP9_PROFILE_2,
-			       ~((1 << V4L2_MPEG_VIDEO_VP9_PROFILE_0) |
-				 (1 << V4L2_MPEG_VIDEO_VP9_PROFILE_2)),
-			       V4L2_MPEG_VIDEO_VP9_PROFILE_0);
-
-	v4l2_ctrl_new_std(handler, NULL,
-			  V4L2_CID_MIN_BUFFERS_FOR_CAPTURE, 1, 32, 1, 2);
-
-	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY,
-			  0, 16, 1, 0);
-	v4l2_ctrl_new_std(handler, NULL,
-			  V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE,
-			  0, 1, 1, 0);
-
-	if (handler->error)
-		return handler->error;
-
-	v4l2_ctrl_handler_setup(handler);
-
-	return 0;
-}
 
 static const struct v4g_fmt *v4g_get_default_fmt(struct syna_vcodec_ctx *ctx,
 						 bool bitstream)
@@ -2607,7 +2490,7 @@ static int vdpu_driver_open(struct file *filp)
 	ctx->eof_flush_buf.vb.vb2_buf.vb2_queue = src_vq;
 	ctx->eof_flush_buf.vb.vb2_buf.index = 31;
 
-	ret = syna_vdec_ctrls_setup(ctx);
+	ret = vpu_dec_ctrls_init(&ctx->ctrl_handler);
 	if (ret) {
 		vdpu_err(vpu, "Failed to setup controls(%d)", ret);
 		goto err_fh_free;
@@ -2660,7 +2543,7 @@ static int vdpu_driver_release(struct file *filp)
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
-	v4l2_ctrl_handler_free(&ctx->ctrl_handler);
+	vpu_dec_ctrls_deinit(&ctx->ctrl_handler);
 
 	syna_vdec_destroy_instance(ctx);
 	if (ctx->mtr_dh_dev) {

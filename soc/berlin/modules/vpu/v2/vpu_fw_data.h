@@ -727,6 +727,13 @@ struct syna_vpu_ctrl {
 			u32 pm_h_log2_minus2:4;
 			u32 pm_w_log2_minus6:4;
 		} mmu;
+		struct v4g_opt_cfg {
+			u32 dvEn:1;
+			u32 dvMode:4;
+			u32 hdr10PlusEn:1;
+			u32 noReorder:1;
+			u32 lowLatencyEn:1;
+		} opt;
 	} v4g_ext_cfg __attribute__ ((aligned(4)));
 
 	u32 cfg_flags;
