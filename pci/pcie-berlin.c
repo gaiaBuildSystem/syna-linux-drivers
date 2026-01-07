@@ -57,6 +57,7 @@ struct berlin_pcie_data {
 	u32 intr_mask;
 	u32 intr_mask1;
 	u32 intr_mask_val;
+	u32 intr_mask1_val;
 	u32 ctrl;
 	int (*host_init)(struct dw_pcie_rp *pp);
 };
@@ -90,9 +91,13 @@ static void berlin_pcie_enable_irq_pulse(struct berlin_pcie *priv)
 		writel(val, priv->ctrl + priv->data->intr_status1);
 	}
 
-	val = priv->data->intr_mask_val;
 	/* enable INTX interrupt */
+	val = priv->data->intr_mask_val;
 	writel(val, priv->ctrl + priv->data->intr_mask);
+	if (priv->data->intr_mask1) {
+		val = priv->data->intr_mask1_val;
+		writel(val, priv->ctrl + priv->data->intr_mask1);
+	}
 	return;
 }
 
@@ -362,6 +367,7 @@ static const struct berlin_pcie_data as370_pcie = {
 	.intr_mask = 0x14,
 	.intr_mask1 = 0x18,
 	.intr_mask_val = ~((1 << 19) | (1 << 20) | (1 << 21) | (1 << 22)),
+	.intr_mask1_val = 0xffffffff,
 	.ctrl = 0x1C,
 	.host_init = &berlin_pcie_host_init,
 };
@@ -371,7 +377,8 @@ static const struct berlin_pcie_data dolphin_pcie = {
 	.intr_status1 = 0x14,
 	.intr_mask = 0x10,
 	.intr_mask1 = 0x18,
-	.intr_mask_val = ~((1 << 19) | (1 << 20) | (1 << 21) | (1 << 22)),
+	.intr_mask_val = 0xffffffff,
+	.intr_mask1_val = ~((1 << 23) | (1 << 24) | (1 << 25) | (1 << 26)),
 	.ctrl = 0x1C,
 	.host_init = &dolphin_pcie_host_init,
 };
