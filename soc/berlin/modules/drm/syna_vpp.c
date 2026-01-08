@@ -42,6 +42,8 @@ static phys_addr_t rotate_buffer_phy_addr[MAX_PLANE_NUM][MAX_ROTATE_BUFFER];
 static int last_rot_frame[MAX_PLANE_NUM+1];
 #endif
 
+extern bool en_builtin_frame_on_reset;
+
 typedef struct syna_fl_cleanup_work_t {
 	struct drm_device *dev;
 	struct delayed_work delay_work;
@@ -535,7 +537,8 @@ void syna_vpp_reset_buffers(struct syna_gem_object *syna_obj)
 
 	for (i = 0; i < MAX_NUM_PLANES; i++) {
 		if (last_addr[i] == syna_obj->phyaddr) {
-			syna_push_buildin_frame(i);
+			if (en_builtin_frame_on_reset)
+				syna_push_buildin_frame(i);
 			last_addr[i] = (phys_addr_t)NULL;
 			DRM_DEBUG_DRIVER("plane-%d, buffer released/reset-%lx\n", i,
 								syna_obj->phyaddr);

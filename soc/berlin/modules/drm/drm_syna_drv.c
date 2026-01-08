@@ -58,6 +58,13 @@ module_param(is_fb_delayed_start, bool, 0444);
 module_param(display_enable, bool, 0444);
 MODULE_PARM_DESC(display_enable, "Enable all displays (default: Y)");
 
+/*
+ * - This variable decides pushing builtin frame upon drm client termination
+ * - 1: Push builtin frame to display after client termination
+ * - 0: Don't push builtin frame, continue to display last frame (fbdev frame)
+ */
+bool en_builtin_frame_on_reset = 1;
+
 int __weak syna_panel_lcdc_init(struct platform_device *pdev)
 {
 	return 0;
@@ -325,6 +332,30 @@ static ssize_t suspend_set_state(struct device *dev,
 
 static DEVICE_ATTR(suspend, (S_IRUGO | S_IWGRP | S_IWUSR), NULL, suspend_set_state);
 
+static ssize_t builtin_frame_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	long v;
+	int ret;
+
+	ret = kstrtol(buf, 0, &v);
+	if (ret)
+		return ret;
+
+	/*
+	 * disable pushing builtin frame, Only if alternate frame is available
+	 * through fbdev
+	 */
+	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION))
+		en_builtin_frame_on_reset = v ? true : false;
+
+	return count;
+}
+
+DEVICE_ATTR(en_builtin_frame_on_reset, (S_IRUGO | S_IWUSR | S_IWGRP), NULL,
+	    builtin_frame_store);
+
 static int syna_probe(struct platform_device *pdev)
 {
 	struct drm_device *ddev;
@@ -362,6 +393,12 @@ static int syna_probe(struct platform_device *pdev)
 	if(ret)
 		DRM_ERROR("Sysfs suspend entry not created %d",ret);
 
+	ret = sysfs_create_file(&pdev->dev.kobj,
+				&dev_attr_en_builtin_frame_on_reset.attr);
+	if (ret)
+		DRM_ERROR("Sysfs en_builtin_frame_on_reset entry not created %d",
+			  ret);
+
 	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
 			IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE)) {
 		if (!is_fb_delayed_start)
@@ -386,6 +423,9 @@ err_drm_dev_put:
 static RET_TYPE syna_remove(struct platform_device *pdev)
 {
 	struct drm_device *ddev = platform_get_drvdata(pdev);
+
+	sysfs_remove_file(&pdev->dev.kobj,
+			  &dev_attr_en_builtin_frame_on_reset.attr);
 
 	syna_early_unload(ddev);
 
