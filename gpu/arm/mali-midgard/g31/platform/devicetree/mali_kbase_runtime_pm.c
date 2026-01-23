@@ -26,6 +26,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
+#include <linux/reset.h>
 
 #include "mali_kbase_config_platform.h"
 
@@ -259,6 +260,9 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 
 static void pm_callback_resume(struct kbase_device *kbdev)
 {
+	if (kbdev->core_rst)
+		reset_control_deassert(kbdev->core_rst);
+
 	int ret = pm_callback_runtime_on(kbdev);
 
 	WARN_ON(ret);
@@ -267,6 +271,9 @@ static void pm_callback_resume(struct kbase_device *kbdev)
 static void pm_callback_suspend(struct kbase_device *kbdev)
 {
 	pm_callback_runtime_off(kbdev);
+
+	if (kbdev->core_rst)
+		reset_control_assert(kbdev->core_rst);
 }
 
 
