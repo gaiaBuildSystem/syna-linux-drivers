@@ -378,6 +378,9 @@ static void berlin_playback_trigger_stop(struct snd_pcm_substream *ss)
 {
 	struct snd_pcm_runtime *runtime = ss->runtime;
 	struct berlin_playback *bp = runtime->private_data;
+	unsigned long flags;
+
+	spin_lock_irqsave(&bp->lock, flags);
 
 	dhub_channel_clear_done(bp->chip->dhub, get_chanid(bp));
 	DhubChannelClear(bp->chip->dhub, get_chanid(bp), 0);
@@ -386,6 +389,8 @@ static void berlin_playback_trigger_stop(struct snd_pcm_substream *ss)
 	//dHub channel is cleared and disabled, so clear DMA pending flag
 	bp->ma_dma_pending = false;
 	bp->spdif_dma_pending = false;
+
+	spin_unlock_irqrestore(&bp->lock, flags);
 
 	if (bp->output_mode & HDMIO_MODE)
 		bp->hdmi_spdif_frames = 0;
@@ -1445,7 +1450,14 @@ int berlin_playback_isr(struct snd_pcm_substream *ss,
 		snd_pcm_period_elapsed(ss);
 
 	spin_lock(&bp->lock);
-	start_dma_if_needed(bp);
+
+	//Avoid pushing DHUB cmd after channel clear and disable in trigger stop
+	if (!bp->ma_dma_pending && !bp->spdif_dma_pending && !bp->in_dma_size) {
+		snd_printd("[%s.%u]STOP/PAUSE Inprogress\n", __func__, __LINE__);
+	} else {
+		start_dma_if_needed(bp);
+	}
+
 	spin_unlock(&bp->lock);
 	return 0;
 }
