@@ -30,6 +30,12 @@ typedef enum _DHUB_ID_ {
 	DHUB_ID_MAX,
 } DHUB_ID;
 
+typedef enum dhub_init_state {
+	DHUB_STATE_DEFAULT,
+	DHUB_STATE_INIT,
+	DHUB_STATE_SUSPEND,
+} DHUB_STATE;
+
 typedef struct DHUB_BCM_INFO_s {
 	//0:64b, 1:128b(Add filler to MSB-64b as they are ignored)
 	UNSG32 bcmDhubType;
@@ -76,5 +82,6 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx);
 void drv_dhub_finalize_dhub(void *h_dhub_ctx);
 void drv_dhub_config_ctx(void *h_dhub_ctx, UNSG32 avio_base);
 void dhub2nd_suspend(void *hdl, int enable);
+void drv_dhub_suspend_dhub(int enable, void *hdl);
 
 #endif //__AVIO_DHUB_CFG_H__

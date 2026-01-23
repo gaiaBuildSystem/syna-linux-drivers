@@ -23,6 +23,8 @@ HDL_dhub2d VPP_dhubHandle;
 #define AVIO_DHUB_MV_R0_BASE       (VPP_DHUB_BANK0_START_ADDR)
 #define AVIO_DHUB_MV_R1_BASE       (VPP_DHUB_BANK0_START_ADDR + AVIO_DHUB_MV_R0_SIZE)
 
+static atomic_t dhub_init_done = ATOMIC_INIT(DHUB_STATE_DEFAULT);
+
 DHUB_channel_config  LCDC_config[VPP_NUM_OF_CHANNELS] = {
     {avioDhubChMap_vpp128b_LCDC1_R, AVIO_DHUB_MV_R0_BASE,
 		AVIO_DHUB_MV_R0_BASE+64, 64, (AVIO_DHUB_MV_R0_SIZE-64),
@@ -102,19 +104,20 @@ DHUB_channel_config  AG_config[AG_NUM_OF_CHANNELS] = {
 
 int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 {
-	static atomic_t dhub_init_done = ATOMIC_INIT(0);
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 	avio_fastlogo_info display_info;
 	unsigned int channel_init_mask;
+	unsigned int suspend_state;
 
-	//Allow DHUB initialization only once
-	if (atomic_cmpxchg(&dhub_init_done, 0, 1))
+	// Allow DHUB initialization only once - DHUB_STATE_DEFAULT/DHUB_STATE_SUSPEND
+	suspend_state = atomic_cmpxchg(&dhub_init_done, DHUB_STATE_DEFAULT, DHUB_STATE_INIT);
+	if (suspend_state == DHUB_STATE_INIT)
 		return 0;
 
 	display_info = avio_get_fastlogo_status();
 
-	/* Disable Autopush before initialization of VPP DHUB */
-	if (!display_info.u.status)
+	/* Disable Autopush before initialization of VPP DHUB, Avoid delay in resume */
+	if (!display_info.u.status && (suspend_state != DHUB_STATE_SUSPEND))
 		wrap_DhubEnableAutoPush(false, true, hDhubCtx->fastlogo_framerate);
 
 	channel_init_mask = display_info.u.status ? 0 : (1 << VPP_NUM_OF_CHANNELS) - 1 ;
@@ -163,4 +166,12 @@ void drv_dhub_config_ctx(void *h_dhub_ctx, UNSG32 avio_base)
 							RA_vpp128bDhub_tcm0;
 
 	hDhubCtx->avio_gbl_base = avio_base + AVIO_MEMMAP_AVIO_GBL_BASE;
+}
+
+void drv_dhub_suspend_dhub(int enable, void *hdl)
+{
+	if (enable)
+		atomic_set(&dhub_init_done, DHUB_STATE_SUSPEND);
+	else
+		drv_dhub_initialize_dhub(hdl);
 }

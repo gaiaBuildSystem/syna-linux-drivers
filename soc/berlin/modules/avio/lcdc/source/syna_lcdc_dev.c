@@ -136,6 +136,35 @@ static void syna_lcdc_wrap_clkgating_disable(void)
 	GA_REG_WORD32_WRITE(addr, gbl_ctrl.u32);
 }
 
+static void syna_lcdc_wrap_pll_clk_ctrl(int lcdcID, int enable)
+{
+	syna_lcdc_wrap_vpll_pwron(lcdcID, enable);
+	syna_lcdc_wrap_vpll_enable(lcdcID, enable);
+	syna_lcdc_wrap_lcdcclk_enable(lcdcID, enable);
+}
+
+static void syna_lcdc_dev_init_lcdc(int lcdcID, struct syna_lcdc_dev *dev)
+{
+	// Reset the Default for LCDC configuration
+	dev->en_intr_handler = 0;
+	dev->m_srcfmt = -1;
+
+	//Set the interrupt driving the BCM Channel
+	BCM_SCHED_SetMux(lcdcID, dev->intrNo);
+}
+
+static void syna_lcdc_dev_init_clk_intr(void)
+{
+	unsigned int addr;
+
+	// Program the DSI Clk control
+	addr = SYNA_MEMMAP_AVIO_VPP_GBL_LCDC2_CTRL;
+	GA_REG_WORD32_WRITE(addr, 0x39);
+
+	syna_lcdc_wrap_clkgating_disable();
+	syna_lcdc_cfg_wrap_interrupt_enable();
+}
+
 static void syna_lcdc_set_hw_init(struct syna_lcdc_dev *dev)
 {
 	int dispir = 0, pancsr;
@@ -398,11 +427,8 @@ void syna_lcdc_hw_config(int lcdcID, SYNA_LCDC_PANEL *panelcfg)
 		display_info = avio_get_fastlogo_status();
 
 		syna_lcdc[lcdcID]->dhubID = (int)(long long)&vpp_dhubHandle;
-		if (!display_info.u.status) {
-			syna_lcdc_wrap_vpll_pwron(lcdcID, 1);
-			syna_lcdc_wrap_vpll_enable(lcdcID, 1);
-			syna_lcdc_wrap_lcdcclk_enable(lcdcID, 1);
-		}
+		if (!display_info.u.status)
+			syna_lcdc_wrap_pll_clk_ctrl(lcdcID, 1);
 
 		// FIX ME: Caller Should Differentiate CPU type or RGB i/f
 		syna_lcdc[lcdcID]->panel->intf_type = SYNA_LCDC_TYPE_DPI_RGB;
@@ -483,11 +509,7 @@ static int syna_lcdc_dev_init(void)
 		addr = SYNA_MEMMAP_AVIO_VPP_GBL_BASE + RA_avioVppGbl_VPPL1_WRAP + RA_VPLL_WRAP_VPLL_CTRL;
 		GA_REG_WORD32_WRITE(addr, 0x820);
 
-		addr = SYNA_MEMMAP_AVIO_VPP_GBL_BASE + RA_avioVppGbl_LCDC2_CTRL;
-		GA_REG_WORD32_WRITE(addr, 0x39);
-
-		syna_lcdc_wrap_clkgating_disable();
-		syna_lcdc_cfg_wrap_interrupt_enable();
+		syna_lcdc_dev_init_clk_intr();
 	}
 
 	for (i = 0; i < SYNA_LCDC_MAX; i++) {
@@ -505,10 +527,7 @@ static int syna_lcdc_dev_init(void)
 			kfree (syna_panel_config);
 			return SYNA_LCDC_EBADPARAM;
 		}
-		syna_lcdc[i]->m_srcfmt = -1;
-
-		//Set the interrupt driving the BCM Channel
-		BCM_SCHED_SetMux(i, syna_lcdc[i]->intrNo);
+		syna_lcdc_dev_init_lcdc(i, syna_lcdc[i]);
 	}
 
 	return SYNA_LCDC_OK;
@@ -604,13 +623,11 @@ int syna_lcdc_suspend(int enable)
 			if (enable) {
 				syna_lcdc[i]->bcm_enable = 0;
 				syna_lcdc_TG_Reset(syna_lcdc[i]);
-				syna_lcdc_wrap_vpll_enable(i, !enable);
-				syna_lcdc_wrap_vpll_pwron(i, !enable);
-				syna_lcdc_wrap_lcdcclk_enable(i, !enable);
+				syna_lcdc_wrap_pll_clk_ctrl(i, !enable);
 			} else {
-				syna_lcdc_wrap_vpll_pwron(i, !enable);
-				syna_lcdc_wrap_vpll_enable(i, !enable);
-				syna_lcdc_wrap_lcdcclk_enable(i, !enable);
+				syna_lcdc_dev_init_clk_intr();
+				syna_lcdc_wrap_pll_clk_ctrl(i, !enable);
+				syna_lcdc_dev_init_lcdc(i, syna_lcdc[i]);
 
 				/* Reset the flag to enable Re-Trigger of
 				 * TG config from user.

@@ -43,4 +43,5 @@ void dhub2nd_suspend(void *hdl, int enable)
 		AVIO_REG_WORD32_WRITE(hDhubCtx->avio_gbl_base +  RA_avioGbl_CTRL,
 			(avioGblCtrl & ~0x5));
 	}
+	drv_dhub_suspend_dhub(enable, hDhubCtx);
 }

@@ -45,4 +45,5 @@ void dhub2nd_suspend(void *hdl, int enable)
 	AVIO_REG_WORD32_WRITE(vppSramPwrCtrlAddr, vppSramPwrCtl);
 	AVIO_REG_WORD32_WRITE(aioSramPwrCtrlAddr, aioSramPwrCtl);
 	AVIO_REG_WORD32_WRITE(avioGblCtrlAddr, avioGblCtrl);
+	drv_dhub_suspend_dhub(enable, hDhubCtx);
 }

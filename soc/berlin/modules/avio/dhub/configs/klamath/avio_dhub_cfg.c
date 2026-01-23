@@ -26,6 +26,8 @@ static HDL_dhub2d AG_dhubHandle;
 #define AVIO_VPPDHUB_LCDC2C_BASE  (AVIO_VPPDHUB_LCDC2Y_BASE + AVIO_VPPDHUB_LCDC2Y_SIZE)
 #define AVIO_VPPDHUB_BCM_BASE     (AVIO_VPPDHUB_LCDC2C_BASE + AVIO_VPPDHUB_LCDC2C_SIZE)
 
+static atomic_t dhub_init_done = ATOMIC_INIT(DHUB_STATE_DEFAULT);
+
 static DHUB_channel_config  LCDC_config[] = {
 	{avioDhubChMap_vpp128b_LCDC2_Y_R, AVIO_VPPDHUB_LCDC2Y_BASE, AVIO_VPPDHUB_LCDC2Y_BASE+64, 64, \
 		(AVIO_VPPDHUB_LCDC2Y_SIZE-64), dHubChannel_CFG_MTU_256byte, 1, 0, 1, 0xF, 0xF}, \
@@ -84,13 +86,14 @@ static DHUB_channel_config  AG_config[AG_NUM_OF_CHANNELS] = {
 
 int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 {
-	static atomic_t dhub_init_done = ATOMIC_INIT(0);
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *)h_dhub_ctx;
 	avio_fastlogo_info display_info;
 	unsigned int channel_init_mask;
+	unsigned int suspend_state;
 
-	//Allow DHUB initialization only once
-	if (atomic_cmpxchg(&dhub_init_done, 0, 1))
+	// Allow DHUB initialization only once - DHUB_STATE_DEFAULT/DHUB_STATE_SUSPEND
+	suspend_state = atomic_cmpxchg(&dhub_init_done, DHUB_STATE_DEFAULT, DHUB_STATE_INIT);
+	if (suspend_state == DHUB_STATE_INIT)
 		return 0;
 
 	display_info = avio_get_fastlogo_status();
@@ -141,4 +144,12 @@ void drv_dhub_config_ctx(void *h_dhub_ctx, UNSG32 avio_base)
 	hDhubCtx->vpp_sram_base  = avio_base + RA_vpp128bDhub_tcm0;
 
 	hDhubCtx->avio_gbl_base  = avio_base + AVIO_MEMMAP_VPP_GBL_REG_BASE;
+}
+
+void drv_dhub_suspend_dhub(int enable, void *hdl)
+{
+	if (enable)
+		atomic_set(&dhub_init_done, DHUB_STATE_SUSPEND);
+	else
+		drv_dhub_initialize_dhub(hdl);
 }
