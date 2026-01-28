@@ -15,6 +15,15 @@ config RESET_BERLIN
 	help
 	  This enables the reset controller driver for Marvell Berlin SoCs.
 
+config RESET_SYNA_SMC
+	tristate "Synaptics SMC Reset Driver"
+	depends on HAVE_ARM_SMCCC
+	depends on ARCH_BERLIN || COMPILE_TEST
+	default n
+	help
+	  This enables the SMC reset driver for Synaptics SoCs. The driver will
+	  call ARM SMC API and trap into ARM-Trusted-Firmware for operations.
+
 config GPIO_RESET_CONTROLLER
 	tristate "GPIO reset controller"
 	help
