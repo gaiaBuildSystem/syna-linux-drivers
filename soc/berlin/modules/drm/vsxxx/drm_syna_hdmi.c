@@ -396,6 +396,12 @@ static int syna_hdmi_hpd_monitor(void *param)
 			connector->status = hpdStatus ? connector_status_connected :
 							connector_status_disconnected;
 
+#if IS_ENABLED(CONFIG_CEC_CORE)
+			if (!hpdStatus) {
+				DRM_DEBUG_DRIVER("set phy addr CEC invalid\n");
+				cec_notifier_phys_addr_invalidate(syna_hdmi->cec);
+			}
+#endif
 			if (syna_hdmi->syna_hdmi_conf.hdmiTxConfigFields.fixedModeSet
 				       && (hpdStatus==connector_status_connected))
 				syna_configure_def_res();
