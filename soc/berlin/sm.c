@@ -25,6 +25,8 @@
 #include <linux/reboot-mode.h>
 #include <linux/semaphore.h>
 #include <linux/sched/signal.h>
+#include <linux/iio/iio.h>
+#include <linux/iio/driver.h>
 #include <soc/berlin/sm.h>
 #include <linux/version.h>
 #include <linux/rtc.h>
@@ -56,6 +58,8 @@
 
 #define BERLIN_MSGQ_OFFSET		0x1f000
 #define PLATYPUS_MSGQ_OFFSET		0x17000
+
+#define MV_SM_ADC_READ  0x01
 
 typedef struct
 {
@@ -98,10 +102,25 @@ struct berlin_sm {
 	struct reboot_mode_driver bsm_reboot;
 	struct notifier_block bsm_reboot_nb;
 	struct mutex thermal_lock;
+	struct mutex adc_lock;
 
 	/* events */
 	wait_queue_head_t wait_q;
 	int bt_event;
+};
+
+struct sm_adc_req {
+	u32 cmd;
+	u32 ch;
+	u32 sample;
+	u32 rsv;
+};
+
+struct sm_adc_resp {
+	s32 ret;
+	u32 ch;
+	u32 raw;
+	u32 rsv;
 };
 
 static struct berlin_sm *psm;
@@ -285,6 +304,9 @@ static MV_SM_Module SMModules[MAX_MSG_TYPE] = {
 	DEFINE_SM_MODULES(MV_SM_ID_CONSOLE),
 	DEFINE_SM_MODULES(MV_SM_ID_PMIC),
 	DEFINE_SM_MODULES(MV_SM_ID_AUDIO),
+	DEFINE_SM_MODULES(MV_SM_ID_GPIO),
+	DEFINE_SM_MODULES(MV_SM_ID_GPIOBTN),
+	DEFINE_SM_MODULES(MV_SM_ID_ADC),
 };
 
 static inline MV_SM_Module *bsm_search_module(int id)
@@ -709,6 +731,92 @@ get_temp_error:
 	return ret;
 }
 
+static int bsm_get_adc(struct berlin_sm *priv, u32 ch, u32 sample, u32 *raw)
+{
+	struct sm_adc_req req = {
+		.cmd = MV_SM_ADC_READ,
+		.ch = ch,
+		.sample = sample,
+		.rsv = 0,
+	};
+
+	struct sm_adc_resp resp;
+	int len = 0;
+	int ret;
+
+	if (!raw)
+		return -EINVAL;
+
+	mutex_lock(&priv->adc_lock);
+	ret = bsm_msg_send(MV_SM_ID_ADC, &req, sizeof(req));
+	if (ret < 0)
+		goto out;
+
+	ret = bsm_msg_recv(MV_SM_ID_ADC, &resp, &len);
+	if (ret < 0)
+		goto out;
+
+	if (len != sizeof(resp)) {
+		ret = -EIO;
+		goto out;
+	}
+
+	if (resp.ret < 0) {
+		ret = -EIO;
+		goto out;
+	}
+
+	*raw = resp.raw;
+	ret = 0;
+
+out:
+	mutex_unlock(&priv->adc_lock);
+	return ret;
+}
+
+static const struct iio_chan_spec bsm_adc_channels[] = {
+	{
+		.type = IIO_VOLTAGE,
+		.indexed = 1,
+		.channel = 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.indexed = 1,
+		.channel = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+};
+
+static int bsm_adc_iio_read_raw(struct iio_dev *indio_dev,
+			       struct iio_chan_spec const *chan,
+			       int *val, int *val2, long mask)
+{
+	struct berlin_sm *priv = dev_get_drvdata(&indio_dev->dev);
+	u32 raw;
+	int ret;
+
+	if (!priv)
+		return -ENODEV;
+
+	switch (mask) {
+	case IIO_CHAN_INFO_RAW:
+		ret = bsm_get_adc(priv, chan->channel, 4, &raw);
+		if (ret)
+			return ret;
+
+		*val = (int)raw;
+		return IIO_VAL_INT;
+	default:
+		return -EINVAL;
+	}
+}
+
+static const struct iio_info bsm_adc_iio_info = {
+	.read_raw = bsm_adc_iio_read_raw,
+};
+
 static struct thermal_zone_device_ops ops = {
 	.get_temp = bsm_get_temp,
 };
@@ -750,6 +858,7 @@ static int bsm_probe(struct platform_device *pdev)
 	resource_size_t size;
 	const char *name;
 	struct rtc_device *rtc;
+	struct iio_dev *indio_dev;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -798,6 +907,7 @@ static int bsm_probe(struct platform_device *pdev)
 		memset(&(SMModules[i].m_MsgQ), 0, sizeof(MV_SM_MsgQ));
 	}
 	mutex_init(&priv->thermal_lock);
+	mutex_init(&priv->adc_lock);
 
 	ret = devm_request_irq(dev, priv->sm_irq, bsm_intr, 0, "bsm", priv);
 	if (ret < 0)
@@ -826,6 +936,27 @@ static int bsm_probe(struct platform_device *pdev)
 		dev_warn(dev,
 			 "Failed to register thermal zone device\n");
 		priv->bsm_thermal = NULL;
+	}
+
+	indio_dev = devm_iio_device_alloc(dev, 0);
+	if (!indio_dev) {
+		dev_err(dev, "Failed to allocate IIO device\n");
+		return -ENOMEM;
+	}
+
+	dev_set_drvdata(&indio_dev->dev, priv);
+
+	indio_dev->name = "bsm-adc";
+	indio_dev->dev.parent = dev;
+	indio_dev->info = &bsm_adc_iio_info;
+	indio_dev->modes = INDIO_DIRECT_MODE;
+	indio_dev->channels = bsm_adc_channels;
+	indio_dev->num_channels = ARRAY_SIZE(bsm_adc_channels);
+
+	ret = devm_iio_device_register(dev, indio_dev);
+	if (ret) {
+		dev_err(dev, "failed to register IIO ADC: %d\n", ret);
+		return ret;
 	}
 
 	priv->bsm_reboot_nb.notifier_call = bsm_reboot_notify;
