@@ -1595,7 +1595,7 @@ static int syna_axi_meter_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	dev_info(dev, "axi meter start\n");
+	dev_info(dev, "axi meter probed\n");
 	return 0;
 }
 
