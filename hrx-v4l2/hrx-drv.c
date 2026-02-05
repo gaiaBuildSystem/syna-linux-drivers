@@ -2055,13 +2055,13 @@ static int hdmi_rx_look_up_table(struct syna_hrx_v4l2_dev *hrx_dev, hrx_applicat
 	switch (RxColDepth) {
 	case HRX_HDMI_RX_COL_DEPTH_12BIT:
 		{
-			RefRate = ((RefRate * 3) >> 1);
+			RefRate = ((RefRate << 1) / 3);
 		}
 		break;
 
 	case HRX_HDMI_RX_COL_DEPTH_10BIT:
 		{
-			RefRate = ((RefRate * 5) >> 2);
+			RefRate = ((RefRate << 2) / 5);
 		}
 		break;
 
