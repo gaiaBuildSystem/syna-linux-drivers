@@ -28,9 +28,28 @@
 #include "heap_extra.h"
 #include <uapi/linux/dma-buf.h>
 #include "kernel_compatibility.h"
+#include "page_pool.h"
 
 #define CREATE_TRACE_POINTS
 #include "dmabuf_heap_trace.h"
+
+/* include media frame buffer and GFX UI/Frame buffer in sys cust heap */
+static int  max_rsv_threshold = 302;
+static bool rsv_enabled;
+static int err_cnt;
+static time64_t rsv_start_time;
+
+#define PAGE_CHUNK_NUM  64
+#define MAX_PAGE_ALLOC_ERR_CNT  16
+#define MIN_USING_THRESHOLD 80
+#define RSV_DEFER 40000
+#define RSV_TIMEOUT 15
+
+struct sys_rsv_pool_s {
+	struct page_pool *reserved_pool;
+	struct delayed_work reserved_work;
+	atomic_t heap_allocated;
+};
 
 struct sys_cust_heap_s {
 	struct dma_heap *sys_heap;
@@ -39,6 +58,7 @@ struct sys_cust_heap_s {
 
 static struct sys_cust_heap_s sys_cust_heap;
 static struct sys_cust_heap_s sys_cust_uncached_heap;
+static struct sys_rsv_pool_s  sys_rsv_pool;
 
 struct system_cust_heap_buffer {
 	struct berlin_meta *meta;
@@ -69,6 +89,7 @@ struct dma_heap_attachment {
 
 static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP, LOW_ORDER_GFP,
 	                      LOW_ORDER_GFP, LOW_ORDER_GFP};
+static gfp_t rsv_order_gfp_flags  = GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN;
 /*
  * The selection of the orders used for allocation (1MB, 64K, 4K) is designed
  * to match with the sizes often found in IOMMUs. Using order 4 pages instead
@@ -355,6 +376,23 @@ static void system_cust_heap_vunmap(struct dma_buf *dmabuf, struct iosys_map *ma
 	iosys_map_clear(map);
 }
 
+static void free_buffer_page(struct page *page)
+{
+	unsigned int order = compound_order(page);
+	bool rsv_low_wm, rsv_order_match;
+	struct page_pool *rsv_pool = sys_rsv_pool.reserved_pool;
+
+	rsv_low_wm = sys_page_pool_nr_pages(rsv_pool) <
+		(max_rsv_threshold * (SZ_1M / PAGE_SIZE));
+	rsv_order_match = (order == rsv_pool->order);
+
+	if (rsv_order_match && rsv_low_wm) {
+		sys_page_pool_free(rsv_pool, page);
+	} else {
+		__free_pages(page, compound_order(page));
+	}
+}
+
 static void system_cust_heap_buf_free(struct dma_buf *dmabuf)
 {
 	struct system_cust_heap_buffer *buffer = dmabuf->priv;
@@ -364,6 +402,7 @@ static void system_cust_heap_buf_free(struct dma_buf *dmabuf)
 	u64 start_time;
 	bool uncached = false;
 	unsigned long buf_size;
+	int rsv_sz, total_alloc_sz;
 
 	start_time = ktime_get_ns();
 
@@ -372,13 +411,15 @@ static void system_cust_heap_buf_free(struct dma_buf *dmabuf)
 	table = &buffer->sg_table;
 	for_each_sgtable_sg(table, sg, i) {
 		struct page *page = sg_page(sg);
-
-		__free_pages(page, compound_order(page));
+		free_buffer_page(page);
 	}
 	sg_free_table(table);
 	kfree(buffer->meta);
 	kfree(buffer);
-	trace_sys_cust_free(uncached, buf_size/1024, (ktime_get_ns()-start_time)/1000);
+	total_alloc_sz = atomic_sub_return(buf_size, &sys_rsv_pool.heap_allocated);
+	rsv_sz = sys_page_pool_nr_pages(sys_rsv_pool.reserved_pool) / (SZ_1M / PAGE_SIZE);
+	trace_sys_cust_free(uncached, buf_size/1024, rsv_sz, total_alloc_sz / SZ_1M,
+					 (ktime_get_ns()-start_time)/1000);
 }
 
 static int system_cust_heap_get_flags(struct dma_buf *dmabuf, unsigned long *flags)
@@ -391,10 +432,8 @@ static void system_cust_heap_dma_buf_release(struct dma_buf *dmabuf)
 {
 	struct system_cust_heap_buffer *buffer = dmabuf->priv;
 	int (*free_cb)(struct dma_buf *dmabuf);
-	struct dma_heap *heap;
 
 	free_cb = ((struct sys_cust_heap_s *) (buffer->heap))->heap_extra.free_cb;
-	heap = ((struct sys_cust_heap_s *) (buffer->heap))->sys_heap;
 
 	if (free_cb) {
 		if (!free_cb(dmabuf))
@@ -417,8 +456,48 @@ static const struct dma_buf_ops system_cust_heap_buf_ops = {
 	.get_flags = system_cust_heap_get_flags,
 };
 
+static void page_pool_add_pages(struct page_pool *rsv_pool,
+						struct page **pages,
+						u32 num)
+{
+	int i;
+
+	for (i = 0; i < num; i++) {
+		sys_page_pool_free(rsv_pool, pages[i]);
+	}
+}
+
+static void page_pool_remove_pages(struct page_pool *rsv_pool)
+{
+	struct page *page;
+
+	while (true) {
+		page = sys_page_pool_alloc(rsv_pool);
+		if (!page)
+			break;
+		__free_pages(page, compound_order(page));
+	}
+}
+
+static struct page *alloc_buffer_page(gfp_t gfp_mask, unsigned long order)
+{
+	struct page *page = NULL;
+	struct page_pool *rsv_pool = sys_rsv_pool.reserved_pool;
+
+	if ((order == rsv_pool->order) && sys_page_pool_nr_pages(rsv_pool)) {
+		page = sys_page_pool_alloc(rsv_pool);
+	}
+
+	if (!page) {
+		if (fatal_signal_pending(current))
+			return NULL;
+		page = alloc_pages(gfp_mask, order);
+	}
+	return page;
+}
+
 static struct page *alloc_largest_available(unsigned long size,
-					    unsigned int max_order)
+											unsigned int max_order)
 {
 	struct page *page;
 	int i;
@@ -429,13 +508,14 @@ static struct page *alloc_largest_available(unsigned long size,
 		if (max_order < orders[i])
 			continue;
 
-		page = alloc_pages(order_flags[i], orders[i]);
+		page = alloc_buffer_page(order_flags[i], orders[i]);
 		if (!page)
 			continue;
 		return page;
 	}
 	return NULL;
 }
+
 
 static struct dma_buf *system_cust_heap_do_allocate(struct dma_heap *heap,
 					       unsigned long len,
@@ -453,6 +533,7 @@ static struct dma_buf *system_cust_heap_do_allocate(struct dma_heap *heap,
 	struct list_head pages;
 	struct page *page, *tmp_page;
 	char tmpbuf[64];
+	int rsv_sz, total_alloc_sz;
 	int i, ret = -ENOMEM;
 	u64 start_time;
 	start_time = ktime_get_ns();
@@ -531,7 +612,11 @@ static struct dma_buf *system_cust_heap_do_allocate(struct dma_heap *heap,
 	snprintf(tmpbuf, sizeof(tmpbuf), "%d %d %s\n", task_tgid_vnr(current),
 				task_pid_vnr(current), current->comm);
 	dma_buf_set_name(dmabuf, tmpbuf);
-	trace_sys_cust_alloc(uncached, len/1024, (ktime_get_ns() - start_time)/1000);
+
+	total_alloc_sz = atomic_add_return(PAGE_ALIGN(len), &sys_rsv_pool.heap_allocated);
+	rsv_sz = sys_page_pool_nr_pages(sys_rsv_pool.reserved_pool) / (SZ_1M / PAGE_SIZE);
+	trace_sys_cust_alloc(uncached, len/1024, rsv_sz, total_alloc_sz / SZ_1M,
+					  (ktime_get_ns() - start_time)/1000);
 	return dmabuf;
 
 free_meta:
@@ -584,9 +669,198 @@ static struct dma_heap_ops system_cust_uncached_heap_ops = {
 	.allocate = system_cust_uncached_heap_not_initialized,
 };
 
+static void system_cust_heap_reserved_work(struct work_struct *work)
+{
+	struct sys_rsv_pool_s *sys_rsv = container_of(work,
+				struct sys_rsv_pool_s, reserved_work.work);
+	struct page *pages[PAGE_CHUNK_NUM];
+	struct page_pool *rsv_pool = sys_rsv->reserved_pool;
+	int i;
+	long alloc_sz, rsv_sz, rsv_pages, using_sz, using_pages;
+	bool is_timeout;
+
+	using_sz = atomic_read(&sys_rsv->heap_allocated);
+	rsv_sz = sys_page_pool_nr_pages(rsv_pool) / (SZ_1M / PAGE_SIZE);
+	if (rsv_enabled) {
+		rsv_pages = sys_page_pool_nr_pages(rsv_pool);
+		using_pages = using_sz / PAGE_SIZE;
+
+		pr_info("start reserve with %ldMB rsv, %ldMB in using\n", rsv_sz, using_sz / SZ_1M);
+		alloc_sz = max_rsv_threshold * (SZ_1M / PAGE_SIZE) - rsv_pages - using_pages;
+		alloc_sz = alloc_sz * PAGE_SIZE;
+		i = 0;
+
+		is_timeout = (ktime_get_seconds() - rsv_start_time) > RSV_TIMEOUT;
+		while (alloc_sz > 0 && err_cnt < MAX_PAGE_ALLOC_ERR_CNT && !is_timeout && rsv_enabled) {
+			pages[i] = alloc_pages(rsv_pool->gfp_mask, rsv_pool->order);
+			if (!pages[i]) {
+				err_cnt++;
+				if (err_cnt == MAX_PAGE_ALLOC_ERR_CNT)
+					pr_info("%s alloc page order %d failed with %d err, skip\n",
+							__func__, rsv_pool->order, err_cnt);
+				else
+					schedule_delayed_work(&sys_rsv->reserved_work, msecs_to_jiffies(20));
+				break;
+			}
+			i++;
+			if (i == PAGE_CHUNK_NUM) {
+				pr_debug("add %d pages\n", i);
+				page_pool_add_pages(rsv_pool, pages, PAGE_CHUNK_NUM);
+				i = 0;
+
+			}
+			rsv_pages = sys_page_pool_nr_pages(rsv_pool);
+			using_pages = atomic_read(&sys_rsv->heap_allocated) / PAGE_SIZE;
+
+			alloc_sz = max_rsv_threshold * (SZ_1M / PAGE_SIZE) - rsv_pages - using_pages;
+			alloc_sz = alloc_sz * PAGE_SIZE;
+
+			err_cnt = 0;
+			is_timeout = (ktime_get_seconds() - rsv_start_time) > RSV_TIMEOUT;
+			pr_debug("current %lld, start %lld\n", ktime_get_seconds(), rsv_start_time);
+		}
+
+		if (i)
+			page_pool_add_pages(rsv_pool, pages, i);
+
+		rsv_sz = sys_page_pool_nr_pages(rsv_pool) / (SZ_1M / PAGE_SIZE);
+		using_sz = atomic_read(&sys_rsv->heap_allocated) / SZ_1M;
+		pr_info("exit with %ldMB reserved mem, %ldMB in using with err %d, timeout %d\n",
+					rsv_sz, using_sz, err_cnt, is_timeout);
+	} else {
+		pr_info("start free %ldMB reserved pool, %ldMB in using\n", rsv_sz, using_sz / SZ_1M);
+		if (using_sz / SZ_1M <= MIN_USING_THRESHOLD) {
+			page_pool_remove_pages(rsv_pool);
+		} else {
+			schedule_delayed_work(&sys_rsv->reserved_work, msecs_to_jiffies(RSV_DEFER));
+		}
+		rsv_sz = sys_page_pool_nr_pages(rsv_pool) / (SZ_1M / PAGE_SIZE);
+		err_cnt = 0;
+		pr_info("exit with %ldMB reserved mem\n", rsv_sz);
+	}
+}
+
+static int create_reserved_pool(struct sys_rsv_pool_s *sys_rsv)
+{
+	struct page_pool *pool;
+
+	pool = sys_page_pool_create(rsv_order_gfp_flags, orders[0]);
+	if (!pool)
+		return -ENOMEM;
+
+	sys_rsv->reserved_pool = pool;
+	INIT_DELAYED_WORK(&sys_rsv->reserved_work, system_cust_heap_reserved_work);
+	atomic_set(&sys_rsv->heap_allocated, 0);
+	return 0;
+}
+
+static void destroy_reserved_pool(struct sys_rsv_pool_s *sys_rsv)
+{
+	cancel_delayed_work_sync(&sys_rsv->reserved_work);
+	page_pool_remove_pages(sys_rsv->reserved_pool);
+	if (sys_rsv->reserved_pool)
+		sys_page_pool_destroy(sys_rsv->reserved_pool);
+}
+
+static ssize_t rsv_enabled_show(struct kobject *kobj,
+				     struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", rsv_enabled ? "true" : "false");
+}
+
+static ssize_t rsv_enabled_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	unsigned int value;
+	bool is_enabled;
+	int ret;
+	unsigned int m;
+
+	ret = kstrtouint(buf, 0, &value);
+	if (ret < 0)
+		return ret;
+	if (value > 1)
+		return -EINVAL;
+
+	is_enabled = value ? true : false;
+	pr_debug("reserved enabled %d, is_enabled %d", rsv_enabled, is_enabled);
+	if (rsv_enabled != is_enabled) {
+		rsv_enabled = is_enabled;
+		m = rsv_enabled ? 0 : RSV_DEFER;
+		cancel_delayed_work_sync(&sys_rsv_pool.reserved_work);
+		rsv_start_time = ktime_get_seconds();
+		schedule_delayed_work(&sys_rsv_pool.reserved_work, msecs_to_jiffies(m));
+	}
+	return count;
+}
+
+static ssize_t max_rsv_threshold_show(struct kobject *kobj,
+				     struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%dMB\n", max_rsv_threshold);
+}
+
+static ssize_t max_rsv_threshold_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	unsigned int value;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &value);
+	if (ret < 0)
+		return ret;
+	if (!value || value * (SZ_1M / PAGE_SIZE) > totalram_pages() / 2) {
+		pr_err("rsv size %dMB is invalid\n", value);
+		return -ENOMEM;
+	}
+	if (max_rsv_threshold != value) {
+		max_rsv_threshold = value;
+	}
+	return count;
+}
+
+
+static struct kobj_attribute rsv_enabled_attr =
+	__ATTR(rsv_enabled, 0644, rsv_enabled_show,
+		rsv_enabled_store);
+
+static struct kobj_attribute max_rsv_threshold_attr =
+	__ATTR(max_rsv_threshold, 0644, max_rsv_threshold_show,
+		max_rsv_threshold_store);
+
+static struct attribute *sys_cust_attrs[] = {
+	&rsv_enabled_attr.attr,
+	&max_rsv_threshold_attr.attr,
+	NULL,
+};
+
+static struct attribute_group sys_cust_attr_group = {
+	.attrs = sys_cust_attrs,
+};
+
+static int system_cust_init_sysfs(void)
+{
+	struct kobject *sys_cust_kobj;
+	int ret;
+
+	sys_cust_kobj = kobject_create_and_add("sys_cust", kernel_kobj);
+	if (!sys_cust_kobj)
+		return -ENOMEM;
+
+	ret = sysfs_create_group(sys_cust_kobj, &sys_cust_attr_group);
+	if (ret) {
+		kobject_put(sys_cust_kobj);
+		return ret;
+	}
+	return 0;
+}
+
 static int system_cust_heap_create(void)
 {
 	struct dma_heap_export_info exp_info;
+	int ret;
 
 	exp_info.name = "system_cust";
 	exp_info.ops = &system_cust_heap_ops;
@@ -611,7 +885,26 @@ static int system_cust_heap_create(void)
 	mb(); /* make sure we only set allocate after dma_mask is set */
 	system_cust_uncached_heap_ops.allocate = system_cust_uncached_heap_allocate;
 
-	return 0;
+	ret = create_reserved_pool(&sys_rsv_pool);
+	if (ret) {
+		pr_err("system cust: create reserved pool failed.\n");
+		goto err_heap_put;
+	}
+
+	ret = system_cust_init_sysfs();
+	if (ret) {
+		destroy_reserved_pool(&sys_rsv_pool);
+		pr_err("system cust: failed to add sysfs attributes.\n");
+		goto err_heap_put;
+	}
+	return ret;
+
+err_heap_put:
+	heap_extra_rm_heap(&sys_cust_heap.heap_extra);
+	dma_heap_put(sys_cust_heap.sys_heap);
+	heap_extra_rm_heap(&sys_cust_uncached_heap.heap_extra);
+	dma_heap_put(sys_cust_uncached_heap.sys_heap);
+	return ret;
 }
 module_init(system_cust_heap_create);
 MODULE_LICENSE("GPL v2");
