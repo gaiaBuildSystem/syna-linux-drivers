@@ -141,6 +141,18 @@ config BERLIN_OVP
 	help
 	  Enable support for OVP
 
+config BERLIN_OVP_V4L2
+	tristate "Support OVP V4L2"
+	depends on BERLIN_OVP
+	default n
+	select VIDEOBUF2_MEMOPS
+	select DMA_SHARED_BUFFER
+	select V4L2_MEM2MEM_DEV
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  Enable V4L2 interface for OVP. Provides video for linux 2 API
+	  support for OVP hardware capabilities
+
 config BERLIN_SCRD
 	tristate "Support BERLIN SMARTCARD"
 	default n

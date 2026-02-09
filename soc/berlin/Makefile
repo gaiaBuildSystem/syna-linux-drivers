@@ -15,6 +15,7 @@ obj-$(CONFIG_POWERVR_ROGUE) += modules/rogue/
 obj-$(CONFIG_POWERVR_ROGUE_WS) += modules/rogue_ws/
 obj-$(CONFIG_BERLIN_NSK) += modules/nsk/
 obj-$(CONFIG_BERLIN_OVP) += modules/ovp/
+obj-$(CONFIG_BERLIN_OVP_V4L2) += modules/ovp/v4l2/
 obj-$(CONFIG_BERLIN_SCRD) += modules/smartcard/
 obj-$(CONFIG_BERLIN_VPP_MEM) += modules/vpp_mem/
 obj-$(CONFIG_BERLIN_VPP) += modules/vpp/
