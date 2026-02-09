@@ -5,7 +5,13 @@
 ###############################################################################
 BERLIN_MOD_PATH := $(srctree)/drivers/synaptics/soc/berlin/modules
 
-OVP_COMMON_API_OBJS := drv_ovp.o tee_ca_ovp.o
+OVP_COMMON_API_OBJS := drv_ovp.o
+
+ifeq ($(CONFIG_OPTEE),y)
+OVP_COMMON_API_OBJS += ca/tee_ca_ovp_optee.o
+else
+OVP_COMMON_API_OBJS += ca/tee_ca_ovp.o
+endif
 
 ###############################################################################
 
@@ -17,7 +23,9 @@ OVP_API_OBJS := $(OVP_COMMON_API_OBJS)
 
 TZ_INC_PATH += -I$(BERLIN_MOD_PATH)/tzd/tee/client_api \
 		-I$(BERLIN_MOD_PATH)/tzd/tee/common \
-		-I$(BERLIN_MOD_PATH)/tzd/include
+		-I$(BERLIN_MOD_PATH)/tzd/include \
+		-I$(BERLIN_MOD_PATH)/avio/common \
+		-I$(BERLIN_MOD_PATH)/ovp/ca
 
 ###############################################################################
 ###############################################################################

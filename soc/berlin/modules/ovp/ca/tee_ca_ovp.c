@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Copyright (C) 2021 Synaptics Incorporated */
+/* Copyright (C) 2026 Synaptics Incorporated */
 
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 
+#include "tee_client_api.h"
 #include "ovp_debug.h"
 #include "tee_ca_ovp.h"
 
-static const TEEC_UUID ta_ovp_uuid = {0x1316a183, 0x894d, 0x43fe, \
+static const TEEC_UUID ta_ovp_uuid = {0x1316a183, 0x894d, 0x43fe,
 	{0x98, 0x93, 0xbb, 0x94, 0x6a, 0xe1, 0x03, 0xf4} };
 static TEEC_Context context;
 static TEEC_Session session;
 
-static int tz_ovp_errcode_translate(TEEC_Result result)
+static int syna_ovpd_tz_ovp_errcode_translate(TEEC_Result result)
 {
 	int ret;
 
@@ -35,68 +36,76 @@ static int tz_ovp_errcode_translate(TEEC_Result result)
 	return ret;
 }
 
-int tz_ovp_invoke_cmd(OVP_CMD_ID cmd)
+static int syna_ovpd_ca_invoke_cmd(OVP_CMD_ID cmd, bool optimize)
 {
 	TEEC_Result result = TEEC_SUCCESS;
 	TEEC_Operation operation;
 
 	/* Supported cmd - OVP_SUSPEND/OVP_RESUME */
-	if ((cmd != OVP_SUSPEND) && (cmd != OVP_RESUME))
+	if (cmd != OVP_SUSPEND && cmd != OVP_RESUME)
 		return TEEC_ERROR_BAD_PARAMETERS;
 
-	operation.paramTypes = TEEC_PARAM_TYPES(
-			TEEC_VALUE_INOUT,
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE);
+	memset(&operation, 0, sizeof(operation));
+	operation.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT,
+						TEEC_NONE,
+						TEEC_NONE,
+						TEEC_NONE);
 
 	operation.params[0].value.a = 0xdeadbeef;
-	operation.params[0].value.b = 0;
+	operation.params[0].value.b = optimize;
 
 	operation.started = 1;
-	result = TEEC_InvokeCommand(
-			&session,
-			cmd,
-			&operation,
-			NULL);
-	if (result != TEEC_SUCCESS)
+	result = TEEC_InvokeCommand(&session,
+				    cmd,
+				    &operation,
+				    NULL);
+	if (result != TEEC_SUCCESS) {
 		ovp_error("OVP %s failed: 0x%x\n",
 			cmd == OVP_SUSPEND ? "SUSPEND" : "RESUME", result);
+		return syna_ovpd_tz_ovp_errcode_translate(result);
+	}
 
 	return operation.params[0].value.a;
 }
 
-int tz_ovp_initialize(void)
+int syna_ovpd_ca_suspend(bool optimize)
+{
+	return syna_ovpd_ca_invoke_cmd(OVP_SUSPEND, optimize);
+}
+
+int syna_ovpd_ca_resume(bool optimize)
+{
+       return syna_ovpd_ca_invoke_cmd(OVP_RESUME, optimize);
+}
+
+int syna_ovpd_ca_initialize(void)
 {
 	TEEC_Result result = TEEC_SUCCESS;
 	TEEC_Operation operation;
 
 	/* [1] Connect to TEE */
-	result = TEEC_InitializeContext(
-			NULL,
-			&context);
+	result = TEEC_InitializeContext(NULL, &context);
 	if (result != TEEC_SUCCESS) {
 		ovp_error("TEEC_InitializeContext ret=0x%08x\n", result);
 		goto fun_ret;
+	} else {
+		ovp_trace("TEEC_InitializeContext success\n");
 	}
-	ovp_trace("TEEC_InitializeContext success\n");
 
 	/* [2] Open session with TEE application */
 
-	operation.paramTypes = TEEC_PARAM_TYPES(
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE);
+	operation.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE,
+						TEEC_NONE,
+						TEEC_NONE,
+						TEEC_NONE);
 
-	result = TEEC_OpenSession(
-			&context,
-			&session,
-			&ta_ovp_uuid,
-			TEEC_LOGIN_USER,
-			NULL,
-			&operation,
-			NULL);
+	result = TEEC_OpenSession(&context,
+				  &session,
+				  &ta_ovp_uuid,
+				  TEEC_LOGIN_USER,
+				  NULL,
+				  &operation,
+				  NULL);
 	if (result != TEEC_SUCCESS) {
 		TEEC_CloseSession(&session);
 		TEEC_FinalizeContext(&context);
@@ -106,10 +115,10 @@ int tz_ovp_initialize(void)
 	ovp_trace("TEEC_OpenSession success\n");
 
 fun_ret:
-	return tz_ovp_errcode_translate(result);
+	return syna_ovpd_tz_ovp_errcode_translate(result);
 }
 
-void tz_ovp_finalize(void)
+void syna_ovpd_ca_deinitialize(void)
 {
 	TEEC_CloseSession(&session);
 	TEEC_FinalizeContext(&context);

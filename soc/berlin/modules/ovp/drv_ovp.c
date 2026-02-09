@@ -241,7 +241,7 @@ static int ovp_drv_open(struct inode *inode, struct file *filp)
 	}
 	ovp_trace("%s ok\n", __func__);
 
-	err = tz_ovp_initialize();
+	err = syna_ovpd_ca_initialize();
 	if (err) {
 		ovp_trace("TZ OVP initialize failed.\n");
 		/* unregister OVP interrupt */
@@ -274,7 +274,7 @@ static int ovp_drv_release(struct inode *inode, struct file *filp)
 	/* unregister OVP interrupt */
 	free_irq(hOvpCtx->irq_num, (void *) hOvpCtx);
 
-	tz_ovp_finalize();
+	syna_ovpd_ca_deinitialize();
 
 	ovp_trace("%s ok\n", __func__);
 
@@ -623,7 +623,7 @@ static int ovp_drv_suspend(struct device *dev)
 
 	ovp_drv_disable_irq();
 
-	ret = tz_ovp_invoke_cmd(OVP_SUSPEND);
+	ret = syna_ovpd_ca_suspend(true);
 	if (ret) {
 		ovp_error("%s OVP Suspend failed\n", __func__);
 		/*
@@ -645,7 +645,7 @@ static int ovp_drv_resume(struct device *dev)
 	if (!atomic_read(&ovp_dev_refcnt))
 		return ret;
 
-	ret = tz_ovp_invoke_cmd(OVP_RESUME);
+	ret = syna_ovpd_ca_resume(true);
 	if (ret) {
 		ovp_error("%s OVP Resume failed\n", __func__);
 		return ret;
