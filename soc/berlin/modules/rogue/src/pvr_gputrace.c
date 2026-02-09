@@ -458,6 +458,7 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 #endif
 
 #if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
+#if defined(GPU_WORK_PERIOD_TRACE_DEFAULT_ENABLED)
 		if (trace_set_clr_event("power", "gpu_work_period", 1) != 0)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "Failed to enable \"gpu_work_period\" event"));
@@ -467,6 +468,7 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 			PVR_LOG(("FTrace event from \"gpu_work_period\" enabled"));
 			bEnable = IMG_TRUE;
 		}
+#endif
 #endif
 
 		if (bEnable)
