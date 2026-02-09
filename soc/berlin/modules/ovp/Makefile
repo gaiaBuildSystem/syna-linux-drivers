@@ -5,7 +5,7 @@
 ###############################################################################
 BERLIN_MOD_PATH := $(srctree)/drivers/synaptics/soc/berlin/modules
 
-OVP_COMMON_API_OBJS := drv_ovp.o
+OVP_COMMON_API_OBJS := drv_ovp.o drv_ovp_wrap.o
 
 ifeq ($(CONFIG_OPTEE),y)
 OVP_COMMON_API_OBJS += ca/tee_ca_ovp_optee.o
