@@ -417,23 +417,6 @@ int syna_drm_gem_object_mmap(struct drm_gem_object *obj,
 	return ret;
 }
 
-int syna_gem_mmap_buf(struct drm_gem_object *obj, struct vm_area_struct *vma)
-{
-	int ret;
-
-	DRM_ERROR("%s: obj->size=%zu, vma size=%lu, vma->vm_pgoff=%lu\n",
-			__func__, obj->size, vma->vm_end - vma->vm_start, vma->vm_pgoff);
-
-	ret = drm_gem_mmap_obj(obj, obj->size, vma);
-	if (ret) {
-		DRM_ERROR("%s:%d drm_gem_mmap_obj fail!! ret=%d\n",
-			  __func__, __LINE__, ret);
-		return ret;
-	}
-
-	return syna_drm_gem_object_mmap(obj, vma);
-}
-
 int syna_gem_dumb_map_offset(struct drm_file *file,
 			     struct drm_device *dev,
 			     uint32_t handle, uint64_t *offset)
