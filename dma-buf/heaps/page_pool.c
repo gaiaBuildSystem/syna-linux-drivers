@@ -18,18 +18,14 @@ struct page *sys_page_pool_alloc(struct page_pool *pool)
 
 	BUG_ON(!pool);
 
-	mutex_lock(&pool->mutex);
-	if (pool->high_count) {
-		page = list_first_entry(&pool->high_items, struct page, lru);
-		pool->high_count--;
-	} else if (pool->low_count) {
-		page = list_first_entry(&pool->low_items, struct page, lru);
-		pool->low_count--;
+	spin_lock(&pool->lock);
+	if (pool->count) {
+		page = list_first_entry(&pool->items, struct page, lru);
+		pool->count--;
 	}
 	if (page)
 		list_del(&page->lru);
-	mutex_unlock(&pool->mutex);
-
+	spin_unlock(&pool->lock);
 	return page;
 }
 
@@ -37,25 +33,19 @@ void sys_page_pool_free(struct page_pool *pool, struct page *page)
 {
 	BUG_ON(pool->order != compound_order(page));
 
-	mutex_lock(&pool->mutex);
-	if (PageHighMem(page)) {
-		list_add_tail(&page->lru, &pool->high_items);
-		pool->high_count++;
-	} else {
-		list_add_tail(&page->lru, &pool->low_items);
-		pool->low_count++;
-	}
-	mutex_unlock(&pool->mutex);
+	spin_lock(&pool->lock);
+	list_add_tail(&page->lru, &pool->items);
+	pool->count++;
+	spin_unlock(&pool->lock);
 }
 
 int sys_page_pool_nr_pages(struct page_pool *pool)
 {
-	int nr_total_pages, count;
+	int nr_total_pages;
 
-	mutex_lock(&pool->mutex);
-	count = pool->low_count + pool->high_count;
-	nr_total_pages = count << pool->order;
-	mutex_unlock(&pool->mutex);
+	spin_lock(&pool->lock);
+	nr_total_pages = pool->count << pool->order;
+	spin_unlock(&pool->lock);
 
 	return nr_total_pages;
 }
@@ -66,13 +56,11 @@ struct page_pool *sys_page_pool_create(gfp_t gfp_mask, unsigned int order)
 
 	if (!pool)
 		return NULL;
-	pool->high_count = 0;
-	pool->low_count = 0;
-	INIT_LIST_HEAD(&pool->low_items);
-	INIT_LIST_HEAD(&pool->high_items);
+	pool->count = 0;
+	INIT_LIST_HEAD(&pool->items);
 	pool->gfp_mask = gfp_mask | __GFP_COMP;
 	pool->order = order;
-	mutex_init(&pool->mutex);
+	spin_lock_init(&pool->lock);
 	INIT_LIST_HEAD(&pool->list);
 
 	return pool;

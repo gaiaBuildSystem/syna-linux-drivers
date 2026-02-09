@@ -10,7 +10,7 @@
 #define _PAGE_POOL_H
 
 #include <linux/mm_types.h>
-#include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/list.h>
 
@@ -24,11 +24,9 @@
 
 /**
  * struct page_pool - pagepool struct
- * @high_count:		number of highmem items in the pool
- * @low_count:		number of lowmem items in the pool
- * @high_items:		list of highmem items
- * @low_items:		list of lowmem items
- * @mutex:		lock protecting this struct and especially the count
+ * @count:		number of mem items in the pool
+ * @items:		list of mem items
+ * @lock:		lock protecting this struct and especially the count
  *			item list
  * @gfp_mask:		gfp_mask to use from alloc
  * @order:		order of pages in the pool
@@ -40,11 +38,9 @@
  * on many systems
  */
 struct page_pool {
-	int high_count;
-	int low_count;
-	struct list_head high_items;
-	struct list_head low_items;
-	struct mutex mutex;
+	int count;
+	struct list_head items;
+	spinlock_t lock;
 	gfp_t gfp_mask;
 	unsigned int order;
 	struct list_head list;
