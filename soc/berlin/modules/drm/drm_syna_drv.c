@@ -32,6 +32,7 @@
 #include "drm_syna_port.h"
 #include "panel/panel.h"
 #include "avio_core.h"
+#include "vpp_api.h"
 
 #define DRIVER_NAME "synaptics"
 #define DRIVER_DESC "Synaptics DRM Display Driver"
@@ -209,7 +210,8 @@ static int syna_late_load(struct drm_device *dev)
 		return -1;
 	}
 
-	syna_vpp_push_fastlogo_frame(dev);
+	if (VPP_Is_Recovery_Mode())
+		syna_vpp_push_fastlogo_frame(dev);
 
 	err = syna_modeset_late_init(dev_priv);
 	if (err) {
