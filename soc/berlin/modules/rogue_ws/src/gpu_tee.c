@@ -79,14 +79,14 @@ static PVRSRV_ERROR allocateFWAddress(void *pvOSDevice)
 	dev = (struct device *)pvOSDevice;
 	fw_nonsecure_dma_heap = dma_heap_find("reserved");
 	if (fw_nonsecure_dma_heap == NULL) {
-		dev_err(dev, "reserved heap is unavailable\n");
-		goto free0;
+		dev_warn(dev, "NonSecure heap is unavailable, deferring probe\n");
+		goto defer_probe;
 	}
 
 	fw_secure_dma_heap = dma_heap_find("Secure");
 	if (fw_secure_dma_heap == NULL) {
-		dev_err(dev, "Secure heap is unavailable\n");
-		goto free1;
+		dev_warn(dev, "Secure heap is unavailable, deferring probe\n");
+		goto defer_probe;
 	}
 
 	fw_src_dma_buf = dma_heap_buffer_alloc(fw_nonsecure_dma_heap, ALLOC_SIZE, 0, 0);
@@ -139,10 +139,8 @@ free3:
 	dma_heap_buffer_free(fw_src_dma_buf);
 free2:
 	dma_heap_put(fw_secure_dma_heap);
-free1:
-	dma_heap_put(fw_nonsecure_dma_heap);
-free0:
-	return PVRSRV_ERROR_INIT_FAILURE;
+defer_probe:
+	return PVRSRV_ERROR_PROBE_DEFER;
 }
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 static unsigned long ion_dmabuf_get_phy(struct dma_buf *dmabuf)

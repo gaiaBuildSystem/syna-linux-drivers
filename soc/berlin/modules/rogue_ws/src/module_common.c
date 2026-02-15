@@ -41,6 +41,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
 #include <linux/module.h>
+#include <linux/dcache.h>
+#include <linux/fs.h>
+#include <linux/path.h>
 
 #if defined(CONFIG_DEBUG_FS)
 #include "pvr_debugfs.h"
@@ -91,6 +94,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if defined(SUPPORT_DISPLAY_CLASS)
 /* Display class interface */
 #include "kerneldisplay.h"
+#if defined(MODULE)
 EXPORT_SYMBOL(DCRegisterDevice);
 EXPORT_SYMBOL(DCUnregisterDevice);
 EXPORT_SYMBOL(DCDisplayConfigurationRetired);
@@ -104,6 +108,7 @@ EXPORT_SYMBOL(PVRSRVSystemUninstallDeviceLISR);
 
 #include "pvr_notifier.h"
 EXPORT_SYMBOL(PVRSRVCheckStatus);
+#endif /* defined(MODULE) */
 #endif /* defined(SUPPORT_DISPLAY_CLASS) */
 
 #if defined(SUPPORT_EXTERNAL_PHYSHEAP_INTERFACE)
@@ -112,6 +117,7 @@ EXPORT_SYMBOL(PVRSRVCheckStatus);
  * Required by LMA DC drivers, and some non-DC LMA display drivers.
  */
 #include "physheap.h"
+#if defined(MODULE)
 EXPORT_SYMBOL(PhysHeapAcquireByID);
 EXPORT_SYMBOL(PhysHeapRelease);
 EXPORT_SYMBOL(PhysHeapGetType);
@@ -122,10 +128,12 @@ EXPORT_SYMBOL(PhysHeapCpuPAddrToDevPAddr);
 #include "pvr_debug.h"
 EXPORT_SYMBOL(PVRSRVGetErrorString);
 EXPORT_SYMBOL(PVRSRVGetDeviceInstance);
+#endif /* defined(MODULE) */
 #endif
 
 #if defined(SUPPORT_RGX)
 #include "rgxapi_km.h"
+#if defined(MODULE)
 EXPORT_SYMBOL(RGXHWPerfConnect);
 EXPORT_SYMBOL(RGXHWPerfDisconnect);
 EXPORT_SYMBOL(RGXHWPerfControl);
@@ -145,6 +153,7 @@ EXPORT_SYMBOL(OSEnableTimer);
 EXPORT_SYMBOL(OSDisableTimer);
 EXPORT_SYMBOL(OSRemoveTimer);
 #endif
+#endif /* defined(MODULE) */
 #endif
 
 static int PVRSRVDeviceSyncOpen(struct _PVRSRV_DEVICE_NODE_ *psDeviceNode,
@@ -744,6 +753,13 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 	struct drm_pvr_srvkm_init_data *data = arg;
 	struct pvr_drm_private *priv = dev->dev_private;
 	int iErr = 0;
+	char buf[256];
+	char *path;
+
+	path = d_path(&psDRMFile->filp->f_path, buf, sizeof(buf));
+
+	// log the psDRMFile
+	printk(KERN_INFO "%s: psDRMFile=%p, path=%s\n", __func__, psDRMFile->filp, path);
 
 	switch (data->init_module)
 	{

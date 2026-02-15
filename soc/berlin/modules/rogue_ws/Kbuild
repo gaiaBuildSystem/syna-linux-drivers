@@ -186,5 +186,5 @@ OBJS += src/client_htbuffer_direct_bridge.o \
         src/server_rgxkicksync_bridge.o
 endif
 
-obj-m += $(MODULE_NAME).o
+obj-y += $(MODULE_NAME).o
 $(MODULE_NAME)-objs = $(OBJS)

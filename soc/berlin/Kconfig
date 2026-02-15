@@ -122,7 +122,8 @@ config POWERVR_ROGUE
 	  Imagination gpu driver for android
 
 config POWERVR_ROGUE_WS
-	tristate "PowerVR rogue Linux window system driver"
+	bool "PowerVR rogue Linux window system driver"
+	depends on !POWERVR_ROGUE
 	default n
 	help
 	  Imagination gpu driver for Linux window system
