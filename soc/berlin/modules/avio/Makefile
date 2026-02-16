@@ -224,6 +224,7 @@ ifeq ($(CONFIG_AVIO_PLATYPUS),y)
 AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/fw_inc/platypus
 AVIO_DHUB_CFG_OBJS += dhub/configs/vsxxx/platypus/dhub_priv.o
 else ifneq ($(filter y, $(CONFIG_AVIO_DOLPHIN) $(CONFIG_AVIO_DOLPHIN_A0)), )
+ccflags-y += -DCONFIG_SUPPORT_DHUB_TA
 ifeq ($(CONFIG_AVIO_DOLPHIN),y)
 AVIO_CFG_PATH += -I$(AVIO_ABS_PATH)/fw_inc/dolphin
 else ifeq ($(CONFIG_AVIO_DOLPHIN_A0),y)

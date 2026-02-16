@@ -101,9 +101,11 @@ int drv_dhub_initialize_dhub(void *h_dhub_ctx)
 
 	display_info = avio_get_fastlogo_status();
 
+#ifdef CONFIG_SUPPORT_DHUB_TA
 	/* initialize dhub */
 	if (hDhubCtx->isTeeEnabled)
 		DhubInitialize();
+#endif //CONFIG_SUPPORT_DHUB_TA
 
 	/*Disable Autopush before initialization of VPP DHUB*/
 	if (!display_info.u.status)
