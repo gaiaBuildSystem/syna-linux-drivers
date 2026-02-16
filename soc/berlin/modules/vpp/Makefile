@@ -13,7 +13,7 @@ else ifneq ($(filter y, $(CONFIG_AVIO_MYNA2) $(CONFIG_AVIO_MYNA) $(CONFIG_AVIO_K
     ccflags-y += -DUSE_KLAMATH=1
     else
     SOC_FOLDER := myna2
-    CHIP_FOLDER := chip-myna
+    CHIP_FOLDER := chip-myna2
     ccflags-y += -DUSE_MYNA=1
     endif
 endif

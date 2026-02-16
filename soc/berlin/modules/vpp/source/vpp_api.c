@@ -8,6 +8,7 @@
 #include "avio_sub_module.h"
 #include "vpp_res_info.h"
 
+#include "vpp.h"
 #include "linux/delay.h"
 
 #define VPP_CPCBTG_RESET_WAIT_TIME_MS	(100)
@@ -560,6 +561,11 @@ int MV_VPP_GetResInfo(int res_index, RESOLUTION_INFO *p_res_info)
 	return ret_val;
 }
 
+int MV_VPP_GetPrimaryInterruptNum(void)
+{
+	return SYNA_VPP_PRIMARY_INTR_NUM;
+}
+
 EXPORT_SYMBOL(MV_VPP_Init);
 EXPORT_SYMBOL(MV_VPP_DisplayFrame);
 EXPORT_SYMBOL(MV_VPP_make_frame_data);
@@ -572,3 +578,4 @@ EXPORT_SYMBOL(MV_VPP_GetResInfo);
 EXPORT_SYMBOL(MV_VPP_GetDispOutParams);
 EXPORT_SYMBOL(MV_VPP_UpdatePlaneInfo);
 EXPORT_SYMBOL(MV_VPP_GetPlaneInfo);
+EXPORT_SYMBOL(MV_VPP_GetPrimaryInterruptNum);

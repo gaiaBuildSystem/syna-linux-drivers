@@ -29,6 +29,7 @@
 #include "drm_syna_gem.h"
 #include "syna_drm.h"
 #include "syna_vpp.h"
+#include "vpp_api.h"
 #include "drm_syna_port.h"
 #include "panel/panel.h"
 #include "avio_core.h"
@@ -90,7 +91,7 @@ static void syna_irq_handler(void *data)
 	/* Allow isr_processing (fbcon,logo, etc.) callback
 	 * for only one CPCB in dual CPCB system also.
 	 */
-	if (vblankParam->crtc_no == CPCB_1) {
+	if (vblankParam->crtc_no == MV_VPP_GetPrimaryInterruptNum()) {
 		if (dev_priv->syna_vpp_isr_process)
 			dev_priv->syna_vpp_isr_process(dev);
 	}
