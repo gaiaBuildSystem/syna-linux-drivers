@@ -124,6 +124,8 @@ static int syna_panel_dsi_prepare(struct drm_panel *panel)
 
 	display_info = avio_get_fastlogo_status();
 
+	syna_bridge_enable();
+
 	/* Release MIPI from Reset */
 	avio_module_mipirst_set_gpio_val(0);
 	if (!display_info.u.status)
@@ -140,6 +142,8 @@ static int syna_panel_dsi_prepare(struct drm_panel *panel)
 static int syna_panel_dsi_unprepare(struct drm_panel *panel)
 {
 	int err;
+
+	syna_bridge_disable();
 
 	/* Reset the MIPI */
 	avio_module_mipirst_set_gpio_val(1);

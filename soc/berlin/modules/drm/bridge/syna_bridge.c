@@ -36,3 +36,19 @@ void syna_bridge_deinit(void)
 	if (syna_bridge_funcs.deinit)
 		syna_bridge_funcs.deinit();
 }
+
+int syna_bridge_disable(void)
+{
+	if (syna_bridge_funcs.disable)
+		return syna_bridge_funcs.disable();
+
+	return 0;
+}
+
+int syna_bridge_enable(void)
+{
+	if (syna_bridge_funcs.enable)
+		return syna_bridge_funcs.enable();
+
+	return 0;
+}

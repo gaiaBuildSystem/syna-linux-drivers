@@ -39,7 +39,6 @@ struct lt9611 {
 	struct regmap *regmap;
 	bool ac_mode;
 	bool power_on;
-	bool sleep;
 	struct i2c_client *client;
 	u32 vic;
 
@@ -477,6 +476,50 @@ void lt9611_bridge_modeset(struct display_timing *synaPanelTimings)
 	lt9611_modeset(lt9611, &dmode);
 }
 
+static void lt9611_disable(struct lt9611 *lt9611)
+{
+	// power off sequence from mainline driver.
+	const struct reg_sequence lt9611_poweroff_setup[] = {
+		{ 0x8130, 0x6a }, //Disable HDMI output
+	};
+
+	if (lt9611->power_on)
+		regmap_multi_reg_write(lt9611->regmap, lt9611_poweroff_setup, ARRAY_SIZE(lt9611_poweroff_setup));
+}
+
+static int lt9611_bridge_disable(void)
+{
+	if (lt9611) {
+		lt9611_disable(lt9611);
+		if (!IS_ERR(lt9611->reset_gpio))
+			gpiod_set_value_cansleep(lt9611->reset_gpio, 1);
+		if (!IS_ERR(lt9611->enable_gpio))
+			gpiod_direction_output(lt9611->enable_gpio, 0);
+		lt9611->power_on = false;
+	}
+
+	return 0;
+}
+
+static int lt9611_bridge_enable(void)
+{
+	int ret;
+
+	if (!lt9611 || lt9611->power_on)
+		return 0;
+
+	if (!IS_ERR(lt9611->enable_gpio))
+		gpiod_direction_output(lt9611->enable_gpio, 1);
+	if (!IS_ERR(lt9611->reset_gpio))
+		gpiod_set_value_cansleep(lt9611->reset_gpio, 0);
+
+	ret = lt9611_init(lt9611);
+	if (ret)
+		dev_err(lt9611->dev, "LT9611 enable init failed\n");
+
+	return ret;
+}
+
 int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyna_bridge_funcs)
 {
 	int bridge_i2c_bus;
@@ -528,7 +571,6 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 
 	lt9611->dev = &client->dev;
 	lt9611->client = client;
-	lt9611->sleep = false;
 
 	lt9611->regmap = devm_regmap_init_i2c(client, &lt9611_regmap_config);
 	if (IS_ERR(lt9611->regmap)) {
@@ -544,7 +586,8 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 					"enable", GPIOD_ASIS, "lt9611-enable");
 	if (PTR_ERR(lt9611->enable_gpio) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
-	else
+
+	if (!IS_ERR(lt9611->enable_gpio))
 		gpiod_direction_output(lt9611->enable_gpio, 1);
 
 	lt9611->reset_gpio = devm_fwnode_gpiod_get(&pdev->dev,
@@ -553,7 +596,8 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 						GPIOD_ASIS, "lt9611-reset");
 	if (PTR_ERR(lt9611->reset_gpio) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
-	else
+
+	if (!IS_ERR(lt9611->reset_gpio))
 		gpiod_direction_output(lt9611->reset_gpio, 0);
 
 	if (!display_info.u.status)
@@ -566,6 +610,8 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 
 	psyna_bridge_funcs->modeset = lt9611_bridge_modeset;
 	psyna_bridge_funcs->deinit = lt9611_bridge_deinit;
+	psyna_bridge_funcs->disable = lt9611_bridge_disable;
+	psyna_bridge_funcs->enable = lt9611_bridge_enable;
 
 	return 0;
 
