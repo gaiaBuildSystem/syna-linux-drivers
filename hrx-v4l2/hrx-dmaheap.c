@@ -18,7 +18,7 @@
 
 #include "hrx-dmaheap.h"
 #include "kernel_compatibility.h"
-
+#include "berlin_meta.h"
 
 DEFINE_MUTEX(hrx_dh_mutex);
 static bool dh_memdev_init;
@@ -32,6 +32,7 @@ struct syna_hrx_dh_memdev {
 };
 
 struct syna_hrx_dhub_buf {
+	struct berlin_meta* bm_meta;
 	struct device		*dev;
 	void				*vaddr;   //Virtual address of kernel space only frmae
 	void				*paddr;   //Physical address frame
@@ -54,6 +55,7 @@ struct syna_hrx_dhub_buf {
 	memory_type_t			mem_type;
 	struct bm_pt_param		pt_param;
 	struct vb2_buffer		*vb;
+
 };
 
 static struct syna_hrx_dh_memdev *alloc_memdev(const char *heap_name, memory_type_t mem_type)
@@ -313,6 +315,12 @@ static void *get_hrx_dh_alloc(struct syna_hrx_dh_memdev *memdev,
 		if (dma_buf_begin_cpu_access(buf->cookie, DMA_BIDIRECTIONAL) != 0) {
 			dev_err(&memdev->dev, "%s: dma_buf_begin_cpu_access failed\n", __func__);
 			ret = -ENOMEM;
+			goto failed_cpu_access;
+		}
+
+		buf->bm_meta = bm_fetch_meta(buf->cookie);
+		if (!buf->bm_meta) {
+			pr_err("non-contig bm refuse to fetch meta\n");
 			goto failed_cpu_access;
 		}
 
@@ -674,10 +682,13 @@ static void *vb2_syna_hrx_dh_attach_dmabuf(struct vb2_buffer *vb,
 	if (ret) {
 		dev_err(dev, "bm refuse to register: %d\n", ret);
 		kfree(buf);
-		return ERR_PTR(-EINVAL);
+		/* At this point we don't know if the memory is contiguous or not. For the
+		 * contiguous case, error should not be returned, attach should still happen
+		 */
+	} else {
+		buf->paddr_pt = (void *)buf->pt_param.phy_addr;
 	}
 
-	buf->paddr_pt = (void *)buf->pt_param.phy_addr;
 	buf->dev = dev;
 	buf->vb = vb;
 	buf->cookie = dbuf;
