@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1048,6 +1048,7 @@ dhdpcie_chip_support_msi(dhd_bus_t *bus)
 	DHD_PRINT(("%s: buscorerev=%d chipid=0x%x\n",
 		__FUNCTION__, bus->sih->buscorerev, si_chipid(bus->sih)));
 	if (bus->sih->buscorerev <= 14 ||
+		si_chipid(bus->sih) == BCM4381_CHIP_ID ||
 		si_chipid(bus->sih) == BCM4385_CHIP_ID ||
 		si_chipid(bus->sih) == BCM4376_CHIP_ID ||
 		si_chipid(bus->sih) == BCM4361_CHIP_ID ||
@@ -1071,6 +1072,7 @@ dhdpcie_chip_support_fw_boot_intr(dhd_bus_t *bus)
 	 * 2. Though 4383 buscorerev > 68 boot interrupt is not supported yet
 	 */
 	if ((bus->sih->buscorerev < 68) || (si_chipid(bus->sih) == BCM4383_CHIP_ID) ||
+		(si_chipid(bus->sih) == BCM4381_CHIP_ID) ||
 		(si_chipid(bus->sih) == BCM4382_CHIP_ID)) {
 		return FALSE;
 	}

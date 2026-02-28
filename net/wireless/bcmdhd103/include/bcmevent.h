@@ -3,7 +3,7 @@
  *
  * Dependencies: bcmeth.h
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -22,7 +22,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -630,6 +630,7 @@ typedef struct wl_event_sdb_trans {
 #define WLC_E_PRUNE_ASSOC_DISALLOWED		44u	/* Assoc is not allowed */
 #define WLC_E_PRUNE_LINK_MISMATCH		45u	/* Number of link mismatch  */
 #define WLC_E_PRUNE_SCORE_ZERO			46u	/* Prune due to score is 0 */
+#define WLC_E_PRUNE_SEC_CTRL_FRM_DISABLED	47u	/* Prune AP due to no SCF */
 
 /* WPA failure reason codes carried in the WLC_E_PSK_SUP event */
 #define WLC_E_SUP_OTHER			0u	/* Other reason */
@@ -677,6 +678,12 @@ typedef struct wl_event_sdb_trans {
 #define WLC_E_SUP_BIGTK_BAD_LINK_ID	40u	/* Bad BIGTK link id */
 #define WLC_E_SUP_FT_ELEM_CNT_MISMATCH	41u	/* Element cnt mismatch with num of elem in FTIE */
 #define WLC_E_SUP_M4_TX_NOACK		42u	/* No ack to M4 TX */
+#define WLC_E_SUP_NO_CIGTK		43u	/* Encapsulated CIGTK missing */
+#define WLC_E_SUP_NO_MLO_CIGTK		44u	/* Encapsulated MLO CIGTK missing */
+#define WLC_E_SUP_CIGTK_DECRYPT_FAIL	45u	/* CIGTK decrypt failure */
+#define WLC_E_SUP_CIGTK_UPDATE_FAIL	46u	/* CIGTK update failure */
+#define WLC_E_SUP_CIGTK_BAD_KEY_IDX	47u	/* Bad CIGTK key index */
+#define WLC_E_SUP_CIGTK_BAD_LINK_ID	48u	/* Bad CIGTK link id */
 
 /* event msg for WLC_E_SUP_PTK_UPDATE */
 typedef struct wlc_sup_ptk_update {
@@ -1456,6 +1463,7 @@ typedef enum {
 	CHANSW_INIT = 3,	/* channel set at WLC up time */
 	CHANSW_ASSOC = 4,	/* channel switch due to association */
 	CHANSW_CAL = 5,		/* channel switch due to calibration */
+	CHANSW_DSO = 6,         /* channel switch due to DSO */
 	CHANSW_IOVAR = 7,	/* channel switch due to IOVAR */
 	CHANSW_NAN_SCAN = 8,	/* channel switch due to NAN Scan */
 	CHANSW_APCS = 9,	/* Channel switch from AP channel select module */

@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -406,6 +406,7 @@ extern uint64 osl_sysuptime_ns(void);
 #define OSL_TIME_MS()		OSL_SYSUPTIME()
 #define OSL_TIME_US()		OSL_SYSUPTIME_US()
 #define OSL_TIME_NS()		OSL_SYSUPTIME_NS()
+#define OSL_TIME_MNS()		OSL_NS_TO_MNS(OSL_TIME_NS())
 
 #define OSL_DURATION_NS_START()		OSL_TIME_NS()
 #define OSL_DURATION_NS(start)		((uint32)(OSL_TIME_NS() - (start)))
@@ -413,6 +414,22 @@ extern uint64 osl_sysuptime_ns(void);
 #define OSL_DURATION_US(start)		((uint32)(OSL_TIME_US() - (start)))
 #define OSL_DURATION_MS_START()		OSL_TIME_MS()
 #define OSL_DURATION_MS(start)		((OSL_TIME_MS() - (start)))
+#define OSL_DURATION_MNS_START()	OSL_TIME_MNS()
+#define OSL_DURATION_MNS(start)		((OSL_TIME_MNS() - (start)))
+
+/* Convert between MNS and NS units */
+#define OSL_MNS_TO_NS(x) (((uint64)x) << 20LLU)
+#define OSL_NS_TO_MNS(x) (uint32)(x >> 20LLU)
+
+/* Convert between MNS and MS
+ * Both of these conversions use fixed-point fractional approximations.
+ */
+#define OSL_MNS_TO_MS(mns) ((uint64)mns + (uint64)(mns >> 5) + (uint64)(mns >> 6))
+
+/* Note: the following is intended for MS values no greater than 0x04000000 (~18 hours) since
+ * the operation is done in 32 bits and a multiplication step will overflow with larger values.
+ */
+#define OSL_MS_TO_MNS(ms) ((uint32)((ms * 0x3dU) >> 6U))
 
 extern uint64 osl_localtime_ns(void);
 extern void osl_get_localtime(uint64 *sec, uint64 *usec);

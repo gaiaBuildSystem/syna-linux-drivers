@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -21,7 +21,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3753,6 +3753,9 @@ static struct kobj_type dhd_logger_ktype = {
 #ifdef CSI_SUPPORT
 /* Function to show current ccode */
 static ssize_t read_csi_data(struct file *filp, struct kobject *kobj,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	const
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 	struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
 {
 	dhd_info_t *dhd = to_dhd(kobj);

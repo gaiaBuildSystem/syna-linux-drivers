@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -9099,8 +9099,11 @@ static int wl_cfgvendor_send_stats_info(struct wiphy *wiphy,
 		WL_ERR(("Failed to put number of radios, ret=%d\n", ret));
 		goto fail;
 	}
-
+#ifdef LINKSTAT_EXT_SUPPORT
 	ret = nla_put(skb, ANDR_LSTAT_ATTRIBUTE_STATS_INFO, len, data);
+#else
+	ret = nla_put(skb, ANDR_ML_LSTAT_ATTRIBUTE_STATS_INFO, len, data);
+#endif /* LINKSTAT_EXT_SUPPORT */
 	if (unlikely(ret)) {
 		WL_ERR(("Failed to put stats info , ret=%d\n", ret));
 		goto fail;
@@ -9827,7 +9830,7 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 	}
 #endif /* LINKSTAT_EXT_SUPPORT */
 
-	if ((cfg->stas_associated >= 1) && !wl_get_drv_status(cfg, CONNECTED, inet_ndev)) {
+	if (!wl_get_drv_status(cfg, CONNECTED, inet_ndev)) {
 		WL_ERR(("Sta is not connected to an AP!\n"));
 		COMPAT_MEMCOPY_IFACE(*output, *total_len, wifi_link_stat, iface);
 		err = BCME_OK;

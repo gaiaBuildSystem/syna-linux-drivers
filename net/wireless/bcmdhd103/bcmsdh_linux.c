@@ -1,7 +1,7 @@
 /*
  * SDIO access interface for drivers - linux specific (pci only)
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -467,6 +467,16 @@ void bcmsdh_oob_intr_unregister(bcmsdh_info_t *bcmsdh)
 		disable_irq(bcmsdh_osinfo->oob_irq_num);
 		bcmsdh_osinfo->oob_irq_enabled = FALSE;
 	}
+
+#ifdef HOST_WAKE_IRQ_CPUCORE
+#ifdef BCMDHD_MODULAR
+	irq_set_affinity_hint(bcmsdh_osinfo->oob_irq_num, NULL);
+#else
+	irq_set_affinity(bcmsdh_osinfo->oob_irq_num, NULL);
+#endif /* BCMDHD_MODULAR */
+#endif /* HOST_WAKE_IRQ_CPUCORE */
+	irq_set_affinity_notifier(bcmsdh_osinfo->oob_irq_num, NULL);
+
 	free_irq(bcmsdh_osinfo->oob_irq_num, bcmsdh);
 	bcmsdh_osinfo->oob_irq_registered = FALSE;
 }

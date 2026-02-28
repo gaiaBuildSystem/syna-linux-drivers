@@ -1,7 +1,7 @@
 /*
  * Platform Dependent file for usage of Preallocted Memory
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -419,7 +419,9 @@ err_skb_alloc:
 	 */
 	pr_err("Failed to skb_alloc for WLAN\n");
 	for (j = 0; j < i; j++) {
-		dev_kfree_skb(wlan_static_skb[j]);
+		if (wlan_static_skb[j]) {
+			dev_kfree_skb(wlan_static_skb[j]);
+		}
 	}
 	return -ENOMEM;
 }
@@ -432,20 +434,25 @@ dhd_exit_wlan_mem(void)
 #ifdef CONFIG_BCMDHD_PREALLOC_MEMDUMP
 	if (wlan_static_dhd_memdump_ram) {
 		DUMP_BUF_MFREE(wlan_static_dhd_memdump_ram);
+		wlan_static_dhd_memdump_ram = NULL;
 	}
+
 #endif /* CONFIG_BCMDHD_PREALLOC_MEMDUMP */
 
 #ifdef BCMPCIE
 	if (wlan_static_if_flow_lkup) {
-		kvfree(wlan_static_if_flow_lkup);
+		DUMP_BUF_MFREE(wlan_static_if_flow_lkup);
+		wlan_static_if_flow_lkup = NULL;
 	}
 #else
 	if (wlan_static_dhd_wlfc_buf) {
-		kfree(wlan_static_dhd_wlfc_buf);
+		DUMP_BUF_MFREE(wlan_static_dhd_wlfc_buf);
+		wlan_static_dhd_wlfc_buf = NULL;
 	}
 
 	if (wlan_static_dhd_wlfc_hanger) {
-		kfree(wlan_static_dhd_wlfc_hanger);
+		DUMP_BUF_MFREE(wlan_static_dhd_wlfc_hanger);
+		wlan_static_dhd_wlfc_hanger = NULL;
 	}
 #endif /* BCMPCIE */
 	if (wlan_static_dhd_info_buf) {
@@ -454,14 +461,17 @@ dhd_exit_wlan_mem(void)
 #else
 		kfree(wlan_static_dhd_info_buf);
 #endif /* BCMPCIE */
+		wlan_static_dhd_info_buf = NULL;
 	}
 
 	if (wlan_static_dhd_log_dump_buf) {
 		DUMP_BUF_MFREE(wlan_static_dhd_log_dump_buf);
+		wlan_static_dhd_log_dump_buf = NULL;
 	}
 
 	if (wlan_static_dhd_log_dump_buf_ex) {
 		DUMP_BUF_MFREE(wlan_static_dhd_log_dump_buf_ex);
+		wlan_static_dhd_log_dump_buf_ex = NULL;
 	}
 
 	if (wlan_static_scan_buf1) {
@@ -470,6 +480,7 @@ dhd_exit_wlan_mem(void)
 #else
 		kfree(wlan_static_scan_buf1);
 #endif /* BCMPCIE */
+		wlan_static_scan_buf1 = NULL;
 	}
 
 	if (wlan_static_scan_buf0) {
@@ -478,6 +489,7 @@ dhd_exit_wlan_mem(void)
 #else
 		kfree(wlan_static_scan_buf0);
 #endif /* BCMPCIE */
+		wlan_static_scan_buf0 = NULL;
 	}
 
 	for (i = 0; i < PREALLOC_WLAN_SEC_NUM; i++) {
@@ -487,11 +499,15 @@ dhd_exit_wlan_mem(void)
 #else
 			kfree(wlan_mem_array[i].mem_ptr);
 #endif /* BCMPCIE */
+			wlan_mem_array[i].mem_ptr = NULL;
 		}
 	}
 
 	for (i = 0; i < WLAN_SKB_BUF_NUM; i++) {
-		dev_kfree_skb(wlan_static_skb[i]);
+		if (wlan_static_skb[i]) {
+			dev_kfree_skb(wlan_static_skb[i]);
+			wlan_static_skb[i] = NULL;
+		}
 	}
 
 	return;

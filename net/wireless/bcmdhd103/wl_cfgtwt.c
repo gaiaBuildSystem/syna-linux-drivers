@@ -1,7 +1,7 @@
 /*
  * Target Wake Time
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1290,6 +1290,9 @@ wl_cfgtwt_notify_event(struct bcm_cfg80211 *cfg,
 	int err = BCME_OK;
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
 	const wl_twt_event_t *twt_event = (wl_twt_event_t *)data;
+#ifdef PROP_TXSTATUS_VSDB
+	s32 bsscfg_idx = ntoh32(e->bsscfgidx);
+#endif /* PROP_TXSTATUS_VSDB */
 
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 	skb = CFG80211_VENDOR_EVENT_ALLOC(wiphy, ndev_to_wdev(ndev),
@@ -1304,10 +1307,30 @@ wl_cfgtwt_notify_event(struct bcm_cfg80211 *cfg,
 	case WL_TWT_EVENT_SETUP:
 		err = wl_cfgtwt_update_setup_response(skb,
 			(void *)twt_event->event_info);
+#ifdef PROP_TXSTATUS_VSDB
+			if (!err && (cfg->twt_auto_sched == FALSE)) {
+				if (!(cfg->twt_if_bitmap & (1 << bsscfg_idx))) {
+					cfg->twt_count++;
+				}
+				cfg->twt_auto_sched = FALSE;
+				cfg->twt_if_bitmap |= (1 << bsscfg_idx);
+				wl_wlfc_toggle_check(cfg);
+			}
+#endif /* PROP_TXSTATUS_VSDB */
 		break;
 	case WL_TWT_EVENT_TEARDOWN:
 		err = wl_cfgtwt_update_teardown_response(skb,
 			(void *)twt_event->event_info);
+#ifdef PROP_TXSTATUS_VSDB
+			if (!err && (cfg->twt_auto_sched == FALSE)) {
+				if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+					if (cfg->twt_count)
+						cfg->twt_count--;
+				}
+				cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+				wl_wlfc_toggle_check(cfg);
+			}
+#endif /* PROP_TXSTATUS_VSDB */
 		break;
 	case WL_TWT_EVENT_INFOFRM:
 		err = wl_cfgtwt_update_infoframe_response(skb,

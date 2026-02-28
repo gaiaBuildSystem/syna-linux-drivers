@@ -1,7 +1,7 @@
 /*
  * Common header file for all error codes.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -164,9 +164,10 @@ typedef int bcmerror_t;
 #define BCME_RETRY			-86	/* Ask caller to retry */
 #define BCME_NOTINFRASTA		-87	/* Not Infra STA */
 #define BCME_BADSCANCHAN		-88	/* Bad scan channel list */
+#define BCME_SCANDEFERRED		-89	/* scan request is queued to run later */
 
 /* Add new one above and update BCME_LAST!! */
-#define BCME_LAST			BCME_BADSCANCHAN
+#define BCME_LAST			BCME_SCANDEFERRED
 
 /* This error code is *internal* to the driver, and is not propogated to users. It should
  * only be used by IOCTL patch handlers as an indication that it did not handle the IOCTL.
@@ -268,7 +269,8 @@ typedef int bcmerror_t;
 	"Programming failed due to OTP Locked - need a reset", \
 	"retry indication",		\
 	"Not Infra STA",		\
-	"Bad scan channel list",		\
+	"Bad scan channel list",	\
+	"scan request is queued to run later",	\
 }
 
 /* FTM error codes [-1024, -2047] */

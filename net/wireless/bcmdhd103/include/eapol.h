@@ -5,7 +5,7 @@
  * IEEE Std 802.1X-2001
  * IEEE 802.1X RADIUS Usage Guidelines
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -24,7 +24,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -272,6 +272,9 @@ typedef BWL_PRE_PACKED_STRUCT struct {
 #define WPA2_KEY_DATA_SUBTYPE_MLO_IGTK		17
 #define WPA2_KEY_DATA_SUBTYPE_MLO_BIGTK		18
 #define WPA2_KEY_DATA_SUBTYPE_MLO_LINK_KDE	19
+#define WPA2_KEY_DATA_SUBTYPE_CIGTK		24	/* OUI type 00-0f-ac:24 */
+/* Note: MLO_CIGTK KDE data type is not ratified yet in Spec */
+#define WPA2_KEY_DATA_SUBTYPE_MLO_CIGTK		25	/* OUI type 00-0f-ac:25 */
 
 #ifdef WL_RCM
 /* note: RCM comes after WPA2 but SUBTYPE space is same as WPA2 */
@@ -358,6 +361,27 @@ typedef BWL_PRE_PACKED_STRUCT struct {
 	uint8	mac[ETHER_ADDR_LEN];
 	uint8	data[BCM_FLEX_ARRAY];
 } BWL_POST_PACKED_STRUCT eapol_wpa2_key_mlo_link_encap_t;
+
+/* CIGTK encapsulation */
+#define EAPOL_RSN_CIPN_SIZE	6u
+#define EAPOL_WPA2_KEY_CIGTK_ENCAP_HDR_LEN	8u
+
+typedef BWL_PRE_PACKED_STRUCT struct {
+	uint16	key_id;
+	uint8	cipn[EAPOL_RSN_CIPN_SIZE];
+	uint8	key[EAPOL_WPA_MAX_KEY_SIZE];
+} BWL_POST_PACKED_STRUCT eapol_wpa2_key_cigtk_encap_t;
+
+/* MLO CIGTK encapsulation */
+#define EAPOL_RSN_MLO_CIPN_SIZE	6u
+#define EAPOL_WPA2_KEY_MLO_CIGTK_ENCAP_HDR_LEN	9u
+
+typedef BWL_PRE_PACKED_STRUCT struct {
+	uint16	key_id;
+	uint8	cipn[EAPOL_RSN_MLO_CIPN_SIZE];
+	uint8	link_id;		/* rsvd [0-3], link_id [4-7] */
+	uint8	key[EAPOL_WPA_MAX_KEY_SIZE];
+} BWL_POST_PACKED_STRUCT eapol_wpa2_key_mlo_cigtk_encap_t;
 
 /* STAKey encapsulation */
 typedef BWL_PRE_PACKED_STRUCT struct {

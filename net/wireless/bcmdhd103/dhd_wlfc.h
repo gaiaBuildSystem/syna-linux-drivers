@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -18,7 +18,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -61,6 +61,8 @@ typedef bool (*f_processpkt_t)(void *p, void *arg);
 #define WLFC_NO_TRAFFIC	-1
 #define WLFC_MULTI_TRAFFIC 0
 
+//#define DHD_WLFC_SUPPRESSED_TIMEOUT	500
+
 #define BUS_RETRIES 1	/* # of retries before aborting a bus tx operation */
 
 /** 16 bits will provide an absolute max of 65536 slots */
@@ -75,6 +77,9 @@ typedef bool (*f_processpkt_t)(void *p, void *arg);
 #define WLFC_HANGER_PKT_STATE_BUSRETURNED		2
 #define WLFC_HANGER_PKT_STATE_COMPLETE			\
 	(WLFC_HANGER_PKT_STATE_TXSTATUS | WLFC_HANGER_PKT_STATE_BUSRETURNED)
+
+#define SIMUTX_MAX_CNT_DOWN		1024
+#define SIMUTX_VALID_COMP_TXS	4
 
 typedef enum {
 	Q_TYPE_PSQ, /**< Power Save Queue, contains both delayed and suppressed packets */
@@ -181,6 +186,11 @@ typedef struct wlfc_mac_descriptor {
 #ifdef QMONITOR
 	dhd_qmon_t qmon;
 #endif /* QMONITOR */
+
+#ifdef DHD_WLFC_SUPPRESSED_TIMEOUT
+	int prev_suppr_transit_count;
+	unsigned long prev_suppr_transit_tmo;
+#endif /* DHD_WLFC_SUPPRESSED_TIMEOUT */
 
 #ifdef PROP_TXSTATUS_DEBUG
 	uint32 dstncredit_sent_packets;
@@ -376,6 +386,8 @@ typedef struct athost_wl_status_info {
 #ifdef BULK_DEQUEUE
 	uint8   max_release_count;
 #endif /* BULK_DEQUEUE */
+	uint8 last_ifid;
+	uint32 simutx_cntdown;
 } athost_wl_status_info_t;
 
 /** Please be mindful that total pkttag space is 32 octets only */

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -18,7 +18,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -60,15 +60,15 @@
 
 #define EPI_VERSION_DEV		103.10.0
 
-#define EPI_COMMIT_ID		"(6-g61af7ed)"
+#define EPI_COMMIT_ID		"(123091c)"
 
 /* Driver Version String, ASCII, 32 chars max */
 #if defined (WLTEST)
-#define EPI_VERSION_STR		"103.20.38 (WLTEST)"
+#define EPI_VERSION_STR		"103.20.53 (WLTEST)"
 #elif (defined (BCMDBG_ASSERT) && !defined (BCMDBG_ASSERT_DISABLED))
-#define EPI_VERSION_STR		"103.20.38 (ASSRT)"
+#define EPI_VERSION_STR		"103.20.53 (ASSRT)"
 #else
-#define EPI_VERSION_STR		"103.20.38"
+#define EPI_VERSION_STR		"103.20.53"
 #endif /* BCMINTERNAL */
 
 #endif /* _epivers_h_ */

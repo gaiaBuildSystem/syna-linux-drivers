@@ -6,7 +6,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -25,7 +25,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -11692,9 +11692,11 @@ enum wl_nan_cfg_ctrl2_flags2 {
 	WL_NAN_CTRL2_FLAG2_AUTODAM_DISABLE_INFRA_SCC		=	(1u << 5u), /* bit 5 */
 	WL_NAN_CTRL2_FLAG2_ENABLE_MCAST_RATE_HIST		=	(1u << 6u), /* bit 6 */
 	/* Allow FW to add fw-generated attr (only DCEA for now) in Host based pairing */
-	WL_NAN_CTRL2_FLAG2_ENABLE_FW_ADD_ATTR			=	(1u << 7u) /* bit 7 */
+	WL_NAN_CTRL2_FLAG2_ENABLE_FW_ADD_ATTR			=	(1u << 7u), /* bit 7 */
+	/* Advertise 6GHz supported band in Device Capability IE depending on CLM */
+	WL_NAN_CTRL2_FLAG2_6G_IN_DEV_CAP			=	(1u << 8u) /* bit 8 */
 };
-#define WL_NAN_CTRL2_FLAGS2_MASK	0x000000ff
+#define WL_NAN_CTRL2_FLAGS2_MASK	0x000001ff
 
 /*
  * WL_NAN_CMD_CFG_BAND, WL_NAN_CMD_CFG_RSSI_THRESHOLD(Get only)
@@ -14068,6 +14070,8 @@ typedef enum {
 	WL_WSEC_INFO_BSS_INCLUDE_RSNXE = (WL_WSEC_INFO_BSS_BASE + 0x10),
 	/* set/get OWE DH group Id */
 	WL_WSEC_INFO_OWE_DH_GROUP = (WL_WSEC_INFO_BSS_BASE + 0x11),
+	/* Secure Control Frame (SCF) support */
+	WL_WSEC_INFO_BSS_SCF = (WL_WSEC_INFO_BSS_BASE + 0x12),
 
 	/*
 	 * ADD NEW ENUM ABOVE HERE
@@ -16588,6 +16592,7 @@ typedef struct wl_user_roamcache {
 #define WL_ROAM_PROF_POWER_PREF_BIT_OFFSET 13u	/* Offset for Power Pref bit */
 #define WL_ROAM_PROF_POWER_PREF_BIT_MASK   0x3u	/* Bit mask: bits 13 and 14 indicate power pref */
 #define WL_ROAM_PROF_SKIP_FILS		(1u << 15u) /* Flag to skip FILS */
+#define WL_ROAM_PROF_LOW_SPAN_SCAN	(1u << 16u) /* Flag to use low span mode for full scans */
 
 typedef enum wl_roam_prof_power_pref {
 	WL_NO_POWER_PREF = 0x0u,
@@ -26499,6 +26504,23 @@ typedef struct wl_timestamps_v2 {
 	uint64	sysuptime_ns;	  /**< sysup time in nanoseconds */
 } wl_timestamps_v2_t;
 
+#define WL_TIMESTAMP_VERSION_3 3
+typedef struct wl_timestamps_v3 {
+	uint16	version;	/**< structure version */
+	uint16	length;		/**< length of this struct */
+	uint32  PAD;
+	uint64	cpu_cycles;	/**< cpu cycle count */
+	uint64	pgt;		/**< local pgt master timestamp in nano seconds */
+	uint64	pmu_timer;	/**< legacy pmu timer in microseconds */
+	uint32	tsf_main;	/**< main slice tsf */
+	uint32	tsf_aux;	/**< aux slice tsf */
+	uint32	tsf_scan;	/**< scan core tsf */
+	uint32	tsfo_main;	/**< main core BSS TSF offset */
+	uint32	tsfo_aux;	/**< aux core BSS TSF offset */
+	uint32  PAD;
+	uint64	sysuptime_ns;	/**< sysup time in nanoseconds */
+} wl_timestamps_v3_t;
+
 #define WL_LOW_LATENCY_CONFIG_V1	1u
 #define WL_LOW_LATENCY_V1		1u
 
@@ -28556,11 +28578,16 @@ enum {
 	WL_UHR_CMD_SMD_BOOST		= 5u,		/* SMD targets boost config */
 	WL_UHR_CMD_ICF_TYPE		= 6u,		/* Configure ICF type selection */
 	WL_UHR_CMD_MLPM_ENAB            = 7u,           /* enable/disable MLPM feature */
+	WL_UHR_CMD_MLPM_TEST		= 8u,		/* Test iovar for MLPM */
+	WL_UHR_CMD_SBT_EXEC_MODE        = 9u,           /* SBT ST Execution routing mode */
+	WL_UHR_CMD_DSO_ENAB             = 10u,          /* enable/disable DSO feature in UHR */
 
 	/* Add new sub command IDs above this here... */
 	/* debug/test related sub-commands, mogrify? */
 	WL_UHR_CMD_DBG			= 0x1000u,	/* configure UHR debug facilities */
 	WL_UHR_CMD_NPCA_CONFIG		= 0x1001u,	/* config NPCA feature, testing for now */
+	WL_UHR_CMD_NPCA_TEST		= 0x1002u,	/* Trigger NPCA test */
+	WL_UHR_CMD_DSO_CONFIG		= 0x1003u,	/* config DSO feature, testing for now */
 };
 
 /* UHR ICF Type values for WL_UHR_CMD_ICF_TYPE */
@@ -28585,6 +28612,11 @@ enum {
 	WL_DPS_CMD_ENAB		= 0u,	/* enable/disable DPS feature */
 	WL_DPS_CMD_MODE		= 1u,	/* configure DPS operation mode */
 	WL_DPS_CMD_ASSIST	= 2u,	/* configure DPS assist mode */
+
+	/* Add new sub command IDs above this here... */
+	/* Debug/test related sub-commands */
+	WL_DPS_CMD_ZEBU_CTRL	= 1000u,	/* configure ZEBU control (BCMQT only) */
+	WL_DPS_CMD_MURTS_CTRL	= 1001u,	/* configure MU-RTS control (BCMQT only) */
 };
 
 /* DPS Mode values */
@@ -28720,6 +28752,14 @@ typedef struct wl_npca_config_req {
 	chanspec_t npca_chanspec;
 	uint16 flags;
 } wl_npca_config_req_v1_t;
+
+#define WL_DSO_CONFIG_VERSION_1 1
+typedef struct wl_dso_config_req {
+	uint16  version;
+	uint16  len;
+	chanspec_t dso_chanspec;
+	uint16 flags;
+} wl_dso_config_req_v1_t;
 
 /* Shadow Bank Manager iovar support */
 #define WL_SBM_IOV_VERSION_1		1u
@@ -28914,6 +28954,45 @@ typedef struct wl_arm_cache_pwr_stats {
 	uint16 NumSTBYExits;
 	uint16 NumDeepSleepExits;
 } wl_arm_cache_pwr_stats_t;
+
+/* Roam history storage and report */
+#define WL_ROAM_HIST_SZ	64u
+#define WL_ROAM_HIST_VER_0	0u
+typedef struct wl_roam_hist_entry {
+	struct ether_addr BSSID;
+	chanspec_t chanspec;
+} wl_roam_hist_entry_t;
+
+typedef struct wl_roam_hist_list {
+	uint16 version;				/* structure version */
+	uint16 length;				/* data length (including version and length) */
+	wl_roam_hist_entry_t entry[BCM_FLEX_ARRAY];
+} wl_roam_hist_list_t;
+
+/**
+ * Control frame protection command IDs for WSEC_INFO sub-interface
+ * Used for IOVAR communication with user space
+ */
+enum wl_ctrl_frame_prot_cmd_ids {
+	WL_SCF_GET_VERSION	= 0u,	/* Get module version */
+	WL_SCF_ENABLE		= 1u,	/* Enable/disable SCF */
+	WL_SCF_STATUS		= 2u,	/* Get current status */
+	WL_SCF_CONFIG		= 3u	/* Set/get configuration */
+};
+
+/* Control frame protection version */
+#define WL_SCF_VERSION_V1		1u	/* SCF module version */
+
+/* Control frame protection status flags - returned by WL_SCF_STATUS */
+#define WL_SCF_STATUS_ACTIVE		1u	/* SCF assoc is currently active */
+#define WL_SCF_STATUS_INACTIVE		0u	/* SCF assoc is not active */
+
+/**
+ * Control frame protection config flags - used with WL_SCF_CONFIG
+ * These flags control SCF behavior and policy decisions
+ */
+#define WL_SCF_JOIN_ONLY_CIP_ENABLED_AP		0x00000001u	/* Join only CIP-enabled APs */
+#define WL_SCF_ENABLE_CIP_FOR_WIFI8_AP_ONLY	0x00000002u	/* Enable CIP only for WiFi 8 APs */
 
 /* SAR related parameter and structure */
 #define MAX_5G_SUBBAND       4

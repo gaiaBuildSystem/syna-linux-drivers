@@ -1,7 +1,7 @@
 /*
  * Broadcom device-specific manifest constants.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -134,6 +134,7 @@
 #define BCM4381_D11AX_ID	0x4446		/* 4381 802.11ax dualband device */
 #define BCM4382_D11AX_ID	0x4447		/* 4382 802.11ax dualband device */
 // Please leave this UNRELEASEDCHIP MOG wrapper in place even if there is nothing inside it
+#define BCM4381_D11AX_ID	0x4446		/* 4381 802.11ax triband device */
 #define BCM4383_D11AX_ID	0x4449		/* 4383 802.11ax triband device */
 #define BCM4384_D11BE_ID	0x4452		/* 4384 802.11be dualband device */
 #define BCM4387_D11AX_ID	0x4433		/* 4387 802.11ax dualband device */
@@ -158,6 +159,7 @@
 #define BCM43103_D11BN_ID	0x4458		/* 43103 802.11bn dualband device */
 #define BCM43111_D11BN_ID	0x4459		/* 43111 802.11bn dualband device */
 #define BCM43109_CHIP_ID	0xA865          /* 43109 chipcommon chipid */
+#define BCM43109_SYNA_CHIP_ID	0x4592          /* 43109 ALT syna chipid */
 #define BCM43110_CHIP_ID	0xA866		/* 43110 chipcommon chipid */
 
 #define BCM43756E_D11AX6E_ID	0x44a3		/* 43756E 802.11ax 6E device */
@@ -205,9 +207,11 @@
 #define BCM4399_CHIP_ID		0x4399          /* 4399 chipcommon chipid */
 
 /* Chip Family IDs */
-#define BCM43109_CHIP(chipid)	(CHIPID(chipid) == BCM43109_CHIP_ID)
+#define BCM43109_CHIP(chipid)	((CHIPID(chipid) == BCM43109_CHIP_ID) || \
+				(CHIPID(chipid) == BCM43109_SYNA_CHIP_ID))
 
-#define BCM43109_CHIP_GRPID	BCM43109_CHIP_ID
+#define BCM43109_CHIP_GRPID	BCM43109_CHIP_ID: \
+				case BCM43109_SYNA_CHIP_ID
 
 #define BCM43110_CHIP(chipid)	(CHIPID(chipid) == BCM43110_CHIP_ID)
 

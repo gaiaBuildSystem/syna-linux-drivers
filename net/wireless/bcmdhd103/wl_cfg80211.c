@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -545,7 +545,11 @@ static int wl_cfg80211_is_wfa_cap_ie(wlcfg_assoc_info_t *info, struct bcm_cfg802
 /*
  * cfg80211_ops api/callback list
  */
-static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed);
+static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
+	u32 changed);
 #ifdef WLAIBSS_MCHAN
 static bcm_struct_cfgdev* bcm_cfg80211_add_ibss_if(struct wiphy *wiphy, char *name);
 static s32 bcm_cfg80211_del_ibss_if(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev);
@@ -577,15 +581,24 @@ static s32 wl_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static s32
 wl_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 	enum nl80211_tx_power_setting type, s32 mbm);
 #else
 static s32
 wl_cfg80211_set_tx_power(struct wiphy *wiphy,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 	enum nl80211_tx_power_setting type, s32 dbm);
 #endif /* WL_CFG80211_P2P_DEV_IF */
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static int wl_cfg80211_get_tx_power(struct wiphy *wiphy,
 	struct wireless_dev *wdev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	uint link_id,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0) */
@@ -821,14 +834,12 @@ static int wl_cfg80211_get_rsn_capa(const bcm_tlv_t *wpa2ie, const u8** rsn_cap)
 
 static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *dev, void *data);
 static void wl_free_wdev(struct bcm_cfg80211 *cfg);
-#ifdef CONFIG_CFG80211_INTERNAL_REGDB
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 11))
 static int
 #else
 static void
 #endif /* kernel version < 3.10.11 */
 wl_cfg80211_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
-#endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
 static s32 wl_update_bss_info(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	bool update_ssid, u8 *mac);
@@ -2286,10 +2297,10 @@ chanspec_t wl_cfg80211_get_shared_freq(struct wiphy *wiphy, wl_iftype_t wl_iftyp
 	return chspec;
 }
 
+#ifdef PROP_TXSTATUS_VSDB
 static void
 wl_wlfc_enable(struct bcm_cfg80211 *cfg, bool enable)
 {
-#ifdef PROP_TXSTATUS_VSDB
 #if defined(BCMSDIO)
 	bool wlfc_enabled = FALSE;
 	s32 err;
@@ -2320,7 +2331,203 @@ wl_wlfc_enable(struct bcm_cfg80211 *cfg, bool enable)
 			cfg->wlfc_on = false;
 	}
 #endif /* defined(BCMSDIO) */
+}
+
+void
+wl_wlfc_toggle_check(struct bcm_cfg80211 *cfg)
+{
+	bool enable = FALSE;
+	dhd_pub_t *dhd;
+
+	if (cfg->vndev_count || cfg->twt_count)
+		enable = TRUE;
+
+	dhd = (dhd_pub_t *)(cfg->pub);
+	if (!dhd) {
+		return;
+	}
+
+	if (dhd->proptx_force >= 0)
+		enable = dhd->proptx_force;
+
+	wl_wlfc_enable(cfg, enable);
+
+	return;
+}
+
+static void wl_wlfc_work_handler(struct work_struct * work)
+{
+	struct bcm_cfg80211 *cfg = NULL;
+	BCM_SET_CONTAINER_OF(cfg, work, struct bcm_cfg80211, wlfc_work.work);
+	WL_DBG(("Enter \n"));
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+
+	wl_wlfc_toggle_check(cfg);
+
+}
+
+void
+wl_cfg80211_set_wlfc(struct net_device * dev, bool enable)
+{
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
+
+	return wl_wlfc_enable(cfg, enable);
+}
+
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+void
+wl_cfg80211_twt_update(struct net_device * dev, uint16 cmd)
+{
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
+	s32 bsscfg_idx = wl_get_bssidx_by_wdev(cfg, ndev_to_wdev(dev));
+
+	if (cmd == WL_TWT_CMD_SETUP || cmd == WL_TWT_CMD_AUTOSCHED) {
+		if (!(cfg->twt_if_bitmap & (1 << bsscfg_idx))) {
+			cfg->twt_count++;
+		}
+		cfg->twt_if_bitmap |= (1 << bsscfg_idx);
+		if (cmd == WL_TWT_CMD_AUTOSCHED)
+			cfg->twt_auto_sched = TRUE;
+		else
+			cfg->twt_auto_sched = FALSE;
+
+		schedule_delayed_work(&cfg->wlfc_work, 0);
+	} else if (cmd == WL_TWT_CMD_TEARDOWN) {
+		if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+			if (cfg->twt_count)
+				cfg->twt_count--;
+		}
+		cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+		cfg->twt_auto_sched = FALSE;
+		schedule_delayed_work(&cfg->wlfc_work, 0);
+	}
+
+	return;
+}
+#endif /* WL_TWT_HAL_IF || WL_TWT */
 #endif /* PROP_TXSTATUS_VSDB */
+
+struct wireless_dev *
+wl_cfg80211_p2p_if_add(struct bcm_cfg80211 *cfg,
+	wl_iftype_t wl_iftype,
+	char const *name, u8 *mac_addr, s32 *ret_err)
+{
+	u16 chspec;
+	s16 cfg_type;
+	long timeout;
+	s32 err;
+	u16 p2p_iftype;
+	int dhd_mode;
+	struct net_device *new_ndev = NULL;
+	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
+	struct ether_addr *p2p_addr;
+
+	*ret_err = BCME_OK;
+	if (!cfg->p2p) {
+		WL_ERR(("p2p not initialized\n"));
+		return NULL;
+	}
+
+#if defined(WL_CFG80211_P2P_DEV_IF)
+	if (wl_iftype == WL_IF_TYPE_P2P_DISC) {
+		/* Handle Dedicated P2P discovery Interface */
+		return wl_cfgp2p_add_p2p_disc_if(cfg);
+	}
+#endif /* WL_CFG80211_P2P_DEV_IF */
+
+	if (wl_iftype == WL_IF_TYPE_P2P_GO) {
+		p2p_iftype = WL_P2P_IF_GO;
+	} else {
+		p2p_iftype = WL_P2P_IF_CLIENT;
+	}
+
+	/* Dual p2p doesn't support multiple P2PGO interfaces,
+	 * p2p_go_count is the counter for GO creation
+	 * requests.
+	 */
+	if ((cfg->p2p->p2p_go_count > 0) && (wl_iftype == WL_IF_TYPE_P2P_GO)) {
+		WL_ERR(("FW does not support multiple GO\n"));
+		*ret_err = -ENOTSUPP;
+		return NULL;
+	}
+	if (!cfg->p2p->on) {
+		p2p_on(cfg) = true;
+		wl_cfgp2p_set_firm_p2p(cfg);
+		wl_cfgp2p_init_discovery(cfg);
+	}
+
+	strlcpy(cfg->p2p->vir_ifname, name, sizeof(cfg->p2p->vir_ifname));
+	/* In concurrency case, STA may be already associated in a particular channel.
+	 * so retrieve the current channel of primary interface and then start the virtual
+	 * interface on that.
+	 */
+	 chspec = wl_cfg80211_get_shared_freq(wiphy, wl_iftype);
+
+	/* For P2P mode, use P2P-specific driver features to create the
+	 * bss: "cfg p2p_ifadd"
+	 */
+	wl_set_p2p_status(cfg, IF_ADDING);
+	bzero(&cfg->if_event_info, sizeof(cfg->if_event_info));
+	cfg_type = wl_cfgp2p_get_conn_idx(cfg);
+	if (cfg_type < BCME_OK) {
+		wl_clr_p2p_status(cfg, IF_ADDING);
+		WL_ERR(("Failed to get connection idx for p2p interface"
+			", error code = %d", cfg_type));
+		return NULL;
+	}
+
+	p2p_addr = wl_to_p2p_bss_macaddr(cfg, cfg_type);
+	memcpy(p2p_addr->octet, mac_addr, ETH_ALEN);
+
+	err = wl_cfgp2p_ifadd(cfg, p2p_addr,
+		htod32(p2p_iftype), chspec);
+	if (unlikely(err)) {
+		wl_clr_p2p_status(cfg, IF_ADDING);
+		WL_ERR((" virtual iface add failed (%d) \n", err));
+		return NULL;
+	}
+
+	/* Wait for WLC_E_IF event with IF_ADD opcode */
+	timeout = wait_event_interruptible_timeout(cfg->netif_change_event,
+		((wl_get_p2p_status(cfg, IF_ADDING) == false) &&
+		(cfg->if_event_info.valid)),
+		msecs_to_jiffies(MAX_WAIT_TIME));
+	if (timeout > 0 && !wl_get_p2p_status(cfg, IF_ADDING) && cfg->if_event_info.valid) {
+		wl_if_event_info *event = &cfg->if_event_info;
+		new_ndev = wl_cfg80211_post_ifcreate(bcmcfg_to_prmry_ndev(cfg), event,
+			event->mac, cfg->p2p->vir_ifname, false);
+		if (unlikely(!new_ndev)) {
+			goto fail;
+		}
+
+		if (wl_iftype == WL_IF_TYPE_P2P_GO) {
+			cfg->p2p->p2p_go_count++;
+		}
+		/* Fill p2p specific data */
+		wl_to_p2p_bss_ndev(cfg, cfg_type) = new_ndev;
+		wl_to_p2p_bss_bssidx(cfg, cfg_type) = event->bssidx;
+
+		WL_ERR((" virtual interface(%s) is "
+			"created net attach done\n", cfg->p2p->vir_ifname));
+#if defined(BCMDONGLEHOST)
+		dhd_mode = (wl_iftype == WL_IF_TYPE_P2P_GC) ?
+			DHD_FLAG_P2P_GC_MODE : DHD_FLAG_P2P_GO_MODE;
+		DNGL_FUNC(dhd_cfg80211_set_p2p_info, (cfg, dhd_mode));
+#endif /* defined(BCMDONGLEHOST) */
+			/* reinitialize completion to clear previous count */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0))
+			INIT_COMPLETION(cfg->iface_disable);
+			INIT_COMPLETION(cfg->iface_up);
+#else
+			init_completion(&cfg->iface_disable);
+			init_completion(&cfg->iface_up);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) */
+
+			return new_ndev->ieee80211_ptr;
+	}
+
+fail:
+	return NULL;
 }
 
 static int
@@ -2516,7 +2723,10 @@ wl_cfg80211_iface_state_ops(struct wireless_dev *wdev,
 			wl_android_bcnrecv_stop(ndev, WL_BCNRECV_CONCURRENCY);
 #endif /* WL_BCNRECV */
 			wl_cfgscan_cancel_scan(cfg);
+#ifdef PROP_TXSTATUS_VSDB
+			/* pre enable proptx first to avoid interface add missing */
 			wl_wlfc_enable(cfg, true);
+#endif /* PROP_TXSTATUS_VSDB */
 #ifdef WLTDLS
 			/* disable TDLS if number of connected interfaces is >= 1 */
 			wl_cfg80211_tdls_config(cfg, TDLS_STATE_IF_CREATE, false);
@@ -2620,7 +2830,7 @@ wl_cfg80211_iface_state_ops(struct wireless_dev *wdev,
 			/* Enable back TDLS if connected interface is <= 1 */
 			wl_cfg80211_tdls_config(cfg, TDLS_STATE_IF_DELETE, false);
 #endif /* WLTDLS */
-			wl_wlfc_enable(cfg, false);
+
 #ifdef WL_MLO
 			if ((wl_iftype == WL_IF_TYPE_STA) || ((wl_iftype == WL_IF_TYPE_AP) &&
 				!wl_get_drv_status_all(cfg, AP_CREATED)) ||
@@ -3336,7 +3546,11 @@ static s32 wl_set_retry(struct net_device *dev, u32 retry, bool l)
 	return err;
 }
 
-static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
+static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
+	u32 changed)
 {
 	struct bcm_cfg80211 *cfg = (struct bcm_cfg80211 *)wiphy_priv(wiphy);
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
@@ -3811,7 +4025,12 @@ wl_cfg80211_post_ifcreate(struct net_device *ndev,
 	s32 ret = BCME_OK;
 	u16 mode;
 	u8 mac_addr[ETH_ALEN];
-	u16 wl_iftype;
+	u16 wl_iftype = 0;
+#ifdef PROP_TXSTATUS_VSDB
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+	s32 bsscfg_idx = 0;
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+#endif /* PROP_TXSTATUS_VSDB */
 
 	if (!ndev || !event) {
 		WL_ERR(("Wrong arg\n"));
@@ -3860,7 +4079,12 @@ wl_cfg80211_post_ifcreate(struct net_device *ndev,
 		addr = mac_addr;
 	}
 
-	if (iface_type == NL80211_IFTYPE_P2P_CLIENT) {
+	/* Only perform MAC address validation for P2P_CLIENT when called from cfg80211_ops
+	 * as MAC address is saved only when P2P client IF_ADD is called from cfg80211_ops.
+	 * Skip for DHD direct event handler calls.
+	 */
+	if ((iface_type == NL80211_IFTYPE_P2P_CLIENT) &&
+			((!rtnl_lock_reqd) && (cfg->p2p && cfg->p2p->on))) {
 		struct ether_addr *p2p_addr;
 		s16 cfg_type = wl_cfgp2p_get_conn_idx(cfg);
 		if (cfg_type < BCME_OK) {
@@ -3962,6 +4186,20 @@ wl_cfg80211_post_ifcreate(struct net_device *ndev,
 #ifdef SUPPORT_SET_CAC
 	wl_cfg80211_set_cac(cfg, 0);
 #endif /* SUPPORT_SET_CAC */
+
+#ifdef PROP_TXSTATUS_VSDB
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+	bsscfg_idx = wl_get_bssidx_by_wdev(cfg, wdev);
+	if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+		cfg->twt_auto_sched = FALSE;
+		if (cfg->twt_count)
+			cfg->twt_count--;
+	}
+	cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+	cfg->vndev_count++;
+	wl_wlfc_toggle_check(cfg);
+#endif /* PROP_TXSTATUS_VSDB */
 
 	return new_ndev;
 
@@ -4095,6 +4333,11 @@ _wl_cfg80211_post_ifdel(struct net_device *ndev, bool rtnl_lock_reqd, s32 ifidx)
 	s32 ret = BCME_OK;
 	struct bcm_cfg80211 *cfg;
 	struct net_info *netinfo = NULL;
+#ifdef PROP_TXSTATUS_VSDB
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+	s32 bsscfg_idx = 0;
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+#endif /* PROP_TXSTATUS_VSDB */
 
 	if (!ndev || !ndev->ieee80211_ptr) {
 		/* No wireless dev done for this interface */
@@ -4160,6 +4403,22 @@ _wl_cfg80211_post_ifdel(struct net_device *ndev, bool rtnl_lock_reqd, s32 ifidx)
 #ifdef SUPPORT_SET_CAC
 	wl_cfg80211_set_cac(cfg, 1);
 #endif /* SUPPORT_SET_CAC */
+#ifdef PROP_TXSTATUS_VSDB
+	if (ret == BCME_OK) {
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+		bsscfg_idx = wl_get_bssidx_by_wdev(cfg, ndev_to_wdev(ndev));
+		if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+			cfg->twt_auto_sched = FALSE;
+			if (cfg->twt_count)
+				cfg->twt_count--;
+		}
+		cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+		if (cfg->vndev_count)
+			cfg->vndev_count--;
+		wl_wlfc_toggle_check(cfg);
+	}
+#endif /* PROP_TXSTATUS_VSDB */
 exit:
 	return ret;
 }
@@ -4334,6 +4593,19 @@ wl_cfg80211_del_iface(struct wiphy *wiphy, struct wireless_dev *wdev)
 #ifdef SUPPORT_SET_CAC
 		wl_cfg80211_set_cac(cfg, 1);
 #endif /* SUPPORT_SET_CAC */
+#ifdef PROP_TXSTATUS_VSDB
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+		if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+			cfg->twt_auto_sched = FALSE;
+			if (cfg->twt_count)
+				cfg->twt_count--;
+		}
+		cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+		if (cfg->vndev_count)
+			cfg->vndev_count--;
+		wl_wlfc_toggle_check(cfg);
+#endif /* PROP_TXSTATUS_VSDB */
 		return ret;
 	}
 
@@ -8479,10 +8751,16 @@ exit:
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static s32
 wl_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 	enum nl80211_tx_power_setting type, s32 mbm)
 #else
 static s32
 wl_cfg80211_set_tx_power(struct wiphy *wiphy,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 	enum nl80211_tx_power_setting type, s32 dbm)
 #endif /* WL_CFG80211_P2P_DEV_IF */
 {
@@ -8529,6 +8807,9 @@ wl_cfg80211_set_tx_power(struct wiphy *wiphy,
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static int wl_cfg80211_get_tx_power(struct wiphy *wiphy,
 	struct wireless_dev *wdev,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	int radio_idx,
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0) */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	uint link_id,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0) */
@@ -12827,7 +13108,6 @@ exit:
 	return OSL_ERROR(ret);
 }
 
-#ifdef CONFIG_CFG80211_INTERNAL_REGDB
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 11))
 static int
 #else
@@ -12879,7 +13159,6 @@ wl_cfg80211_reg_notifier(
 	return;
 #endif /* kernel version < 3.10.11 */
 }
-#endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
 #ifdef CONFIG_PM
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
@@ -14625,6 +14904,11 @@ static s32
 wl_handle_sta_link_action(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 {
 	s32 ret = BCME_OK;
+#ifdef PROP_TXSTATUS_VSDB
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+	s32 bsscfg_idx = 0;
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+#endif /* PROP_TXSTATUS_VSDB */
 
 	WL_INFORM_MEM(("assoc_state:%s link action:%s\n",
 		wl_get_assoc_state_str(as->assoc_state),
@@ -14659,6 +14943,20 @@ wl_handle_sta_link_action(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 			WL_ERR(("Unsupported link state:%d\n", as->link_action));
 			ret = -ENOTSUPP;
 	}
+
+#ifdef PROP_TXSTATUS_VSDB
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+	/* reset twt state on every link change */
+	bsscfg_idx = ntoh32(as->event_msg->bsscfgidx);
+	if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+		cfg->twt_auto_sched = FALSE;
+		if (cfg->twt_count)
+			cfg->twt_count--;
+	}
+	cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+	wl_wlfc_toggle_check(cfg);
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+#endif /* PROP_TXSTATUS_VSDB */
 
 	if (unlikely(ret)) {
 		WL_ERR(("link_action:%d handling failed\n", as->link_action));
@@ -18737,9 +19035,7 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
 	cfg->random_mac_enabled = FALSE;
 #endif /* SUPPORT_RANDOM_MAC_SCAN */
 
-#ifdef CONFIG_CFG80211_INTERNAL_REGDB
 	wdev->wiphy->reg_notifier = wl_cfg80211_reg_notifier;
-#endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
 #if defined(WL_ENABLE_P2P_IF) || defined(WL_NEWCFG_PRIVCMD_SUPPORT)
 	err = wl_cfgp2p_attach_p2p(cfg);
@@ -18765,6 +19061,9 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
 	INIT_DELAYED_WORK(&cfg->recovery_work, wl_cfg80211_recovery_handler);
 	INIT_DELAYED_WORK(&cfg->loc.work, wl_cfgscan_listen_complete_work);
 	INIT_DELAYED_WORK(&cfg->ap_work, wl_cfg80211_ap_timeout_work);
+#ifdef PROP_TXSTATUS_VSDB
+	INIT_DELAYED_WORK(&cfg->wlfc_work, wl_wlfc_work_handler);
+#endif /* PROP_TXSTATUS_VSDB */
 	mutex_init(&cfg->pm_sync);
 
 #ifdef TPUT_DEBUG_DUMP
@@ -20682,6 +20981,9 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 	}
 
 	dhd_cancel_delayed_work_sync(&cfg->recovery_work);
+#ifdef PROP_TXSTATUS_VSDB
+	dhd_cancel_delayed_work_sync(&cfg->wlfc_work);
+#endif /* PROP_TXSTATUS_VSDB */
 
 	if (cfg->p2p_supported) {
 		wl_clr_p2p_status(cfg, GO_NEG_PHASE);
@@ -26270,6 +26572,9 @@ wl_notify_twt_event(struct bcm_cfg80211 *cfg,
 	int err = BCME_OK;
 	struct net_device *ndev = cfgdev_to_wlc_ndev(cfgdev, cfg);
 	const wl_twt_event_t *twt_event = (wl_twt_event_t *)data;
+#ifdef PROP_TXSTATUS_VSDB
+	s32 bsscfg_idx = ntoh32(e->bsscfgidx);
+#endif /* PROP_TXSTATUS_VSDB */
 
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 	skb = CFG80211_VENDOR_EVENT_ALLOC(wiphy, ndev_to_wdev(ndev), BRCM_TWT_VENDOR_EVENT_BUF_LEN,
@@ -26283,9 +26588,28 @@ wl_notify_twt_event(struct bcm_cfg80211 *cfg,
 	switch (twt_event->event_type) {
 		case WL_TWT_EVENT_SETUP:
 			err = wl_update_twt_setup_evt_info(skb, (void*)twt_event->event_info);
+#ifdef PROP_TXSTATUS_VSDB
+			if (!err && (cfg->twt_auto_sched == FALSE)) {
+				if (!(cfg->twt_if_bitmap & (1 << bsscfg_idx))) {
+					cfg->twt_count++;
+				}
+				cfg->twt_if_bitmap |= (1 << bsscfg_idx);
+				wl_wlfc_toggle_check(cfg);
+			}
+#endif /* PROP_TXSTATUS_VSDB */
 			break;
 		case WL_TWT_EVENT_TEARDOWN:
 			err = wl_update_twt_teardown_evt_info(skb, (void*)twt_event->event_info);
+#ifdef PROP_TXSTATUS_VSDB
+			if (!err && (cfg->twt_auto_sched == FALSE)) {
+				if (cfg->twt_if_bitmap & (1 << bsscfg_idx)) {
+					if (cfg->twt_count)
+						cfg->twt_count--;
+				}
+				cfg->twt_if_bitmap &= ~(1 << bsscfg_idx);
+				wl_wlfc_toggle_check(cfg);
+			}
+#endif /* PROP_TXSTATUS_VSDB */
 			break;
 		case WL_TWT_EVENT_INFOFRM:
 			err = wl_update_twt_info_frm_evt_info(skb, (void*)twt_event->event_info);

@@ -1,7 +1,7 @@
 /*
  * wlu capext procesing. Shared between DHD and WLU tool.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -418,6 +418,7 @@ static const capext_bitpos_to_string_map_t capext_wl_features_subfeature_map[] =
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_AOP_SCAN, "aop_scan"),
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_AP_BCN_SSID_MITIGATE,
 	"ap_bcn_ssid_mitigate"),
+	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_SCAN_QUEUE_SUPPORT, "scn_queuesup"),
 
 	CAPEXT_SUBFEATURE_MAP(WLC_CAPEXT_FEATURE_BITPOS_MAX, NULL)
 };

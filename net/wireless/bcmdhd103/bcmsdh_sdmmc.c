@@ -1,7 +1,7 @@
 /*
  * BCMSDH Function Driver for the native SDIO/MMC driver in the Linux Kernel
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -70,11 +70,34 @@ extern volatile bool dhd_mmc_suspend;
 #endif
 #include "bcmsdh_sdmmc.h"
 
+/* dhd_sd_mmc_timing_uhs: dhd module param to select different SDIO Bus Speed Mode */
+int dhd_sd_mmc_timing_uhs = -1;
+module_param(dhd_sd_mmc_timing_uhs, int, 0);
+
 /* dhd_sd_mmc_clk_rate: dhd module param to select SDIO clock frequency
  * dhd_sd_mmc_clk_rate <= Max freq of selected SDIO Bus Speed Mode
- * */
+ */
 uint dhd_sd_mmc_clk_rate = 0;
 module_param(dhd_sd_mmc_clk_rate, uint, 0);
+
+/* dhd_sd_mmc_ds: dhd module param to set dongle drive strength */
+char dhd_sd_mmc_ds[2] = {' '};
+module_param_string(dhd_sd_mmc_ds, dhd_sd_mmc_ds, 2, 0);
+#define MAX_DTS_INDEX       (3)
+#define DRVSTRN_MAX_CHAR    ('D')
+#define DRVSTRN_IGNORE_CHAR (' ')
+
+/* Set the drive strength on the host side to match the device impedance */
+static void sdmmc_set_drv_type(sdioh_info_t *sd, uint drv);
+/* DTS_vals are derived based on "sdioh_set_driver_strength" implementation and
+ * SDIO F0 Drive Strength register definition from the SDIO v3.0 specification
+ */
+char DTS_vals[MAX_DTS_INDEX + 1] = {
+	0x10, /* Driver Strength Type-A */
+	0x00, /* Driver Strength Type-B */
+	0x20, /* Driver Strength Type-C */
+	0x30, /* Driver Strength Type-D */
+	};
 
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 0, 0)) || (LINUX_VERSION_CODE >= \
 	KERNEL_VERSION(4, 4, 0))
@@ -291,7 +314,8 @@ sdioh_set_driver_strength(struct sdio_func *func, uint8 level)
 	sdio_writeb(func, reg, SDIOD_CCCR_DRIVER_STRENGTH, &err);
 
 	if (err) {
-		sd_err(("sd_ds error for write SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+		sd_err(("sd_ds error for write "
+			"SDIOD_CCCR_DRIVER_STRENGTH : 0x%x (%d)\n", err, err));
 		goto done;
 	} else {
 		sd_info(("SYNA: sd_ds set cccr driver strength 0x%x\n", reg));
@@ -336,10 +360,30 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 	sd->func[3] = NULL;
 #endif /* defined (BT_OVER_SDIO) */
 
+	/* Override the clock rate if needed */
+	if (dhd_sd_mmc_clk_rate) {
+		sdmmc_set_clock_rate(sd, dhd_sd_mmc_clk_rate);
+	}
+
+	/* Override the drive strength value. */
+	if (*dhd_sd_mmc_ds != DRVSTRN_IGNORE_CHAR) {
+		int ds_offset = (int)DRVSTRN_MAX_CHAR - (int)(*dhd_sd_mmc_ds);
+		if ((ds_offset >= 0) && (ds_offset <= MAX_DTS_INDEX)) {
+			ds_offset = MAX_DTS_INDEX - ds_offset;
+			sdmmc_set_drv_type(sd, ((DTS_vals[ds_offset] & 0xF0) >> 4));
+			sdioh_set_driver_strength(sd->func[0], (DTS_vals[ds_offset]));
+		}
+	}
+
 #if defined(CONFIG_ARCH_MESON) || defined(CONFIG_ARCH_ASTRA)
 	if (func->device == BCM4381_CHIP_ID ||
 		func->device == BCM4382_CHIP_ID || 
 		func->device == BCM4384_CHIP_ID) {
+		if (*dhd_sd_mmc_ds == DRVSTRN_IGNORE_CHAR) {
+			/* Default drive strngth 'A' for 4612 chip on VIM3 platform */
+			sdmmc_set_drv_type(sd, 1);
+			sdioh_set_driver_strength(sd->func[0], 0x10);
+		}
 		/* Save the device ID for Wi-Fi reset next time */
 		sd->func[0]->device = func->device;
 #ifndef CONFIG_SD_DS_DEFAULT
@@ -347,13 +391,9 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 		/* Avoid the SDIO -84 (EILSEQ) Illegal byte sequence problem. */
 		sdioh_set_driver_strength(sd->func[0], 0x20);
 
-		if (dhd_sd_mmc_clk_rate) {
-			sdmmc_set_clock_rate(sd, dhd_sd_mmc_clk_rate);
-		} else {
-			/* With 22ohm resistors mouting, 4381WLBGA EVB is OK for 200MHz sdclk */
-			if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
-				sdmmc_set_clock_rate(sd, 200*1000*1000);
-			}
+		/* With 22ohm resistors mouting, 4381WLBGA EVB is OK for 200MHz sdclk */
+		if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
+			sdmmc_set_clock_rate(sd, 200*1000*1000);
 		}
 #endif /* CONFIG_SD_DS_DEFAULT */
 	/* 430132E only support clk rate up to SDR50/80Mhz */
@@ -1848,6 +1888,26 @@ sdioh_start(sdioh_info_t *sd, int stage)
 				sd->use_client_ints = TRUE;
 				sd->client_block_size[0] = 64;
 
+				/* Override the clock rate first so the drive
+				 * strength configuration get a chance to be set
+				 * on the dongle side through a successful access
+				 */
+				if (dhd_sd_mmc_clk_rate) {
+					sdmmc_set_clock_rate(sd, dhd_sd_mmc_clk_rate);
+				}
+
+				/* Override the drive strength value. */
+				if (*dhd_sd_mmc_ds != DRVSTRN_IGNORE_CHAR) {
+					int ds_offset = (int)DRVSTRN_MAX_CHAR -
+						(int)(*dhd_sd_mmc_ds);
+					if ((ds_offset >= 0) && (ds_offset <= MAX_DTS_INDEX)) {
+						ds_offset = MAX_DTS_INDEX - ds_offset;
+						sdmmc_set_drv_type(sd,
+							((DTS_vals[ds_offset] & 0xF0) >> 4));
+						sdioh_set_driver_strength(sd->func[0],
+							(DTS_vals[ds_offset]));
+					}
+				}
 #if defined(CONFIG_ARCH_MESON) || defined(CONFIG_ARCH_ASTRA)
 				/* 4381a1 has to decrease the driver strength to 75% for VIM3 */
 				/* Avoid the SDIO -84 (EILSEQ) Illegal byte sequence problem. */
@@ -1855,17 +1915,14 @@ sdioh_start(sdioh_info_t *sd, int stage)
 				    sd->func[0]->device == BCM4382_CHIP_ID ||
 					sd->func[0]->device == BCM4384_CHIP_ID) {
 #ifndef CONFIG_SD_DS_DEFAULT
+					sdmmc_set_drv_type(sd, 0x2);
 					sdioh_set_driver_strength(sd->func[0], 0x20);
 
-					if (dhd_sd_mmc_clk_rate) {
-						sdmmc_set_clock_rate(sd, dhd_sd_mmc_clk_rate);
-					} else {
-						/* With 22ohm resistors mouting, 4381WLBGA EVB
-						 * is OK for 200MHz sdclk
-						 */
-						if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
-							sdmmc_set_clock_rate(sd, 200*1000*1000);
-						}
+					/* With 22ohm resistors mouting, 4381WLBGA EVB
+					 * is OK for 200MHz sdclk
+					 */
+					if (sdmmc_get_clock_rate(sd) != 200*1000*1000) {
+						sdmmc_set_clock_rate(sd, 200*1000*1000);
 					}
 #endif /* CONFIG_SD_DS_DEFAULT */
 				/* 430132E only support clk rate up to 80Mhz */
@@ -2058,7 +2115,7 @@ sdmmc_set_clock_rate(sdioh_info_t *sd, uint hz)
 	struct mmc_ios *ios = &host->ios;
 
 	mmc_host_clk_hold(host);
-	DHD_INFO(("%s: Before change: sd clock rate is %u\n", __FUNCTION__, ios->clock));
+	DHD_ERROR(("%s: Before change: sd clock rate is %u\n", __FUNCTION__, ios->clock));
 	if (hz < host->f_min) {
 		sd_err(("%s: Intended rate is below min rate, setting to min\n", __FUNCTION__));
 		hz = host->f_min;
@@ -2075,6 +2132,21 @@ sdmmc_set_clock_rate(sdioh_info_t *sd, uint hz)
 	ios->clock = hz;
 	host->ops->set_ios(host, ios);
 	sd_print(("%s: After change: sd clock rate is %u\n", __FUNCTION__, ios->clock));
+	mmc_host_clk_release(host);
+}
+
+static void
+sdmmc_set_drv_type(sdioh_info_t *sd, uint drv)
+{
+	struct sdio_func *sdio_func = sd->func[0];
+	struct mmc_host *host = sdio_func->card->host;
+	struct mmc_ios *ios = &host->ios;
+
+	ASSERT((drv >= 0) && (drv <= 3));
+	mmc_host_clk_hold(host);
+	ios->drv_type = drv;
+	host->ops->set_ios(host, ios);
+	DHD_ERROR(("%s: After change: sd drive type is %u\n", __FUNCTION__, ios->drv_type));
 	mmc_host_clk_release(host);
 }
 

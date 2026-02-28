@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1533,8 +1533,8 @@ osl_assert(const char *exp, const char *file, int line)
 	/* Print assert message and give it time to be written to /var/log/messages */
 	if (!in_interrupt() && g_assert_type != 1 && g_assert_type != 3) {
 		const int delay = 3;
-		printk("%s", tempbuf);
-		printk("panic in %d seconds\n", delay);
+		pr_err("%s", tempbuf);
+		pr_err("panic in %d seconds\n", delay);
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(delay * HZ);
 	}
@@ -1542,16 +1542,16 @@ osl_assert(const char *exp, const char *file, int line)
 
 	switch (g_assert_type) {
 	case 0:
-		printk("%s", tempbuf);
+		pr_err("%s", tempbuf);
 		BUG();
 		break;
 	case 1:
 		/* fall through */
 	case 3:
-		printk("%s", tempbuf);
+		pr_err("%s", tempbuf);
 		break;
 	case 2:
-		printk("%s", tempbuf);
+		pr_err("%s", tempbuf);
 		BUG();
 		break;
 	default:

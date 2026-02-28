@@ -1,7 +1,7 @@
 /*
  * HND Run Time Environment ioctl.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -357,41 +357,105 @@ typedef struct {
 #define DSEC_OTP_VER_V1			1u
 
 enum dsec_sboot_xtlv_id {
-	DSEC_OTP_XTLV_NONE			= 0u,	/* Not valid otp tag */
-	DSEC_OTP_XTLV_VER			= 1u,	/* OTP region type */
-	/* 2u is can be used */
+	/* Not valid otp tag */
+	DSEC_OTP_XTLV_NONE  = 0u,
+
+	/* OTP region type */
+	DSEC_OTP_XTLV_VER   = 1u,
+
+	/* 2u can be used for other tags */
 
 	/* RNG Lock Tags: */
-	DSEC_OTP_XTLV_RGN			= 3u,	/* OTP region type */
-	DSEC_OTP_XTLV_DATA			= 4u,	/* OTP region lock data */
+	/* OTP region type */
+	DSEC_OTP_XTLV_RGN   = 3u,
+	/* OTP region lock data */
+	DSEC_OTP_XTLV_DATA  = 4u,
 
 	/* SBOOT Tags: */
-	DSEC_OTP_XTLV_SBOOT_FW_SIG_ENABLE	= 5u,	/* FW signing enable bit */
-	DSEC_OTP_XTLV_SBOOT_FW_SIG_DISABLE	= 6u,	/* FW signing disaable bit */
-	DSEC_OTP_XTLV_SBOOT_ROM_PROTECT_ENABLE	= 7u,	/* ROM protect enable bit */
-	DSEC_OTP_XTLV_SBOOT_ROM_PROTECT_PATCH	= 8u,	/* ROM protect from patch */
-	DSEC_OTP_XTLV_SBOOT_HOST_RD_NONSEC_EN	= 9u,	/* Host read non secure enable bit */
-	DSEC_OTP_XTLV_SBOOT_HOST_RD_NONSEC_DIS	= 10u,	/* Host read non secure disable bit */
-	DSEC_OTP_XTLV_SBOOT_HOST_WR_NONSEC_EN	= 11u,	/* Host write non secure enable bit */
-	DSEC_OTP_XTLV_SBOOT_HOST_WR_NONSEC_DIS	= 12u,	/* Host write non secure disable bit */
-	DSEC_OTP_XTLV_SBOOT_DBGREGS_PROT_ENAB	= 13u,	/* ARM DBG regs protect enable bit */
-	DSEC_OTP_XTLV_SBOOT_DBGREGS_PROT_DIS	= 14u,	/* ARM DBG regs protect disable bit */
-	DSEC_OTP_XTLV_SBOOT_JTAG_PROTECT_ENAB	= 15u,	/* JTAG protect disable bit */
-	DSEC_OTP_XTLV_SBOOT_JTAG_PROTECT_DIS	= 16u,	/* JTAG protect re-enable bit */
-	DSEC_OTP_XTLV_SBOOT_TCAM_PROTECT_SIZE	= 17u,	/* TCAM protect enable size field 8 bits */
-	DSEC_OTP_XTLV_SBOOT_ACTIVATE_SECURITY	= 18u,	/* Active security enable bit */
-	DSEC_OTP_XTLV_SBOOT_KEY_REVOC_BITS	= 19u,	/* Key revocation Bits field 16 bits */
-	DSEC_OTP_XTLV_SBOOT_CUSTOMER_PUB_KEY_1	= 20u,	/* Customer public key 1 field 257 bits */
-	DSEC_OTP_XTLV_SBOOT_CUSTOMER_PUB_KEY_2	= 21u,	/* Customer public key 2 field 257 bits */
-	DSEC_OTP_XTLV_SBOOT_LOT_NUM		= 22u,	/* Chip lot num low bits [0:16] 17 bits */
-	DSEC_OTP_XTLV_SBOOT_WAFER_NUM		= 23u,	/* Chip wafer num 5 bits */
-	DSEC_OTP_XTLV_SBOOT_WAFER_X		= 24u,	/* Chip wafer X 9 bits */
-	DSEC_OTP_XTLV_SBOOT_WAFER_Y		= 25u,	/* Chip wafer Y 9 bits */
-	DSEC_OTP_XTLV_SBOOT_UNLOCK_HASH_VAL	= 26u,	/* Unlock Hash Val 128 bits */
-	DSEC_OTP_XTLV_SBOOT_PRODUCTION_CHIP	= 27u,	/* Production chip bit */
-	DSEC_OTP_XTLV_SBOOT_ENCRYPTION_KEY	= 28u,	/* AES wrapped fw encryption key 320 bits */
-	DSEC_OTP_XTLV_SBOOT_LOT_NUM_MS		= 29u,	/* Chip lot num high bits [17:47] 31 bits */
-	DSEC_OTP_XTLV_SBOOT_OTP_WR_LOCK_ENAB	= 30u,	/* OTP write lock enable bit */
+
+	/* FW signing enable bit */
+	DSEC_OTP_XTLV_SBOOT_FW_SIG_ENABLE	= 5u,
+
+	/* FW signing disable bit */
+	DSEC_OTP_XTLV_SBOOT_FW_SIG_DISABLE	= 6u,
+
+	/* ROM protect enable bit */
+	DSEC_OTP_XTLV_SBOOT_ROM_PROTECT_ENABLE	= 7u,
+
+	/* ROM protect from patch */
+	DSEC_OTP_XTLV_SBOOT_ROM_PROTECT_PATCH	= 8u,
+
+	/* Host read non secure enable bit */
+	DSEC_OTP_XTLV_SBOOT_HOST_RD_NONSEC_EN	= 9u,
+
+	/* Host read non secure disable bit */
+	DSEC_OTP_XTLV_SBOOT_HOST_RD_NONSEC_DIS	= 10u,
+
+	/* Host write non secure enable bit */
+	DSEC_OTP_XTLV_SBOOT_HOST_WR_NONSEC_EN	= 11u,
+
+	/* Host write non secure disable bit */
+	DSEC_OTP_XTLV_SBOOT_HOST_WR_NONSEC_DIS	= 12u,
+
+	/* ARM DBG regs protect enable bit */
+	DSEC_OTP_XTLV_SBOOT_DBGREGS_PROT_ENAB	= 13u,
+
+	/* ARM DBG regs protect disable bit */
+	DSEC_OTP_XTLV_SBOOT_DBGREGS_PROT_DIS	= 14u,
+
+	/* JTAG protect disable bit */
+	DSEC_OTP_XTLV_SBOOT_JTAG_PROTECT_ENAB	= 15u,
+
+	/* JTAG protect re-enable bit */
+	DSEC_OTP_XTLV_SBOOT_JTAG_PROTECT_DIS	= 16u,
+
+	/* TCAM protect enable size field 8 bits */
+	DSEC_OTP_XTLV_SBOOT_TCAM_PROTECT_SIZE	= 17u,
+
+	/* Active security enable bit */
+	DSEC_OTP_XTLV_SBOOT_ACTIVATE_SECURITY	= 18u,
+
+	/* Key revocation bits */
+	DSEC_OTP_XTLV_SBOOT_KEY_REVOC_BITS	= 19u,
+
+	/* Customer public key 1 field 512 bits */
+	DSEC_OTP_XTLV_SBOOT_CUSTOMER_PUB_KEY_1	= 20u,
+
+	/* Production key hash field 512 bits */
+	DSEC_OTP_XTLV_SBOOT_CUSTOMER_PUB_KEY_2	= 21u,
+
+	/* Chip lot num low bits [0:16] 17 bits */
+	DSEC_OTP_XTLV_SBOOT_LOT_NUM		= 22u,
+
+	/* Chip wafer num 5 bits */
+	DSEC_OTP_XTLV_SBOOT_WAFER_NUM		= 23u,
+
+	/* Chip wafer X 9 bits */
+	DSEC_OTP_XTLV_SBOOT_WAFER_X		= 24u,
+
+	/* Chip wafer Y 9 bits */
+	DSEC_OTP_XTLV_SBOOT_WAFER_Y		= 25u,
+
+	/* Unlock Hash Val 128 bits */
+	DSEC_OTP_XTLV_SBOOT_UNLOCK_HASH_VAL	= 26u,
+
+	/* Production chip bit */
+	DSEC_OTP_XTLV_SBOOT_PRODUCTION_CHIP	= 27u,
+
+	/* AES wrapped fw encryption key 320 bits */
+	DSEC_OTP_XTLV_SBOOT_ENCRYPTION_KEY	= 28u,
+
+	/* Chip lot num high bits [17:47] 31 bits */
+	DSEC_OTP_XTLV_SBOOT_LOT_NUM_MS		= 29u,
+
+	/* OTP write lock enable bit */
+	DSEC_OTP_XTLV_SBOOT_OTP_WR_LOCK_ENAB	= 30u,
+
+	/* Security counter 96 bits */
+	DSEC_OTP_XTLV_SBOOT_SECURITY_COUNTER	= 31u,
+
+	/* Production key hash1 field 512 bits */
+	DSEC_OTP_XTLV_SBOOT_PROD_KEY_HASH_1	= 32u,
 };
 
 /* SMBM (Shared Memory Bank Manager) IOVAR sub-command IDs for IOVAR "smbm" */

@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -257,10 +257,11 @@ typedef sta_info_v5_t wlcfg_sta_info_t;
 #define WL_STAINFO_VER WL_STA_VER_5
 #else
 typedef sta_info_v4_t wlcfg_sta_info_t;
+typedef sta_info_v7_t wlcfg_sta_info_v7_t;
 typedef sta_info_v6_t wlcfg_sta_info_v6_t;
 typedef sta_info_v5_t wlcfg_sta_info_v5_t;
 typedef sta_info_v4_t wlcfg_sta_info_v4_t;
-#define IS_STA_INFO_VER(sta) (dtoh16(sta->ver) >= WL_STA_VER_4 && dtoh16(sta->ver) <= WL_STA_VER_6)
+#define IS_STA_INFO_VER(sta) (dtoh16(sta->ver) >= WL_STA_VER_4 && dtoh16(sta->ver) <= WL_STA_VER_7)
 /* Undefined */
 #define WL_STAINFO_VER (-1)
 #endif /* USE_STA_INFO_V6 */
@@ -2372,6 +2373,9 @@ struct bcm_cfg80211 {
 	bool disable_roam_event;
 	struct delayed_work pm_enable_work;
 	struct delayed_work recovery_work;
+#ifdef PROP_TXSTATUS_VSDB
+	struct delayed_work wlfc_work;
+#endif /* PROP_TXSTATUS_VSDB */
 	cfg_hang_recovery_t cfg_recovery;
 
 #ifdef OEM_ANDROID
@@ -2449,6 +2453,10 @@ struct bcm_cfg80211 {
 	int custom_scan_home_away_time;
 #endif /* CUSTOMER_SCAN_TIMEOUT_SETTING */
 	uint8 vif_count;	/* Virtual Interface count */
+	uint8 vndev_count;	/* Virtual network device count */
+	uint8 twt_count;
+	uint16 twt_if_bitmap;
+	bool twt_auto_sched;
 #ifdef WBTEXT
 	struct list_head wbtext_bssid_list;
 	void *wbtext_bssid_list_sync;
@@ -3951,6 +3959,16 @@ extern void update_roam_cache(struct bcm_cfg80211 *cfg, int ioctl_ver);
 extern int wl_cfgnan_get_stats(struct bcm_cfg80211 *cfg);
 #endif /* WL_NAN */
 
+#ifdef PROP_TXSTATUS_VSDB
+void
+wl_cfg80211_set_wlfc(struct net_device * dev, bool enable);
+void
+wl_wlfc_toggle_check(struct bcm_cfg80211 *cfg);
+#if defined(WL_TWT) || defined(WL_TWT_HAL_IF)
+void
+wl_cfg80211_twt_update(struct net_device * dev, uint16 cmd);
+#endif /* WL_TWT_HAL_IF || WL_TWT */
+#endif /* PROP_TXSTATUS_VSDB */
 extern s32 wl_cfg80211_set_wsec_info(struct net_device *dev, uint32 *data,
 	uint16 data_len, int tag);
 #define WL_CHANNEL_ARRAY_INIT(band_chan_arr)	\

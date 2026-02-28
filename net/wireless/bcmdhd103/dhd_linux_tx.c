@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD),
  * Linux-specific network interface for transmit(tx) path
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -21,7 +21,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -807,8 +807,10 @@ BCMFASTPATH(dhd_start_xmit)(struct sk_buff *skb, struct net_device *net)
 		return NETDEV_TX_BUSY;
 	}
 
+#ifndef DHD_WFB
 	ASSERT(ifidx == dhd_net2idx(dhd, net));
 	ASSERT((ifp != NULL) && ((ifidx < DHD_MAX_IFS) && (ifp == dhd->iflist[ifidx])));
+#endif /* !DHD_WFB */
 
 	bcm_object_trace_opr(skb, BCM_OBJDBG_ADD_PKT, __FUNCTION__, __LINE__);
 
@@ -999,7 +1001,9 @@ BCMFASTPATH(dhd_start_xmit)(struct sk_buff *skb, struct net_device *net)
 
 #ifdef DHDTCPSYNC_FLOOD_BLK
 	if (dhd_tcpdata_get_flag(&dhd->pub, pktbuf) == FLAG_SYNCACK) {
-		ifp->tsyncack_txed++;
+		if(ifp) {
+			ifp->tsyncack_txed++;
+		}
 	}
 #endif /* DHDTCPSYNC_FLOOD_BLK */
 
@@ -1033,7 +1037,9 @@ BCMFASTPATH(dhd_start_xmit)(struct sk_buff *skb, struct net_device *net)
 done:
 	DHD_GENERAL_LOCK(&dhd->pub, flags);
 	DHD_BUS_BUSY_CLEAR_IN_TX(&dhd->pub);
-	DHD_IF_CLR_TX_ACTIVE(ifp, DHD_TX_START_XMIT);
+	if(ifp) {
+		DHD_IF_CLR_TX_ACTIVE(ifp, DHD_TX_START_XMIT);
+	}
 	dhd_os_tx_completion_wake(&dhd->pub);
 	dhd_os_busbusy_wake(&dhd->pub);
 	DHD_GENERAL_UNLOCK(&dhd->pub, flags);

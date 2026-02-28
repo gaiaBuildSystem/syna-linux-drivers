@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -23,7 +23,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1616,6 +1616,7 @@ typedef struct dhd_pub {
 	#error "wlfc thread not enabled"
 #endif /* __linux__ */
 #endif /* DHD_WLFC_THREAD */
+	uint32 simutx_limit;
 #endif /* PROP_TXSTATUS */
 #ifdef PNO_SUPPORT
 	void *pno_state;
@@ -2283,6 +2284,9 @@ typedef struct dhd_pub {
 #if defined(DHD_SI_WD_RESET)
 	bool si_wd;
 #endif /* DHD_SI_WD_RESET */
+#ifdef PROP_TXSTATUS_VSDB
+	int proptx_force;
+#endif /* PROP_TXSTATUS_VSDB */
 	uint32 curr_rxcpl;
 	bool low_latency;
 } dhd_pub_t;

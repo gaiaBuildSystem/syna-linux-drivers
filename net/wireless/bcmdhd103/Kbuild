@@ -1,6 +1,6 @@
 # synadhd
 #
-# Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+# Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
 #
 # This software is licensed to you under the terms of the
 # GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -19,7 +19,7 @@
 # SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
 # EXCEED ONE HUNDRED U.S. DOLLARS
 #
-# Copyright (C) 2025, Broadcom.
+# Copyright (C) 2026, Broadcom.
 #
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -66,6 +66,7 @@ endif
 # ASTRA
 CONFIG_ARCH_ASTRA ?= y
 
+#Bus specified from build command, apply common configuration
 ifeq ($(CONFIG_BCMDHD_BUS), sdio)
  $(warning : ** build sdio**)
  CONFIG_BCMDHD_SDIO=y
@@ -128,14 +129,11 @@ CONFIG_BCMDHD_MAP_PATH ?= "\"/vendor/etc/wifi/fw_bcmdhd.map\""
 CONFIG_WL_STATIC_IF ?= y
 CONFIG_WL_VIRTUAL_APSTA ?= y
 CONFIG_WL_NAN ?= y
+CONFIG_MDNS_OFFLOAD ?= n
 
 ifneq ($(CONFIG_ARCH_ASTRA),)
 CONFIG_BCMDHD_OOB=
 CONFIG_BCMDHD_HTPUT=y
-ifneq ($(CONFIG_BCMDHD_SDIO),)
-CONFIG_DHD_USE_STATIC_BUF=
-CONFIG_BCMDHD_PROPTX_ALWAYS_ON=y
-endif
 endif
 # enable HTPUT for 4389
 ifneq ($(CONFIG_BCM4389),)
@@ -332,6 +330,10 @@ endif
 ifneq ($(CONFIG_ANDROID),)
 DHDCFLAGS += -Wframe-larger-than=2400
 DHDCFLAGS += -Wno-unused-function
+ifeq ($(shell test $(KVER_CODE) -ge 601; echo $$?),0)
+DHDCFLAGS += -DWL_AP_PORT_AUTH_BKPORT
+DHDCFLAGS += -DWL_OWE_OFFLD_BKPORT
+endif
 endif
 endif
 
@@ -474,10 +476,15 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
 	DHDCFLAGS += -DWBRC
 # Enable monitor chanspec setting from cfg80211 ops
 	DHDCFLAGS += -DWL_CFG80211_MONITOR
+# Enable WFB-NG feature in DHD, for PCIE only so far
+ifeq ($(CONFIG_BCMDHD_WFB),y)
+	DHDCFLAGS += -DDHD_WFB
+endif
 endif
 
 ifeq ($(CONFIG_ARCH_MESON),)
 ifeq ($(CONFIG_ARCH_ASTRA),)
+ifeq ($(CONFIG_ARCH_DUMMY),)
 ifneq ($(CONFIG_FIB_RULES),)
 # Debugability
 # HAL File dump is supported only for iptable builds(brcm_wlan_iptables_defconfig)
@@ -486,12 +493,13 @@ DHDCFLAGS := $(filter-out -DDHD_DUMP_FILE_WRITE_FROM_KERNEL ,$(DHDCFLAGS))
 endif
 endif
 endif
+endif
 
 # CUSTOMER2 flags
 
 # Basic / Common Feature
 DHDCFLAGS += -DDHDTCPACK_SUPPRESS
-DHDCFLAGS += -DUSE_WL_FRAMEBURST
+DHDCFLAGS += -DUSE_WL_FRAMEBURST -DCUSTOM_FRAMEBURST_SET=1
 DHDCFLAGS += -DUSE_WL_TXBF
 DHDCFLAGS += -DSOFTAP_UAPSD_OFF
 DHDCFLAGS += -DVSDB
@@ -507,8 +515,6 @@ endif
 DHDCFLAGS += -DAPF
 DHDCFLAGS += -DDHD_GET_VALID_CHANNELS
 DHDCFLAGS += -DLINKSTAT_SUPPORT
-# Disabling LINKSTAT_EXT_SUPPORT alike FC30 build
-DHDCFLAGS += -DLINKSTAT_EXT_SUPPORT
 DHDCFLAGS += -DPFN_SCANRESULT_2
 DHDCFLAGS += -DWL_IFACE_COMB_NUM_CHANNELS
 DHDCFLAGS += -DASSOC_PREF_5G
@@ -658,7 +664,7 @@ DHDCFLAGS += -DCUSTOM_BLOCK_DEAUTH_AT_EAP_FAILURE
 DHDCFLAGS += -DTDLS_MSG_ONLY_WFD
 # Custom tuning value
 DHDCFLAGS += -DCUSTOM_ROAM_TIME_THRESH_IN_SUSPEND=6000
-DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=30000
+DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=25000
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 DHDCFLAGS += -DSPECIFIC_MAC_GEN_SCHEME
 ifneq ($(CONFIG_BCMDHD_PCIE),)
@@ -676,7 +682,7 @@ DHDCFLAGS += -DMAX_DTIM_ALLOWED_INTERVAL=925
 DHDCFLAGS += -DENABLE_MAX_DTIM_IN_SUSPEND
 DHDCFLAGS += -DNUM_SCB_MAX_PROBE=3
 DHDCFLAGS += -DWL_SCB_TIMEOUT=10
-DHDCFLAGS += -DWIFI_TURNOFF_DELAY=10
+DHDCFLAGS += -DWIFI_TURNOFF_DELAY=100
 DHDCFLAGS += -DWIFI_TURNON_USE_HALINIT
 #Static preallocated buffers
 DHDCFLAGS += -DDHD_USE_STATIC_MEMDUMP
@@ -787,9 +793,6 @@ DHDCFLAGS += -DRTT_SUPPORT -DRTT_DEBUG
 #NDOffload
 DHDCFLAGS += -DNDO_CONFIG_SUPPORT
 DHDCFLAGS += -DIPV6_NDO_SUPPORT
-
-#MDNS_OFFLOAD
-DHDCFLAGS += -DWL_MDNS_OFFLOAD
 
 #Debugaility
 DHDCFLAGS += -DDBG_PKT_MON -DDBG_PKT_MON_INIT_DEFAULT
@@ -939,10 +942,7 @@ endif
   DHDCFLAGS += -DDHD_TCP_PACING_SHIFT
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR
   DHDCFLAGS += -DDHD_BUS_MEM_ACCESS
-  DHDCFLAGS += -DPROP_TXSTATUS
-ifeq ($(CONFIG_BCMDHD_PROPTX_ALWAYS_ON),)
-  DHDCFLAGS += -DPROP_TXSTATUS_VSDB
-endif
+  DHDCFLAGS += -DPROP_TXSTATUS -DPROP_TXSTATUS_VSDB
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=32
 ifneq ($(CONFIG_ARCH_ASTRA),)
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
@@ -1046,7 +1046,7 @@ ifneq ($(CONFIG_BCMDHD_SDIO),)
   DHDCFLAGS += -DBDC -DOOB_INTR_ONLY -DHW_OOB -DDHD_BCMEVENTS -DMMC_SDIO_ABORT
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR
   DHDCFLAGS += -DDHD_BUS_MEM_ACCESS
-  DHDCFLAGS += -DPROP_TXSTATUS
+  DHDCFLAGS += -DPROP_TXSTATUS -DPROP_TXSTATUS_VSDB
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=16
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
 # tput enhancement
@@ -1168,6 +1168,8 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
 	DHDCFLAGS += -DDHD_MAP_NAME="\"fw_bcmdhd.map\""
 	DHDCFLAGS += -DDHD_MSI_SUPPORT
 	DHDCFLAGS += -DSKIP_REGON_GPIO
+	# Disable scan filter 6G SP/VLP AP
+	DHDCFLAGS += -DDISABLE_SCAN_FILTER_6G_SPVLP
 endif
 ifneq (,$(findstring ack_6.1,$(NV_BUILD_KERNEL_OPTIONS)))
 	DHDCFLAGS += -DWL_AP_PORT_AUTH_BKPORT
@@ -1189,6 +1191,7 @@ endif
 	DHDCFLAGS += -DPOWERUP_MAX_RETRY=3
 else ifneq ($(CONFIG_ARCH_DUMMY),)
 	DHDCFLAGS += -DBOARD_MODULAR_INIT
+	DHDCFLAGS += -DDHD_SUPPORT_VFS_CALL
 ifneq ($(CONFIG_BCMDHD_PCIE),)
 	DHDCFLAGS += -DDHD_LINUX_STD_FW_API
 	DHDCFLAGS += -DDHD_FW_NAME="\"fw_bcmdhd.bin\""
@@ -1234,6 +1237,7 @@ else
 	DHDCFLAGS += -DDHD_CAP_PLATFORM="\"default \""
 	# Use firmware API by default
 	DHDCFLAGS += -DDHD_LINUX_STD_FW_API
+	DHDCFLAGS += -DDHD_MAP_NAME="\"fw_bcmdhd.map\""
 ifneq ($(CONFIG_BCMDHD_PCIE),)
 ifneq ($(CONFIG_PCI_MSI),)
 	DHDCFLAGS += -DDHD_MSI_SUPPORT
@@ -1310,9 +1314,9 @@ ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS += -DDHD_ASTRA_CUST_CHIP_SUPPORT
 	DHDCFLAGS += -DCUSTOM_LOG_DUMP_BUFSIZE_MB=1
 
-	ifeq ($(filter -DDHD_SUPPORT_VFS_CALL, $(DHDCFLAGS)),)
-		DHDCFLAGS += -DDHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
-	endif
+ifeq ($(filter -DDHD_SUPPORT_VFS_CALL, $(DHDCFLAGS)),)
+	DHDCFLAGS += -DDHD_DUMP_DATA_TO_MEMORY_FROM_KERNEL_EX
+endif
 
 	# Auto selecting binary file name by chip id
 	DHDCFLAGS += -DDHD_AUTOSEL_BINARY_FILENAME
@@ -1328,11 +1332,12 @@ endif #!CONFIG_ANDROID_VENDOR_OEM_DATA
 
 ifneq ($(CONFIG_BCMDHD_SDIO),)
 ifeq ($(CONFIG_ASTRA_SL1680),)
+ifeq ($(CONFIG_ASTRA_SL1620),)
 	DHDCFLAGS := $(filter-out -DENABLE_INSMOD_NO_FW_LOAD, $(DHDCFLAGS))
-else
-	DHDCFLAGS += -DCONFIG_ASTRA_SL1680
-endif #CONFIG_ASTRA_SL1680
+endif # !CONFIG_ASTRA_SL1620
+endif # !CONFIG_ASTRA_SL1680
 	DHDCFLAGS += -DDHDTCPACK_SUPPRESS_DEF_MODE=2
+	DHDCFLAGS := $(filter-out -DPROP_TXSTATUS_VSDB ,$(DHDCFLAGS))
 	# WAR to avoid boot-up slow for multiple DHD insert
 	DHDCFLAGS += -DPOWERUP_MAX_RETRY=0 -DWIFI_TURNON_DELAY=0 -DWIFI_TURNOFF_DELAY=0
 endif # CONFIG_BCMDHD_SDIO
@@ -1372,11 +1377,12 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o \
     dhd_debug_linux.o wl_cfgnan.o dhd_mschdbg.o bcmbloom.o dhd_dbg_ring.o bcmstdlib_s.o \
     dhd_linux_exportfs.o dhd_linux_tx.o dhd_linux_rx.o \
     dhd_log_dump.o fwpkg_utils.o bcmcapext.o linuxerrmap.o wl_cfgtwt.o bcmwifi_channels_shared.o \
-    dhd_csi.o wl_cfgmdnsoffload.o
+    dhd_csi.o
 
 # customer configuration file
 DHDCFLAGS += -DREAD_CONFIG_FROM_FILE
 DHDOFILES += dhd_config.o
+DHDCFLAGS += -DCONFIG_BCMDHD_CONFIG_PATH="\"/vendor/etc/wifi/wlan_config.ini\""
 
 # This file will be here only for internal builds and sets flags which may
 # affect subsequent behavior. See extended comment within it for details.
@@ -1457,6 +1463,12 @@ endif
 
 ifneq ($(filter -DDHD_EVENT_LOG_FILTER, $(DHDCFLAGS)),)
 DHDOFILES += dhd_event_log_filter.o
+endif
+
+# mDNS offload
+ifeq ($(CONFIG_MDNS_OFFLOAD),y)
+DHDCFLAGS += -DWL_MDNS_OFFLOAD
+DHDOFILES += wl_cfgmdnsoffload.o
 endif
 
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG

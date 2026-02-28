@@ -2,7 +2,7 @@
 * DHD PCIE for various dumps - all pcie related
 * register, intr, counter etc.. dumps and sdtc dumps
 *
-* Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+* Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
 *
 * This software is licensed to you under the terms of the
 * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -21,7 +21,7 @@
 * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
 * EXCEED ONE HUNDRED U.S. DOLLARS
 *
-* Copyright (C) 2025, Broadcom.
+* Copyright (C) 2026, Broadcom.
 *
 *      Unless you and Broadcom execute a separate written software license
 * agreement governing use of this software, this software is licensed to you
@@ -2423,13 +2423,14 @@ dhd_pcie_debug_info_dump(dhd_pub_t *dhd)
 	if (MULTIBP_ENAB(dhd->bus->sih)) {
 		dhd_bus_pcie_pwr_req(dhd->bus);
 	}
-
+	 /* Skip Wrapper dump for STB as it causes intermittent Kernel panic before memdump */
+#ifndef BOARD_STB
 	dhdpcie_print_amni_regs(dhd->bus, FALSE);
 	dhd_pcie_dump_wrapper_regs(dhd);
 #ifdef DHD_PCIE_WRAPPER_DUMP
 	dhd_pcie_get_wrapper_regs(dhd);
 #endif /* DHD_PCIE_WRAPPER_DUMP */
-
+#endif /* BOARD_STB */
 	if (dhd->bus->dar_err_set) {
 		DHD_ERROR(("Skip dumping the PCIe Core registers. DAR error log set\n"));
 		goto exit;

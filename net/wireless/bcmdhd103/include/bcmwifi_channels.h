@@ -3,7 +3,7 @@
  * This header file housing the define and function prototype use by
  * both the wl driver, tools & Apps.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -22,7 +22,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -408,24 +408,12 @@ typedef struct {
 /* get lowest 20MHz sideband of a given chspec
  * (works with 20, 40, 80, 160, 320)
  */
-#define CH_FIRST_20_SB(chspec) \
-	((uint8)((CHSPEC_BW(chspec) == WL_CHANSPEC_BW_320) ? \
-		LLLL_20_SB_320(wf_chspec_320_id2cch(chspec)) : \
-		(CHSPEC_IS160(chspec) ? LLL_20_SB_160(wf_chspec_center_channel(chspec)) : \
-		(CHSPEC_IS80(chspec) ? LL_20_SB(wf_chspec_center_channel(chspec)) : \
-		(CHSPEC_IS40(chspec) ? LOWER_20_SB(wf_chspec_center_channel(chspec)) : \
-		wf_chspec_center_channel(chspec))))))
+#define CH_FIRST_20_SB(chspec) wf_chspec_first_20_sb(chspec)
 
 /* get upper most 20MHz sideband of a given chspec
  * (works with 20, 40, 80, 160, 320)
  */
-#define CH_LAST_20_SB(chspec) \
-	((uint8)((CHSPEC_BW(chspec) == WL_CHANSPEC_BW_320) ? \
-		UUUU_20_SB_320(wf_chspec_320_id2cch(chspec)) : \
-		(CHSPEC_IS160(chspec) ? UUU_20_SB_160(wf_chspec_center_channel(chspec)) : \
-		(CHSPEC_IS80(chspec) ? UU_20_SB(wf_chspec_center_channel(chspec)) : \
-		(CHSPEC_IS40(chspec) ? UPPER_20_SB(wf_chspec_center_channel(chspec)) : \
-		wf_chspec_center_channel(chspec))))))
+#define CH_LAST_20_SB(chspec) wf_chspec_last_20_sb(chspec)
 
 /* call this with chspec and a valid 20MHz sideband of this channel to get the next 20MHz sideband
  * (works with 20, 40, 80, 160)
@@ -615,6 +603,7 @@ typedef struct {
 #define WF_CHANSPEC_FLAG_OVERLAPPED320  0x0001u
 
 uint wf_chspec_first_20_sb(chanspec_t chspec) BCMCONSTFN;
+uint wf_chspec_last_20_sb(chanspec_t chspec) BCMCONSTFN;
 
 #include <bcmwifi_channels_shared.h>
 
@@ -1068,6 +1057,7 @@ uint8 wf_chspec_center_channel(chanspec_t chspec) BCMCONSTFN;
 #define wf_chspec_center_channel(chspec) CHSPEC_CHANNEL(chspec)
 #endif /* BCMWIFI_BW320MHZ */
 uint8 wf_chspec_get_primary_sb(chanspec_t chspec) BCMCONSTFN;
+uint8 wf_chspec_get_primary_sb_npca(chanspec_t chspec) BCMCONSTFN;
 
 /* channel bandwidth */
 #define WLC_20_MHZ	20	/**< 20Mhz channel bandwidth */

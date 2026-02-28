@@ -2,7 +2,7 @@
  * Common stats definitions for clients of dongle
  * ports
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -21,7 +21,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -258,11 +258,15 @@ typedef struct {
 	uint32 on_time;
 	uint32 tx_time;
 	uint32 num_tx_levels;
+#ifdef LINKSTAT_EXT_SUPPORT
 #ifdef LINKSTAT_HAL_32BIT
 	uint32 tx_time_per_levels;
 #else /* HAL 64 bit */
 	uint64 tx_time_per_levels;
 #endif /* LINKSTAT_HAL_32BIT */
+#else
+	uint32 *tx_time_per_levels;
+#endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 rx_time;
 	uint32 on_time_scan;
 	uint32 on_time_nbd;
@@ -336,10 +340,13 @@ typedef struct {
 	uint32 capabilities;			/* peer WIFI_CAPABILITY_XXX */
 	bssload_info_t bssload;			/* STA count and CU */
 	uint32 num_rate;				/* number of rates */
-	wifi_rate_stat_v1 rate_stats[BCM_FLEX_ARRAY];	/* per rate statistics,
-							 * num of entries = num_rate
-							 */
+#ifdef LINKSTAT_EXT_SUPPORT
+	wifi_rate_stat_v1 rate_stats[BCM_FLEX_ARRAY];
 } PACK_ATTRIBUTE wifi_peer_info_v1;
+#else
+	wifi_rate_stat_v1 rate_stats[];	/* per rate statistics, num of entries = num_rate */
+} wifi_peer_info_v1;
+#endif /* LINKSTAT_EXT_SUPPORT */
 
 typedef struct {
 	wifi_peer_type type;           /* peer type (AP, TDLS, GO etc.) */
@@ -440,8 +447,13 @@ typedef struct {
 	uint8 time_slicing_duty_cycle_percent;	/* If this link is being served using */
 #endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 num_peers;		/* number of peers */
+#ifdef LINKSTAT_EXT_SUPPORT
 	wifi_peer_info_v1 peer_info[BCM_FLEX_ARRAY];	/* per peer statistics */
 } PACK_ATTRIBUTE wifi_link_stat;
+#else
+	wifi_peer_info_v1 peer_info[];	/* per peer statistics */
+} wifi_link_stat;
+#endif /* LINKSTAT_EXT_SUPPORT */
 
 typedef struct {
 	wifi_interface_handle_v1 iface;	/* wifi interface */
@@ -457,10 +469,13 @@ typedef struct {
 	uint32 capabilities;			/* peer WIFI_CAPABILITY_XXX */
 	bssload_info_t bssload;			/* STA count and CU */
 	uint32 num_rate;				/* number of rates */
-	wifi_rate_stat_v1 rate_stats[BCM_FLEX_ARRAY];	/* per rate statistics,
-							 * num of entries = num_rate
-							 */
+#ifdef LINKSTAT_EXT_SUPPORT
+	wifi_rate_stat_v1 rate_stats[BCM_FLEX_ARRAY];
 } PACK_ATTRIBUTE compat_wifi_peer_info_v1;
+#else
+	wifi_rate_stat_v1 rate_stats[];	/* per rate statistics, num of entries = num_rate */
+} compat_wifi_peer_info_v1;
+#endif /* LINKSTAT_EXT_SUPPORT */
 
 /* ML interface statistics */
 typedef struct {
@@ -510,8 +525,13 @@ typedef struct {
 	uint8 time_slicing_duty_cycle_percent;	/* If this link is being served using */
 #endif /* LINKSTAT_EXT_SUPPORT */
 	uint32 num_peers;		/* number of peers */
+#ifdef LINKSTAT_EXT_SUPPORT
 	wifi_peer_info_v1 peer_info[BCM_FLEX_ARRAY];	/* per peer statistics */
 } PACK_ATTRIBUTE compat_wifi_link_stat;
+#else
+	wifi_peer_info_v1 peer_info[];	/* per peer statistics */
+} compat_wifi_link_stat;
+#endif
 
 typedef struct {
 	wifi_interface_handle_v1 iface;	/* wifi interface */

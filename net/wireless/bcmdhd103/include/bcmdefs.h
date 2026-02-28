@@ -1,7 +1,7 @@
 /*
  * Misc system wide definitions
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -795,6 +795,19 @@ extern bool _pciedevenab;
 #else
 	#define BCMPCIEDEV_ENAB() FALSE
 #endif /* BCMPCIEDEV */
+
+#ifdef RXCMPL_APP /* RXCMPL_APP support enab macros */
+extern bool _rxcmpl_app_enab;
+#if defined(ROM_ENAB_RUNTIME_CHECK)
+	#define RXCMPL_APP_ENAB() _rxcmpl_app_enab
+#elif defined(RXCMPL_APP_DISABLED)
+	#define RXCMPL_APP_ENAB() FALSE
+#else
+	#define RXCMPL_APP_ENAB() _rxcmpl_app_enab
+#endif
+#else
+	#define RXCMPL_APP_ENAB() FALSE
+#endif /* RXCMPL_APP */
 
 #ifdef BCMRESVFRAGPOOL /* BCMRESVFRAGPOOL support enab macros */
 extern bool _resvfragpool_enab;

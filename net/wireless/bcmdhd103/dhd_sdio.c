@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for SDIO
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -205,12 +205,10 @@ static void dhd_bus_sdio_pwr_req_clear_nolock(struct dhd_bus *bus);
 #define PMU_MAX_TRANSITION_DLY 1000000
 #endif
 
-#ifdef CONFIG_ARCH_ASTRA
 #define DEFAULT_BUS_INIT_DELAY	1800000
 #ifndef CUSTOM_BUS_INIT_DELAY
 #define CUSTOM_BUS_INIT_DELAY	DEFAULT_BUS_INIT_DELAY
 #endif
-#endif /* CONFIG_ARCH_ASTRA */
 
 /* hooks for limiting threshold custom tx num in rx processing */
 #define DEFAULT_TXINRX_THRES    0
@@ -5571,6 +5569,7 @@ dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 #else /* BCMSPI */
 	uint8 saveclk;
 #endif /* BCMSPI */
+	uint64 f2_enab_start_us, f2_enab_end_us, f2_enab_dur_us;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -5638,13 +5637,9 @@ dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 		goto exit;
 	}
 
-#ifdef CONFIG_ARCH_ASTRA
-#ifdef CONFIG_ASTRA_SL1680
-	OSL_DELAY(CUSTOM_BUS_INIT_DELAY);
-#endif /* CONFIG_ASTRA_1680 */
-#endif /* CONFIG_ARCH_ASTRA */
 	/* Enable function 2 (frame transfers) */
 	/* New API: change to bcmsdh_fn_set(sdh, SDIO_FUNC_2, TRUE); */
+	f2_enab_start_us = osl_systztime_us();
 	W_SDREG((SDPCM_PROT_VERSION << SMB_DATA_VERSION_SHIFT),
 		&bus->regs->tosbmailboxdata, retries);
 	enable = (SDIO_FUNC_ENABLE_1 | SDIO_FUNC_ENABLE_2);
@@ -5664,6 +5659,12 @@ dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 
 #endif /* !BCMSPI */
 
+	f2_enab_end_us = osl_systztime_us();
+	f2_enab_dur_us = (f2_enab_end_us - f2_enab_start_us);
+	if (CHIPID(bus->sih->chip) == BCM4384_CHIP_ID) {
+		if (f2_enab_dur_us < CUSTOM_BUS_INIT_DELAY)
+			OSL_DELAY(CUSTOM_BUS_INIT_DELAY - f2_enab_dur_us);
+	}
 	DHD_PRINT(("%s: enable 0x%02x, ready 0x%02x (waited %uus)\n",
 		__FUNCTION__, enable, ready, tmo.elapsed));
 
@@ -6797,6 +6798,15 @@ dhdsdio_readframes(dhd_bus_t *bus, uint maxframes, bool *finished)
 			/* Handle Flow Control */
 			fcbits = SDPCM_FCMASK_VALUE(&bus->rxhdr[SDPCM_FRAMETAG_LEN]);
 
+#ifdef PROP_TXSTATUS
+			/* when proptx is active, flowcontrol is implemented through
+			 * MAC CLOSE / OPEN, and this fc shall be ignored
+			 */
+			if (bus->dhd->wlfc_state) {
+				fcbits = 0;
+			}
+#endif /* PROP_TXSTATUS */
+
 			delta = 0;
 			if (~bus->flowcontrol & fcbits) {
 				bus->fc_xoff++;
@@ -6969,7 +6979,14 @@ dhdsdio_readframes(dhd_bus_t *bus, uint maxframes, bool *finished)
 
 		/* Handle Flow Control */
 		fcbits = SDPCM_FCMASK_VALUE(&bus->rxhdr[SDPCM_FRAMETAG_LEN]);
-
+#ifdef PROP_TXSTATUS
+		/* when proptx is active, flowcontrol is implemented through
+		 * MAC CLOSE / OPEN, and this fc shall be ignored
+		 */
+		if (bus->dhd->wlfc_state) {
+			fcbits = 0;
+		}
+#endif /* PROP_TXSTATUS */
 		delta = 0;
 		if (~bus->flowcontrol & fcbits) {
 			bus->fc_xoff++;
@@ -7243,6 +7260,12 @@ dhdsdio_hostmail(dhd_bus_t *bus, uint32 *hmbd)
 	 * method isn't used any more.  Leave this here for possibly remaining backward
 	 * compatible with older dongles
 	 */
+#ifdef PROP_TXSTATUS
+	/* when proptx is active, flowcontrol is implemented through
+	 * MAC CLOSE / OPEN, and this fc shall be ignored
+	 */
+	if (!bus->dhd->wlfc_state)
+#endif /* PROP_TXSTATUS */
 	if (hmb_data & HMB_DATA_FC) {
 		fcbits = (hmb_data & HMB_DATA_FCDATA_MASK) >> HMB_DATA_FCDATA_SHIFT;
 
@@ -8702,9 +8725,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 	int err = 0;
 	uint8 clkctl = 0;
 #endif /* !BCMSPI */
-#ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
 	uint32 f1sig = 0;
-#endif /* DHD_ASTRA_CUST_CHIP_SUPPORT */
 
 	bus->alp_only = TRUE;
 	bus->sih = NULL;
@@ -8719,7 +8740,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 
 #if defined(DHD_DEBUG) && !defined(CUSTOMER_HW4_DEBUG)
 	DHD_PRINT(("F1 signature read @0x18000000=0x%4x\n",
-		f1sig = bcmsdh_reg_read(bus->sdh, si_enum_base(devid), 4)));
+	f1sig = bcmsdh_reg_read(bus->sdh, si_enum_base(devid), 4)));
 #ifdef DHD_ASTRA_CUST_CHIP_SUPPORT
 	/* Support 4384 only */
 	f1sig = f1sig & 0xffff;

@@ -1,7 +1,7 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -6094,7 +6094,9 @@ wl_update_sta_chanspec_info(struct bcm_cfg80211 *cfg, struct net_device *ndev, c
 		goto exit;
 	}
 
-	if (dtoh16(sta->ver) == WL_STA_VER_6) {
+	if (dtoh16(sta->ver) == WL_STA_VER_7) {
+		chanspec = dtoh16(((wlcfg_sta_info_v7_t *)iovar_buf)->chanspec);
+	} else if (dtoh16(sta->ver) == WL_STA_VER_6) {
 		chanspec = dtoh16(((wlcfg_sta_info_v6_t *)iovar_buf)->chanspec);
 	} else if (dtoh16(sta->ver) == WL_STA_VER_5) {
 		chanspec = dtoh16(((wlcfg_sta_info_v5_t *)iovar_buf)->chanspec);

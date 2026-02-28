@@ -3,7 +3,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -22,7 +22,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -10656,6 +10656,9 @@ BCMFASTPATH(dhd_prot_txdata)(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 			}
 		}
 
+#ifdef DHD_WFB
+	txdesc->flags |= BCMPCIE_TXPOST_FLAGS_HOST_SFH_LLC;
+#else
 #ifdef HOST_SFH_LLC
 	if (host_sfh_llc_reqd) {
 		if (dhd_ether_to_8023_hdr(dhd->osh, (struct ether_header *)pktdata,
@@ -10674,6 +10677,7 @@ BCMFASTPATH(dhd_prot_txdata)(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 		pktlen = PKTLEN(dhd->osh, PKTBUF) - ETHER_HDR_LEN;
 		pktdata = PKTPULL(dhd->osh, PKTBUF, ETHER_HDR_LEN);
 	}
+#endif /* DHD_WFB */
 
 	/* Map the data pointer to a DMA-able address */
 	pa = DMA_MAP(dhd->osh, PKTDATA(dhd->osh, PKTBUF), pktlen, DMA_TX, PKTBUF, 0);

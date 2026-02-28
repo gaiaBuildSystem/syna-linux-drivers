@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1226,7 +1226,14 @@ extern int wl_cfgvendor_send_supp_advlog(const char *fmt, ...);
 		} \
 	} while (0)
 
-#define COMPAT_MEMCOPY_IFACE(output, total_len, normal_structure, value)	\
+/* * Correction Notes:
+ * 1. Used __builtin_types_compatible_p to detect if the structure is 'wifi_link_stat'.
+ * 2. If matched, the copy length is changed to offsetof(..., peer_info) instead of
+ * sizeof() to align with the HAL's behavior (316 bytes).
+ * 3. Updated the 'output' pointer increment logic to match the actual copied length,
+ * preventing the creation of a 4-byte padding "hole" (memory gap) in the buffer.
+ */
+#ifdef LINKSTAT_EXT_SUPPORT
 	do { \
 		if (compat_task_state) {	\
 			memcpy(output, &compat_ ## value, sizeof(compat_ ## normal_structure));	\
@@ -1239,15 +1246,53 @@ extern int wl_cfgvendor_send_supp_advlog(const char *fmt, ...);
 		} \
 	} while (0)
 #else
+#define COMPAT_MEMCOPY_IFACE(output, total_len, normal_structure, value)	\
+	do { \
+		/* Use compile-time check to determine if structure is wifi_link_stat */ \
+		size_t _copy_sz = __builtin_choose_expr( \
+			__builtin_types_compatible_p(normal_structure, wifi_link_stat), \
+			offsetof(normal_structure, peer_info), \
+			sizeof(normal_structure)); \
+		\
+		if (compat_task_state) {	\
+			/* Calculate offset for the 32-bit compat structure version */ \
+			size_t _comp_sz = __builtin_choose_expr( \
+				__builtin_types_compatible_p(normal_structure, wifi_link_stat), \
+				offsetof(compat_ ## normal_structure, peer_info), \
+				sizeof(compat_ ## normal_structure)); \
+			memcpy(output, &compat_ ## value, _comp_sz);	\
+			output += _comp_sz; /* Advance pointer by actual copied bytes */ \
+			total_len += _comp_sz;	\
+		} else { \
+			memcpy(output, &value, _copy_sz);	\
+			output += _copy_sz; \
+			total_len += _copy_sz;	\
+		} \
+	} while (0)
+#endif
+#else
 #define COMPAT_STRUCT_IFACE(normal_structure, value)	normal_structure value;
 #define COMPAT_BZERO_IFACE(normal_structure, value)	bzero(&value, sizeof(normal_structure));
 #define COMPAT_ASSIGN_VALUE(normal_structure, member, value)	normal_structure.member = value;
+#ifdef LINKSTAT_EXT_SUPPORT
 #define COMPAT_MEMCOPY_IFACE(output, total_len, normal_structure, value)	\
 	do { \
 		memcpy(output, &value, sizeof(normal_structure));	\
 		output += sizeof(value);	\
 		total_len += sizeof(normal_structure);	\
 	} while (0)
+#else
+#define COMPAT_MEMCOPY_IFACE(output, total_len, normal_structure, value)	\
+	do { \
+		size_t _copy_sz = __builtin_choose_expr( \
+			__builtin_types_compatible_p(normal_structure, wifi_link_stat), \
+			offsetof(normal_structure, peer_info), \
+			sizeof(normal_structure)); \
+		memcpy(output, &value, _copy_sz);	\
+		output += _copy_sz;	\
+		total_len += _copy_sz;	\
+	} while (0)
+#endif
 #endif /* CONFIG_COMPAT */
 
 #if (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \

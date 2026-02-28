@@ -5,7 +5,7 @@
  * JTAG, 0/1/2 UARTs, clock frequency control, a watchdog interrupt timer,
  * GPIO interface, extbus, and support for serial and parallel flashes.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -24,7 +24,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2858,12 +2858,17 @@ typedef volatile struct chipcregs chipcregs_t;
 #define CA7_4389_RAM_BASE                    (0x200000)
 #define CA7_4390_RAM_BASE                    (0x2A0000)
 #define CA7_4399_RAM_BASE                    (0x2A0000)
+#define CA7_43109_RAM_BASE		     (0x352000)
 
 /* Coex CPU memory geometry */
 #define CXCPU_4390_ITCM_BASE			(0x1a000000u)
 #define CXCPU_4390_ITCM_SIZE			(98304u)
 #define CXCPU_4390_DTCM_BASE			(0x1a018000u)
 #define CXCPU_4390_DTCM_SIZE			(24576u)
+#define CXCPU_43109_ITCM_BASE			(0x1a000000u)
+#define CXCPU_43109_ITCM_SIZE			(167936u)
+#define CXCPU_43109_DTCM_BASE			(0x1a029000u)
+#define CXCPU_43109_DTCM_SIZE			(90112u)
 // Please leave this UNRELEASEDCHIP MOG wrapper in place even if there is nothing inside it
 
 /* Physical memory in 4388a0 HWA is 64KB (8192 x 64 bits) even though

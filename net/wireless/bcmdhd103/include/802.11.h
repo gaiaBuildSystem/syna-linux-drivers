@@ -7,7 +7,7 @@
  * WFA related work should be placed in 802.11wfa.h.
  * Broadcom specific work should be placed in 802.11brcm.h.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -26,7 +26,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -542,10 +542,16 @@ typedef struct dot11_extcap_ie dot11_extcap_ie_t;
 #define DOT11_EXT_RSN_CAP_RCM_DEV_ID		17u
 #define DOT11_EXT_RSN_CAP_RCM_IRM		18u
 
+/* CIP Support */
+#define DOT11_EXT_RSN_CAP_CIP_SUPPORTED		33u
+/* Minimum RSNXE length to check CIP support (byte index + 1) */
+#define DOT11_EXT_RSN_CAP_CIP_MIN_LEN		\
+	((DOT11_EXT_RSN_CAP_CIP_SUPPORTED / 8u) + 1u)
+
 /* Last bit in Extended RSN Capabilities defined in P802.11
  * Please update DOT11_EXT_RSN_CAP_LAST_BIT_IDX to the last bit when P802.11 inteoduced new bit
  */
-#define DOT11_EXT_RSN_CAP_LAST_BIT_IDX DOT11_EXT_RSN_CAP_RCM_IRM /* update this */
+#define DOT11_EXT_RSN_CAP_LAST_BIT_IDX DOT11_EXT_RSN_CAP_CIP_SUPPORTED /* update this */
 #define DOT11_EXT_RSN_CAP_NUM_BITS_MAX	(DOT11_EXT_RSN_CAP_LAST_BIT_IDX + 1) /* last bit idx + 1 */
 
 /* Please use DOT11_EXT_RSN_CAP_BYTE_LEN_MAX for any of RSNXE cap buffer size ONLY in ATTACH time.
@@ -1711,6 +1717,8 @@ enum dot11_tag_ids {
 						EXT_MNG_TWT_CONSTRAINT_PARAMS_ID)
 #define EXT_MNG_TUNNELED_PASN_ID		143u
 #define DOT11_MNG_TUNNELED_PASN_ID		(DOT11_MNG_ID_EXT_ID + EXT_MNG_TUNNELED_PASN_ID)
+#define EXT_MNG_CIP_CAP_ID			150u	/* CIP Capabilities */
+#define DOT11_MNG_CIP_CAP_ID			(DOT11_MNG_ID_EXT_ID + EXT_MNG_CIP_CAP_ID)
 
 /* Draft 802.11bn D1.0 Table 9-130 Element IDs */
 #define EXT_MNG_UHR_OP_ID			151u	/* UHR Operation */
@@ -2493,6 +2501,8 @@ typedef struct vndr_ie vndr_ie_t;
 #define AES_MIC_SIZE		8	/* size of AES MIC */
 #define BIP_KEY_SIZE		16	/* size of BIP key */
 #define BIP_MIC_SIZE		8   /* sizeof BIP MIC */
+#define CIGTK_KEY_SIZE		32	/* size of CIGTK key (GMAC-256) */
+#define CIGTK_PN_SIZE		6	/* size of CIGTK PN */
 
 #define AES_GCM_MIC_SIZE	16	/* size of MIC for 128-bit GCM - .11adD9 */
 
@@ -2592,6 +2602,22 @@ BWL_PRE_PACKED_STRUCT struct dot11_ext_req_ie {
 	uint8	id_exts[];	/* requested element ID extensions */
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_ext_req_ie dot11_ext_req_ie_t;
+
+/* CIP Capabilities IE */
+BWL_PRE_PACKED_STRUCT struct dot11_cip_cap_ie {
+	uint8 id;			/* DOT11_MNG_ID_EXT_ID */
+	uint8 len;			/* Length = 2 */
+	uint8 id_ext;			/* EXT_MNG_CIP_CAP_ID */
+	uint8 padding_delay;		/* MIC Padding Delay (4 bits) + Reserved (4 bits) */
+} BWL_POST_PACKED_STRUCT;
+typedef struct dot11_cip_cap_ie dot11_cip_cap_ie_t;
+
+/* Default padding delay value (5 = 20us) */
+#define DOT11_CIP_CAP_DEFAULT_PADDING_DELAY	5u
+/* Maximum valid padding delay value (values 0-8 are valid, 9-15 reserved) */
+#define DOT11_CIP_CAP_MAX_PADDING_DELAY		8u
+/* Padding delay field mask (lower 4 bits of padding_delay byte) */
+#define DOT11_CIP_CAP_PADDING_DELAY_MASK	0x0Fu
 
 /* AKM Suite Selector IE */
 BWL_PRE_PACKED_STRUCT struct dot11_akm_suite_selector_ie {
