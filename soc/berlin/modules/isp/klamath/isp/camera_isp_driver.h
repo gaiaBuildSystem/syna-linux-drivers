@@ -154,6 +154,8 @@ struct camera_isp_dev {
 	/* Scaling information from resolution selection */
 	u32 scale_factor;
 
+	bool bypass_isp_enabled;
+
 	/* DT caps for sensor modes (0 disables the cap) */
 	u32 max_sensor_width;
 	u32 max_sensor_height;

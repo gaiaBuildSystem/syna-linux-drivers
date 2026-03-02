@@ -20,9 +20,6 @@
 #include "camera_video_register.h"
 #include "camera_v4l2_common.h"
 
-/* V4L2 Control IDs for video device - Use same ID as ISP subdev */
-#define V4L2_CID_CAMERA_WB_ENABLE V4L2_CID_USER_WB_ENABLE
-
 #ifndef V4L2_PIX_FMT_P010
 /* 24 Y/CbCr 4:2:0 10-bit per component */
 #define V4L2_PIX_FMT_P010 v4l2_fourcc('P', '0', '1', '0')
@@ -31,134 +28,6 @@
 #define WIDTH_ALIGNMENT 16
 #define MIN_VIDEO_BUFFERS 4
 #define MAX_VIDEO_BUFFERS 32
-
-/**
- * camera_video_s_ctrl - Set V4L2 control value
- * @ctrl: V4L2 control to set
- *
- * Return: 0 on success, negative error code on failure
- */
-static int camera_video_s_ctrl(struct v4l2_ctrl *ctrl)
-{
-	struct camera_video_dev *camera_vdev =
-		container_of(ctrl->handler, struct camera_video_dev, ctrl_handler);
-	struct v4l2_subdev *subdev;
-	struct media_pad *pad;
-	struct v4l2_ctrl *isp_ctrl;
-	int ret = 0;
-
-	switch (ctrl->id) {
-	case V4L2_CID_CAMERA_WB_ENABLE:
-		pad = media_pad_remote_pad_first(&camera_vdev->pad);
-		if (pad && is_media_entity_v4l2_subdev(pad->entity)) {
-			subdev = media_entity_to_v4l2_subdev(pad->entity);
-			isp_ctrl = v4l2_ctrl_find(subdev->ctrl_handler, V4L2_CID_USER_WB_ENABLE);
-			if (isp_ctrl) {
-				ret = v4l2_ctrl_s_ctrl(isp_ctrl, ctrl->val);
-				if (ret)
-					dev_err(camera_vdev->camera_mdev->dev,
-						"Failed to set wb_enable on ISP subdev: %d\n",
-						ret);
-				else
-					camera_vdev->wb_enable = ctrl->val;
-			} else {
-				dev_err(camera_vdev->camera_mdev->dev,
-						"wb_enable control not found in ISP subdev\n");
-				ret = -ENOENT;
-			}
-		} else {
-			dev_err(camera_vdev->camera_mdev->dev,
-					"No ISP subdevice connected\n");
-			ret = -ENODEV;
-		}
-		break;
-	default:
-		ret = -EINVAL;
-	}
-
-	return ret;
-}
-
-/**
- * camera_video_g_ctrl - Get V4L2 control value
- * @ctrl: V4L2 control to get
- *
- * This function retrieves the current value of a V4L2 control.
- * Currently supports the white balance enable control.
- *
- * Return: 0 on success, negative error code on failure
- */
-static int camera_video_g_ctrl(struct v4l2_ctrl *ctrl)
-{
-	struct camera_video_dev *camera_vdev =
-		container_of(ctrl->handler, struct camera_video_dev, ctrl_handler);
-	int ret = 0;
-
-	switch (ctrl->id) {
-	case V4L2_CID_CAMERA_WB_ENABLE:
-		ctrl->val = camera_vdev->wb_enable;
-		break;
-	default:
-		ret = -EINVAL;
-	}
-
-	return ret;
-}
-
-static const struct v4l2_ctrl_ops camera_video_ctrl_ops = {
-	.s_ctrl = camera_video_s_ctrl,
-	.g_volatile_ctrl = camera_video_g_ctrl,
-};
-
-static const struct v4l2_ctrl_config camera_video_ctrls[] = {
-	{
-		.ops   = &camera_video_ctrl_ops,
-		.id    = V4L2_CID_USER_WB_ENABLE,
-		.type  = V4L2_CTRL_TYPE_BOOLEAN,
-		.flags = V4L2_CTRL_FLAG_VOLATILE | V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-		.name  = "wb_enable",
-		.step  = 1,
-		.min   = 0,
-		.max   = 1,
-		.def   = 0,
-	},
-};
-
-/**
- * camera_video_create_ctrls - Create V4L2 controls for video device
- * @camera_vdev: Camera video device instance
- *
- * Return: 0 on success, negative error code on failure
- */
-static int camera_video_create_ctrls(struct camera_video_dev *camera_vdev)
-{
-	int i, ret;
-
-	ret = v4l2_ctrl_handler_init(&camera_vdev->ctrl_handler, ARRAY_SIZE(camera_video_ctrls));
-	if (ret)
-		return ret;
-
-	for (i = 0; i < ARRAY_SIZE(camera_video_ctrls); i++) {
-		struct v4l2_ctrl *ctrl = v4l2_ctrl_new_custom(&camera_vdev->ctrl_handler,
-				&camera_video_ctrls[i], NULL);
-		if (!ctrl) {
-			dev_err(camera_vdev->camera_mdev->dev,
-				"Failed to create control: %s\n",
-				camera_video_ctrls[i].name);
-			v4l2_ctrl_handler_free(&camera_vdev->ctrl_handler);
-			return -EINVAL;
-		}
-	}
-
-	if (camera_vdev->ctrl_handler.error) {
-		ret = camera_vdev->ctrl_handler.error;
-		v4l2_ctrl_handler_free(&camera_vdev->ctrl_handler);
-		return ret;
-	}
-
-	camera_vdev->video->ctrl_handler = &camera_vdev->ctrl_handler;
-	return 0;
-}
 
 /* Essential camera formats - optimized for minimal driver */
 static struct camera_video_fmt_info camera_formats_info[] = {
@@ -1379,25 +1248,16 @@ int camera_video_register(struct camera_media_dev *camera_mdev, int port)
 		goto err_media_entity_cleanup;
 	}
 
-	/* Initialize V4L2 controls */
-	ret = camera_video_create_ctrls(camera_vdev);
-	if (ret) {
-		dev_err(camera_mdev->dev, "Failed to create V4L2 controls\n");
-		goto err_media_entity_cleanup;
-	}
-
 	ret = video_register_device(camera_vdev->video, VFL_TYPE_VIDEO, -1);
 	if (ret) {
 		dev_err(camera_mdev->dev, "video register device error\n");
-		goto err_ctrl_cleanup;
+		goto err_media_entity_cleanup;
 	}
 
 	camera_mdev->video_devs[port] = camera_vdev;
 
 	return 0;
 
-err_ctrl_cleanup:
-	v4l2_ctrl_handler_free(&camera_vdev->ctrl_handler);
 err_media_entity_cleanup:
 	media_entity_cleanup(&camera_vdev->video->entity);
 

@@ -157,6 +157,10 @@ static int find_scalable_mode(struct camera_isp_dev *isp_dev,
 	u32 scale_factor = -1;
 	int i;
 
+	/* skip scaling when bypass_isp_enabled = 1 and land to find_exact_match */
+	if (isp_dev->bypass_isp_enabled)
+		return best_mode;
+
 	for (i = 0; i < num_modes; i++) {
 		/* Only consider modes larger than requested */
 		if (modes[i].width < requested_width || modes[i].height < requested_height)
@@ -232,6 +236,13 @@ static int camera_isp_select_optimal_sensor_mode(struct camera_isp_dev *isp_dev,
 		method = EXACT_MATCH;
 		isp_dev->scale_factor = 1; /* No scaling for exact match */
 		goto mode_selected;
+	}
+
+	/* If bypass_isp_enabled is on and no exact match found → reject */
+	if (isp_dev->bypass_isp_enabled) {
+		dev_err(isp_dev->dev, "bypass_isp_enabled: no exact match for %ux%u\n",
+				requested_width, requested_height);
+		return -EINVAL;
 	}
 
 mode_selected:
@@ -347,6 +358,13 @@ static int camera_isp_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
 			}
 		}
 		break;
+		/* Store the bypass_isp_enabled flag in isp_dev
+		 * select_sensor_mode() will check this before allowing scaling
+		 */
+	case V4L2_CID_USER_DISABLE_SCALE_CROP:
+		isp_dev->bypass_isp_enabled = !!ctrl->val;
+		dev_info(isp_dev->dev, "bypass_isp_enabled=%d\n", isp_dev->bypass_isp_enabled);
+		break;
 	default:
 		dev_err(isp_dev->dev, "Unsupported control ID: 0x%x\n", ctrl->id);
 		return -EINVAL;
@@ -362,15 +380,46 @@ static int camera_isp_ctrl_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_USER_WB_ENABLE:
 		ctrl->val = isp_dev->wb_config.wb_en;
 		break;
+	/* Return current value of bypass_isp_enabled flag */
+	case V4L2_CID_USER_DISABLE_SCALE_CROP:
+		ctrl->val = isp_dev->bypass_isp_enabled ? 1 : 0;
+		break;
 	default:
 		return -EINVAL;
 	}
 	return 0;
 }
 
-static const struct v4l2_ctrl_ops wb_enable_ctrl_ops = {
-	.s_ctrl = camera_isp_ctrl_s_ctrl,
+static const struct v4l2_ctrl_ops camera_isp_ctrl_ops = {
+	.s_ctrl          = camera_isp_ctrl_s_ctrl,
 	.g_volatile_ctrl = camera_isp_ctrl_g_volatile_ctrl,
+};
+
+static const struct v4l2_ctrl_config camera_isp_ctrls[] = {
+	/* WB enable: 0=disable white balance  1=enable white balance */
+	{
+		.ops   = &camera_isp_ctrl_ops,
+		.id    = V4L2_CID_USER_WB_ENABLE,
+		.type  = V4L2_CTRL_TYPE_BOOLEAN,
+		.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+		.name  = "wb_enable",
+		.min   = 0,
+		.max   = 1,
+		.step  = 1,
+		.def   = 0,
+	},
+	/* Disable scale+crop: 0=allow scaling  1=only exact sensor resolution */
+	{
+		.ops   = &camera_isp_ctrl_ops,
+		.id    = V4L2_CID_USER_DISABLE_SCALE_CROP,
+		.type  = V4L2_CTRL_TYPE_BOOLEAN,
+		.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+		.name  = "bypass_isp_enabled",
+		.min   = 0,
+		.max   = 1,
+		.step  = 1,
+		.def   = 0,
+	},
 };
 
 static int camera_isp_link_setup(struct media_entity *entity,
@@ -564,23 +613,38 @@ static void camera_isp_csi_try_power_on(struct camera_isp_dev *isp_dev, int on)
 		camera_isp_csi_power(isp_dev, on);
 }
 
+static void camera_isp_reset_controls(struct camera_isp_dev *isp_dev)
+{
+	struct v4l2_ctrl *ctrl;
+
+	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_WB_ENABLE);
+	if (ctrl)
+		v4l2_ctrl_s_ctrl(ctrl, ctrl->default_value);
+
+	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_DISABLE_SCALE_CROP);
+	if (ctrl)
+		v4l2_ctrl_s_ctrl(ctrl, ctrl->default_value);
+}
+
 static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_isp_dev *isp_dev = v4l2_get_subdevdata(sd);
-	struct camera_pad_stream_status *pad_stream = (struct camera_pad_stream_status *)arg;
+	struct camera_pad_stream_status *pad_stream =
+		(struct camera_pad_stream_status *)arg;
 	int ret = 0;
 	int req_pad = pad_stream->pad - 1;
 
 	if (!pad_stream || pad_stream->pad == CAMERA_ISP_PAD_SINK ||
-		pad_stream->pad >= CAMERA_ISP_PAD_NR) {
+	    pad_stream->pad >= CAMERA_ISP_PAD_NR) {
 		dev_err(isp_dev->dev, "%s: invalid pad %u for s_stream\n",
 			__func__, pad_stream ? pad_stream->pad : (u32)-1);
 		return -EINVAL;
 	}
 
 	if (!isp_dev->pipe[pad_stream->pad - 1]) {
-		dev_err(isp_dev->dev, "%s: pipeline not initialized for pad %u\n",
-			__func__, pad_stream->pad);
+		dev_err(isp_dev->dev,
+			"%s: pipeline not initialized for pad %u\n", __func__,
+			pad_stream->pad);
 		return -EINVAL;
 	}
 
@@ -591,6 +655,20 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 		ret = v4l2_ctrl_handler_setup(sd->ctrl_handler);
 		if (ret)
 			return ret;
+
+		if (isp_dev->bypass_isp_enabled) {
+			if (isp_dev->scale_factor > 1) {
+				dev_err(isp_dev->dev,
+					"bypass_isp_enabled=1 but scale_factor=%u, use exact sensor resolution\n",
+					isp_dev->scale_factor);
+				return -EINVAL;
+			}
+			if (isp_dev->pad_data[req_pad + 1].is_cropping_enable) {
+				dev_err(isp_dev->dev,
+					"bypass_isp_enabled=1 but crop is active, remove crop or clear flag\n");
+				return -EINVAL;
+			}
+		}
 
 		camera_isp_csi_try_power_on(isp_dev, 1);
 		CSI_PIPE_Start(isp_dev->pipe[req_pad]);
@@ -604,6 +682,8 @@ static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
 			isp_dev->pipe[req_pad] = NULL;
 			isp_dev->pipeline_ready[req_pad] = false;
 		}
+
+		camera_isp_reset_controls(isp_dev);
 	}
 
 	return ret;
@@ -613,44 +693,40 @@ static int camera_isp_ioctl_g_ctrl(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_pad_control *pad_ctrl = (struct camera_pad_control *)arg;
+	struct v4l2_ctrl *ctrl;
 
-	if (pad_ctrl && pad_ctrl->control &&
-		pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
-		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
-				V4L2_CID_USER_WB_ENABLE);
-		if (!ctrl) {
-			dev_err(isp_dev->dev, "WB control not found in ISP handler\n");
-			return -EINVAL;
-		}
-		pad_ctrl->control->value = ctrl->cur.val;
-		dev_dbg(isp_dev->dev, "ISP G_CTRL: wb_enable=%d\n", ctrl->cur.val);
-		return 0;
-	} else {
+	if (!pad_ctrl || !pad_ctrl->control) {
 		dev_err(isp_dev->dev, "Invalid G_CTRL parameters\n");
 		return -EINVAL;
 	}
+
+	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, pad_ctrl->control->id);
+	if (!ctrl) {
+		dev_err(isp_dev->dev, "Control 0x%x not found in ISP handler\n",
+				pad_ctrl->control->id);
+		return -EINVAL;
+	}
+	pad_ctrl->control->value = ctrl->cur.val;
+	return 0;
 }
 static int camera_isp_ioctl_s_ctrl(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
 {
 	struct camera_pad_control *pad_ctrl = (struct camera_pad_control *)arg;
 
-	if (pad_ctrl && pad_ctrl->control &&
-			pad_ctrl->control->id == V4L2_CID_USER_WB_ENABLE) {
-		struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
-				V4L2_CID_USER_WB_ENABLE);
-		if (!ctrl) {
-			dev_err(isp_dev->dev, "WB control not found in ISP handler\n");
-			return -EINVAL;
-		}
-		int ret = v4l2_ctrl_s_ctrl(ctrl, pad_ctrl->control->value);
-		dev_dbg(isp_dev->dev, "ISP S_CTRL: wb_enable=%d, ret=%d\n",
-				pad_ctrl->control->value, ret);
-		return ret;
-	} else {
+	if (!pad_ctrl || !pad_ctrl->control) {
 		dev_err(isp_dev->dev, "Invalid S_CTRL parameters\n");
 		return -EINVAL;
 	}
+
+	struct v4l2_ctrl *ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler,
+			pad_ctrl->control->id);
+	if (!ctrl) {
+		dev_err(isp_dev->dev, "Control 0x%x not found in ISP handler\n",
+				pad_ctrl->control->id);
+		return -EINVAL;
+	}
+	return v4l2_ctrl_s_ctrl(ctrl, pad_ctrl->control->value);
 }
 static int camera_isp_ioctl_g_ext_ctrls(struct camera_isp_dev *isp_dev,
 		struct v4l2_subdev *sd, void *arg)
@@ -863,6 +939,12 @@ static int camera_isp_set_selection(struct v4l2_subdev *sd,
 	}
 
 	ret = camera_isp_check_cropping_enable(sel);
+
+	if (isp_dev->bypass_isp_enabled && !ret) {
+		dev_err(isp_dev->dev,
+			"bypass_isp_enabled=1 does not allow crop selection\n");
+		return -EINVAL;
+	}
 
 	if (!ret) {
 		dev_dbg(isp_dev->dev, "cropping\n");
@@ -1126,6 +1208,12 @@ static int camera_isp_set_fmt(struct v4l2_subdev *sd,
 	if (i >= num_fmts) {
 		dev_dbg(isp_dev->dev, "%s: unsupported code 0x%x on pad %u\n",
 			__func__, format->format.code, format->pad);
+		return -EINVAL;
+	}
+
+	if (isp_dev->bypass_isp_enabled && cropping) {
+		dev_err(isp_dev->dev,
+			"bypass_isp_enabled=1 does not allow crop+scale format\n");
 		return -EINVAL;
 	}
 
@@ -1603,16 +1691,23 @@ static int camera_isp_probe(struct platform_device *pdev)
 	isp_dev->num_cached_modes = 0;
 	isp_dev->cached_format_code = 0;
 
-	v4l2_ctrl_handler_init(&isp_dev->ctrl_handler, 1);
-	v4l2_ctrl_new_std(&isp_dev->ctrl_handler, &wb_enable_ctrl_ops,
-					 V4L2_CID_USER_WB_ENABLE, 0, 1, 1,
-					 isp_dev->wb_config.wb_en);
-	isp_dev->sd.ctrl_handler = &isp_dev->ctrl_handler;
-	if (isp_dev->ctrl_handler.error) {
-		dev_err(dev, "Failed to register wb_enable v4l2 control\n");
-		ret = isp_dev->ctrl_handler.error;
+	ret = v4l2_ctrl_handler_init(&isp_dev->ctrl_handler, ARRAY_SIZE(camera_isp_ctrls));
+	if (ret) {
+		dev_err(dev, "Failed to init ctrl handler: %d\n", ret);
 		goto err_cleanup_async;
 	}
+
+	for (int i = 0; i < ARRAY_SIZE(camera_isp_ctrls); i++) {
+		v4l2_ctrl_new_custom(&isp_dev->ctrl_handler, &camera_isp_ctrls[i], NULL);
+		if (isp_dev->ctrl_handler.error) {
+			dev_err(dev, "Failed to register ctrl '%s': %d\n",
+				camera_isp_ctrls[i].name, isp_dev->ctrl_handler.error);
+			ret = isp_dev->ctrl_handler.error;
+			goto err_cleanup_ctrl;
+		}
+	}
+
+	isp_dev->sd.ctrl_handler = &isp_dev->ctrl_handler;
 
 	ret = camera_isp_create_wb_sysfs(isp_dev);
 	if (ret)
@@ -1622,7 +1717,7 @@ static int camera_isp_probe(struct platform_device *pdev)
 	ret = isp_shm_init(dev);
 	if (ret) {
 		dev_err(dev, "Failed isp_shm_init: %d\n", ret);
-		goto err_cleanup_async;
+		goto err_cleanup_ctrl;
 	}
 
 	ret = CSI_PIPE_Init(isp_dev);
@@ -1638,6 +1733,8 @@ static int camera_isp_probe(struct platform_device *pdev)
 
 err_cleanup_shm:
 	isp_shm_deinit(dev);
+err_cleanup_ctrl:
+	v4l2_ctrl_handler_free(&isp_dev->ctrl_handler);
 err_cleanup_async:
 	v4l2_async_unregister_subdev(sd);
 err_cleanup_notifier:
@@ -1658,16 +1755,17 @@ static void camera_isp_remove(struct platform_device *pdev)
 	if (!isp_dev)
 		return;
 
-	camera_isp_remove_wb_sysfs(isp_dev);
-	camera_isp_unregister_async_notifier(isp_dev);
+	pm_runtime_disable(&pdev->dev);
 	CSI_PIPE_Exit(isp_dev);
 	isp_shm_deinit(&pdev->dev);
+	camera_isp_remove_wb_sysfs(isp_dev);
+	v4l2_ctrl_handler_free(&isp_dev->ctrl_handler);
+	mutex_destroy(&isp_dev->lock);
 	v4l2_async_unregister_subdev(&isp_dev->sd);
+	camera_isp_unregister_async_notifier(isp_dev);
 	media_entity_cleanup(&isp_dev->sd.entity);
 	for (i = 0; i < ARRAY_SIZE(isp_clock_list); i++)
 		clk_disable_unprepare(isp_dev->isp_clks[i]);
-	pm_runtime_disable(&pdev->dev);
-	mutex_destroy(&isp_dev->lock);
 	dev_info(&pdev->dev, "Camera ISP subdevice removed\n");
 }
 

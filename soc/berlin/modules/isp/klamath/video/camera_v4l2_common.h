@@ -65,6 +65,7 @@ struct camera_pad_querymenu {
 };
 
 #define V4L2_CID_USER_WB_ENABLE (V4L2_CID_USER_BASE + 0x10)
+#define V4L2_CID_USER_DISABLE_SCALE_CROP (V4L2_CID_USER_BASE + 0x11)
 
 #define CAMERA_PAD_REQUBUFS       _IOWR('V',  BASE_VIDIOC_PRIVATE + 0, struct camera_pad_reqbufs)
 #define CAMERA_PAD_BUF_DONE       _IOWR('V',  BASE_VIDIOC_PRIVATE + 1, struct camera_pad_buf)

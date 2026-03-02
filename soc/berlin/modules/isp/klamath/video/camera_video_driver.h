@@ -47,7 +47,6 @@
  * The driver currently supports up to 2 video devices as per user requirements.
  */
 struct camera_video_dev {
-	int wb_enable;
 	struct camera_media_dev *camera_mdev;	/**< Parent media device */
 	struct video_device *video;		/**< V4L2 video device */
 	struct media_pad pad;			/**< Media controller pad */
@@ -56,7 +55,6 @@ struct camera_video_dev {
 	struct v4l2_format format;		/**< Current video format */
 	uint32_t pipeline;			/**< Pipeline identifier */
 	struct v4l2_subdev *isp_sd;		/**< ISP subdevice */
-	struct v4l2_ctrl_handler ctrl_handler;  /**< V4L2 control handler */
 };
 
 /**
