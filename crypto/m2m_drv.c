@@ -852,6 +852,7 @@ static int m2m_drv_probe(struct platform_device *pdev)
 	m2m_device.irq_num = platform_get_irq(pdev, 0);
 	if (m2m_device.irq_num <= 0) {
 		pr_err("failed to get irq for M2M\n");
+		ret = -ENODEV;
 		goto  err_fail;
 	}
 
@@ -860,6 +861,7 @@ static int m2m_drv_probe(struct platform_device *pdev)
 	m2m_device.intr_virt_addr = ioremap(m2m_device.res->start, resource_size(m2m_device.res));
 	if (!m2m_device.intr_virt_addr) {
 		pr_err("failed to map TSP interrupt registers!\n");
+		ret = -ENOMEM;
 		goto err_fail;
 	}
 
