@@ -128,6 +128,9 @@ static uint32_t CSI_PIPE_GetIPIFormat(uint32_t fmt)
 	uint32_t op_fmt = CAM_PIXFMT_RAW16;
 
 	switch (fmt) {
+	case MEDIA_BUS_FMT_YUV8_1X24:
+		op_fmt = CAM_PIXFMT_YUV444;
+		break;
 	case MEDIA_BUS_FMT_SBGGR8_1X8:
 	case MEDIA_BUS_FMT_SGRBG8_1X8:
 	case MEDIA_BUS_FMT_SRGGB8_1X8:
@@ -141,8 +144,14 @@ static uint32_t CSI_PIPE_GetIPIFormat(uint32_t fmt)
 	case MEDIA_BUS_FMT_RGB565_2X8_BE:
 		op_fmt = CAM_PIXFMT_RGB565;
 		break;
-	case MEDIA_BUS_FMT_RGB888_3X8:
+	case MEDIA_BUS_FMT_RGB888_1X24:
 		op_fmt = CAM_PIXFMT_RGB888;
+		break;
+	case MEDIA_BUS_FMT_UYVY8_1X16:
+		op_fmt = CAM_PIXFMT_YUV422P;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_1_5X8:
+		op_fmt = CAM_PIXFMT_YUV420SP;
 		break;
 	default:
 		pr_warn("Unsupported format[0x%x], considering RAW16 out\n", fmt);
@@ -156,6 +165,9 @@ static uint32_t CSI_PIPE_GetCamFormat(uint32_t fmt)
 	uint32_t op_fmt = CAM_PIXFMT_RAW16;
 
 	switch (fmt) {
+	case MEDIA_BUS_FMT_YUV8_1X24:
+		op_fmt = CAM_PIXFMT_YUV444;
+		break;
 	case MEDIA_BUS_FMT_SBGGR8_1X8:
 	case MEDIA_BUS_FMT_SGRBG8_1X8:
 	case MEDIA_BUS_FMT_SRGGB8_1X8:
@@ -171,8 +183,12 @@ static uint32_t CSI_PIPE_GetCamFormat(uint32_t fmt)
 	case MEDIA_BUS_FMT_RGB565_2X8_BE:
 		op_fmt = CAM_PIXFMT_RGB565;
 		break;
-	case MEDIA_BUS_FMT_RGB888_3X8:
+	case MEDIA_BUS_FMT_RGB888_1X24:
 		op_fmt = CAM_PIXFMT_RGB888;
+		break;
+	case MEDIA_BUS_FMT_UYVY8_1X16:
+	case MEDIA_BUS_FMT_YUYV8_1X16:
+		op_fmt = CAM_PIXFMT_YUV422P;
 		break;
 	case MEDIA_BUS_FMT_YUYV8_1_5X8:
 		op_fmt = CAM_PIXFMT_YUV420SP;
@@ -206,6 +222,19 @@ static int CSI_PIPE_CheckCompatibility(uint32_t ipi_fmt, uint32_t op_fmt)
 	case CAM_PIXFMT_YUV444:
 		if (op_fmt < CAM_PIXFMT_YUV444) {
 			pr_warn("Only Output formats till YUV444 supported\n");
+			res = -1;
+		}
+		break;
+	case CAM_PIXFMT_YUV422SP:
+		if (op_fmt < CAM_PIXFMT_YUV422SP) {
+			pr_warn("Only Output formats YUV422/YUV420 supported\n");
+			res = -1;
+		}
+		break;
+	case CAM_PIXFMT_YUV422P:
+		if (op_fmt != CAM_PIXFMT_YUV422P && op_fmt != CAM_PIXFMT_YUV422SP &&
+		    op_fmt != CAM_PIXFMT_YUV420SP) {
+			pr_warn("Only Output formats YUV422P/YUV422SP/YUV420 supported\n");
 			res = -1;
 		}
 		break;
@@ -1422,6 +1451,11 @@ static void CSI_PIPE_DNS422to420_Config(CSI_PL_CTX_t *ctx, uint8_t zero_ld)
 	csc_s_ctrl(&ctrl);
 }
 
+static inline bool is_packed_mode(int fmt)
+{
+	return fmt == CAM_PIXFMT_YUV444 || fmt == CAM_PIXFMT_RGB888;
+}
+
 static void CSI_PIPE_TG_Config(CSI_PL_CTX_t *ctx, int ipi_out_fmt, int csc_fifo_en)
 {
 	uint32_t val;
@@ -1547,9 +1581,7 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	/* Only cropping */
 	else if (!crop_is_full) {
 		ctx->op_wt = ctx->crop.x_end + 1 - ctx->crop.x_st;
-		if ((ipi_out_fmt == CAM_PIXFMT_RGB888) ||
-			(ipi_out_fmt == CAM_PIXFMT_RGB565) ||
-			(ipi_out_fmt == CAM_PIXFMT_YUV444)) {
+		if (is_packed_mode(ipi_out_fmt)) {
 			ctx->op_wt = ctx->op_wt * 3;
 			mod.seq_en = 1;
 		}
@@ -1559,6 +1591,17 @@ void CSI_PIPE_Start(CSIPIPE_HANDLE handle)
 	else {
 		ctx->op_wt = ctx->hres;
 		ctx->op_ht = ctx->vres;
+		/* COLOR48 mode: IPI emits 3 component-clocks per pixel.
+		 * Only enable seq path when output is also packed (RGB888/YUV444).
+		 * DNS outputs (NV12/NV16/UYVY) consume triplets natively; seq path
+		 * would triple op_wt and stall DHUB waiting for 3x more bytes.
+		 */
+		if (is_packed_mode(ipi_out_fmt) &&
+		    (ctx->op_fmt == CAM_PIXFMT_RGB888 ||
+		     ctx->op_fmt == CAM_PIXFMT_YUV444)) {
+			ctx->op_wt = ctx->hres * 3;
+			mod.seq_en = 1;
+		}
 	}
 	/* When resolution is not multiple of 3 IPI will
 	 * insert padding pixels - handle for RAW

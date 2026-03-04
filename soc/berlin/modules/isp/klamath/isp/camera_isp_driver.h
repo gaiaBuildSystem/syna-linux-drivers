@@ -89,12 +89,22 @@ typedef void *CSIPIPE_HANDLE;
 #define CAMERA_ISP_DEFAULT_WIDTH  1920
 #define CAMERA_ISP_DEFAULT_HEIGHT 1080
 
+/* Index of the first resolution in a cached_modes row */
+#define CAMERA_ISP_FIRST_RES_IDX  0
+
 /* ISP pad definitions */
 enum camera_isp_pad_id {
 	CAMERA_ISP_PAD_SINK = 0,            /* Input from sensor */
 	CAMERA_ISP_PAD_SOURCE_PATH0,        /* Path 0 output to video device 0 */
 	CAMERA_ISP_PAD_SOURCE_PATH1,        /* Path 1 output to video device 1 */
 	CAMERA_ISP_PAD_NR,
+};
+
+/* Sensor mode structure */
+struct sensor_mode {
+	u32 width;
+	u32 height;
+	u32 code;
 };
 
 /* Media bus format structure */
@@ -146,10 +156,12 @@ struct camera_isp_dev {
 	unsigned int intr_q_tail;
 	unsigned int intr_q[ISP_INTR_Q_SIZE];
 
-	/* Cached sensor modes */
-	struct sensor_mode *cached_modes;
-	int num_cached_modes;
-	u32 cached_format_code;
+	/* Cached sensor modes: 2D array [code_idx][res_idx],
+	 * allocated in enumerate_sensor_modes()
+	 */
+	struct sensor_mode **cached_modes;
+	int *num_resolutions;
+	int num_cached_codes;
 
 	/* Scaling information from resolution selection */
 	u32 scale_factor;

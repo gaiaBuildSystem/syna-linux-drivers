@@ -41,7 +41,11 @@ static struct camera_video_fmt_info camera_formats_info[] = {
 		.mbus	= MEDIA_BUS_FMT_YUYV8_1X16,
 	},
 	{
-		.fourcc    = V4L2_PIX_FMT_NV16,
+		.fourcc	= V4L2_PIX_FMT_UYVY,
+		.mbus	= MEDIA_BUS_FMT_UYVY8_1X16,
+	},
+	{
+		.fourcc    = V4L2_PIX_FMT_NV16M,
 		.mbus      = MEDIA_BUS_FMT_YUYV8_2X8,
 	},
 	/* Raw Bayer formats - essential for camera sensors */
@@ -81,7 +85,12 @@ static struct camera_video_fmt_info camera_formats_info[] = {
 	/* RGB format - for processed output */
 	{
 		.fourcc	= V4L2_PIX_FMT_RGB24,
-		.mbus	= MEDIA_BUS_FMT_RGB888_3X8,
+		.mbus	= MEDIA_BUS_FMT_RGB888_1X24,
+	},
+	/* YUV444 packed - 3 bytes per pixel, 1 plane */
+	{
+		.fourcc	= V4L2_PIX_FMT_YUV24,
+		.mbus	= MEDIA_BUS_FMT_YUV8_1X24,
 	},
 };
 
@@ -173,6 +182,38 @@ static void print_v4l2_pix_format_mplane(struct v4l2_pix_format_mplane *pix_mp)
 	}
 }
 
+/* camera_video_format_info - format info for fourccs not known to the kernel */
+static const struct v4l2_format_info *camera_video_format_info(u32 format)
+{
+	static const struct v4l2_format_info formats[] = {
+		/* V4L2_PIX_FMT_YUV24: packed YUV444, 3 bpp, 1 plane */
+		{
+			.format      = V4L2_PIX_FMT_YUV24,
+			.pixel_enc   = V4L2_PIXEL_ENC_YUV,
+			.mem_planes  = 1,
+			.comp_planes = 1,
+			.bpp         = { 3, 0, 0, 0 },
+			.hdiv        = 1,
+			.vdiv        = 1,
+		},
+	};
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].format == format)
+			return &formats[i];
+	return NULL;
+}
+
+static const struct v4l2_format_info *camera_video_find_format_info(u32 fourcc)
+{
+	const struct v4l2_format_info *info = v4l2_format_info(fourcc);
+
+	if (!info)
+		info = camera_video_format_info(fourcc);
+	return info;
+}
+
 /**
  * camera_video_mfmt_to_vfmt - Convert subdev format to V4L2 format
  * @mfmt: Subdev format structure
@@ -204,7 +245,7 @@ static int camera_video_mfmt_to_vfmt(struct v4l2_subdev_format *mfmt, struct v4l
 	if (ret < 0)
 		return ret;
 
-	info = v4l2_format_info(fourcc);
+	info = camera_video_find_format_info(fourcc);
 	if (!info) {
 		dev_err(NULL, "%s: %d returning -EINVAL\n", __func__, __LINE__);
 		return -EINVAL;
@@ -948,6 +989,8 @@ static int camera_video_vb2_queue_setup(struct vb2_queue *queue,
 		*num_buffers = MAX_VIDEO_BUFFERS;
 	}
 
+	*num_buffers = 5;
+
 	dev_dbg(camera_vdev->camera_mdev->dev,
 			"=== QUEUE SETUP SUCCESS: %u buffers, %u planes  %u size ===\n",
 			*num_buffers, *num_planes, sizes[0]);
@@ -966,7 +1009,7 @@ static int camera_video_vb2_buf_prepare(struct vb2_buffer *vb)
 	uint32_t bytesperline, sizeimage;
 	int i;
 
-	info = v4l2_format_info(format->fmt.pix_mp.pixelformat);
+	info = camera_video_find_format_info(format->fmt.pix_mp.pixelformat);
 	if (!info) {
 		dev_err(NULL, "%s: %d returning -EINVAL\n", __func__, __LINE__);
 		return -EINVAL;

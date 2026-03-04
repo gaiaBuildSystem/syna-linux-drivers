@@ -53,8 +53,18 @@ static const struct mipi_fmt dw_mipi_csi_formats[] = {
 		.depth = 24,
 	},
 	{
+		.name = "RGB888_1X24",
+		.code = MEDIA_BUS_FMT_RGB888_1X24,
+		.depth = 24,
+	},
+	{
 		.name = "YUV422_8",
 		.code = MEDIA_BUS_FMT_YUYV8_2X8,
+		.depth = 16,
+	},
+	{
+		.name = "UYVY422_8",
+		.code = MEDIA_BUS_FMT_UYVY8_1X16,
 		.depth = 16,
 	},
 	{
@@ -66,6 +76,11 @@ static const struct mipi_fmt dw_mipi_csi_formats[] = {
 		.name = "YUV420_SP",
 		.code = MEDIA_BUS_FMT_YUYV8_1_5X8,
 		.depth = 12,
+	},
+	{
+		.name = "YUV444_8",
+		.code = MEDIA_BUS_FMT_YUV8_1X24,
+		.depth = 24,
 	},
 };
 
@@ -193,6 +208,7 @@ void dw_mipi_csi_set_ipi_fmt(struct mipi_csi_dev *dev, int ipi, uint32_t code)
 
 	case MEDIA_BUS_FMT_RGB888_2X12_LE:
 	case MEDIA_BUS_FMT_RGB888_2X12_BE:
+	case MEDIA_BUS_FMT_RGB888_1X24:
 		fmt = CSI_2_RGB888;
 		break;
 	case MEDIA_BUS_FMT_SBGGR10_2X8_PADHI_LE:
@@ -206,6 +222,7 @@ void dw_mipi_csi_set_ipi_fmt(struct mipi_csi_dev *dev, int ipi, uint32_t code)
 		fmt = CSI_2_RAW10;
 		break;
 	case MEDIA_BUS_FMT_YUYV8_2X8:
+	case MEDIA_BUS_FMT_UYVY8_1X16:
 		fmt = CSI_2_YUV422_8;
 		break;
 	case MEDIA_BUS_FMT_YUYV10_2X10:
@@ -390,8 +407,9 @@ static int dw_mipi_csi_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 		.which = fmt->which,
 		.pad = 0,
 		.format = {
-			.width = fmt->format.width,
+			.width  = fmt->format.width,
 			.height = fmt->format.height,
+			.code   = fmt->format.code,   /* forward requested format code to sensor */
 		}
 	};
 
@@ -418,6 +436,12 @@ static int dw_mipi_csi_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 		dw_mipi_csi_fill_timings(dev, sensor_fmt.format.width,
 				sensor_fmt.format.height);
 		dw_mipi_csi_set_ipi_fmt(dev, 0, sensor_fmt.format.code);
+		/* CSI IPI is in COLOR48 mode: even though the sensor sends YUV422 (UYVY),
+		 * the IPI upsamples it to YUV444 internally. Tell the ISP YUV8_1X24 so
+		 * csipipe configures the correct YUV444->YUV422 DNS pipeline.
+		 */
+		if (sensor_fmt.format.code == MEDIA_BUS_FMT_UYVY8_1X16)
+			sensor_fmt.format.code = MEDIA_BUS_FMT_YUV8_1X24;
 		*fmt = sensor_fmt;
 	} else {
 		/* Default values from DT get used */
@@ -505,6 +529,12 @@ static int dw_mipi_csi_s_power(struct v4l2_subdev *sd, int on)
 
 	pad = media_pad_remote_pad_first(&dev->pads[CSI_PAD_SINK]);
 
+	if (on) {
+		/* Init DPHY before sensor stream-on so LP11 stop-state is stable */
+		dw_mipi_csi_hw_stdby(dev);
+		dw_mipi_csi_start(dev);
+	}
+
 	if (pad) {
 		if (is_media_entity_v4l2_subdev(pad->entity)) {
 			subdev = media_entity_to_v4l2_subdev(pad->entity);
@@ -515,12 +545,8 @@ static int dw_mipi_csi_s_power(struct v4l2_subdev *sd, int on)
 			pr_err("error in stream: %d\n", ret);
 	}
 
-	if (on) {
-		dw_mipi_csi_hw_stdby(dev);
-		dw_mipi_csi_start(dev);
-	} else {
+	if (!on)
 		dw_mipi_csi_mask_irq_power_off(dev);
-	}
 
 	return 0;
 }
