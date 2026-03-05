@@ -6,100 +6,11 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#define pr_fmt(fmt) "[tsp]" fmt
 
-#define pr_fmt(fmt) "[tsp kernel driver]" fmt
+#include "tsp.h"
 
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/delay.h>
-#include <linux/kernel.h>
-#include <linux/fs.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/of.h>
-#include <linux/of_irq.h>
-#include <linux/platform_device.h>
-#include <linux/kdev_t.h>
-#include <linux/cdev.h>
-#include <linux/device.h>
-#include <linux/version.h>
-#include <linux/interrupt.h>
-#include <linux/io.h>
-#include <linux/semaphore.h>
-#include <linux/uaccess.h>
-#include <linux/mm.h>
-#include <linux/clk.h>
-#include "drv_msg.h"
-#include "tee_client_api.h"
-#include "kernel_compatibility.h"
-
-#define     TSP_ISR_MSGQ_SIZE                              32
-#define     TSP_ISR_START                                  0x1
-#define     TSP_ISR_STOP                                   0x2
-#define     TSP_ISR_WAKEUP                                 0x3
-/*
- * RA_TspReg_IntReg is 0xF344 on BG5CT
- * not sure if we need to support BG5CT on kernel 4.14
- */
-#define     RA_TspReg_Figo1Dtcm                            0x20000
-#define     RA_FigoSysBasic_FIGO0                          0xA800
-#define     RA_FigoReg_figoRstn                            0x0028
-#define     RA_TspReg_IntReg                               0xDB44
-#define     RA_TspIntReg_software_int_enable               0x0028
-#define     RA_TspIntReg_software_int_status               0x002C
-#define     RA_TspIntReg_software_int_set                  0x0030
-
-#define     Figo_STA_RESET                                 0x00
-#define     Figo_STA_RELEASE                               0x01
-
-#define     Figo_CMD_RUN                                   0x01
-#define     Figo_CMD_STALL                                 0x02
-
-#define     RA_Figo0_cmd                                   0x0018
-#define     RA_Figo0_resp                                  0x001C
-
-#define     RA_TspDtcmGlobal_LA                            0x00008
-#define     RA_LocalArea_Ext_D0th_                         0x00000
-#define     RA_LocalArea_Ext_D2th_                         0x00008
-
-#define TSP_DEVICE_NAME			"tsp"
-#define TSP_DEVICE_PATH			("/dev/" TSP_DEVICE_NAME)
-#define TSP_MAX_DEVS            2
-#define TSP_MINOR               0
-
-#define TSP_IOCTL_CMD_MSG       _IOW('t', 1, int[2])
-#define TSP_IOCTL_GET_MSG       _IOR('t', 2, CC_MSG_t)
-#define TSP_IOCTL_DISABLE_INT   _IO('t', 3)
-#define TSP_IOCTL_ENABLE_INT    _IO('t', 4)
-#define TSP_IOCTL_SET_CLK_RATE  _IOW('t', 5, enum clk_setting)
-
-struct tsp_context {
-	struct clk *core;
-	unsigned long default_rate;
-	AMPMsgQ_t hTSPMsgQ;
-	struct semaphore tsp_sem;
-};
-
-struct tsp_device_t {
-	struct tsp_context TspCtx;
-	unsigned char *dev_name;
-	struct cdev cdev;
-	struct class *dev_class;
-	int major;
-	int minor;
-};
-
-enum clk_setting {
-	TSP_CLK_LOW,
-	TSP_CLK_NORMAL
-};
-
-enum {
-	TSP_SAVE_HW_CONTEXT = 0x10000,
-	TSP_RESTORE_HW_CONTEXT,
-	TSP_SET_FIGO_STATE,
-	TSP_GET_FIGO_STATE
-};
+static bool figo_running[2] = {false, false};
 
 /*
  * Static Variables
@@ -120,215 +31,6 @@ static struct tsp_device_t tsp_dev = {
 	writel_relaxed(((unsigned int)(data)), ((addr) + tsp_virt_addr))
 #define TSP_REG_WORD32_READ(offset, holder)	\
 	(*(holder) = readl_relaxed((offset) + tsp_virt_addr))
-
-#define TSP_FIGO_NUM    2
-
-static const TEEC_UUID ta_tsp_uuid = {0x1316a183, 0x894d, 0x43fe, \
-	{0x98, 0x93, 0xbb, 0x94, 0x6a, 0xe1, 0x03, 0xe8} };
-static TEEC_Context context;
-static TEEC_Session session[TSP_FIGO_NUM];
-static bool figo_running[2] = {false, false};
-
-static int tz_tsp_errcode_translate(TEEC_Result result)
-{
-	int ret;
-
-	switch (result) {
-	case TEEC_SUCCESS:
-		ret = 0;
-		break;
-	case TEEC_ERROR_ACCESS_DENIED:
-		ret = -ENOTSUPP;
-		break;
-	case TEEC_ERROR_BAD_PARAMETERS:
-		ret = -EINVAL;
-		break;
-	default:
-		ret = -EPERM;
-		break;
-	}
-	return ret;
-}
-
-static int tz_tsp_initialize(void)
-{
-	TEEC_Result result = TEEC_SUCCESS;
-	uint32_t i;
-
-	/* [1] Connect to TEE */
-	result = TEEC_InitializeContext(
-				NULL,
-				&context);
-	if (result != TEEC_SUCCESS) {
-		pr_err("TEEC_InitializeContext ret=0x%08x\n", result);
-		goto fun_ret;
-	} else
-		pr_info("TEEC_InitializeContext success\n");
-
-	/* [2] Open session with TEE application */
-	for (i = 0; i < TSP_FIGO_NUM; i++) {
-		TEEC_Operation operation;
-
-		operation.paramTypes = TEEC_PARAM_TYPES(
-				TEEC_VALUE_INPUT,
-				TEEC_NONE,
-				TEEC_NONE,
-				TEEC_NONE);
-		operation.params[0].value.a = i;
-
-		result = TEEC_OpenSession(
-					&context,
-					&session[i],
-					&ta_tsp_uuid,
-					TEEC_LOGIN_USER,
-					NULL,
-					&operation,
-					NULL);
-		if (result != TEEC_SUCCESS) {
-			while (i--)
-				TEEC_CloseSession(&session[i]);
-			TEEC_FinalizeContext(&context);
-			pr_err("TEEC_OpenSession ret=0x%08x\n", result);
-			goto fun_ret;
-		}
-		pr_info("TEEC_OpenSession %d success\n", i);
-	}
-
-fun_ret:
-	return tz_tsp_errcode_translate(result);
-}
-
-static void tz_tsp_finalize(void)
-{
-	uint32_t i;
-
-	for (i = 0; i < TSP_FIGO_NUM; i++)
-		TEEC_CloseSession(&session[i]);
-	TEEC_FinalizeContext(&context);
-}
-
-static int tz_tsp_check_figo_id(uint32_t id)
-{
-	if (id > (TSP_FIGO_NUM - 1)) {
-		pr_err("Invalid figo id:0x%x\n", id);
-		return TEEC_ERROR_BAD_PARAMETERS;
-	}
-	return TEEC_SUCCESS;
-}
-
-static int tz_tsp_save_hw_context(uint32_t figo_id)
-{
-	TEEC_Result result = TEEC_SUCCESS;
-	TEEC_Operation operation;
-
-	result = tz_tsp_check_figo_id(figo_id);
-	if (result != TEEC_SUCCESS)
-		goto fun_ret;
-
-	operation.paramTypes = TEEC_PARAM_TYPES(
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE);
-
-	result = TEEC_InvokeCommand(
-			&session[figo_id],
-			TSP_SAVE_HW_CONTEXT,
-			&operation,
-			NULL);
-	if (result != TEEC_SUCCESS)
-		pr_err("figo[%d] save HW context error: 0x%x\n",
-			figo_id, result);
-
-fun_ret:
-	return tz_tsp_errcode_translate(result);
-}
-
-static int tz_tsp_restore_hw_context(uint32_t figo_id)
-{
-	TEEC_Result result = TEEC_SUCCESS;
-	TEEC_Operation operation;
-
-	result = tz_tsp_check_figo_id(figo_id);
-	if (result != TEEC_SUCCESS)
-		goto fun_ret;
-
-	operation.paramTypes = TEEC_PARAM_TYPES(
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE);
-
-	result = TEEC_InvokeCommand(
-			&session[figo_id],
-			TSP_RESTORE_HW_CONTEXT,
-			&operation,
-			NULL);
-	if (result != TEEC_SUCCESS)
-		pr_err("figo[%d] restore HW context error: 0x%x\n",
-			figo_id, result);
-
-fun_ret:
-	return tz_tsp_errcode_translate(result);
-}
-
-static int tz_tsp_set_figo_state(uint32_t figo_id, uint32_t state)
-{
-	TEEC_Result result = TEEC_SUCCESS;
-	TEEC_Operation operation;
-
-	result = tz_tsp_check_figo_id(figo_id);
-	if (result != TEEC_SUCCESS)
-		goto fun_ret;
-
-	operation.paramTypes = TEEC_PARAM_TYPES(
-			TEEC_VALUE_INPUT,
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE);
-	operation.params[0].value.a = state;
-
-	result = TEEC_InvokeCommand(
-			&session[figo_id],
-			TSP_SET_FIGO_STATE,
-			&operation,
-			NULL);
-	if (result != TEEC_SUCCESS)
-		pr_err("figo[%d] set %s failed, error code: 0x%x\n",
-			figo_id, (state == Figo_STA_RESET) ? "reset" : "release", result);
-
-fun_ret:
-	return tz_tsp_errcode_translate(result);
-}
-
-static int tz_tsp_get_figo_state(uint32_t figo_id, uint32_t *state)
-{
-	TEEC_Result result = TEEC_SUCCESS;
-	TEEC_Operation operation;
-
-	result = tz_tsp_check_figo_id(figo_id);
-	if (result != TEEC_SUCCESS)
-		goto fun_ret;
-
-	operation.paramTypes = TEEC_PARAM_TYPES(
-			TEEC_VALUE_OUTPUT,
-			TEEC_NONE,
-			TEEC_NONE,
-			TEEC_NONE);
-
-	result = TEEC_InvokeCommand(
-			&session[figo_id],
-			TSP_GET_FIGO_STATE,
-			&operation,
-			NULL);
-	if (result != TEEC_SUCCESS)
-		pr_err("figo[%d] get reset register error: 0x%x\n",
-			figo_id, result);
-	*state = operation.params[0].value.a;
-
-fun_ret:
-	return tz_tsp_errcode_translate(result);
-}
 
 static irqreturn_t tsp_devices_isr(int irq, void *dev_id)
 {
@@ -942,7 +644,7 @@ static const struct of_device_id tsp_match[] = {
 MODULE_DEVICE_TABLE(of, tsp_match);
 
 static SIMPLE_DEV_PM_OPS(berlin_tsp_pmops, berlin_tsp_suspend,
-			 berlin_tsp_resume);
+		berlin_tsp_resume);
 
 static struct platform_driver berlin_tsp_driver = {
 	.probe = berlin_tsp_probe,
@@ -955,6 +657,6 @@ static struct platform_driver berlin_tsp_driver = {
 };
 module_platform_driver(berlin_tsp_driver);
 
-MODULE_AUTHOR("marvell");
+MODULE_AUTHOR("synaptics");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("tsp module template");
+MODULE_DESCRIPTION("tsp module");
