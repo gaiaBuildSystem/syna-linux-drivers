@@ -18614,6 +18614,30 @@ static void _dhd_apf_unlock_local(dhd_info_t *dhd)
 	}
 }
 
+#define APF_PKT_DLOAD "apf_pkt_dload"
+#define APF_PKT_LOAD_ENAB(ndev)		is_apf_pkt_load_supported(ndev)
+bool is_apf_pkt_load_supported(struct net_device *ndev)
+{
+	dhd_info_t *dhd = DHD_DEV_INFO(ndev);
+	dhd_pub_t *dhdp = &dhd->pub;
+	bool ret = FALSE;
+	int result, ifidx;
+	char cmd[] = APF_PKT_DLOAD;
+
+	ifidx = dhd_net2idx(dhd, ndev);
+	if (ifidx == DHD_BAD_IF) {
+		DHD_ERROR(("%s: bad ifidx\n", __FUNCTION__));
+		goto exit;
+	}
+
+	result = dhd_wl_ioctl_cmd(dhdp, WLC_SET_VAR, cmd, (u32)sizeof(cmd), TRUE, ifidx);
+	if (result != BCME_UNSUPPORTED)
+		ret = TRUE;
+
+exit:
+	return ret;
+}
+
 static int
 _dhd_apf_add_filter(struct net_device *ndev, uint32 filter_id, u8* program, uint32 program_len)
 {
@@ -18625,6 +18649,8 @@ _dhd_apf_add_filter(struct net_device *ndev, uint32 filter_id, u8* program, uint
 	u32 cmd_len, buf_len, max_len;
 	int ifidx, ret = BCME_OK;
 	char cmd[] = "pkt_filter_add";
+	char cmd_new[] = APF_PKT_DLOAD;
+	bool apf_pkt_load_enab = APF_PKT_LOAD_ENAB(ndev);
 
 	ifidx = dhd_net2idx(dhd, ndev);
 	if (ifidx == DHD_BAD_IF) {
@@ -18633,7 +18659,10 @@ _dhd_apf_add_filter(struct net_device *ndev, uint32 filter_id, u8* program, uint
 		goto exit;
 	}
 
-	cmd_len = sizeof(cmd);
+	if (apf_pkt_load_enab)
+		cmd_len = sizeof(cmd_new);
+	else
+		cmd_len = sizeof(cmd);
 
 	/* Check if the program_len is more than the expected len or if the program is NULL,
 	 * then return from here.
@@ -18659,7 +18688,10 @@ _dhd_apf_add_filter(struct net_device *ndev, uint32 filter_id, u8* program, uint
 		goto exit;
 	}
 
-	ret = memcpy_s(buf, buf_len, cmd, cmd_len);
+	if (apf_pkt_load_enab)
+		ret = memcpy_s(buf, buf_len, cmd_new, cmd_len);
+	else
+		ret = memcpy_s(buf, buf_len, cmd, cmd_len);
 	if (unlikely(ret)) {
 		goto exit;
 	}
@@ -18677,7 +18709,12 @@ _dhd_apf_add_filter(struct net_device *ndev, uint32 filter_id, u8* program, uint
 		goto exit;
 	}
 
-	ret = dhd_wl_ioctl_cmd(dhdp, WLC_SET_VAR, buf, buf_len, TRUE, ifidx);
+	if (apf_pkt_load_enab) {
+		ret = dhd_download_apf(dhdp, (uint8 *)buf + strlen(cmd_new) + 1,
+			buf_len - (strlen(cmd_new) + 1), cmd_new);
+	} else {
+		ret = dhd_wl_ioctl_cmd(dhdp, WLC_SET_VAR, buf, buf_len, TRUE, ifidx);
+	}
 	if (unlikely(ret)) {
 		DHD_ERROR(("%s: failed to add APF filter, id=%d, ret=%d\n", __FUNCTION__,
 			filter_id, ret));
@@ -18899,6 +18936,21 @@ dhd_dev_apf_get_max_len(struct net_device *ndev, uint32 *max_len)
 	return ret;
 }
 
+
+static bool is_buf_zero(u8* program,
+	uint32 program_len)
+{
+    int i =0;
+    for(i=0; i< program_len; i++){
+        if(program[i]){
+            DHD_TRACE(("%s: is_buf_zero false\n", __FUNCTION__));
+            return FALSE;
+        }
+    }
+    DHD_TRACE(("%s: is_buf_zero true\n", __FUNCTION__));
+    return TRUE;
+}
+
 int
 dhd_dev_apf_add_filter(struct net_device *ndev, u8* program,
 	uint32 program_len)
@@ -18909,13 +18961,15 @@ dhd_dev_apf_add_filter(struct net_device *ndev, u8* program,
 
 	DHD_APF_LOCK(ndev);
 
-	/* delete, if filter already exists */
-	if (dhdp->apf_set) {
-		ret = _dhd_apf_delete_filter(ndev, PKT_FILTER_APF_ID);
-		if (unlikely(ret)) {
-			goto exit;
+	if (!APF_PKT_LOAD_ENAB(ndev)) {
+		/* delete, if filter already exists */
+		if (dhdp->apf_set) {
+			ret = _dhd_apf_delete_filter(ndev, PKT_FILTER_APF_ID);
+			if (unlikely(ret)) {
+				goto exit;
+			}
+			dhdp->apf_set = FALSE;
 		}
-		dhdp->apf_set = FALSE;
 	}
 
 	ret = _dhd_apf_add_filter(ndev, PKT_FILTER_APF_ID, program, program_len);
@@ -18923,6 +18977,23 @@ dhd_dev_apf_add_filter(struct net_device *ndev, u8* program,
 		goto exit;
 	}
 	dhdp->apf_set = TRUE;
+
+        /* In CTS test, it will set all zero buf to clear the filter */
+
+    if (is_buf_zero(program, program_len)) {
+        DHD_TRACE(("%s: clear filer\n", __FUNCTION__));
+        ret = _dhd_apf_delete_filter(ndev, PKT_FILTER_APF_ID);
+
+        if (unlikely(ret)) {
+
+            goto exit;
+
+        }
+
+        dhdp->apf_set = FALSE;
+
+     }
+
 
 	if (dhdp->in_suspend && dhdp->apf_set && !(dhdp->op_mode & DHD_FLAG_HOSTAP_MODE)) {
 		/* Driver is still in (early) suspend state and during this time Android

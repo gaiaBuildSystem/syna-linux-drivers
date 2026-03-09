@@ -8031,6 +8031,99 @@ exit:
 	return err;
 }
 
+int
+dhd_download_apf(dhd_pub_t *dhd, unsigned char *buf,
+		uint32 len, char *iovar)
+
+{
+	int chunk_len;
+	int cumulative_len = 0;
+	int size2alloc;
+	unsigned char *new_buf = NULL;
+	int err = 0, data_offset;
+	uint16 dl_flag = DL_BEGIN;
+	uint16 dl_type = DL_TYPE_CLM;
+	bool split_iovar = FALSE;
+
+	if (iovar && strncmp(iovar, "txcapload", 9) != 0 &&
+		strncmp(iovar, "clmload", 7) != 0) {
+		split_iovar = TRUE;
+		dl_type = DL_TYPE_DRRBLOB;
+	}
+
+	data_offset = OFFSETOF(wl_dload_data_t, data);
+	size2alloc = data_offset + MAX_CHUNK_LEN;
+	size2alloc = ROUNDUP(size2alloc, 8);
+
+	if ((new_buf = (unsigned char *)MALLOCZ(dhd->osh, size2alloc)) != NULL) {
+		do {
+			if (split_iovar) {
+				/* there is no file handling in split iovar case */
+				if (len >= MAX_CHUNK_LEN) {
+					chunk_len = MAX_CHUNK_LEN;
+				} else {
+					chunk_len = len;
+				}
+				err = memcpy_s(new_buf + data_offset, MAX_CHUNK_LEN,
+					buf + cumulative_len, chunk_len);
+				if (err) {
+					DHD_ERROR(("%s: failed to copy chunk at len %u !\n",
+						__FUNCTION__, cumulative_len));
+					err = BCME_ERROR;
+					goto exit;
+				}
+				cumulative_len += chunk_len;
+			} else {
+#if !defined(__linux__) || defined(DHD_LINUX_STD_FW_API)
+				if (len >= MAX_CHUNK_LEN) {
+					chunk_len = MAX_CHUNK_LEN;
+				} else {
+					chunk_len = len;
+				}
+				err = memcpy_s(new_buf + data_offset, MAX_CHUNK_LEN,
+					buf + cumulative_len, chunk_len);
+				if (err) {
+					DHD_ERROR(("%s: failed to copy chunk at len %u !\n",
+						__FUNCTION__, cumulative_len));
+					err = BCME_ERROR;
+					goto exit;
+				}
+				cumulative_len += chunk_len;
+#else
+				chunk_len = dhd_os_get_image_block((char *)(new_buf + data_offset),
+					MAX_CHUNK_LEN, buf);
+				if (chunk_len < 0) {
+					DHD_ERROR(("%s: dhd_os_get_image_block failed (%d)\n",
+						__FUNCTION__, chunk_len));
+					err = BCME_ERROR;
+					goto exit;
+				}
+#endif /* !__linux__ || DHD_LINUX_STD_FW_API */
+			}
+			if (len - chunk_len == 0) {
+				dl_flag |= DL_END;
+			}
+
+			err = dhd_download_2_dongle(dhd, iovar, dl_flag, dl_type,
+				new_buf, data_offset + chunk_len);
+
+			dl_flag &= ~DL_BEGIN;
+
+			len = len - chunk_len;
+		} while ((len > 0) && (err == 0));
+	} else {
+		DHD_ERROR(("%s: Unable to alloc %u bytes of mem!\n", __FUNCTION__,
+			size2alloc));
+		err = BCME_NOMEM;
+	}
+
+exit:
+	if (new_buf) {
+		MFREE(dhd->osh, new_buf, size2alloc);
+	}
+	return err;
+}
+
 #if defined(CACHE_FW_IMAGES)
 int
 dhd_download_blob_cached(dhd_pub_t *dhd, char *file_path,

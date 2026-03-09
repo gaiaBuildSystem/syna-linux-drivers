@@ -9082,7 +9082,7 @@ wl_cfgvendor_apf_get_capabilities(struct wiphy *wiphy,
 		goto fail;
 	}
 
-	ver = 4;
+	ver = 6000;
 	ret = nla_put_u32(skb, APF_ATTRIBUTE_VERSION, ver);
 	if (ret < 0) {
 		WL_ERR(("Failed to put APF_ATTRIBUTE_VERSION, ret:%d\n", ret));
