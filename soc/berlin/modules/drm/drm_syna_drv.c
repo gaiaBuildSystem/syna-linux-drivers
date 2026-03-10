@@ -211,8 +211,7 @@ static int syna_late_load(struct drm_device *dev)
 		return -1;
 	}
 
-	if (VPP_Is_Recovery_Mode())
-		syna_vpp_push_fastlogo_frame(dev);
+	syna_vpp_push_fastlogo_frame(dev);
 
 	err = syna_modeset_late_init(dev_priv);
 	if (err) {

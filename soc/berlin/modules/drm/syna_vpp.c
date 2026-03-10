@@ -1003,7 +1003,7 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 	VPP_WIN vpp_res_info;
 	int crtcs;
 
-	if (!dev_priv->vpp_config_param.logo_enable) {
+	if (!VPP_Is_Recovery_Mode() || !dev_priv->vpp_config_param.logo_enable) {
 		for (i = 0; i < MAX_CRTC; i++)
 			dev_priv->is_fl_frame_freed[i] = 1;
 
