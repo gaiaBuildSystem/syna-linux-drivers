@@ -13,6 +13,8 @@
 #include "avio_sub_module.h"
 #include "drv_hdmitx.h"
 #include "avio_common.h"
+#include <linux/regulator/consumer.h>
+#include <linux/backlight.h>
 
 #define AVIO_DEVICE_PROCFILE_CONFIG		"config"
 #define AVIO_DEVICE_PROCFILE_STATUS		"status"
@@ -52,6 +54,8 @@
 static struct proc_dir_entry *avio_driver_config;
 static struct proc_dir_entry *avio_driver_state;
 static struct proc_dir_entry *avio_driver_detail;
+static struct regulator *supply;
+static struct backlight_device *backlight;
 
 static VPP_CTX vpp_ctx;
 static bool bIsDisplayModeSwitchSignal;
@@ -422,6 +426,7 @@ static int drv_vpp_open(void *h_vpp_ctx)
 	unsigned int i, intr_num;
 	int err;
 	VPP_CTX *hVppCtx = (VPP_CTX *)h_vpp_ctx;
+	struct device_node *np;
 
 	avio_trace("%s:%d:\n", __func__, __LINE__);
 
@@ -449,6 +454,36 @@ static int drv_vpp_open(void *h_vpp_ctx)
 
 	/* Clear the Reset line to make the device to normal functional state */
 	avio_module_mipirst_set_gpio_val(0);
+	supply = devm_regulator_get_optional(hVppCtx->dev, "power");
+	if (IS_ERR(supply)) {
+		if (PTR_ERR(supply) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+		else {
+			pr_info("External Regulator not available \n");
+			supply = NULL;
+		}
+	} else {
+		err = regulator_enable(supply);
+		if (err < 0) {
+			pr_err("failed to enable supply: %d\n", err);
+		}
+	}
+
+	np = of_parse_phandle(of_get_child_by_name(hVppCtx->dev->of_node, "vpp"), "backlight", 0);
+	if (np) {
+		backlight = of_find_backlight_by_node(np);
+		of_node_put(np);
+
+		if (IS_ERR_OR_NULL(backlight)) {
+			if (PTR_ERR(backlight) == -EPROBE_DEFER)
+					return -EPROBE_DEFER;
+			else {
+				pr_info("No external Backlight Device\n");
+				backlight = NULL;
+			}
+		} else
+			backlight_update_status(backlight);
+	}
 
 	return 0;
 }
