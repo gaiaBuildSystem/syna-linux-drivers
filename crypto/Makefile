@@ -19,3 +19,5 @@ m2m-objs += m2m_wrapper_optee.o
 else
 m2m-objs += m2m_wrapper_tzd.o
 endif
+
+obj-$(CONFIG_SYNAPTICS_CRYPTO_TEE) += crypto_tee.o

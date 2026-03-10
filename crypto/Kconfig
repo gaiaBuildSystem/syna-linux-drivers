@@ -3,10 +3,10 @@
 #
 
 menuconfig SYNAPTICS_CRYPTO
-  bool "Synaptics hardware crypto driver support"
-  default y
-  help
-    Synaptics crypto driver support
+	bool "Synaptics hardware crypto driver support"
+	default y
+	help
+	  Synaptics crypto driver support
 
 if SYNAPTICS_CRYPTO
 
@@ -16,5 +16,15 @@ config BERLIN_M2M
 	depends on BERLIN_BM
 	help
 	  Enable support for berlin HW CRYPTO
+
+
+config SYNAPTICS_CRYPTO_TEE
+	tristate "Synaptics OP-TEE Crypto Support"
+	depends on OPTEE
+	default M
+	help
+	  This enables the custom AES-GCM hardware key API (aes_hwkey_gcm_*)
+	  It routes the cryptography requests securely to the OP-TEE Trusted
+	  Application via SMC.
 
 endif
