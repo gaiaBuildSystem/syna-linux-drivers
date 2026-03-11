@@ -45,6 +45,11 @@ module_param_string(hdmi_fixed_4K_mode,
 MODULE_PARM_DESC(hdmi_fixed_4K_mode,
 		"When on fixed mode from driver, select max 4K mode. eg:4K60/4K30");
 
+static int force_persistent_res;
+module_param(force_persistent_res, int, 0444);
+MODULE_PARM_DESC(force_persistent_res,
+		"force persistent flag: 1 if u-boot applied persistent res_id, 0 otherwise");
+
 MODULE_LICENSE("Dual MIT/GPL");
 
 static int hpd_handle_state_get(void *data, u64 *val)
@@ -381,7 +386,7 @@ static int syna_hdmi_hpd_monitor(void *param)
 	connector->status = syna_hdmi_hotplug_detect(connector, false);
 	activeHpdStatus = (connector->status == connector_status_connected) ? true : false;
 	DRM_DEBUG_DRIVER("startup HDMI connection state : %d\n", activeHpdStatus);
-	if (activeHpdStatus)
+	if (activeHpdStatus && !force_persistent_res)
 		syna_configure_def_res();
 
 	while (!kthread_should_stop()) {
@@ -403,11 +408,13 @@ static int syna_hdmi_hpd_monitor(void *param)
 			}
 #endif
 			if (syna_hdmi->syna_hdmi_conf.hdmiTxConfigFields.fixedModeSet
-				       && (hpdStatus==connector_status_connected))
+				       && (hpdStatus==connector_status_connected) && !force_persistent_res)
 				syna_configure_def_res();
 			drm_kms_helper_hotplug_event(dev);
 		}
 	}
+	// Allow resolution change after bootup
+	force_persistent_res = 0;
 
 	return 0;
 }
