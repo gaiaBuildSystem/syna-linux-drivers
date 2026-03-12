@@ -1862,7 +1862,13 @@ wl_cfgp2p_generate_bss_mac(struct bcm_cfg80211 *cfg, struct ether_addr *primary_
 	struct ether_addr *int_addr;
 
 	(void)memcpy_s(mac_addr, ETH_ALEN, bcmcfg_to_prmry_ndev(cfg)->perm_addr, ETH_ALEN);
-	mac_addr->octet[0] |= 0x02;
+    if (mac_addr->octet[0] | 0x02) {
+        mac_addr->octet[1] ^= 0x83;
+    } else {
+        mac_addr->octet[0] |= 0x02;
+    }
+
+
 	WL_DBG(("P2P Discovery address:"MACDBG "\n", MAC2STRDBG(mac_addr->octet)));
 
 	int_addr = wl_to_p2p_bss_macaddr(cfg, P2PAPI_BSSCFG_CONNECTION1);
