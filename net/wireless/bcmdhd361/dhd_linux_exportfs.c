@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -21,7 +21,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -699,8 +699,10 @@ show_pwrstats_path(struct dhd_info *dev, char *buf)
 
 			curr_time = OSL_LOCALTIME_NS();
 			if (curr_time >= last_suspend_end_time) {
+				estimated_pm_dur = (curr_time - last_suspend_end_time);
 				estimated_pm_dur =
-					(curr_time - last_suspend_end_time) / NSEC_PER_USEC;
+					DIV_AND_MOD_U64_BY_U32(estimated_pm_dur,
+					NSEC_PER_USEC);
 				estimated_pm_dur += laststats.pm_dur;
 
 				update_pwrstats_cum(&accumstats.pm_dur, &laststats.pm_dur,

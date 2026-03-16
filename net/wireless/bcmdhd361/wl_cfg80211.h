@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3423,5 +3423,6 @@ extern struct ieee80211_channel * wl_cfg80211_get_ieee80211_chan(struct net_devi
 	struct cfg80211_ap_settings *info);
 
 extern int wl_cfg80211_reg_dump_all(const char *pTip);
+extern int wl_cfg80211_set_softAP_csa(struct net_device *ndev);
 
 #endif /* _wl_cfg80211_h_ */

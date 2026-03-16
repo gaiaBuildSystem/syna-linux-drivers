@@ -1,7 +1,7 @@
 /*
  * Packet dump helper functions
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -426,6 +426,11 @@ dhd_dump_pkt_cnts_inc(dhd_pub_t *dhdp, bool tx, uint16 *pktfate, uint16 pkttype)
 		DHD_ERROR(("%s: pktcnts is NULL\n", __FUNCTION__));
 		return;
 	}
+#ifdef ARP_CHECK_SUPPORT
+	if ((pkttype == PKT_CNT_TYPE_ARP) && (!tx)) {
+		dhd_pub_save_arp_resp_tick(dhdp);
+	}
+#endif /* ARP_CHECK_SUPPORT */
 
 	if (!pktcnts->enabled || (tx && !pktfate)) {
 		return;
@@ -572,7 +577,13 @@ dhd_dump_pkt_enabled(dhd_pub_t *dhdp)
 }
 #else
 static INLINE void
-dhd_dump_pkt_cnts_inc(dhd_pub_t *dhdp, bool tx, uint16 *pktfate, uint16 pkttype) { }
+dhd_dump_pkt_cnts_inc(dhd_pub_t *dhdp, bool tx, uint16 *pktfate, uint16 pkttype) {
+#ifdef ARP_CHECK_SUPPORT
+	if ((pkttype == PKT_CNT_TYPE_ARP) && (!tx)) {
+		dhd_pub_save_arp_resp_tick(dhdp);
+	}
+#endif /* ARP_CHECK_SUPPORT */
+}
 static INLINE bool
 dhd_dump_pkt_enabled(dhd_pub_t *dhdp) { return FALSE; }
 #endif /* DHD_PKTDUMP_ROAM */

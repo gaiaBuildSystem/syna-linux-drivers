@@ -1,6 +1,4 @@
-##########
-# SAR configuration file
-#
+# sdio specific kernel config
 # Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
 #
 # This software is licensed to you under the terms of the
@@ -36,21 +34,12 @@
 # derived from this software.  The special exception does not apply to any
 # modifications of the software.
 #
+#
 # <<Broadcom-WL-IPTag/Open:>>
 #
-#  1. define the ROW, FCC and other country type parameters;
-#     Each item format: sarctrl_2g sarctl_2g_2 sarctl_5g[0],sarctl_5g[1],sarctl_5g[2],sarctl_5g[3],sarctl_5g_2[0],sarctl_5g_2[1],sarctl_5g_2[2],sarctl_5g_2[3]
-#  2. define the country type list accordingly;
-#  3. issue 'dhd -i wlan0 sarmode <0~8>' to select corresponding parameters;
-
-ROW_sar_dyn=0x00BA 0x00BA 0x00B0,0x00B0,0x00B0,0x00A0 0x00B0,0x00B0,0x00B0,0x00A0
-ROW_sar_grip=0xBC00 0xBC00 0xBC00,0xBC00,0xC100,0xA400 0xBC00,0xBC00,0xC100,0xA400
-ROW_sar_bt=0xBCBA 0xBCBA 0xBCB0,0xBCB0,0xC1B0,0xA4A0 0xBCB0,0xBCB0,0xC1B0,0xA4A0
-ROW_sar_hotspot=0x0000 0x0000 0x0000,0x0000,0x0000,0x0000 0x0000,0x0000,0x0000,0x0000
-
-FCC_sar_dyn=0x00C8 0x00BE 0x00B2,0x00B2,0x00AC,0x00AE 0x00A8,0x00A8,0x00A2,0x00A4
-FCC_sar_grip=0xCA00 0xC000 0xD200,0xD200,0xCA00,0xC800 0xC600,0xC600,0xC000,0xBE00
-FCC_sar_bt=0xCAC8 0xC0BE 0xD2B2,0xD2B2,0xCAAC,0xC8AE 0xC6A8,0xC6A8,0xC0A2,0xBEA4
-FCC_sar_hotspot=0x0000 0x0000 0x0000,0x0000,0x0000,0x0000 0x0000,0x0000,0x0000,0x0000
-
-FCC_country_list=AG AI AR AW BB BL BM BO BS BZ CL CO CR CW DO EC FM GT GU GY HN HT IN IR JM KH KN KR KY LC MF MP NI PA PE PG PM PW PY SR SV SX TC TT UY VC VE VG VI VU WF WS US CA PR
+# bcmdhd
+# Set all customize config here, example:
+# CONFIG_BCMDHD_PROPTX_ALWAYS_ON=y
+# CONFIG_BCMDHD_PCIE_IRQ_CPUCORE=3
+# CONFIG_BCMDHD_NO_ORPHAN_FOR_ALL_AC=y
+# CONFIG_BCMDHD_NO_ORPHAN_FOR_AC_VI=y

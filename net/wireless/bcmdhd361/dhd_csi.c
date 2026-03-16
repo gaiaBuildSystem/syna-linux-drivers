@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), Channel State information Module
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -692,7 +692,6 @@ static int dhd_csi_data_input_revision0(dhd_pub_t *dhdp, const wl_event_msg_t *e
 	pEntry->version = CONST_SYNA_CSI_COMMON_HEADER_VERSION;
 	if ((dhd_bus_chip_id(dhdp) == BCM43711_CHIP_ID) ||
 		(dhd_bus_chip_id(dhdp) == BCM43710_CHIP_ID) ||
-		(dhd_bus_chip_id(dhdp) == BCM4612_CHIP_ID) ||
 		(dhd_bus_chip_id(dhdp) == BCM4611_CHIP_ID)) {
 		pEntry->format_type = SYNA_CSI_FORMAT_Q9;
 	} else {

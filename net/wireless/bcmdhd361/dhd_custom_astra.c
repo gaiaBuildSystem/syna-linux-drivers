@@ -1,7 +1,7 @@
 /*
  * Platform Dependent file for Khadas VIM3
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -94,7 +94,7 @@ extern void *dhd_wlan_mem_prealloc(int section, unsigned long size);
 #define WLAN_HOST_WAKE_GPIO		493
 
 static int wlan_reg_on = -1;
-#define DHD_DT_COMPAT_ENTRY		"android,bcmdhd_wlan"
+#define DHD_DT_COMPAT_ENTRY		"synaptics,bcmdhd_wlan"
 #define WIFI_WL_REG_ON_PROPNAME		"wl_reg_on"
 
 static int wlan_host_wake_up = -1;
@@ -540,7 +540,6 @@ dhd_wlan_deinit(void)
 #endif /* CUSTOMER_HW_AMLOGIC */
 #endif /* CONFIG_BROADCOM_WIFI_RESERVED_MEM */
 }
-
 #ifndef BCMDHD_MODULAR
 /* Required only for Built-in DHD */
 device_initcall(dhd_wlan_init);

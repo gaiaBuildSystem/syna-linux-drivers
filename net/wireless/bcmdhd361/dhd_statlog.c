@@ -1,7 +1,7 @@
 /*
  * DHD debugability: Status Information Logging support
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -693,7 +693,7 @@ dhd_statlog_get_timestamp(stat_elem_t *elem, uint64 *sec, uint64 *usec)
 	ts_nsec = elem->ts;
 	rem_nsec = DIV_AND_MOD_U64_BY_U32(ts_nsec, NSEC_PER_SEC);
 	*sec = ts_nsec;
-	*usec = (uint64)(rem_nsec / NSEC_PER_USEC);
+	*usec = DIV_AND_MOD_U64_BY_U32(rem_nsec, NSEC_PER_USEC);
 }
 
 static void
@@ -716,7 +716,7 @@ dhd_statlog_convert_time(stat_elem_t *elem, uint8 *buf, uint32 buflen)
 	snprintf(buf, buflen, DHD_STATLOG_TZFMT_YYMMDDHHMMSSMS,
 		tm.tm_year - 100, tm.tm_mon + 1, tm.tm_mday,
 		tm.tm_hour, tm.tm_min, tm.tm_sec,
-		(uint32)(rem_usec / USEC_PER_MSEC));
+		DIV_AND_MOD_U64_BY_U32(rem_usec, USEC_PER_MSEC));
 #endif /* LINUX || linux */
 }
 

@@ -1,7 +1,7 @@
 /*
  * DHD Linux header file - contains private structure definition of the Linux specific layer
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -480,7 +480,32 @@ typedef struct dhd_info {
 	uint8 drv_buf_mac[ETHER_ADDR_LEN];
 	bool  drv_set_buf_mac; /* flag to set MAC address */
 #endif /* DHD_SET_MAC_AFTER_DOWN */
+
+#ifdef ARP_CHECK_SUPPORT
+	/* variable for ARP check functions */
+	bool arp_check_enable; /* Need to enable it in config file */
+	bool arp_trigger_start; /*set it for ARP req trigger */
+	bool arp_check_timer_valid;
+	uint arp_check_interval;
+	uint arp_check_timeout;
+	u32 gw_ipaddr; /* Saved gateway for Wlan0 */
+	timer_list_compat_t arp_check_timer;
+	u32 local_ipaddr; /* save local ip addr to send ARP req */
+	uint arp_tick_cnt; /* record the tick when recv ARP resp */
+	/* To send disassoc when ARP resp timeout */
+	struct delayed_work arp_disconnect_work;
+#endif /* ARP_CHECK_SUPPORT */
+
+#ifdef WL_CFG80211_MONITOR
+	bool mon_tx_mcast;
+	uint32 mon_tx_rspec;
+	bool  mon_tx_rspec_updated;
+#endif /* WL_CFG80211_MONITOR */
+
 } dhd_info_t;
+
+#define DHD_ARP_CHECK_INTERVAL 1000 /* ms */
+#define DHD_ARP_CHECK_TIMEOUT 30 /* tick interval *100ms */
 
 #ifdef WL_MONITOR
 #define MONPKT_EXTRA_LEN	48u

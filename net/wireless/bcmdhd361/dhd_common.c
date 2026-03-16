@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -348,6 +348,10 @@ bool ap_cfg_running = FALSE;
 bool ap_fw_loaded = FALSE;
 #endif /* defined(OEM_ANDROID) && defined(SOFTAP) */
 
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+extern uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx);
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
+
 #define CHIPID_MISMATCH	8
 
 #if defined(PCIE_FULL_DONGLE)
@@ -374,6 +378,10 @@ const char dhd_version[] = DHD_VERSION DHD_COMPILED " compiled on "
 #else
 const char dhd_version[] = DHD_VERSION;
 #endif /* DHD_DEBUG && DHD_COMPILED */
+
+#ifdef DHD_METADATA_DOWNLOAD
+extern metadata_t metadata;
+#endif /* DHD_METADATA_DOWNLOAD */
 
 char fw_version[FW_VER_STR_LEN] = "\0";
 char clm_version[CLM_VER_STR_LEN] = "\0";
@@ -569,6 +577,9 @@ enum {
 	IOV_CSI_CONFIG,
 #endif /* CSI_SUPPORT */
 	IOV_REGULATORY_DUMP,
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	IOV_GETGWIP_ADDR,
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT*/
 	IOV_LAST
 };
 
@@ -762,10 +773,13 @@ const bcm_iovar_t dhd_iovars[] = {
 	{"sarmode", IOV_SAR_MODE, (0), 0, IOVT_UINT32, 0},
 #endif /* SYNA_SAR_CUSTOMER_PARAMETER */
 #ifdef CSI_SUPPORT
-	{"csi_version",			IOV_CSI_VERSION,	0,	0,	IOVT_UINT8,	sizeof(uint32)},
-	{"csi_config",			IOV_CSI_CONFIG,		0,	0,	IOVT_BUFFER,	sizeof(uint32)},
+	{"csi_version",	IOV_CSI_VERSION, 0, 0, IOVT_UINT8, sizeof(uint32)},
+	{"csi_config", IOV_CSI_CONFIG, 0, 0, IOVT_BUFFER, sizeof(uint32)},
 #endif /* CSI_SUPPORT */
-	{"regulatory_dump",		IOV_REGULATORY_DUMP,	0,	0,	IOVT_UINT32,	sizeof(uint32)},
+	{"regulatory_dump", IOV_REGULATORY_DUMP, 0, 0, IOVT_UINT32, sizeof(uint32)},
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	{"get_gw_ip", IOV_GETGWIP_ADDR, 0, 0, IOVT_UINT32, sizeof(uint32)},
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 	/* --- add new iovars *ABOVE* this line --- */
 	{NULL, 0, 0, 0, 0, 0 }
 };
@@ -2922,7 +2936,8 @@ int dhd_sar_set_parameter(dhd_pub_t *dhd_pub, int advance_mode)
 				__FUNCTION__));
 			return BCME_BADARG;
 		}
-		sarctrl_iov.ver = sarctrl->ver;
+		/* Follow FW's sar version */
+		sarctrl_iov.ver = sar_ver | (sar_param_num << SAR_PARAM_NUM_OFFSET);
 		err = memcpy_s(sarctrl_iov.sarctrl, MAX_SAR_PARAMS_NUM * sizeof(u32),
 			sarctrl->sarctrl, file_sar_num * sizeof(u32));
 		if (err) {
@@ -4465,6 +4480,12 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		bcmerror = wl_cfg80211_reg_dump_all("user check");
 		break;
 #endif /* defined(WL_SELF_MANAGED_REGDOM) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)) */
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+	case IOV_GVAL(IOV_GETGWIP_ADDR):
+		*(uint *)arg = get_default_gateway_ip(dhd_pub, 0);
+		bcmerror = 0;
+		break;
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 
 	default:
 		bcmerror = BCME_UNSUPPORTED;
@@ -5032,7 +5053,7 @@ wl_show_roam_cache_update_event(const char *name, uint status,
 		{WLC_E_REASON_LOW_RSSI_PARTIAL2FULL, "LOW_RSSI_PARTIAL2FULL"},
 		{WLC_E_REASON_BEACON_LOST_PARTIAL2FULL, "BEACON_LOST_PARTIAL2FULL"},
 		{WLC_E_REASON_SIGNAL_DROP_STEP_POINT_PARTIAL2FULL,
-			"SIGNAL_DROP_STEP_POINT_PARTIAL2FULL"}
+		"SIGNAL_DROP_STEP_POINT_PARTIAL2FULL"}
 	};
 
 	static struct {
@@ -6404,7 +6425,7 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		{
 		struct wl_event_data_if *ifevent = (struct wl_event_data_if *)event_data;
 #if defined(__linux__)
-                struct net_device *ndev = NULL;
+		struct net_device *ndev = NULL;
 #endif /* __linux__ */
 
 		/* Ignore the event if NOIF is set */
@@ -9260,7 +9281,6 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 	ota_update_info_t *ota_info = &dhd->ota_update_info;
 #endif /* SUPPORT_OTA_UPDATE */
 
-
 #if defined(DHD_AUTOSEL_BINARY_FILENAME)
 		dhd_autosel_blob_name(dhd, &clm_path);
 #endif /* DHD_AUTOSEL_BINARY_FILENAME */
@@ -10147,9 +10167,20 @@ dhd_parse_logstrs_file(osl_t *osh, char *raw_fmts, int logstrs_size,
 				DHD_ERROR(("%s: Using COMBINED image (size %d)\n",
 					__FUNCTION__, fw_size));
 			}
+
+#ifdef DHD_METADATA_DOWNLOAD
+			if ((metadata.enabled == TRUE) && (metadata.sign_file.present == TRUE) &&
+				(metadata.sign_file.sign_size)) {
+				err = memcpy_s(fwid_str, (sizeof(fwid_str) - 1),
+					&(fw->data[(buf_offset + metadata.sign_file.sign_addr) -
+						(sizeof(fwid_str) - 1)]),
+					(sizeof(fwid_str) - 1));
+			}
+#else
 			err = memcpy_s(fwid_str, (sizeof(fwid_str) - 1),
 				&(fw->data[(buf_offset + fw_size) - (sizeof(fwid_str) - 1)]),
 				(sizeof(fwid_str) - 1));
+#endif /* DHD_METADATA_DOWNLOAD */
 #else
 			err = memcpy_s(fwid_str, (sizeof(fwid_str) - 1),
 				&(fw->data[fw->size - (sizeof(fwid_str) - 1)]),

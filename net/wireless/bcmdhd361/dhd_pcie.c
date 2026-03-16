@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -270,12 +270,11 @@ static int _dhdpcie_download_firmware(struct dhd_bus *bus);
 static int dhdpcie_download_firmware(dhd_bus_t *bus, osl_t *osh);
 
 #if defined(FW_SIGNATURE)
+static bool sig_write_bl_meminfo_region(struct dhd_bus *bus);
 static int dhdpcie_bus_download_fw_signature(dhd_bus_t *bus, bool *do_write);
 static int dhdpcie_bus_download_ram_bootloader(dhd_bus_t *bus);
-#if defined(BL_MEMINFO_REGN)
 static int dhdpcie_bus_write_fws_status(dhd_bus_t *bus);
 static int dhdpcie_bus_write_fws_mem_info(dhd_bus_t *bus);
-#endif /* BL_MEMINFO_REGN */
 static int dhdpcie_bus_write_fwsig(dhd_bus_t *bus, char *fwsig_path, char *nvsig_path);
 static int dhdpcie_download_rtlv_end(dhd_bus_t *bus);
 static int dhdpcie_bus_save_download_info(dhd_bus_t *bus, uint32 download_addr,
@@ -10243,7 +10242,6 @@ dhdpcie_bus_download_state(dhd_bus_t *bus, bool enter)
 #endif /* FW_SIGNATURE */
 
 			if (do_wr_flops) {
-				uint32 resetinstr_data;
 
 				/* switch back to arm core again */
 				if (!(si_setcore(bus->sih, ARMCA7_CORE_ID, 0))) {
@@ -10258,6 +10256,8 @@ dhdpcie_bus_download_state(dhd_bus_t *bus, bool enter)
 					(uint8 *)&bus->resetinstr, sizeof(bus->resetinstr));
 
 				if (bcmerror == BCME_OK) {
+#ifdef DHD_READ_ADDRESS_ZERO_AFTER_WRITE
+					uint32 resetinstr_data;
 					/*
 					 * read address 0 with reset instruction,
 					 * to validate that is not secured
@@ -10285,6 +10285,10 @@ dhdpcie_bus_download_state(dhd_bus_t *bus, bool enter)
 						bcmerror = BCME_ERROR;
 						goto fail;
 					}
+#endif /* DHD_READ_ADDRESS_ZERO_AFTER_WRITE */
+				} else {
+					DHD_ERROR(("%s: Failed to write 0x%08x to addr 0 (%d)\n",
+						__FUNCTION__, bus->resetinstr, bcmerror));
 				}
 
 			}
@@ -10365,8 +10369,6 @@ dhdpcie_bus_download_state(dhd_bus_t *bus, bool enter)
 			}
 #endif /* FW_SIGNATURE */
 			if (do_wr_flops) {
-				uint32 resetinstr_data;
-
 				/* switch back to arm core again */
 				if (!(si_setcore(bus->sih, ARMCR4_CORE_ID, 0))) {
 					DHD_ERROR(("%s: Failed to find ARM CR4 core!\n",
@@ -10380,6 +10382,8 @@ dhdpcie_bus_download_state(dhd_bus_t *bus, bool enter)
 					(uint8 *)&bus->resetinstr, sizeof(bus->resetinstr));
 
 				if (bcmerror == BCME_OK) {
+#ifdef DHD_READ_ADDRESS_ZERO_AFTER_WRITE
+					uint32 resetinstr_data;
 					/* verify write - fails when ROM protect bit is set */
 					bcmerror = dhdpcie_bus_membytes(bus, FALSE, 0,
 						(uint8 *)&resetinstr_data, sizeof(resetinstr_data));
@@ -10400,7 +10404,10 @@ dhdpcie_bus_download_state(dhd_bus_t *bus, bool enter)
 						bcmerror = BCME_ERROR;
 						goto fail;
 					}
-
+#endif /* DHD_READ_ADDRESS_ZERO_AFTER_WRITE */
+				} else {
+					DHD_ERROR(("%s: Failed to write 0x%08x to addr 0 (%d)\n",
+						__FUNCTION__, bus->resetinstr, bcmerror));
 				}
 			}
 		}
@@ -10460,8 +10467,9 @@ dhdpcie_bus_download_fw_signature(dhd_bus_t *bus, bool *do_write)
 	}
 
 #ifdef BL_RAM_BOOT
-	if (bus->bootloader_filename[0] != 0)
+	if (bus->bootloader_filename[0] != 0) {
 		bus->bootloader_addr = ARMCR4_RAM_BOOTLOADER;
+	}
 #endif /* BL_RAM_BOOT */
 
 	/* Write RAM Bootloader to TCM if requested */
@@ -10484,21 +10492,21 @@ dhdpcie_bus_download_fw_signature(dhd_bus_t *bus, bool *do_write)
 	dhdpcie_download_otp_file(bus, "./test_otp.bin");
 #endif /* BL_SIM_OTP */
 
-#if defined(BL_MEMINFO_REGN)
-	/* Write FW signature verification status rTLV to TCM */
-	if ((bcmerror = dhdpcie_bus_write_fws_status(bus)) != BCME_OK) {
-		DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
-			__FUNCTION__, bcmerror));
-		goto exit;
-	}
+	if (sig_write_bl_meminfo_region(bus)) {
+		/* Write FW signature verification status rTLV to TCM */
+		if ((bcmerror = dhdpcie_bus_write_fws_status(bus)) != BCME_OK) {
+			DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
+				__FUNCTION__, bcmerror));
+			goto exit;
+		}
 
-	/* Write FW memory map rTLV to TCM */
-	if ((bcmerror = dhdpcie_bus_write_fws_mem_info(bus)) != BCME_OK) {
-		DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
-			__FUNCTION__, bcmerror));
-		goto exit;
+		/* Write FW memory map rTLV to TCM */
+		if ((bcmerror = dhdpcie_bus_write_fws_mem_info(bus)) != BCME_OK) {
+			DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
+				__FUNCTION__, bcmerror));
+			goto exit;
+		}
 	}
-#endif /* BL_MEMINFO_REGN */
 
 	/* Write a end-of-TLVs marker to TCM */
 	if ((bcmerror = dhdpcie_download_rtlv_end(bus)) != BCME_OK) {
@@ -10638,7 +10646,6 @@ dhdpcie_download_rtlv_end(dhd_bus_t *bus)
 	return dhdpcie_download_rtlv(bus, DNGL_RTLV_TYPE_END_MARKER, 0, NULL);
 }
 
-#if defined(BL_MEMINFO_REGN)
 /* Write the FW signature verification status to dongle memory */
 static int
 dhdpcie_bus_write_fws_status(dhd_bus_t *bus)
@@ -10687,7 +10694,6 @@ dhdpcie_bus_write_fws_mem_info(dhd_bus_t *bus)
 
 	return ret;
 } /* dhdpcie_bus_write_fws_mem_info */
-#endif /* BL_MEMINFO_REGN */
 
 /* Download a bootloader image to dongle RAM */
 static int
@@ -10742,14 +10748,36 @@ dhdpcie_bus_save_download_info(dhd_bus_t *bus, uint32 download_addr,
 	return BCME_OK;
 } /* dhdpcie_bus_save_download_info */
 
+static bool
+sig_write_bl_meminfo_region(struct dhd_bus *bus)
+{
+	bool write_rgn = FALSE;
+
+	switch ((uint16)bus->sih->chip) {
+	case BCM43711_CHIP_ID:
+	case BCM43710_CHIP_ID:
+		write_rgn = TRUE;
+		break;
+	case BCM4612_CHIP_ID:
+	default:
+		break;
+	}
+
+	return write_rgn;
+}
+
 static void
 sig_file_download_addr(struct dhd_bus *bus)
 {
 	switch ((uint16)bus->sih->chip) {
 	case BCM4612_CHIP_ID:
+		bus->ramtop_addr = SIG_FILE_DOWNLOAD_ADDR;
+		break;
 	case BCM43711_CHIP_ID:
 	case BCM43710_CHIP_ID:
-		bus->ramtop_addr = SIG_FILE_DOWNLOAD_ADDR;
+		/* Don't override ramtop, put the file
+		 * at the end of current available space
+		 */
 		break;
 	default:
 		break;

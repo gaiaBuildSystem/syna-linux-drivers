@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for SDIO
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -313,9 +313,11 @@ typedef struct dhd_bt_console {
 #define BT2WLAN_PWRUP_ADDR_4345C5	0x64015C        /* This address is specific to 4345C5 */
 #define BT2WLAN_PWRUP_ADDR_43711	0x6408b4        /* This address is specific to 43711 */
 #define BT2WLAN_PWRUP_ADDR_4612		0x6408b4        /* This address is specific to 4612 */
-#define SDIOBOOT_TRANSPORT		0x1920c9cc		/* This address is specific to 4612A1 */
-#define SDIOBOOT_TRIGGER_4612		0x1920a6c4		/* This address is specific to 4612A1 */
-#define SDIOBOOT_IN_SINGLE_THREAD	0x1920a6b8		/* This address is specific to 4612A1 */
+
+/* SDIO Boot Trigger Variables */
+#define SDIOBOOT_TRANSPORT			0x1920de70		/* This address is specific to 4612A3 */
+#define SDIOBOOT_TRIGGER_4612		0x1920b704		/* This address is specific to 4612A3 */
+#define SDIOBOOT_IN_SINGLE_THREAD	0x1920b6f8		/* This address is specific to 4612A3 */
 #define SDIOF3_CORESTATUSREG		0x18004804		/* Core status reg */
 #define SDIOF3_CORECONTROLREG		0x18004800		/* Core Control reg*/
 #define BOOTLOADER_CERT_ADDR		0x19200584		/* Certificate Download address */
@@ -593,14 +595,13 @@ typedef struct dhd_bus {
 static const struct firmware *open_fimware_img(dhd_bus_t *bus, uint32 *buf_offset, uint32 *fw_size);
 #endif /* DHD_LINUX_STD_FW_API */
 #if defined(FW_SIGNATURE)
+static bool sig_write_bl_meminfo_region(struct dhd_bus *bus);
 static int dhdsdio_bus_download_fw_signature(dhd_bus_t *bus, bool *do_write);
 static int dhdsdio_bus_download_fw_sig(dhd_bus_t *bus, char *path, bool *do_write);
 static int dhdsdio_bus_download_ram_bootloader(dhd_bus_t *bus);
 static void sig_file_download_addr(struct dhd_bus *bus);
-#if defined(BL_MEMINFO_REGN)
 static int dhdsdio_bus_write_fws_status(dhd_bus_t *bus);
 static int dhdsdio_bus_write_fws_mem_info(dhd_bus_t *bus);
-#endif /* BL_MEMINFO_REGN */
 static int dhdsdio_bus_write_fwsig(dhd_bus_t *bus, char *fwsig_path, char *nvsig_path);
 static int dhdsdio_download_rtlv(dhd_bus_t *bus, dngl_rtlv_type_t type, dngl_rtlv_len_t len, uint8 *value);
 static int dhdsdio_download_rtlv_end(dhd_bus_t *bus);
@@ -958,6 +959,8 @@ static int dhdsdio_download_ucode_file(struct dhd_bus *bus, char *ucode_path);
 #endif /* DHD_UCODE_DOWNLOAD */
 
 #ifdef DHD_METADATA_DOWNLOAD
+int dhd_metadata_init(dhd_bus_t *bus, char *fwpath);
+static int _dhd_metadata_init(dhd_bus_t *bus, char *fwpath);
 static int dhd_is_metadata_present(dhd_bus_t *bus, char *fwpath);
 static bool dhd_metadata_end_reached(uint8 *metadata_block,
 		int prev_pos, int next_pos);
@@ -5714,6 +5717,7 @@ dhdsdio_download_state(dhd_bus_t *bus, bool enter)
 					(uint8 *)&bus->resetinstr, sizeof(bus->resetinstr));
 
 				if (bcmerror == BCME_OK) {
+#ifdef DHD_READ_ADDRESS_ZERO_AFTER_WRITE
 					uint32 tmp;
 
 					/* verify write - fails when ROM protect bit is set */
@@ -5729,6 +5733,10 @@ dhdsdio_download_state(dhd_bus_t *bus, bool enter)
 						bcmerror = BCME_SDIO_ERROR;
 						goto fail;
 					}
+#endif /* DHD_READ_ADDRESS_ZERO_AFTER_WRITE */
+				} else {
+					DHD_ERROR(("%s: Failed to write 0x%08x to addr 0 (%d)\n",
+						__FUNCTION__, bus->resetinstr, bcmerror));
 				}
 
 				/* now remove reset and halt and continue to run CR4 */
@@ -5913,21 +5921,21 @@ dhdsdio_bus_download_fw_signature(dhd_bus_t *bus, bool *do_write)
 	dhdsdio_download_otp_file(bus, "./test_otp.bin");
 #endif /* BL_SIM_OTP */
 
-#if defined(BL_MEMINFO_REGN)
-	/* Write FW signature verification status rTLV to TCM */
-	if ((bcmerror = dhdsdio_bus_write_fws_status(bus)) != BCME_OK) {
-		DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
-			__FUNCTION__, bcmerror));
-		goto exit;
-	}
+	if (sig_write_bl_meminfo_region(bus)) {
+		/* Write FW signature verification status rTLV to TCM */
+		if ((bcmerror = dhdsdio_bus_write_fws_status(bus)) != BCME_OK) {
+			DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
+				__FUNCTION__, bcmerror));
+			goto exit;
+		}
 
-	/* Write FW memory map rTLV to TCM */
-	if ((bcmerror = dhdsdio_bus_write_fws_mem_info(bus)) != BCME_OK) {
-		DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
-			__FUNCTION__, bcmerror));
-		goto exit;
+		/* Write FW memory map rTLV to TCM */
+		if ((bcmerror = dhdsdio_bus_write_fws_mem_info(bus)) != BCME_OK) {
+			DHD_ERROR(("%s: could not write FWinfo to TCM, err %d\n",
+				__FUNCTION__, bcmerror));
+			goto exit;
+		}
 	}
-#endif /* BL_MEMINFO_REGN */
 
 	/* Write a end-of-TLVs marker to TCM */
 	if ((bcmerror = dhdsdio_download_rtlv_end(bus)) != BCME_OK) {
@@ -6068,7 +6076,6 @@ dhdsdio_download_rtlv_end(dhd_bus_t *bus)
 	return dhdsdio_download_rtlv(bus, DNGL_RTLV_TYPE_END_MARKER, 0, NULL);
 }
 
-#if defined(BL_MEMINFO_REGN)
 /* Write the FW signature verification status to dongle memory */
 static int
 dhdsdio_bus_write_fws_status(dhd_bus_t *bus)
@@ -6118,7 +6125,6 @@ dhdsdio_bus_write_fws_mem_info(dhd_bus_t *bus)
 
 	return ret;
 } /* dhdsdio_bus_write_fws_mem_info */
-#endif /* BL_MEMINFO_REGN */
 
 /* Download a bootloader image to dongle RAM */
 static int
@@ -6173,6 +6179,24 @@ dhdsdio_bus_save_download_info(dhd_bus_t *bus, uint32 download_addr,
 	return BCME_OK;
 } /* dhdsdio_bus_save_download_info */
 
+static bool
+sig_write_bl_meminfo_region(struct dhd_bus *bus)
+{
+	bool write_rgn = FALSE;
+
+	switch ((uint16)bus->sih->chip) {
+	case BCM43711_CHIP_ID:
+	case BCM43710_CHIP_ID:
+		write_rgn = TRUE;
+		break;
+	case BCM4612_CHIP_ID:
+	default:
+		break;
+	}
+
+	return write_rgn;
+}
+
 static void
 sig_file_download_addr(struct dhd_bus *bus)
 {
@@ -6180,9 +6204,13 @@ sig_file_download_addr(struct dhd_bus *bus)
 	case BCM4612_CHIP_ID:
 	case BCM4611_CHIP_ID:
 	case BCM5312_CHIP_ID:
+		bus->ramtop_addr = SIG_FILE_DOWNLOAD_ADDR;
+		break;
 	case BCM43711_CHIP_ID:
 	case BCM43710_CHIP_ID:
-		bus->ramtop_addr = SIG_FILE_DOWNLOAD_ADDR;
+		/* Don't override ramtop, put the file
+		 * at the end of current available space
+		 */
 		break;
 	default:
 		break;
@@ -9056,7 +9084,7 @@ dhdsdio_isr(void *arg)
 	sdh = bus->sdh;
 
 	if (bus->dhd->busstate == DHD_BUS_DOWN) {
-		DHD_INFO(("%s : bus is down. we have nothing to do\n", __FUNCTION__));
+		DHD_ERROR(("%s : bus is down. we have nothing to do\n", __FUNCTION__));
 		return;
 	}
 	/* XXX Overall operation:
@@ -10579,7 +10607,7 @@ dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 	dhd_set_blob_support(bus->dhd, bus->fw_path);
 #endif /* DHD_BLOB_EXISTENCE_CHECK */
 
-	DHD_ERROR(("%s: firmware path=%s, nvram path=%s\n",
+	DHD_TRACE_HW4(("%s: firmware path=%s, nvram path=%s\n",
 		__FUNCTION__, bus->fw_path, bus->nv_path));
 	DHD_OS_WAKE_LOCK(bus->dhd);
 
@@ -11002,6 +11030,72 @@ err:
 #endif /* BCMEMBEDIMAGE */
 
 #ifdef DHD_METADATA_DOWNLOAD
+int
+dhd_metadata_init(dhd_bus_t *bus, char *fwpath)
+{
+	if (!bus || !fwpath)
+		return BCME_BADARG;
+
+	bus->fw_path = fwpath;
+	if (_dhd_metadata_init(bus, bus->fw_path)) {
+		DHD_ERROR(("%s: failed\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+	return BCME_OK;
+}
+
+static int
+_dhd_metadata_init(dhd_bus_t *bus, char *fwpath)
+{
+	int bcmerror = BCME_ERROR;
+	uint8 *metadata_block = NULL;
+
+	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+	/* Initialize Metadata parameters to 0 */
+	memset(&metadata, 0, sizeof(metadata));
+
+	/* Check if MetaData is appended */
+	if (dhd_is_metadata_present(bus, bus->fw_path) == BCME_OK) {
+		/* If appended, start fetching Metadata values. */
+		metadata.enabled = TRUE;
+		/* Fetch Metadata version */
+		if (dhd_get_metadata_ver(bus, bus->fw_path) == BCME_OK) {
+			/* Fetch the appended metadata size */
+			dhd_get_metadata_size(bus, bus->fw_path);
+			if (metadata_block == NULL) {
+				metadata_block = MALLOC(bus->dhd->osh, metadata.jump_value);
+			} else {
+				DHD_ERROR(("%s: metadata_block alloc FAIL ! \n", __FUNCTION__));
+				goto err;
+			}
+			/* Fetch the entire metadata contents to a block */
+			dhd_fetch_metadata_array(bus, bus->fw_path, metadata_block);
+			/* Update the metadata contents to each structure params */
+			if (dhd_get_metadata_struct_params(metadata_block, bus) != BCME_OK) {
+				DHD_ERROR(("%s: Error fetching Metadata params !!!\n", __FUNCTION__));
+				goto err;
+			}
+		}
+	} else {
+		metadata.enabled = FALSE;
+		if (bus && bus->sih) {
+			if ((bus->sih->chip == BCM4612_CHIP_ID) ||
+				(bus->sih->chip == BCM4611_CHIP_ID) ||
+				(bus->sih->chip == BCM5312_CHIP_ID)) {
+				DHD_ERROR(("Metadata needed for SYN%x to proceed !! \n", bus->sih->chip));
+				goto err;
+			}
+		}
+	}
+	bcmerror = BCME_OK;
+err:
+	DHD_TRACE(("%s: Exit\n", __FUNCTION__));
+	if (metadata_block) {
+		MFREE(bus->dhd->osh, metadata_block, metadata.jump_value);
+	}
+	return bcmerror;
+}
+
 static int
 dhd_is_metadata_present(dhd_bus_t *bus, char *fwpath)
 {
@@ -11035,6 +11129,7 @@ dhd_is_metadata_present(dhd_bus_t *bus, char *fwpath)
 	if (!fwpath)
 		return BCME_BADARG;
 
+	fwpkg_deinit(&bus->fwpkg);
 	ret = fwpkg_init(&bus->fwpkg, fwpath);
 	if (ret == BCME_ERROR) {
 		goto exit;
@@ -11428,7 +11523,8 @@ dhd_get_metadata_struct_params(uint8 *metadata_block, dhd_bus_t *bus)
 {
 	int prev_pos = 0, next_pos = 0;
 	uint64 tlv_type = 0, tlv_len = 0, tlv_ver = 0;
-	uint64 content_len = 0, tlv_unknown_content = 0;
+	uint64 tlv_unknown_content = 0;
+	uint32 content_len = 0;
 	int i = 0, j = 0, k = 0;
 
 	DHD_INFO(("%s: Enter \n", __FUNCTION__));
@@ -11833,7 +11929,7 @@ dhd_update_tag_info(dhd_bus_t *bus, char *fwpath)
 		bcopy((const uint8 *)fw->data + metadata.sign_file.sign_addr - MAX_TAG_INFO_LEN,
 			(uint8 *)buffer, MAX_TAG_INFO_LEN);
 	} else {
-		bcopy((const uint8 *)fw->data + buf_offset + fw->size - METADATA_LEN - METADATA_VER_LEN -
+		bcopy((const uint8 *)fw->data + buf_offset + fw_size - METADATA_LEN - METADATA_VER_LEN -
 			METADATA_JUMP_VALUE_LEN - metadata.jump_value - MAX_TAG_INFO_LEN,
 			(uint8 *)buffer, MAX_TAG_INFO_LEN);
 	}
@@ -12585,7 +12681,7 @@ dhdsdio_download_clm_file(dhd_bus_t *bus, char *path)
 	const struct firmware *fw = NULL;
 	int buf_offset = 0, residual_len = 0;
 
-	if (bus->clm_filename == NULL || bus->clm_filename[0] == '\0') {
+	if (bus->clm_filename[0] == '\0') {
 		DHD_ERROR(("%s: no file\n", __FUNCTION__));
 		bcmerror = BCME_NOTFOUND;
 		goto err;
@@ -13000,9 +13096,6 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 	int err = -1;
 	bool embed = FALSE;	/* download embedded firmware */
 	bool dlok = FALSE;	/* download firmware succeeded */
-#ifdef DHD_METADATA_DOWNLOAD
-	uint8 *metadata_block = NULL;
-#endif /* DHD_METADATA_DOWNLOAD */
 
 #if defined(DHD_DEBUG_DOWNLOADTIME)
 	unsigned long initial_jiffies = 0;
@@ -13023,51 +13116,14 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 #endif /* FW_SIGNATURE */
 
 #ifdef DHD_METADATA_DOWNLOAD
-
-	/* Initialize Metadata parameters to 0 */
-	memset(&metadata, 0, sizeof(metadata));
-
-	/* Check if MetaData is appended */
-	if (dhd_is_metadata_present(bus, bus->fw_path) == BCME_OK) {
-		/* If appended, start fetching Metadata values. */
-		metadata.enabled = TRUE;
-		/* Fetch Metadata version */
-		if (dhd_get_metadata_ver(bus, bus->fw_path) == BCME_OK) {
-			/* Fetch the appended metadata size */
-			dhd_get_metadata_size(bus, bus->fw_path);
-			if (metadata_block == NULL)
-				metadata_block = MALLOC(bus->dhd->osh, metadata.jump_value);
-			else {
-				DHD_ERROR(("%s: metadata_block alloc FAIL ! \n",
-						__FUNCTION__));
-				return bcmerror;
-			}
-			/* Fetch the entire metadata contents to a block */
-			dhd_fetch_metadata_array(bus, bus->fw_path, metadata_block);
-			/* Update the metadata contents to each structure params */
-			if (dhd_get_metadata_struct_params(metadata_block, bus) != BCME_OK) {
-				DHD_ERROR(("%s: Error fetching Metadata params !!!\n",
-						__FUNCTION__));
-				return bcmerror;
-			}
-			if (metadata.tag_info.present == TRUE) {
-				dhd_update_tag_info(bus, bus->fw_path);
-			}
-			if (metadata_block) {
-				MFREE(bus->dhd->osh, metadata_block, metadata.jump_value);
-			}
-		}
-	} else {
-		metadata.enabled = FALSE;
-		if ((bus->sih->chip == BCM4612_CHIP_ID) ||
-			(bus->sih->chip == BCM4611_CHIP_ID) ||
-			(bus->sih->chip == BCM5312_CHIP_ID)) {
-			DHD_ERROR(("Metadata needed for SYN%x to proceed !! \n",
-					bus->sih->chip));
-			goto err;
-		}
+	/* Do metadata init */
+	if (_dhd_metadata_init(bus, bus->fw_path)) {
+		DHD_ERROR(("%s: _dhd_metadata_init failed\n", __FUNCTION__));
+		goto err;
 	}
-
+	if (metadata.tag_info.present == TRUE) {
+		dhd_update_tag_info(bus, bus->fw_path);
+	}
 #if defined(DHD_DEBUG) || defined(DHD_FW_LOG_SUPPORT)
 	if ((metadata.enabled == TRUE) && (metadata.cons_addr.type == CONS_ADDR)) {
 		dngl_console_addr = metadata.cons_addr.cons_start;
@@ -13076,7 +13132,6 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 		bus->console_addr = dngl_console_addr;
 	}
 #endif /* defined(DHD_DEBUG) || defined(DHD_FW_LOG_SUPPORT) */
-
 #endif /* DHD_METADATA_DOWNLOAD */
 
 #ifdef DHD_DEBUG_DOWNLOADTIME
@@ -14050,7 +14105,7 @@ extract_hex_field(char * line, uint16 start_pos, uint16 num_chars, uint16 * valu
 }
 
 static int
-read_more_btbytes(struct dhd_bus *bus, void * file, char *line, int * addr_mode, uint16 * hi_addr,
+read_more_btbytes(struct dhd_bus *bus, void *file, char *line, int * addr_mode, uint16 * hi_addr,
 	uint32 * dest_addr, uint8 *data_bytes, uint32 * num_bytes)
 {
 	int		str_len;
@@ -14060,7 +14115,7 @@ read_more_btbytes(struct dhd_bus *bus, void * file, char *line, int * addr_mode,
 
 	while (!*num_bytes)
 	{
-		str_len = dhd_os_gets_image(bus->dhd, line, BTFW_MAX_STR_LEN, file);
+		str_len = dhd_bt_gets_image(bus->dhd, line, BTFW_MAX_STR_LEN, file);
 
 		DHD_TRACE(("%s: Len :0x%x  %s\n", __FUNCTION__, str_len, line));
 
@@ -14102,6 +14157,7 @@ read_more_btbytes(struct dhd_bus *bus, void * file, char *line, int * addr_mode,
 	}
 	return (*num_bytes > 0);
 }
+
 static uint32 dhd_btfw_start_addr(struct dhd_bus *bus)
 {
 	if (bus->sih->chip == BCM43012_CHIP_ID) {
@@ -14120,6 +14176,32 @@ static uint32 dhd_btfw_start_addr(struct dhd_bus *bus)
 	}
 
 	return 0;
+}
+
+static bool
+dhd_btfw_require_cert_file(struct dhd_bus *bus)
+{
+	bool required = FALSE;
+	switch (bus->sih->chip) {
+		case BCM4611_CHIP_ID:
+		case BCM4612_CHIP_ID:
+			required = TRUE;
+			break;
+
+		case BCM43012_CHIP_ID:
+		case BCM4345_CHIP_ID:
+		case BCM43454_CHIP_ID:
+		case BCM43455_CHIP_ID:
+		case BCM43457_CHIP_ID:
+		case BCM43458_CHIP_ID:
+		case BCM43710_CHIP_ID:
+		case BCM43711_CHIP_ID:
+		default:
+			required = FALSE;
+			break;
+	}
+
+	return required;
 }
 
 static int
@@ -14147,7 +14229,7 @@ _dhdsdio_download_btfw(struct dhd_bus *bus)
 	/* XXX: Should succeed in opening image if it is actually given through registry
 	 * entry or in module param.
 	 */
-	image = dhd_os_open_image1(bus->dhd, bus->btfw_path);
+	image = dhd_bt_open_image(bus->dhd, bus->btfw_path);
 	if (image == NULL)
 		goto err;
 
@@ -14266,7 +14348,7 @@ err:
 		MFREE(bus->dhd->osh, line, BTFW_MAX_STR_LEN);
 
 	if (image)
-		dhd_os_close_image1(bus->dhd, image);
+		dhd_bt_close_image(bus->dhd, image);
 
 	return bcm_error;
 }
@@ -14281,8 +14363,12 @@ dhdsdio_download_btfw(struct dhd_bus *bus, osl_t *osh, void *sdh)
 	DHD_OS_WAKE_LOCK(bus->dhd);
 	dhd_os_sdlock(bus->dhd);
 
+	__dhdsdio_clk_enable(bus, WLAN_MODULE, TRUE);
+
 	/* Download the firmware */
 	ret = _dhdsdio_download_btfw(bus);
+
+	__dhdsdio_clk_disable(bus, WLAN_MODULE, TRUE);
 
 	dhd_os_sdunlock(bus->dhd);
 	DHD_OS_WAKE_UNLOCK(bus->dhd);
@@ -14292,7 +14378,7 @@ dhdsdio_download_btfw(struct dhd_bus *bus, osl_t *osh, void *sdh)
 
 int
 dhd_bus_download_btfw(struct dhd_bus *bus, osl_t *osh,
-                          char *pbtfw_path)
+	char *pbtfw_path)
 {
 	int ret;
 	uint8 boot_trigger_init[2] = {0x00, 0xFF};
@@ -14301,85 +14387,90 @@ dhd_bus_download_btfw(struct dhd_bus *bus, osl_t *osh,
 	uint8 sdiocsreg_buff[4] = {0xFF};
 	uint8 sdioccreg_buff[4] = {0xFF};
 	int counter = 2048;
-	uint8 g_transport =0x9; //SDIO transport
+	uint8 g_transport = 0x9; /* SDIO transport */
+	bool cert_required = dhd_btfw_require_cert_file(bus);
 	bus->btfw_path = pbtfw_path;
 
-	/* Set the g_sdioboot_trigger variable of fw */
-	if ((dhdsdio_membytes(bus, TRUE, SDIOBOOT_TRANSPORT, &g_transport,
-	sizeof(g_transport))) < 0) {
-		DHD_ERROR(("%s: sdioboot_transport write failed\n", __FUNCTION__));
-	}
-	/* Read and check sdio_in_singlethread variable of fw, once the fw is in single thread */
-	/* proceed with the normal patch download */
-	else {
-		DHD_ERROR(("%s: sdioboot_transport write success\n", __FUNCTION__));
-	}
+	if (cert_required) {
+		/* Set the g_sdioboot_trigger variable of fw */
+		if ((dhdsdio_membytes(bus, TRUE, SDIOBOOT_TRANSPORT, &g_transport,
+		sizeof(g_transport))) < 0) {
+			DHD_ERROR(("%s: sdioboot_transport write failed\n", __FUNCTION__));
+		}
+		/* Read and check sdio_in_singlethread variable of fw, once the fw is in single thread */
+		/* proceed with the normal patch download */
+		else {
+			DHD_ERROR(("%s: sdioboot_transport write success\n", __FUNCTION__));
+		}
 
-	/* Set the g_sdioboot_trigger variable of fw */
-	if ((dhdsdio_membytes(bus, TRUE, SDIOBOOT_TRIGGER_4612, boot_trigger_init,
-	sizeof(boot_trigger_init))) < 0) {
-		DHD_ERROR(("%s: sdioboot_trigger write failed\n", __FUNCTION__));
+		/* Set the g_sdioboot_trigger variable of fw */
+		if ((dhdsdio_membytes(bus, TRUE, SDIOBOOT_TRIGGER_4612, boot_trigger_init,
+		sizeof(boot_trigger_init))) < 0) {
+			DHD_ERROR(("%s: sdioboot_trigger write failed\n", __FUNCTION__));
+		}
+		/* Read and check sdio_in_singlethread variable of fw, once the fw is in single thread */
+		/* proceed with the normal patch download */
+		else {
+			DHD_ERROR(("%s: sdioboot_trigger write success\n", __FUNCTION__));
+			do {
+				if ((dhdsdio_membytes(bus, FALSE, SDIOBOOT_IN_SINGLE_THREAD, read_buffer,
+				sizeof(read_buffer))) < 0) {
+					DHD_ERROR(("%s: sdioboot_trigger read failed\n", __FUNCTION__));
+				}
+				else {
+					DHD_ERROR(("%s: sdioboot_trigger read success 0x%x 0x%x\n",
+					__FUNCTION__, read_buffer[0], read_buffer[1]));
+				}
+			} while (((*(uint16 *)read_buffer) != 0xabcd) && counter--);
+		}
+		/* Download the cert file */
+		ret = dhdsdio_download_btcert_file(bus, "./image.cert");
 	}
-	/* Read and check sdio_in_singlethread variable of fw, once the fw is in single thread */
-	/* proceed with the normal patch download */
-	else {
-		DHD_ERROR(("%s: sdioboot_trigger write success\n", __FUNCTION__));
-		do {
-			if ((dhdsdio_membytes(bus, FALSE, SDIOBOOT_IN_SINGLE_THREAD, read_buffer,
-			sizeof(read_buffer))) < 0) {
-				DHD_ERROR(("%s: sdioboot_trigger read failed\n", __FUNCTION__));
-			}
-			else {
-				DHD_ERROR(("%s: sdioboot_trigger read success 0x%x 0x%x\n",
-				__FUNCTION__, read_buffer[0], read_buffer[1]));
-			}
-		} while (((*(uint16 *)read_buffer) != 0xabcd) && counter--);
-	}
-	/* Download the cert file */
-	ret = dhdsdio_download_btcert_file(bus, "./image.cert");
 
 	/* Download the bt fw patch file */
 	ret = dhdsdio_download_btfw(bus, osh, bus->sdh);
 
-	/* Set the boot trigger to reload */
-	if ((dhdsdio_membytes(bus, TRUE, SDIOBOOT_TRIGGER_4612, boot_trigger_reload,
-	sizeof(boot_trigger_reload))) < 0) {
-		DHD_ERROR(("%s: sdioboot_trigger_reload write failed\n", __FUNCTION__));
-	}
-	else {
-		DHD_ERROR(("%s: sdioboot_trigger_reload write success\n", __FUNCTION__));
-	}
-
-	/* Delay between write and read */
-	OSL_DELAY(10000);
-
-	if ((dhdsdio_membytes(bus, FALSE, SDIOBOOT_TRIGGER_4612, read_buffer,
-	sizeof(read_buffer))) < 0) {
-		DHD_ERROR(("%s: sdioboot_trigger read failed\n", __FUNCTION__));
-	}
-	else {
-		DHD_ERROR(("%s: sdioboot_trigger read success 0x%x 0x%x\n",
-		__FUNCTION__, read_buffer[0], read_buffer[1]));
-	}
-
-	while (((*(uint32 *)sdiocsreg_buff) != 0x4) && ((*(uint32 *)sdioccreg_buff) != 0x4) && counter--)
-	{
-		/* F3 interrupt read check */
-		if ((dhdsdio_membytes(bus, FALSE, SDIOF3_CORESTATUSREG, sdiocsreg_buff,
-		sizeof(sdiocsreg_buff))) < 0) {
-			DHD_ERROR(("%s: f3_corestatusreg read failed\n",__FUNCTION__));
+	if (cert_required) {
+		/* Set the boot trigger to reload */
+		if ((dhdsdio_membytes(bus, TRUE, SDIOBOOT_TRIGGER_4612, boot_trigger_reload,
+		sizeof(boot_trigger_reload))) < 0) {
+			DHD_ERROR(("%s: sdioboot_trigger_reload write failed\n", __FUNCTION__));
 		}
 		else {
-			DHD_ERROR(("%s: f3_corestatusreg read success 0x%x 0x%x 0x%x 0x%x\n",__FUNCTION__, sdiocsreg_buff[0],
-			sdiocsreg_buff[1], sdiocsreg_buff[2], sdiocsreg_buff[3]));
+			DHD_ERROR(("%s: sdioboot_trigger_reload write success\n", __FUNCTION__));
 		}
 
-		if ((dhdsdio_membytes(bus, FALSE, SDIOF3_CORECONTROLREG, sdioccreg_buff, sizeof(sdioccreg_buff))) < 0) {
-			DHD_ERROR(("%s: f3_corecontrolreg read failed\n", __FUNCTION__));
+		/* Delay between write and read */
+		OSL_DELAY(10000);
+
+		if ((dhdsdio_membytes(bus, FALSE, SDIOBOOT_TRIGGER_4612, read_buffer,
+		sizeof(read_buffer))) < 0) {
+			DHD_ERROR(("%s: sdioboot_trigger read failed\n", __FUNCTION__));
 		}
 		else {
-			DHD_ERROR(("%s: f3_corecontrolreg read success 0x%x 0x%x 0x%x 0x%x\n", __FUNCTION__, sdioccreg_buff[0],
-			sdioccreg_buff[1], sdioccreg_buff[2], sdioccreg_buff[3]));
+			DHD_ERROR(("%s: sdioboot_trigger read success 0x%x 0x%x\n",
+			__FUNCTION__, read_buffer[0], read_buffer[1]));
+		}
+
+		while (((*(uint32 *)sdiocsreg_buff) != 0x4) && ((*(uint32 *)sdioccreg_buff) != 0x4) && counter--)
+		{
+			/* F3 interrupt read check */
+			if ((dhdsdio_membytes(bus, FALSE, SDIOF3_CORESTATUSREG, sdiocsreg_buff,
+			sizeof(sdiocsreg_buff))) < 0) {
+				DHD_ERROR(("%s: f3_corestatusreg read failed\n",__FUNCTION__));
+			}
+			else {
+				DHD_ERROR(("%s: f3_corestatusreg read success 0x%x 0x%x 0x%x 0x%x\n",__FUNCTION__, sdiocsreg_buff[0],
+				sdiocsreg_buff[1], sdiocsreg_buff[2], sdiocsreg_buff[3]));
+			}
+
+			if ((dhdsdio_membytes(bus, FALSE, SDIOF3_CORECONTROLREG, sdioccreg_buff, sizeof(sdioccreg_buff))) < 0) {
+				DHD_ERROR(("%s: f3_corecontrolreg read failed\n", __FUNCTION__));
+			}
+			else {
+				DHD_ERROR(("%s: f3_corecontrolreg read success 0x%x 0x%x 0x%x 0x%x\n", __FUNCTION__, sdioccreg_buff[0],
+				sdioccreg_buff[1], sdioccreg_buff[2], sdioccreg_buff[3]));
+			}
 		}
 	}
 
@@ -14450,7 +14541,7 @@ dhdsdio_download_btcert_file(dhd_bus_t *bus, char *path)
 	DHD_ERROR(("%s: certificate write success\n", __FUNCTION__));
 exit:
 	if (filep) {
-		dhd_os_close_image1(bus->dhd, filep);
+		dhd_bt_close_image(bus->dhd, filep);
 	}
 	if (srcbuf) {
 		MFREE(bus->dhd->osh, srcbuf, dest_size);

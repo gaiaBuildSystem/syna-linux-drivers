@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1600,10 +1600,10 @@ static int dhdpcie_device_scan(struct device *dev, void *data)
 	if ((pcidev->vendor != VENDOR_BROADCOM) && (pcidev->vendor != VENDOR_SYNAPTICS))
 		return 0;
 
-	DHD_INFO(("Found Broadcom or Synaptics PCI device 0x%04x\n", pcidev->device));
+	DHD_INFO(("Found Synaptics or Broadcom PCI device 0x%04x\n", pcidev->device));
 	*cnt += 1;
 	if (pcidev->driver && strcmp(pcidev->driver->name, dhdpcie_driver.name))
-		DHD_ERROR(("Broadcom or Synaptics PCI Device 0x%04x has allocated with driver %s\n",
+		DHD_ERROR(("Synaptics or Broadcom PCI Device 0x%04x has allocated with driver %s\n",
 			pcidev->device, pcidev->driver->name));
 
 	return 0;
@@ -1617,7 +1617,7 @@ dhdpcie_bus_register(void)
 	if (!(error = pci_register_driver(&dhdpcie_driver))) {
 		bus_for_each_dev(dhdpcie_driver.driver.bus, NULL, &error, dhdpcie_device_scan);
 		if (!error) {
-			DHD_ERROR(("No Broadcom or Synaptics PCI device enumerated!\n"));
+			DHD_ERROR(("No Synaptics or Broadcom PCI device enumerated!\n"));
 		} else if (!dhdpcie_init_succeeded) {
 			DHD_ERROR(("%s: dhdpcie initialize failed.\n", __FUNCTION__));
 		} else {
@@ -3026,7 +3026,7 @@ int dhdpcie_oob_intr_register(dhd_bus_t *bus)
 		 * ENXIO (No such device or address). This is because the callback function
 		 * irq_set_wake() is not registered in kernel, hence returning BCME_OK.
 		 */
-#ifdef BOARD_HIKEY
+#if defined(BOARD_HIKEY) || defined(BOARD_VIM3)
 		DHD_ERROR(("%s: continue eventhough enable_irq_wake failed: %d\n",
 				__FUNCTION__, err));
 		err = BCME_OK;

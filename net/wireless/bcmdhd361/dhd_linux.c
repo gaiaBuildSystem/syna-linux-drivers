@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface.
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -21,7 +21,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -196,6 +196,13 @@ GCC_DIAGNOSTIC_POP()
 #include <dhd_cfg80211.h>
 #endif /* WL_CFG80211 */
 
+#if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
+#include <net/arp.h>
+#include <net/route.h>
+#include <linux/skbuff.h>
+#include <linux/etherdevice.h>
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
+
 #ifdef AMPDU_VO_ENABLE
 /* XXX: Enabling VO AMPDU to reduce FER */
 #include <802.1d.h>
@@ -325,6 +332,13 @@ static void dhd_blk_tsfl_handler(struct work_struct * work);
 #include <dhd_plat.h>
 #include <wldev_common.h>
 
+#ifdef DHD_WFB
+#include <net/ieee80211_radiotap.h>
+#include <net/mac80211.h>
+#include <bcmwifi_rspec.h>
+#include <wldev_common.h>
+#endif /* DHD_WFB */
+
 #ifdef WL_MON_OWN_PKT
 static int dhd_get_monitor_data(dhd_pub_t *dhdp, void *pktbuf,
 		struct sk_buff *skb, void *pktdata, uint pktlen);
@@ -440,6 +454,13 @@ static struct notifier_block dhd_inetaddr_notifier = {
  * created in the kernel notifier link list (with 'next' pointing to itself)
  */
 static bool dhd_inetaddr_notifier_registered = FALSE;
+
+#ifdef ARP_CHECK_SUPPORT
+static void dhd_cleanup_arp_check_error_work(dhd_info_t *dhd);
+static void dhd_arp_check_error_handler(struct work_struct *work);
+uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx);
+void dhd_arp_check_timer(void *data);
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
@@ -800,6 +821,10 @@ static void dhd_bridge_dev_set(dhd_info_t * dhd, int ifidx, struct net_device * 
 /* update rx_pkt_chainable state of dhd interface */
 static void dhd_update_rx_pkt_chainable_state(dhd_pub_t* dhdp, uint32 idx);
 #endif /* DHD_WET || DHD_MCAST_REGEN || DHD_L2_FILTER */
+
+#if defined(DHD_METADATA_DOWNLOAD) && defined(BCMSDIO)
+extern int dhd_metadata_init(struct dhd_bus *bus, char *fwpath);
+#endif /* DHD_METADATA_DOWNLOAD && BCMSDIO */
 
 /* Error bits */
 module_param(dhd_msg_level, int, 0660);
@@ -5085,8 +5110,10 @@ BCMFASTPATH(dhd_start_xmit)(struct sk_buff *skb, struct net_device *net)
 		return NETDEV_TX_BUSY;
 	}
 
+#ifndef DHD_WFB
 	ASSERT(ifidx == dhd_net2idx(dhd, net));
 	ASSERT((ifp != NULL) && ((ifidx < DHD_MAX_IFS) && (ifp == dhd->iflist[ifidx])));
+#endif /* !DHD_WFB */
 
 	bcm_object_trace_opr(skb, BCM_OBJDBG_ADD_PKT, __FUNCTION__, __LINE__);
 
@@ -5310,7 +5337,9 @@ done:
 	/* XXX USB is native linux and it'd be nice to retain errno  */
 	/* XXX meaning, but SDIO is not so we'd need an OSL_ERROR.   */
 	if (ret) {
-		ifp->stats.tx_dropped++;
+		if(ifp) {
+			ifp->stats.tx_dropped++;
+		}
 		dhd->pub.tx_dropped++;
 	} else {
 #ifdef PROP_TXSTATUS
@@ -5319,8 +5348,10 @@ done:
 #endif /* PROP_TXSTATUS */
 		{
 			dhd->pub.tx_packets++;
-			ifp->stats.tx_packets++;
-			ifp->stats.tx_bytes += datalen;
+			if(ifp) {
+				ifp->stats.tx_packets++;
+				ifp->stats.tx_bytes += datalen;
+			}
 
 #ifdef PROP_TXSTATUS
 			/* If disabled, packet logging also needs to happen here */
@@ -5334,7 +5365,9 @@ done:
 
 	DHD_GENERAL_LOCK(&dhd->pub, flags);
 	DHD_BUS_BUSY_CLEAR_IN_TX(&dhd->pub);
-	DHD_IF_CLR_TX_ACTIVE(ifp, DHD_TX_START_XMIT);
+	if(ifp) {
+		DHD_IF_CLR_TX_ACTIVE(ifp, DHD_TX_START_XMIT);
+	}
 	dhd_os_tx_completion_wake(&dhd->pub);
 	dhd_os_busbusy_wake(&dhd->pub);
 	DHD_GENERAL_UNLOCK(&dhd->pub, flags);
@@ -7358,6 +7391,11 @@ dhd_watchdog_thread(void *data)
 {
 	tsk_ctl_t *tsk = (tsk_ctl_t *)data;
 	dhd_info_t *dhd = (dhd_info_t *)tsk->parent;
+#ifdef DHD_WFB
+	struct net_device *pndev = NULL;
+	u32 chanspec = 0;
+#endif /* DHD_WFB */
+
 	/* This thread doesn't need any user-level access,
 	 * so get rid of all our resources
 	 */
@@ -7420,6 +7458,31 @@ dhd_watchdog_thread(void *data)
 #ifdef BCMPCIE
 			DHD_OS_WD_WAKE_UNLOCK(&dhd->pub);
 #endif /* BCMPCIE */
+#ifdef DHD_WFB
+			if (dhd->mon_tx_rspec_updated) {
+				pndev = dhd_linux_get_primary_netdev(&dhd->pub);
+				wldev_iovar_getint(pndev, "chanspec", (s32 *)&chanspec);
+				chanspec = wl_chspec_driver_to_host(chanspec);
+				if (dhd->mon_tx_mcast) {
+					if (CHSPEC_IS5G(chanspec)) {
+						wldev_iovar_setint(pndev, "5g_mrate",
+								dhd->mon_tx_rspec);
+					} else if (CHSPEC_IS2G(chanspec)) {
+						wldev_iovar_setint(pndev, "2g_mrate",
+								dhd->mon_tx_rspec);
+					}
+				} else {
+					if (CHSPEC_IS5G(chanspec)) {
+						wldev_iovar_setint(pndev, "5g_rate",
+								dhd->mon_tx_rspec);
+					} else if (CHSPEC_IS2G(chanspec)) {
+						wldev_iovar_setint(pndev, "2g_rate",
+								dhd->mon_tx_rspec);
+					}
+				}
+				dhd->mon_tx_rspec_updated = FALSE;
+			}
+#endif /* DHD_WFB */
 		} else {
 			break;
 		}
@@ -8508,6 +8571,10 @@ dhd_rx_mon_pkt(dhd_pub_t *dhdp, host_rxbuf_cmpl_t* msg, void *pkt, int ifidx)
 typedef struct dhd_mon_dev_priv {
 	dhd_info_t *dhd;
 	struct net_device_stats stats;
+#ifdef DHD_WFB
+	uint32 rspec;
+	uint32 rspec_updated;
+#endif /* DHD_WFB */
 } dhd_mon_dev_priv_t;
 
 #define DHD_MON_DEV_PRIV_SIZE		(sizeof(dhd_mon_dev_priv_t))
@@ -8609,12 +8676,404 @@ done:
 #define DHD_MON_DEV_INFO(dev)		(((dhd_mon_dev_priv_t *)DEV_PRIV(dev))->dhd)
 #define DHD_MON_DEV_STATS(dev)		(((dhd_mon_dev_priv_t *)DEV_PRIV(dev))->stats)
 
+#ifdef DHD_WFB
+static bool ieee80211_validate_radiotap_len(struct sk_buff *skb)
+{
+	struct ieee80211_radiotap_header *rthdr =
+		(struct ieee80211_radiotap_header *)skb->data;
+
+	/* check for not even having the fixed radiotap header part */
+	if (unlikely(skb->len < sizeof(struct ieee80211_radiotap_header)))
+		return false; /* too short to be possibly valid */
+
+	/* is it a header version we can trust to find length from? */
+	if (unlikely(rthdr->it_version))
+		return false; /* only version 0 is supported */
+
+	/* does the skb contain enough to deliver on the alleged length? */
+	if (unlikely(skb->len < ieee80211_get_radiotap_len(skb->data)))
+		return false; /* skb too short for claimed rt header extent */
+
+	return true;
+}
+
+static bool dhd_parse_tx_radiotap(struct sk_buff *skb,
+				 struct net_device *dev)
+{
+	struct ieee80211_radiotap_iterator iterator;
+	struct ieee80211_radiotap_header *rthdr =
+		(struct ieee80211_radiotap_header *) skb->data;
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+	int ret = ieee80211_radiotap_iterator_init(&iterator, rthdr, skb->len,
+						   NULL);
+	u16 txflags;
+	u16 rate = 0;
+	bool rate_found = false;
+	u8 rate_retries = 0;
+	u16 rate_flags = 0;
+	u8 mcs_known, mcs_flags, mcs_bw;
+	u16 vht_known;
+	u8 vht_mcs = 0, vht_nss = 0;
+	int i;
+
+	uint32 rspec = 0;
+
+	dhd_mon_dev_priv_t *dev_priv = NULL;
+	dhd_info_t *dhd = NULL;
+	struct net_device *pndev = NULL;
+
+	if (!ieee80211_validate_radiotap_len(skb))
+		return false;
+
+	info->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT |
+		       IEEE80211_TX_CTL_DONTFRAG;
+
+	/*
+	 * for every radiotap entry that is present
+	 * (ieee80211_radiotap_iterator_next returns -ENOENT when no more
+	 * entries present, or -EINVAL on error)
+	 */
+
+	while (!ret) {
+		ret = ieee80211_radiotap_iterator_next(&iterator);
+
+		if (ret)
+			continue;
+
+		/* see if this argument is something we can use */
+		switch (iterator.this_arg_index) {
+		/*
+		 * You must take care when dereferencing iterator.this_arg
+		 * for multibyte types... the pointer is not aligned.  Use
+		 * get_unaligned((type *)iterator.this_arg) to dereference
+		 * iterator.this_arg for type "type" safely on all arches.
+		*/
+		case IEEE80211_RADIOTAP_FLAGS:
+			if (*iterator.this_arg & IEEE80211_RADIOTAP_F_FCS) {
+				/*
+				 * this indicates that the skb we have been
+				 * handed has the 32-bit FCS CRC at the end...
+				 * we should react to that by snipping it off
+				 * because it will be recomputed and added
+				 * on transmission
+				 */
+				if (skb->len < (iterator._max_length + FCS_LEN))
+					return false;
+
+				skb_trim(skb, skb->len - FCS_LEN);
+			}
+			if (*iterator.this_arg & IEEE80211_RADIOTAP_F_WEP)
+				info->flags &= ~IEEE80211_TX_INTFL_DONT_ENCRYPT;
+			if (*iterator.this_arg & IEEE80211_RADIOTAP_F_FRAG)
+				info->flags &= ~IEEE80211_TX_CTL_DONTFRAG;
+			break;
+
+		case IEEE80211_RADIOTAP_TX_FLAGS:
+			txflags = get_unaligned_le16(iterator.this_arg);
+			if (txflags & IEEE80211_RADIOTAP_F_TX_NOACK)
+				info->flags |= IEEE80211_TX_CTL_NO_ACK;
+			if (txflags & IEEE80211_RADIOTAP_F_TX_NOSEQNO)
+				info->control.flags |= IEEE80211_TX_CTRL_NO_SEQNO;
+			if (txflags & IEEE80211_RADIOTAP_F_TX_ORDER)
+				info->control.flags |=
+					IEEE80211_TX_CTRL_DONT_REORDER;
+			break;
+
+		case IEEE80211_RADIOTAP_RATE:
+			rate = *iterator.this_arg;
+			rate_flags = 0;
+			rate_found = true;
+			break;
+
+		case IEEE80211_RADIOTAP_ANTENNA:
+			/* this can appear multiple times, keep a bitmap */
+			info->control.antennas |= BIT(*iterator.this_arg);
+			break;
+
+		case IEEE80211_RADIOTAP_DATA_RETRIES:
+			rate_retries = *iterator.this_arg;
+			UNUSED_PARAMETER(rate_retries);
+			break;
+
+		case IEEE80211_RADIOTAP_MCS:
+			mcs_known = iterator.this_arg[0];
+			mcs_flags = iterator.this_arg[1];
+			if (!(mcs_known & IEEE80211_RADIOTAP_MCS_HAVE_MCS))
+				break;
+
+			rate_found = true;
+			rate = iterator.this_arg[2];
+			rate_flags = IEEE80211_TX_RC_MCS;
+
+			if (mcs_known & IEEE80211_RADIOTAP_MCS_HAVE_GI &&
+			    mcs_flags & IEEE80211_RADIOTAP_MCS_SGI)
+				rate_flags |= IEEE80211_TX_RC_SHORT_GI;
+
+			mcs_bw = mcs_flags & IEEE80211_RADIOTAP_MCS_BW_MASK;
+			if (mcs_known & IEEE80211_RADIOTAP_MCS_HAVE_BW &&
+			    mcs_bw == IEEE80211_RADIOTAP_MCS_BW_40)
+				rate_flags |= IEEE80211_TX_RC_40_MHZ_WIDTH;
+
+			if (mcs_known & IEEE80211_RADIOTAP_MCS_HAVE_FEC &&
+			    mcs_flags & IEEE80211_RADIOTAP_MCS_FEC_LDPC)
+				info->flags |= IEEE80211_TX_CTL_LDPC;
+
+			if (mcs_known & IEEE80211_RADIOTAP_MCS_HAVE_STBC) {
+				u8 stbc = u8_get_bits(mcs_flags,
+						      IEEE80211_RADIOTAP_MCS_STBC_MASK);
+
+				info->flags |=
+					u32_encode_bits(stbc,
+							IEEE80211_TX_CTL_STBC);
+			}
+			break;
+
+		case IEEE80211_RADIOTAP_VHT:
+			vht_known = get_unaligned_le16(iterator.this_arg);
+			rate_found = true;
+
+			rate_flags = IEEE80211_TX_RC_VHT_MCS;
+			if ((vht_known & IEEE80211_RADIOTAP_VHT_KNOWN_GI) &&
+			    (iterator.this_arg[2] &
+			     IEEE80211_RADIOTAP_VHT_FLAG_SGI))
+				rate_flags |= IEEE80211_TX_RC_SHORT_GI;
+			if (vht_known &
+			    IEEE80211_RADIOTAP_VHT_KNOWN_BANDWIDTH) {
+				if (iterator.this_arg[3] == 1)
+					rate_flags |=
+						IEEE80211_TX_RC_40_MHZ_WIDTH;
+				else if (iterator.this_arg[3] == 4)
+					rate_flags |=
+						IEEE80211_TX_RC_80_MHZ_WIDTH;
+				else if (iterator.this_arg[3] == 11)
+					rate_flags |=
+						IEEE80211_TX_RC_160_MHZ_WIDTH;
+			}
+
+			vht_mcs = iterator.this_arg[4] >> 4;
+			if (vht_mcs > 11)
+				vht_mcs = 0;
+			vht_nss = iterator.this_arg[4] & 0xF;
+			if (!vht_nss || vht_nss > 8)
+				vht_nss = 1;
+			break;
+
+		/*
+		 * Please update the file
+		 * Documentation/networking/mac80211-injection.rst
+		 * when parsing new fields here.
+		 */
+
+		default:
+			break;
+		}
+	}
+
+	if (ret != -ENOENT) /* ie, if we didn't simply run out of fields */
+		return false;
+
+	if (rate_found) {
+		DHD_TRACE(("%s-%d, rate_flags: 0x%x\n", __func__, __LINE__, rate_flags));
+
+		info->control.flags |= IEEE80211_TX_CTRL_RATE_INJECT;
+
+		for (i = 0; i < IEEE80211_TX_MAX_RATES; i++) {
+			info->control.rates[i].idx = -1;
+			info->control.rates[i].flags = 0;
+			info->control.rates[i].count = 0;
+		}
+
+		if (rate_flags & IEEE80211_TX_RC_MCS) {
+			/* reset antennas if not enough */
+			if (IEEE80211_HT_MCS_CHAINS(rate) >
+					hweight8(info->control.antennas))
+				info->control.antennas = 0;
+
+			info->control.rates[0].idx = rate;
+
+			rspec = WL_RSPEC_ENCODE_HT; /* 11n HT */
+			rspec |= rate;
+			if (rate_flags & IEEE80211_TX_RC_SHORT_GI) {
+				rspec |= WL_RSPEC_SGI;
+			}
+			if (rate_flags & IEEE80211_TX_RC_40_MHZ_WIDTH) {
+				rspec |= WL_RSPEC_BW_40MHZ;
+			}
+			if (rate_flags & IEEE80211_TX_RC_80_MHZ_WIDTH) {
+				rspec |= WL_RSPEC_BW_80MHZ;
+			}
+			if (info->flags & IEEE80211_TX_CTL_LDPC) {
+				rspec |= WL_RSPEC_LDPC;
+			}
+			if (info->flags & IEEE80211_TX_CTL_STBC) {
+				rspec |= WL_RSPEC_STBC;
+			}
+
+			DHD_TRACE(("%s, MCS rate_flags: 0x%x, rate: %d\n",
+						__func__, rate_flags, rate));
+		} else if (rate_flags & IEEE80211_TX_RC_VHT_MCS) {
+			/* reset antennas if not enough */
+			if (vht_nss > hweight8(info->control.antennas))
+				info->control.antennas = 0;
+			DHD_TRACE(("%s, VHT rate_flags: 0x%x, vht_mcs: %d, vht_nss: %d\n",
+						__func__, rate_flags, vht_mcs, vht_nss));
+
+			rspec = WL_RSPEC_ENCODE_VHT; /* 11ac VHT */
+
+			if (rate_flags & IEEE80211_TX_RC_SHORT_GI) {
+				rspec |= WL_RSPEC_SGI;
+			}
+			if (rate_flags & IEEE80211_TX_RC_40_MHZ_WIDTH) {
+				rspec |= WL_RSPEC_BW_40MHZ;
+			}
+			if (rate_flags & IEEE80211_TX_RC_80_MHZ_WIDTH) {
+				rspec |= WL_RSPEC_BW_80MHZ;
+			}
+			if (rate_flags & IEEE80211_TX_RC_160_MHZ_WIDTH) {
+				rspec |= WL_RSPEC_BW_160MHZ;
+			}
+
+			if (vht_nss) {
+				rspec |= (vht_nss << WL_RSPEC_VHT_NSS_SHIFT);
+			}
+		}
+		else if (!rate_flags) {
+			rspec = WL_RSPEC_ENCODE_RATE; /* Legacy 11abg rates */
+			rspec |= rate;
+		}
+#ifdef WL_CFG80211_MONITOR
+		dev_priv = DHD_MON_DEV_PRIV(dev);
+		dhd = dev_priv->dhd;
+		UNUSED_PARAMETER(pndev);
+		if (dhd->mon_tx_rspec != rspec) {
+			dhd->mon_tx_rspec = rspec;
+			dhd->mon_tx_rspec_updated = TRUE;
+		}
+#endif
+	}
+
+	return true;
+}
+
 static netdev_tx_t
-BCMFASTPATH(dhd_monitor_start)(struct sk_buff *skb, struct net_device *dev)
+BCMFASTPATH(dhd_monitor_start_xmit)(struct sk_buff *skb, struct net_device *ndev)
+{
+	struct ieee80211_radiotap_header *rtap_hdr;
+	int ret = 0;
+	int rtap_len;
+	unsigned long flags;
+
+	dhd_info_t *dhdinfo = DHD_MON_DEV_INFO(ndev);
+
+	if (dhdinfo == NULL)
+	{
+		DHD_ERROR(("%s dhdinfo is null\n", __FUNCTION__));
+		goto fail;
+	}
+
+	if (dhdinfo->monitor_dev == NULL) {
+		DHD_ERROR(("%s monitor_dev is null\n", __FUNCTION__));
+		goto fail;
+	}
+
+	if (unlikely(skb->len < sizeof(struct ieee80211_radiotap_header))) {
+		DHD_ERROR(("%s skblen is less than radiotap header\n", __FUNCTION__));
+		goto fail;
+	}
+
+#ifdef DHD_PCIE_RUNTIMEPM
+	if (dhdpcie_runtime_bus_wake(&dhdinfo->pub, FALSE, dhd_monitor_start_xmit)) {
+		/* In order to avoid pkt loss. Return NETDEV_TX_BUSY until run-time resumed. */
+		/* stop the network queue temporarily until resume done */
+		DHD_GENERAL_LOCK(&dhdinfo->pub, flags);
+		if (!dhdpcie_is_resume_done(&dhdinfo->pub)) {
+			dhd_bus_stop_queue(dhdinfo->pub.bus);
+		}
+		DHD_BUS_BUSY_CLEAR_IN_TX(&dhdinfo->pub);
+		dhd_os_busbusy_wake(&dhdinfo->pub);
+		DHD_GENERAL_UNLOCK(&dhdinfo->pub, flags);
+		return NETDEV_TX_BUSY;
+	}
+#endif /* DHD_PCIE_RUNTIMEPM */
+
+	rtap_hdr = (struct ieee80211_radiotap_header *)skb->data;
+	if (unlikely(rtap_hdr->it_version)) {
+		DHD_ERROR(("%s rtap_hdr->it_version: %d, ignore\n",
+					__FUNCTION__, rtap_hdr->it_version));
+	}
+
+	rtap_len = ieee80211_get_radiotap_len(skb->data);
+	if (unlikely(skb->len < rtap_len)) {
+		DHD_ERROR(("%s skblen less than rtap_len\n", __FUNCTION__));
+	}
+
+	/* clear the skb control buffer */
+	bzero(skb->cb, sizeof(skb->cb));
+
+	/* Packet format: radiotap header + 802.11 header + data
+	   1, parse radiotap header and config FW accordingly
+	   2, skip radiotap header
+	   3, add Ethernet header by abstracting RA/TX from 802.11 header
+	 */
+	struct dot11_header *h;
+	uint8 temp_addr_dhost[ETHER_ADDR_LEN];
+	uint8 temp_addr_shost[ETHER_ADDR_LEN];
+
+	/* parse radiotap header and configure rate etc accordingly */
+	if (!dhd_parse_tx_radiotap(skb, ndev)) {
+		DHD_ERROR(("%s-%d, parse radiotap header failed\n", __FUNCTION__));
+		goto fail;
+	}
+
+	/* add Ehternet header */
+	{
+		h = skb_pull(skb, rtap_len); //Skip rtap and get the 802.11 header
+
+		memcpy(temp_addr_dhost, (char *)&h->a1, ETHER_ADDR_LEN);
+		memcpy(temp_addr_shost, (char *)&h->a2, ETHER_ADDR_LEN);
+
+		if (ETHER_ISMULTI(temp_addr_dhost)) {
+			dhdinfo->mon_tx_mcast = TRUE;
+		} else {
+			dhdinfo->mon_tx_mcast = FALSE;
+		}
+
+		/* Uncomment below line to remove WFB 802.11 header,
+		 * please update FW to sync.
+		 */
+		//skb_pull(skb, DOT11_A3_HDR_LEN); /* Skip 802.11 header */
+
+		skb_push(skb, sizeof(struct ether_header));
+
+		struct ether_header *new_eh = (struct ether_header *)skb->data;
+
+		memcpy(new_eh->ether_dhost, temp_addr_dhost, ETHER_ADDR_LEN);
+		memcpy(new_eh->ether_shost, temp_addr_shost, ETHER_ADDR_LEN);
+		new_eh->ether_type = ETHER_TYPE_IP; /* Does not care */
+
+		/* Uncomment below line to set all packet as VI priority
+		 */
+		//PKTSETPRIO(skb, PRIO_8021D_VI);
+	}
+
+	DHD_TRACE(("%s-%d, calling dhd_start_xmit, dev name: %s, skb len: %d\n",
+				__FUNCTION__, __LINE__, dhdinfo->monitor_dev->name, skb->len));
+
+	ret = dhd_start_xmit(skb, dhdinfo->monitor_dev);
+
+	return ret;
+fail:
+	dev_kfree_skb(skb);
+	return 0;
+}
+#else /* DHD_WFB */
+static netdev_tx_t
+BCMFASTPATH(dhd_monitor_start_xmit)(struct sk_buff *skb, struct net_device *dev)
 {
 	PKTFREE(NULL, skb, FALSE);
 	return 0; /* driver took care of acket */
 }
+#endif /* DHD_WFB */
 
 #ifdef WL_CFG80211_MONITOR
 static int
@@ -8742,7 +9201,7 @@ dhd_monitor_get_stats(struct net_device *dev)
 
 static const struct net_device_ops netdev_monitor_ops =
 {
-	.ndo_start_xmit = dhd_monitor_start,
+	.ndo_start_xmit = dhd_monitor_start_xmit,
 	.ndo_get_stats = dhd_monitor_get_stats,
 #ifdef WL_CFG80211_MONITOR
 	.ndo_open = dhd_monitor_open,
@@ -8806,6 +9265,10 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 #else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 9) */
 	dev->destructor = free_netdev;
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 9) */
+
+#ifdef DHD_WFB
+	dev->needed_headroom += sizeof(struct ether_header);
+#endif /* DHD_WFB */
 
 	if (rtnl_is_locked()) {
 
@@ -10013,6 +10476,12 @@ dhd_stop(struct net_device *net)
 					dhd_inetaddr_notifier_registered = FALSE;
 					unregister_inetaddr_notifier(&dhd_inetaddr_notifier);
 				}
+#ifdef ARP_CHECK_SUPPORT
+				if (dhd->arp_check_timer_valid) {
+					dhd->arp_check_timer_valid= FALSE;
+					del_timer_sync(&dhd->arp_check_timer);
+				}
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
 				if (dhd_inet6addr_notifier_registered) {
@@ -10433,6 +10902,14 @@ dhd_open(struct net_device *net)
 #ifdef SHOW_LOGTRACE
 		skb_queue_head_init(&dhd->evt_trace_queue);
 
+#if defined(DHD_METADATA_DOWNLOAD) && defined(BCMSDIO)
+		if (dhd_metadata_init(dhd->pub.bus, st_str_file_path)) {
+			DHD_ERROR(("%s: dhd_metadata_init failed\n", __FUNCTION__));
+			mutex_unlock(&dhd->pub.ndev_op_sync);
+			return BCME_ERROR;
+		}
+#endif /* DHD_METADATA_DOWNLOAD && BCMSDIO */
+
 		if (!(dhd->dhd_state & DHD_ATTACH_LOGTRACE_INIT)) {
 			ret = dhd_init_logstrs_array(dhd->pub.osh, &dhd->event_data);
 			if (ret == BCME_OK) {
@@ -10710,6 +11187,13 @@ dhd_open(struct net_device *net)
 				dhd_inetaddr_notifier_registered = TRUE;
 				register_inetaddr_notifier(&dhd_inetaddr_notifier);
 			}
+#ifdef ARP_CHECK_SUPPORT
+			if (!dhd->arp_check_timer_valid) {
+				dhd->arp_check_timer_valid= TRUE;
+				INIT_DELAYED_WORK(&dhd->arp_disconnect_work, dhd_arp_check_error_handler);
+				init_timer_compat(&dhd->arp_check_timer, dhd_arp_check_timer, dhd);
+			}
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
 			if (!dhd_inet6addr_notifier_registered) {
@@ -13062,6 +13546,17 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		dhd_inetaddr_notifier_registered = TRUE;
 		register_inetaddr_notifier(&dhd_inetaddr_notifier);
 	}
+#ifdef ARP_CHECK_SUPPORT
+	if (!dhd->arp_check_timer_valid) {
+		dhd->arp_check_timer_valid= TRUE;
+		/* disable arp check by default, will enable it from config file*/
+		dhd->arp_check_enable = FALSE;
+		dhd->arp_check_interval = DHD_ARP_CHECK_INTERVAL;
+		dhd->arp_check_timeout = DHD_ARP_CHECK_TIMEOUT;
+		INIT_DELAYED_WORK(&dhd->arp_disconnect_work, dhd_arp_check_error_handler);
+		init_timer_compat(&dhd->arp_check_timer, dhd_arp_check_timer, dhd);
+	}
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 
 #if defined(CONFIG_IPV6) && defined(IPV6_NDO_SUPPORT)
@@ -13691,7 +14186,8 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 }
 
 #if defined(BT_OVER_SDIO)
-extern bool dhd_update_btfw_path(dhd_info_t *dhdinfo, char* btfw_path)
+static bool
+dhd_update_btfw_path(dhd_info_t *dhdinfo, char* btfw_path)
 {
 	int fw_len;
 	const char *fw = NULL;
@@ -17701,6 +18197,163 @@ aoe_update_host_ipv4_table(dhd_pub_t *dhd_pub, u32 ipa, bool add, int idx)
 #endif
 }
 
+#ifdef ARP_CHECK_SUPPORT
+int dhd_dev_set_arp_trigger(struct net_device *dev, int val)
+{
+	dhd_info_t *dhd = DHD_DEV_INFO(dev);
+	dhd->arp_trigger_start = val;
+	if (val && dhd->arp_check_enable) {
+		if (dhd->arp_check_timer_valid) {
+			/* may need dhcp, so set longer timer */
+			dhd->arp_tick_cnt = -1; /* set max value avoid disconnect at first timer */
+			mod_timer(&dhd->arp_check_timer, jiffies + msecs_to_jiffies(2 * dhd->arp_check_interval));
+		}
+	}
+	return 0;
+}
+
+int dhd_pub_save_arp_resp_tick(dhd_pub_t *dhdp)
+{
+	dhd_info_t *dhd = dhdp->info;
+	dhd->arp_tick_cnt = dhdp->tickcnt;
+	return 0;
+}
+
+static void dhd_arp_check_error_handler(struct work_struct *work)
+{
+	dhd_info_t *dhd;
+        struct delayed_work *dw = to_delayed_work(work);
+	struct net_device *ndev;
+
+        /* Ignore compiler warnings due to -Werror=cast-qual */
+        GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+        dhd = container_of(dw, dhd_info_t, arp_disconnect_work);
+        GCC_DIAGNOSTIC_POP();
+
+	if (dhd && dhd->iflist[0]) {
+		ndev = dhd->iflist[0]->net;
+	} else {
+		DHD_ERROR(("%s: return as NULL pointer\n", __FUNCTION__));
+		return;
+	}
+	DHD_ERROR(("Disassoc for arp check timeout at %s\n",
+                                ndev->name));
+#ifdef WL_CFG80211
+	wl_cfg80211_disassoc(ndev, WLAN_REASON_DEAUTH_LEAVING);
+#endif /* WL_CFG80211 */
+}
+
+static void
+dhd_cleanup_arp_check_error_work(dhd_info_t *dhd)
+{
+
+	if (!dhd) {
+		DHD_ERROR(("%s: dhdinfo is NULL\n", __FUNCTION__));
+		return;
+	}
+
+	cancel_delayed_work_sync(&dhd->arp_disconnect_work);
+}
+
+void dhd_arp_check_timer(void *data)
+{
+	dhd_info_t *dhd = (dhd_info_t *)data;
+	struct net_device *ndev;
+	if (!dhd->arp_check_timer_valid) {
+		DHD_ERROR(("arp trigger timer_valid, return\n"));
+		return;
+	}
+	if(!dhd->arp_trigger_start || !dhd->arp_check_enable) {
+		DHD_ERROR(("arp trigger not set/enabled, return\n"));
+		return;
+	}
+	/* check gw get correctly */
+	if (dhd->gw_ipaddr  == 0) {
+		dhd->gw_ipaddr = get_default_gateway_ip(&dhd->pub, 0);
+		/* check gw again */
+		if (dhd->gw_ipaddr  == 0) {
+			DHD_ERROR(("get gw failed, try it again with a timer interval %d\n", dhd->arp_check_interval));
+			mod_timer(&dhd->arp_check_timer, jiffies + msecs_to_jiffies(dhd->arp_check_interval));
+			return;
+		}
+	}
+	if (dhd->iflist[0] == NULL) {
+		DHD_ERROR(("%s: Invalid Interface\n", __FUNCTION__));
+		return ;
+	}
+	ndev = dhd->iflist[0]->net;
+
+	DHD_TRACE(("%s: enter %d, tickcnt = %d vs %d \t delta=%d\n", __func__, __LINE__,
+			dhd->pub.tickcnt, dhd->arp_tick_cnt, dhd->pub.tickcnt - dhd->arp_tick_cnt));
+	if ((dhd->pub.tickcnt > dhd->arp_tick_cnt) &&
+			((dhd->pub.tickcnt - dhd->arp_tick_cnt) > dhd->arp_check_timeout)) {
+		/* try to disconnect the network */
+		dhd->arp_trigger_start = 0;
+		schedule_delayed_work(&dhd->arp_disconnect_work,
+			msecs_to_jiffies(dhd->arp_check_interval));
+		return;
+
+	}
+
+	/* try to trigger ARP request */
+	arp_send(ARPOP_REQUEST, ETH_P_ARP, dhd->gw_ipaddr, ndev, dhd->local_ipaddr,
+		NULL, ndev->dev_addr, NULL);
+
+	/* trigger next arp req */
+	mod_timer(&dhd->arp_check_timer, jiffies + msecs_to_jiffies(dhd->arp_check_interval));
+	return;
+}
+
+/* Get gateway IP (ipv4 */
+uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx)
+{
+	struct rtable *rt;
+	struct flowi4 fl4;
+	uint32 gateway_ip = 0;
+	dhd_info_t *dhd = (dhd_info_t *)dhdp->info;
+	struct net_device *dev = NULL;
+
+	if (dhd == NULL || dhd->iflist[ifidx] == NULL) {
+		DHD_ERROR(("%s: Invalid Interface\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+	memset(&fl4, 0, sizeof(fl4));
+	dev =  dhd->iflist[ifidx]->net;
+	if (dev->flags & IFF_UP) {
+		memset(&fl4, 0, sizeof(fl4));
+
+		/* fill ARP structure */
+		fl4.flowi4_oif = dev->ifindex;
+		fl4.daddr = htonl(0x08080808);          /* destination IP：8.8.8.8 */
+		fl4.saddr = 0;
+		fl4.__fl_common.flowic_tos = 0;
+		fl4.__fl_common.flowic_scope = RT_SCOPE_UNIVERSE;
+		fl4.__fl_common.flowic_proto = IPPROTO_IP;
+
+		/* get gate way items */
+		rt = ip_route_output_key(dev_net(dev), &fl4);
+		DHD_TRACE(("%s: enter %d, rt=%p,name=%s\n", __func__, __LINE__,rt, dev->name));
+		if (!IS_ERR(rt)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,2,0)
+			DHD_TRACE(("rt_gw_family=%d, rt_gw4=%d\n", rt->rt_gw_family, rt->rt_gw4));
+			if (rt->rt_gw_family == AF_INET && rt->rt_gw4) {
+				/* get gateway based on next trace */
+				gateway_ip = rt->rt_gw4;
+			}
+#else
+			if(rt->rt_gateway) {
+				gateway_ip = rt->rt_gateway;
+			}
+#endif /* KERNEL_VER >= KERNEL_VERSION(5,0,0) */
+
+		}
+
+	}
+
+	return gateway_ip;
+}
+#endif /* ARP_CHECK_SUPPORT */
+
 /* XXX this function is only for IP address */
 /*
  * Notification mechanism from kernel to our driver. This function is called by the Linux kernel
@@ -17761,6 +18414,18 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 			DHD_ARPOE(("%s: [%s] Up IP: 0x%x\n",
 				__FUNCTION__, ifa->ifa_label, ifa->ifa_address));
 
+#ifdef ARP_CHECK_SUPPORT
+			if (idx == 0) {
+				dhd->gw_ipaddr = get_default_gateway_ip(dhd_pub, idx);
+				DHD_ERROR(("%s: gw_ipaddr = %x\n", __FUNCTION__, dhd->gw_ipaddr));
+				dhd->arp_trigger_start = 1;
+				if (dhd->arp_check_timer_valid) {
+					dhd->arp_tick_cnt = -1; /* set max value avoid disconnect at first timer */
+					mod_timer(&dhd->arp_check_timer, jiffies + msecs_to_jiffies(dhd->arp_check_interval));
+				}
+				dhd->local_ipaddr = ifa->ifa_address;
+			}
+#endif /* ARP_CHECK_SUPPORT */
 			/*
 			 * Skip if Bus is not in a state to transport the IOVAR
 			 * (or) the Dongle is not ready.
@@ -17789,6 +18454,12 @@ static int dhd_inetaddr_notifier_call(struct notifier_block *this,
 			DHD_ARPOE(("%s: [%s] Down IP: 0x%x\n",
 				__FUNCTION__, ifa->ifa_label, ifa->ifa_address));
 			dhd->pend_ipaddr = 0;
+#ifdef ARP_CHECK_SUPPORT
+			if (idx == 0) {
+				dhd->gw_ipaddr = 0;
+				dhd->arp_trigger_start = 0;
+			}
+#endif /* ARP_CHECK_SUPPORT */
 #ifdef AOE_IP_ALIAS_SUPPORT
 			/* XXX HOSTAPD will be rerturned at first */
 			DHD_ARPOE(("%s:interface is down, AOE clr all for this if\n",
@@ -18354,6 +19025,14 @@ void dhd_detach(dhd_pub_t *dhdp)
 	}
 
 #ifdef ARP_OFFLOAD_SUPPORT
+#ifdef ARP_CHECK_SUPPORT
+	if (dhd->arp_check_timer_valid) {
+		dhd->arp_check_timer_valid= FALSE;
+		dhd->arp_check_enable = FALSE;
+		del_timer_sync(&dhd->arp_check_timer);
+	}
+	dhd_cleanup_arp_check_error_work(dhd);
+#endif /* ARP_CHECK_SUPPORT */
 	if (dhd_inetaddr_notifier_registered) {
 		dhd_inetaddr_notifier_registered = FALSE;
 		unregister_inetaddr_notifier(&dhd_inetaddr_notifier);
@@ -19638,7 +20317,7 @@ exit:
 
 #ifdef DHD_LINUX_STD_FW_API
 int
-dhd_os_get_img_fwreq(const struct firmware **fw, char *file_path)
+dhd_os_get_img_fwreq(const struct firmware **fw, const char *file_path)
 {
 	int ret = BCME_ERROR;
 
@@ -19668,43 +20347,81 @@ dhd_os_close_img_fwreq(const struct firmware *fw)
 {
 	release_firmware(fw);
 }
-#endif // DHD_LINUX_STD_FW_API
+#endif /* DHD_LINUX_STD_FW_API */
 
-void *
-dhd_os_open_image1(dhd_pub_t *pub, char *filename)
+#if defined(BT_OVER_SDIO)
+void*
+dhd_bt_open_image(dhd_pub_t *pub, const char *filename)
+{
+#ifdef DHD_LINUX_STD_FW_API
+	dhd_firmware_t *bt_fw = MALLOCZ(pub->osh, sizeof(dhd_firmware_t));
+	filename = (filename) ? dhd_get_filename(filename) : NULL;
+	if (bt_fw) {
+		if (BCME_OK ==
+			dhd_os_get_img_fwreq(&bt_fw->fw, filename)) {
+			return bt_fw;
+		} else {
+			MFREE(pub->osh, bt_fw, sizeof(dhd_firmware_t));
+		}
+	}
+	return NULL;
+#else
+	return dhd_os_open_image1(pub, filename);
+#endif /* DHD_LINUX_STD_FW_API */
+}
+
+void
+dhd_bt_close_image(dhd_pub_t *pub, void *image)
+{
+#ifdef DHD_LINUX_STD_FW_API
+	if (image) {
+		dhd_firmware_t *bt_fw = (dhd_firmware_t*)image;
+		dhd_os_close_img_fwreq(bt_fw->fw);
+		MFREE(pub->osh, bt_fw, sizeof(dhd_firmware_t));
+	}
+#else
+	dhd_os_close_image1(pub, image);
+#endif /* DHD_LINUX_STD_FW_API */
+}
+#endif /* (BT_OVER_SDIO) */
+
+void*
+dhd_os_open_image1(dhd_pub_t *pub, const char *filename)
 {
 	struct file *fp;
 	int size;
 
 	fp = dhd_filp_open(filename, O_RDONLY, 0);
 	/*
-	 * 2.6.11 (FC4) supports filp_open() but later revs don't?
-	 * Alternative:
-	 * fp = open_namei(AT_FDCWD, filename, O_RD, 0);
-	 * ???
-	 */
-	 if (IS_ERR_OR_NULL(fp)) {
-		 fp = NULL;
-		 goto err;
-	 }
+	* 2.6.11 (FC4) supports filp_open() but later revs don't?
+	* Alternative:
+	* fp = open_namei(AT_FDCWD, filename, O_RD, 0);
+	* ???
+	*/
+	if (IS_ERR_OR_NULL(fp)) {
+		fp = NULL;
+		goto err;
+	}
 
-	 if (!S_ISREG(file_inode(fp)->i_mode)) {
-		 DHD_ERROR(("%s: %s is not regular file\n", __FUNCTION__, filename));
-		 fp = NULL;
-		 goto err;
-	 }
+	if (!S_ISREG(file_inode(fp)->i_mode)) {
+		DHD_ERROR(("%s: %s is not regular file\n", __FUNCTION__, filename));
+		fp = NULL;
+		goto err;
+	}
 
-	 size = dhd_vfs_size_read(fp);
-	 if (size <= 0) {
-		 DHD_ERROR(("%s: %s file size invalid %d\n", __FUNCTION__, filename, size));
-		 fp = NULL;
-		 goto err;
-	 }
+	DHD_TRACE(("[BTOverSDIO]%s: %s open success\n", __FUNCTION__, filename));
 
-	 DHD_ERROR(("%s: %s (%d bytes) open success\n", __FUNCTION__, filename, size));
+	size = dhd_vfs_size_read(fp);
+	if (size <= 0) {
+		DHD_ERROR(("%s: %s file size invalid %d\n", __FUNCTION__, filename, size));
+		fp = NULL;
+		goto err;
+	}
+
+	DHD_ERROR(("%s: %s (%d bytes) open success\n", __FUNCTION__, filename, size));
 
 err:
-	 return fp;
+	return fp;
 }
 
 int
@@ -19733,30 +20450,72 @@ dhd_os_get_image_block(char *buf, int len, void *image)
 }
 
 #if defined(BT_OVER_SDIO)
-int
-dhd_os_gets_image(dhd_pub_t *pub, char *str, int len, void *image)
+static ssize_t dhd_kernel_read_file(void *image, char *buf, size_t len)
 {
+	ssize_t ret;
+
+#ifdef DHD_LINUX_STD_FW_API
+	dhd_firmware_t *bt_fw = (dhd_firmware_t*) image;
+	size_t cpy_len = MIN(len, bt_fw->fw->size - bt_fw->pos);
+
+	if (!bt_fw || !buf || len <= 0)
+		return -EINVAL;
+
+	memcpy_s(buf, len, &bt_fw->fw->data[bt_fw->pos], cpy_len);
+	bt_fw->pos += cpy_len;
+	ret = cpy_len;
+#else
 	struct file *fp = (struct file *)image;
-	int rd_len;
-	uint str_len = 0;
-	char *str_end = NULL;
+	loff_t *pos = &fp->f_pos;
 
-	if (!image)
-		return 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+	if (!fp || !buf || len <= 0)
+		return -EINVAL;
 
-	rd_len = dhd_kernel_read_compat(fp, fp->f_pos, str, len);
-	str_end = strnchr(str, len, '\n');
-	if (str_end == NULL) {
-		goto err;
-	}
-	str_len = (uint)(str_end - str);
+	ret = kernel_read(fp, buf, len, pos);
+#else
+	mm_segment_t old_fs;
 
-	/* Advance file pointer past the string length */
-	fp->f_pos += str_len + 1;
-	bzero(str_end, rd_len - str_len);
+	if (!fp || !buf || len <= 0)
+		return -EINVAL;
 
-err:
-	return str_len;
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = vfs_read(fp, buf, len, pos);
+	set_fs(old_fs);
+#endif
+#endif /* DHD_LINUX_STD_FW_API */
+	return ret;
+}
+
+/**
+ * Handle fetching of BT firmware image (\n delimited) line by line.
+ */
+int dhd_bt_gets_image(dhd_pub_t *pub, char *str, int len, void *image)
+{
+    char c;
+    int i = 0;
+    ssize_t ret;
+
+    if (!image || len <= 1)
+        return 0;
+
+    while (i < len - 1) {
+        ret = dhd_kernel_read_file(image, &c, 1);
+        if (ret <= 0)
+            break;
+
+        str[i++] = c;
+        if (c == '\n')
+            break;
+    }
+
+    str[i] = '\0';
+
+    DHD_TRACE(("[BTOverSDIO]%s: line=\"%s\" (len=%d)\n",
+               __FUNCTION__, str, i));
+
+    return i;
 }
 #endif /* defined (BT_OVER_SDIO) */
 

@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -9486,7 +9486,7 @@ wl_cfg80211_get_sta_channel(struct bcm_cfg80211 *cfg)
 }
 
 #define SEC_FREQ_HT40_OFFSET 20
-static acs_delay_work_t delay_work_acs = { .init_flag = 0 };
+acs_delay_work_t delay_work_acs = { .init_flag = 0 };
 
 static int wl_cfgvendor_acs_parse_result(acs_selected_channels_t *pResult,
         chanspec_t ch_chosen, drv_acs_params_t *pParameter)
@@ -9521,9 +9521,9 @@ static int wl_cfgvendor_acs_parse_result(acs_selected_channels_t *pResult,
 			pResult->hw_mode = HOSTAPD_MODE_IEEE80211G;
 			break;
 		case WL_CHANSPEC_BAND_5G:
+		case WL_CHANSPEC_BAND_6G:
 			pResult->hw_mode = HOSTAPD_MODE_IEEE80211A;
 			break;
-		case WL_CHANSPEC_BAND_6G:
 		default:
 			pResult->hw_mode = HOSTAPD_MODE_IEEE80211ANY;
 			break;
@@ -13562,7 +13562,7 @@ wl_cfgvendor_apply_cmd_policy(struct wiphy *wiphy)
 int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)
 {
 
-	WL_INFORM_MEM(("Vendor: Register BRCM cfg80211 vendor cmd(0x%x) interface \n",
+	WL_INFORM_MEM(("Vendor: Register SYNA cfg80211 vendor cmd(0x%x) interface \n",
 		NL80211_CMD_VENDOR));
 
 	wiphy->vendor_commands	= wl_vendor_cmds;
@@ -13606,7 +13606,7 @@ int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)
 
 int wl_cfgvendor_detach(struct wiphy *wiphy)
 {
-	WL_INFORM_MEM(("Vendor: Unregister BRCM cfg80211 vendor interface \n"));
+	WL_INFORM_MEM(("Vendor: Unregister SYNA cfg80211 vendor interface \n"));
 
 	wiphy->vendor_commands  = NULL;
 	wiphy->vendor_events    = NULL;

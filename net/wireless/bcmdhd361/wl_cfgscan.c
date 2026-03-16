@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver scan related code
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2031,6 +2031,16 @@ wl_run_escan(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 				WL_DBG((" Escan not permitted at this time (%d)\n", err));
 			else
 				WL_ERR((" Escan set error (%d)\n", err));
+
+			if (err == BCME_SCANREJECT) {
+				struct net_info *iter, *next;
+				for_each_ndev(cfg, iter, next) {
+					if ((iter->ndev) && (wl_get_drv_status(cfg, CONNECTED, iter->ndev)) &&
+						(iter->ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP)) {
+						wl_cfg80211_set_softAP_csa(iter->ndev);
+					}
+				}
+			}
 		} else {
 			DBG_EVENT_LOG((dhd_pub_t *)cfg->pub, WIFI_EVENT_DRIVER_SCAN_REQUESTED);
 		}

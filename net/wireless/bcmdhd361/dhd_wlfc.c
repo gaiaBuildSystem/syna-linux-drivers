@@ -1,7 +1,7 @@
 /*
  * DHD PROP_TXSTATUS Module.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -686,8 +686,8 @@ _dhd_wlfc_find_table_entry(athost_wl_status_info_t* ctx, void* p)
 			entry = &ctx->destination_entries.interfaces[ifid];
 	}
 
-	if (entry && ETHER_ISMULTI(dstn)
-		&& (entry->psq.num_prec != 0)) {
+	if (entry && ETHER_ISMULTI(dstn) &&
+		(entry->psq.num_prec != 0)) {
 		DHD_PKTTAG_SET_ENTRY(PKTTAG(p), entry);
 		return entry;
 	}
@@ -1737,7 +1737,8 @@ _dhd_wlfc_pktq_flush(athost_wl_status_info_t* ctx, struct pktq *pq,
 					}
 					if (dhdp->proptxstatus_mode == WLFC_FCMODE_EXPLICIT_CREDIT)
 						_dhd_wlfc_return_explicit_credit(ctx, p);
-					else if (dhdp->proptxstatus_mode == WLFC_FCMODE_IMPLIED_CREDIT)
+					else if (dhdp->proptxstatus_mode ==
+						WLFC_FCMODE_IMPLIED_CREDIT)
 						_dhd_wlfc_return_implied_credit(ctx, p);
 					ctx->stats.cleanup_fw_cnt++;
 				}

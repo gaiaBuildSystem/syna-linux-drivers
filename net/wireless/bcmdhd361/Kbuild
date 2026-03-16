@@ -1,6 +1,6 @@
 # synadhd
 #
-# Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+# Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
 #
 # This software is licensed to you under the terms of the
 # GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -19,7 +19,7 @@
 # SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
 # EXCEED ONE HUNDRED U.S. DOLLARS
 #
-# Copyright (C) 2025, Broadcom.
+# Copyright (C) 2026, Broadcom.
 #
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -89,7 +89,7 @@ else
 endif
 
 #any customize config put in cust_cfg.mk
-#include $(BCMDHD_ROOT)/cust_cfg.mk
+include $(BCMDHD_ROOT)/cust_cfg.mk
 #####################
 # SDIO/PCIe Basic feature
 #####################
@@ -126,7 +126,7 @@ CONFIG_BCMDHD_OOB ?= y
 # Enable for validation on Packet Filter along with ARP Offload Engine
 CONFIG_CFG80211_PKTFILTER_AOE ?= y
 
-ifneq ($(CONFIG_ARCH_ASTRA),.)
+ifneq ($(CONFIG_ARCH_ASTRA),)
 CONFIG_BCMDHD_OOB=
 endif
 # enable HTPUT for 4389
@@ -221,7 +221,7 @@ DHDCFLAGS += -DWL_STATIC_IF
 DHDCFLAGS += -DAPSTA_NON_CONCURRENT
 
 # Wapi
-#DHDCFLAGS += -DBCMWAPI_WPI -DBCMWAPI_WAI
+DHDCFLAGS += -DBCMWAPI_WPI -DBCMWAPI_WAI
 
 # FBT
 DHDCFLAGS += -DWLFBT
@@ -256,11 +256,19 @@ DHDCFLAGS += -DDHD_DUMP_BUF_KVMALLOC
 DHDCFLAGS += -DBL_CONS_LOG
 
 ifneq ($(CONFIG_ARCH_MESON),)
+DHDCFLAGS += -DBOARD_VIM3
 DHDCFLAGS += -DCUSTOM_PREFIX_NORTCTIME="\"[DHD] \""
 ifneq ($(CONFIG_BCMDHD_SDIO),)
 CONFIG_BCMDHD_OOB=y
 # try internal adapter on 3rd attempt
 DHDCFLAGS += -DVIM3_TRY_INTERNAL_CNT=2
+else
+CONFIG_BCMDHD_OOB=
+endif
+ifneq ($(CONFIG_ANDROID),)
+ifeq ($(shell test $(KVER_CODE) -ge 601; echo $$?),0)
+  DHDCFLAGS += -DWL_AP_PORT_AUTH_BKPORT
+endif
 endif
 endif
 
@@ -402,6 +410,10 @@ endif
 	DHDCFLAGS += -DWBRC
 # Enable monitor chanspec setting from cfg80211 ops
 	DHDCFLAGS += -DWL_CFG80211_MONITOR
+# Enable WFB-NG feature in DHD, for PCIE only so far
+ifeq ($(CONFIG_BCMDHD_WFB),y)
+	DHDCFLAGS += -DDHD_WFB
+endif
 endif
 
 ifeq ($(CONFIG_ARCH_MESON),)
@@ -624,7 +636,9 @@ DHDCFLAGS += -DMAX_DTIM_ALLOWED_INTERVAL=925
 DHDCFLAGS += -DENABLE_MAX_DTIM_IN_SUSPEND
 DHDCFLAGS += -DNUM_SCB_MAX_PROBE=3
 DHDCFLAGS += -DWL_SCB_TIMEOUT=10
+ifeq ($(CONFIG_ARCH_ASTRA),)
 DHDCFLAGS += -DWIFI_TURNOFF_DELAY=10
+endif
 DHDCFLAGS += -DWIFI_TURNON_USE_HALINIT
 #Static preallocated buffers
 DHDCFLAGS += -DDHD_USE_STATIC_MEMDUMP
@@ -899,8 +913,9 @@ endif
   DHDCFLAGS += -DBULK_DEQUEUE
 # tput enhancement
   DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
-ifneq ($(CONFIG_ARCH_MESON),)
   DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=256
+ifneq ($(CONFIG_ARCH_MESON),)
+  # VIM3
   DHDCFLAGS += -DCUSTOM_SDIO_CREDTRIG=32
   DHDCFLAGS += -DMAX_HDR_READ=256
   DHDCFLAGS += -DDHD_FIRSTREAD=256
@@ -910,7 +925,7 @@ ifneq ($(CONFIG_ARCH_MESON),)
   DHDCFLAGS += -DDHD_RXBOUND=512
 else
 ifneq ($(CONFIG_ARCH_ASTRA),)
-  DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=256
+  # Astra platform
   DHDCFLAGS += -DCUSTOM_SDIO_CREDTRIG=32
   DHDCFLAGS += -DMAX_HDR_READ=256
   DHDCFLAGS += -DDHD_FIRSTREAD=256
@@ -919,6 +934,7 @@ ifneq ($(CONFIG_ARCH_ASTRA),)
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=32
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=32
 else
+  # All other platforms
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=16
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
   DHDCFLAGS += -DMAX_HDR_READ=128
@@ -1157,6 +1173,15 @@ else ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS += -DDHD_NVRAM_NAME="\"bcmdhd.cal\""
 	DHDCFLAGS += -DDHD_CLM_NAME="\"bcmdhd_clm.blob\""
 	DHDCFLAGS += -DDHD_MAP_NAME="\"fw_bcmdhd.map\""
+	DHDCFLAGS += -DWIFI_TURNOFF_DELAY=100
+	DHDCFLAGS += -Wno-stringop-truncation -Wno-missing-prototypes -Wno-address-of-packed-member -Wno-empty-body -Wno-missing-declarations -Wno-address
+	DHDCFLAGS += -Wno-unused-variable -Wno-format-truncation -Wno-format -Wno-unused-function -Wno-unused-label
+ifneq ($(CONFIG_ASTRA_SL1620),)
+	DHDCFLAGS += -DCONFIG_ARCH_ASTRA_1620
+endif
+ifneq ($(CONFIG_ASTRA_SL1680),)
+	DHDCFLAGS += -DCONFIG_ARCH_ASTRA_1680
+endif
 else ifneq ($(CONFIG_ARCH_MESON),)
 	DHDCFLAGS += -DBOARD_MODULAR_INIT
 ifneq ($(CONFIG_BCMDHD_SDIO),)
@@ -1221,10 +1246,12 @@ ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS := $(filter-out -DWL_MONITOR, $(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DWL_CFG80211_MONITOR, $(DHDCFLAGS))
 
+
 	DHDCFLAGS += -DCONFIG_ARCH_ASTRA
 	DHDCFLAGS += -DEMPTY_CARD_DETECT -DRMMOD_CARD_DETECT
 	DHDCFLAGS += -DDHD_ASTRA_CUST_CHIP_SUPPORT
 	DHDCFLAGS += -DCUSTOM_LOG_DUMP_BUFSIZE_MB=1
+	DHDCFLAGS += -DDHD_APPLY_NL_BW
 
 	# Auto selecting binary file name by chip id
 	DHDCFLAGS += -DDHD_AUTOSEL_BINARY_FILENAME
@@ -1240,12 +1267,17 @@ endif #!CONFIG_ANDROID_VENDOR_OEM_DATA
 
 ifneq ($(CONFIG_BCMDHD_SDIO),)
 	DHDCFLAGS := $(filter-out -DENABLE_INSMOD_NO_FW_LOAD, $(DHDCFLAGS))
+	DHDCFLAGS := $(filter-out -DPROP_TXSTATUS_VSDB, $(DHDCFLAGS))
+	DHDCFLAGS += -DCONFIG_ARCH_ASTRA_1620
 	DHDCFLAGS += -DDHDTCPACK_SUPPRESS_DEF_MODE=2
+
 	# WAR to avoid boot-up slow for multiple DHD insert
 	DHDCFLAGS += -DPOWERUP_MAX_RETRY=0 -DWIFI_TURNON_DELAY=0 -DWIFI_TURNOFF_DELAY=0
+
 ifeq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
 	DHDCFLAGS += -DDHD_WOWL_IN_SUSPEND_SDIO
 endif # !CONFIG_ANDROID_VENDOR_OEM_DATA
+
 endif # CONFIG_BCMDHD_SDIO
 
 ifneq ($(CONFIG_BCMDHD_PCIE),)
@@ -1265,7 +1297,7 @@ DHDCFLAGS += -DCONFIG_BCMDHD_MAP_PATH=$(CONFIG_BCMDHD_MAP_PATH)
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
 EXTRA_CFLAGS += -DDHD_COMPILED=\"$(BCMDHD_ROOT)\"
 EXTRA_CFLAGS += -I$(BCMDHD_ROOT)/include/ -I$(BCMDHD_ROOT)/ -I $(BCMDHD_ROOT_OLD)/include -I $(BCMDHD_ROOT_OLD)/
-KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(CURDIR) -Wno-date-time -Wno-vla -Wno-error
+KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(CURDIR) -Wno-date-time -Wno-vla -Wno-error  -fno-stack-protector
 
 ifneq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
 KBUILD_CFLAGS += -Wno-macro-redefined -Wno-typedef-redefinition

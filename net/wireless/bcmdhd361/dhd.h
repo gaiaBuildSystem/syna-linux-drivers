@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -23,7 +23,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2924,11 +2924,24 @@ extern void pci_restore_state(osl_t *osh, uint32 *buffer);
 extern int dhd_os_get_image_block(char * buf, int len, void * image);
 extern int dhd_os_get_image_size(void * image);
 #if defined(BT_OVER_SDIO)
-extern int dhd_os_gets_image(dhd_pub_t *pub, char *str, int len, void *image);
+#ifdef DHD_LINUX_STD_FW_API
+typedef struct dhd_firmware {
+	const struct firmware *fw;
+	/* Position relative to the start of fw->data */
+	size_t pos;
+} dhd_firmware_t;
+#endif /* DHD_LINUX_STD_FW_API */
+extern int dhd_bt_gets_image(dhd_pub_t *pub, char *str, int len, void *image);
 extern void dhdsdio_bus_usr_cnt_inc(dhd_pub_t *pub);
 extern void dhdsdio_bus_usr_cnt_dec(dhd_pub_t *pub);
+/**
+ * Open BT fw file, with or without DHD_LINUX_STD_FW_API
+ */
+extern void* dhd_bt_open_image(dhd_pub_t *pub, const char *filename);
+extern void dhd_bt_close_image(dhd_pub_t *pub, void *image);
 #endif /* (BT_OVER_SDIO) */
-extern void *dhd_os_open_image1(dhd_pub_t *pub, char *filename); /* rev1 function signature */
+/** rev1 function signature */
+extern void* dhd_os_open_image1(dhd_pub_t *pub, const char *filename);
 extern void dhd_os_close_image1(dhd_pub_t *pub, void *image);
 extern void dhd_os_wd_timer(void *bus, uint wdtick);
 #ifdef DHD_PCIE_RUNTIMEPM
@@ -3025,7 +3038,7 @@ void dhd_schedule_memdump(dhd_pub_t *dhdp, uint8 *buf, uint32 size);
 
 #if defined(linux) || defined(LINUX)
 #ifdef DHD_LINUX_STD_FW_API
-int dhd_os_get_img_fwreq(const struct firmware **fw, char *file_path);
+int dhd_os_get_img_fwreq(const struct firmware **fw, const char *file_path);
 void dhd_os_close_img_fwreq(const struct firmware *fw);
 #endif // DHD_LINUX_STD_FW_API
 #if defined(DHD_SSSR_DUMP)
@@ -3852,6 +3865,10 @@ void dhd_aoe_hostip_clr(dhd_pub_t *dhd, int idx);
 void dhd_aoe_arp_clr(dhd_pub_t *dhd, int idx);
 int dhd_arp_get_arp_hostip_table(dhd_pub_t *dhd, void *buf, int buflen, int idx);
 void dhd_arp_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx);
+#if defined(ARP_CHECK_SUPPORT)
+int dhd_dev_set_arp_trigger(struct net_device *dev, int val);
+extern int dhd_pub_save_arp_resp_tick(dhd_pub_t *dhdp);
+#endif /* ARP_CHECK_SUPPORT */
 #endif /* ARP_OFFLOAD_SUPPORT */
 #ifdef WLTDLS
 int dhd_tdls_enable(struct net_device *dev, bool tdls_on, bool auto_on, struct ether_addr *mac);

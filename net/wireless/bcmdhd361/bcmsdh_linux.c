@@ -1,7 +1,7 @@
 /*
  * SDIO access interface for drivers - linux specific (pci only)
  *
- * Copyright (C) 2025 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2026 Synaptics Incorporated. All rights reserved.
  *
  * This software is licensed to you under the terms of the
  * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
@@ -20,7 +20,7 @@
  * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
  * EXCEED ONE HUNDRED U.S. DOLLARS
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -588,6 +588,6 @@ EXPORT_SYMBOL(bcmsdh_cfg_read_word);
 EXPORT_SYMBOL(bcmsdh_cfg_write_word);
 EXPORT_SYMBOL(bcmsdh_cur_sbwad);
 EXPORT_SYMBOL(bcmsdh_chipinfo);
-#endif
+#endif /* !CONFIG_ARCH_ASTRA */
 
 #endif /* BCMSDH_MODULE */
