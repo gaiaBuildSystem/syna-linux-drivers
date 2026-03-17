@@ -30,6 +30,10 @@ static const uint32_t plane_supported_formats_video[] = {
 };
 
 static const uint32_t plane_supported_formats_pip[] = {
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_RGB888,
+	DRM_FORMAT_BGR888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XBGR8888,
@@ -39,6 +43,10 @@ static const uint32_t plane_supported_formats_pip[] = {
 };
 
 static const uint32_t plane_supported_formats_gfx[] = {
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_RGB888,
+	DRM_FORMAT_BGR888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XBGR8888,

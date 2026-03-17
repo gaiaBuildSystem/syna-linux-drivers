@@ -684,16 +684,28 @@ void syna_vpp_set_surface(struct drm_device *dev, int crtcID, void __iomem *syna
 		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XBGR8888\n",
 				 __func__, __LINE__);
 		break;
+	case DRM_FORMAT_RGB888:
+		VPP_Format = SRCFMT_RGB888;
+		order = ORDER_BGRA;
+		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_RGB888\n",
+				 __func__, __LINE__);
+		break;
+	case DRM_FORMAT_BGR888:
+		VPP_Format = SRCFMT_RGB888;
+		order = ORDER_RGBA;
+		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_BGR888\n",
+				 __func__, __LINE__);
+		break;
 	case DRM_FORMAT_RGB565:
 		VPP_Format = SRCFMT_RGB565;
-		order = ORDER_RGBA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XBGR8888\n",
+		order = ORDER_BGRA;
+		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_RGB565\n",
 				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_BGR565:
 		VPP_Format = SRCFMT_RGB565;
-		order = ORDER_BGRA;
-		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_XBGR8888\n",
+		order = ORDER_RGBA;
+		DRM_DEBUG_DRIVER("%s:%d Disp as DRM_FORMAT_BGR565\n",
 				 __func__, __LINE__);
 		break;
 	case DRM_FORMAT_NV12:

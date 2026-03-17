@@ -32,6 +32,10 @@ static void syna_plane_set_surface(struct drm_crtc *crtc, struct drm_plane *plan
 	}
 
 	switch (syna_drm_fb_format(fb)) {
+	case DRM_FORMAT_RGB565:
+	case DRM_FORMAT_BGR565:
+	case DRM_FORMAT_RGB888:
+	case DRM_FORMAT_BGR888:
 	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
 	case DRM_FORMAT_XBGR8888:

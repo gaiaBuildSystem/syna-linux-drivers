@@ -61,6 +61,10 @@ static struct drm_framebuffer *syna_fb_create(struct drm_device *dev,
 	struct drm_framebuffer *fb;
 
 	switch (mode_cmd->pixel_format) {
+	case DRM_FORMAT_RGB565:
+	case DRM_FORMAT_BGR565:
+	case DRM_FORMAT_RGB888:
+	case DRM_FORMAT_BGR888:
 	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
 	case DRM_FORMAT_XBGR8888:
