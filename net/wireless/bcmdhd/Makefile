@@ -561,6 +561,11 @@ DHDCFLAGS += -DPLATFORM_PATH="\"/data/misc/wifi/\""
 ##########################
 DRIVER_TYPE ?= $(CONFIG_BCMDHD)
 
+ifeq ($(CONFIG_BCMDHD_WFB),y)
+  DRIVER_TYPE :=
+  $(warning : ** DHD_WFB defined, skip building ko module **)
+endif
+
 #########################
 # Chip dependent feature
 #########################

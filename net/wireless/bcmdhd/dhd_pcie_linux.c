@@ -1470,10 +1470,10 @@ static int dhdpcie_device_scan(struct device *dev, void *data)
 	if ((pcidev->vendor != VENDOR_BROADCOM) && (pcidev->vendor != VENDOR_SYNAPTICS))
 		return 0;
 
-	DHD_INFO(("Found Broadcom or Synaptics PCI device 0x%04x\n", pcidev->device));
+	DHD_INFO(("Found Synaptics or Broadcom PCI device 0x%04x\n", pcidev->device));
 	*cnt += 1;
 	if (pcidev->driver && strcmp(pcidev->driver->name, dhdpcie_driver.name))
-		DHD_ERROR(("Broadcom or Synaptics PCI Device 0x%04x has allocated with driver %s\n",
+		DHD_ERROR(("Synaptics or Broadcom PCI Device 0x%04x has allocated with driver %s\n",
 			pcidev->device, pcidev->driver->name));
 
 	return 0;
@@ -1487,7 +1487,7 @@ dhdpcie_bus_register(void)
 	if (!(error = pci_register_driver(&dhdpcie_driver))) {
 		bus_for_each_dev(dhdpcie_driver.driver.bus, NULL, &error, dhdpcie_device_scan);
 		if (!error) {
-			DHD_ERROR(("No Broadcom or Synaptics PCI device enumerated!\n"));
+			DHD_ERROR(("No Synaptics or Broadcom PCI device enumerated!\n"));
 		} else if (!dhdpcie_init_succeeded) {
 			DHD_ERROR(("%s: dhdpcie initialize failed.\n", __FUNCTION__));
 		} else {

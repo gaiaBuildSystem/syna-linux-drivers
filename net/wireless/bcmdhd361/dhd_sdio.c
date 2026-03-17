@@ -114,6 +114,7 @@
 #endif /* FW_SIGNATURE */
 #include <fwpkg_utils.h>
 #include <sbgci.h>
+#include <dhd_linux_priv.h>
 
 bool dhd_mp_halting(dhd_pub_t *dhdp);
 extern void bcmsdh_waitfor_iodrain(void *sdh);
@@ -1004,6 +1005,17 @@ static int dhdsdio_download_btcert_file(dhd_bus_t *bus, char *path);
 metadata_t metadata = {0};
 int tag_info_len = 0;
 #endif /* DHD_METADATA_DOWNLOAD */
+
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+enum dhd_tput_level {
+	WL_TPUT_LITE = 0u,
+	WL_TPUT_CONTEND = 1u,
+	WL_TPUT_HIGH_WILD = 2u,
+	WL_TPUT_BUTT,
+};
+void dhd_cont_tp_sched(struct dhd_bus *bus);
+void dhd_set_ampdu_mpdu(dhd_pub_t * pub, int32 val);
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
 /*
  * PR 114233: [4335] Sdio 3.0 overflow due to spur mode PLL change
  */
@@ -9036,6 +9048,10 @@ exit:
 		}
 	}
 
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+	dhd_cont_tp_sched(bus);
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
+
 	dhd_os_sdunlock(bus->dhd);
 #ifdef DEBUG_DPC_THREAD_WATCHDOG
 	if (bus->dhd->dhd_bug_on) {
@@ -9056,6 +9072,203 @@ exit:
 
 	return resched;
 }
+
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+uint
+dhd_tp_realtime_check(struct dhd_bus *bus)
+{
+	uint32 cur_ts_ms;
+	uint32 diff_ms;
+	int32 tx_tput = 0, rx_tput = 0;
+	uint ret = WL_TPUT_BUTT;
+	static unsigned long last_tx = 0, last_rx = 0;
+
+	cur_ts_ms = OSL_SYSUPTIME();
+	diff_ms = cur_ts_ms - bus->dhd->bus_ts_ms;
+	if (diff_ms >= 1000) {
+		tx_tput = (int32)(((bus->dhd->dstats.tx_bytes-last_tx)/1024/1024)*8)*1000/diff_ms;
+		rx_tput = (int32)(((bus->dhd->dstats.rx_bytes-last_rx)/1024/1024)*8)*1000/diff_ms;
+		last_tx = bus->dhd->dstats.tx_bytes;
+		last_rx = bus->dhd->dstats.rx_bytes;
+		bus->dhd->bus_ts_ms = cur_ts_ms;
+		if((tx_tput+rx_tput) > DHD_POLLING_THROUGHPUT_HOCH_THRESHOLD) {
+			DHD_TRACE(("=>H=%d\r\n", tx_tput+rx_tput));
+			ret = WL_TPUT_HIGH_WILD;
+		} else if ((tx_tput+rx_tput) > DHD_POLLING_THROUGHPUT_CONT_THRESHOLD){
+			DHD_TRACE(("=>C=%d\r\n", tx_tput+rx_tput));
+			ret = WL_TPUT_CONTEND;
+		} else {
+			DHD_TRACE(("=>L=%d\r\n", tx_tput+rx_tput));
+			ret = WL_TPUT_LITE;
+		}
+	}
+	return ret;
+}
+
+void dhd_sched_set_prima_contention_tput(struct dhd_bus *bus, bool enable)
+{
+	if (enable)
+	{
+#ifdef DHD_TX_TPUT_UP_AMPDU_ADJUST
+		bus->dhd->dyna_ampdu_mpdu = 4;
+#endif /* DHD_TX_TPUT_UP_AMPDU_ADJUST */
+#ifdef DHD_TX_TPUT_UP_PROPTX_ADJUST
+		bus->dhd->dyna_wlfc_enabled = TRUE;
+#endif /* DHD_TX_TPUT_UP_PROPTX_ADJUST */
+	}
+	else
+	{
+#ifdef DHD_TX_TPUT_UP_AMPDU_ADJUST
+		bus->dhd->dyna_ampdu_mpdu = 32;
+#endif /* DHD_TX_TPUT_UP_AMPDU_ADJUST */
+#ifdef DHD_TX_TPUT_UP_PROPTX_ADJUST
+		bus->dhd->dyna_wlfc_enabled = FALSE;
+#endif /* DHD_TX_TPUT_UP_PROPTX_ADJUST */
+	}
+	schedule_work(&bus->dhd->info->tput_contend_dyna_config_work);
+}
+
+void dhd_dyna_wlfc_onoff(dhd_pub_t *dhd_pub, bool on);
+void dhd_cont_tp_sched(struct dhd_bus *bus)
+{
+	uint state = bus->dhd->cont_tp_state;
+	uint new_tp_state = dhd_tp_realtime_check(bus);
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+	extern int g_dhd_escan_on;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+
+	if (WL_TPUT_BUTT == new_tp_state)
+		return;
+	if (new_tp_state == state)
+		return;
+
+	switch (state)
+	{
+	case WL_TPUT_LITE:
+		if (new_tp_state == WL_TPUT_CONTEND)
+		{
+			DHD_TRACE(("Achtung: L -> C\r\n"));
+			/*ampdu_mpdu = 4*/
+			dhd_sched_set_prima_contention_tput(bus, TRUE);
+			/*scan opt*/
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+			g_dhd_escan_on = FALSE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+			/*better TCP output*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) && defined(DHD_TCP_LIMIT_OUTPUT)
+			dhd_ctrl_tcp_limit_output_bytes(1);
+#endif /* LINUX_VERSION_CODE > 4.19.0 && DHD_TCP_LIMIT_OUTPUT */
+		}
+		else if (new_tp_state == WL_TPUT_HIGH_WILD)
+		{
+			DHD_TRACE(("Achtung: L -> W\r\n"));
+			/*ampdu_mpdu = 32*/
+			dhd_sched_set_prima_contention_tput(bus, FALSE);
+			/*scan opt*/
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+			g_dhd_escan_on = TRUE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+
+			/*better TCP output*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) && defined(DHD_TCP_LIMIT_OUTPUT)
+			dhd_ctrl_tcp_limit_output_bytes(1);
+#endif /* LINUX_VERSION_CODE > 4.19.0 && DHD_TCP_LIMIT_OUTPUT */
+		}
+		break;
+	case WL_TPUT_CONTEND:
+		if (new_tp_state == WL_TPUT_LITE)
+		{
+			DHD_TRACE(("Achtung: C -> L\r\n"));
+			/*ampdu_mpdu = 4*/
+			dhd_sched_set_prima_contention_tput(bus, FALSE);
+			/*scan recovery*/
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+			g_dhd_escan_on = TRUE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+			/*recover TCP output*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) && defined(DHD_TCP_LIMIT_OUTPUT)
+			dhd_ctrl_tcp_limit_output_bytes(0);
+#endif /* LINUX_VERSION_CODE > 4.19.0 && DHD_TCP_LIMIT_OUTPUT */
+		}
+		else if (new_tp_state == WL_TPUT_HIGH_WILD)
+		{
+			DHD_TRACE(("Achtung: C -> W\r\n"));
+			/*ampdu_mpdu = 32*/
+			dhd_sched_set_prima_contention_tput(bus, FALSE);
+			/*scan recovery*/
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+			g_dhd_escan_on = TRUE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+		}
+		break;
+	case WL_TPUT_HIGH_WILD:
+		if (new_tp_state == WL_TPUT_LITE)
+		{
+			DHD_TRACE(("Achtung: W -> L\r\n"));
+			/*ampdu_mpdu = 32*/
+			dhd_sched_set_prima_contention_tput(bus, FALSE);
+			/*scan recovery*/
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+			g_dhd_escan_on = TRUE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+			/*recover TCP output*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) && defined(DHD_TCP_LIMIT_OUTPUT)
+			dhd_ctrl_tcp_limit_output_bytes(0);
+#endif /* LINUX_VERSION_CODE > 4.19.0 && DHD_TCP_LIMIT_OUTPUT */
+		}
+		else if (new_tp_state == WL_TPUT_CONTEND)
+		{
+			DHD_TRACE(("Achtung: W -> C\r\n"));
+			/*ampdu_mpdu = 4*/
+			dhd_sched_set_prima_contention_tput(bus, TRUE);
+			/*scan opt*/
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+			g_dhd_escan_on = FALSE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+		}
+		break;
+	default:
+		break;
+	}
+	bus->dhd->cont_tp_state = new_tp_state;
+}
+
+#ifdef DHD_TX_TPUT_UP_AMPDU_ADJUST
+void dhd_set_ampdu_mpdu(dhd_pub_t * pub, int32 val)
+{
+	int ret = 0;
+	int32 ampdu_mpdu = val;
+	DHD_TRACE(("%s Set ampdu_mpdu to %d \n",
+			__FUNCTION__, val));
+	ret = dhd_iovar(pub, 0, "ampdu_mpdu", (char *)&ampdu_mpdu, sizeof(ampdu_mpdu),
+			NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s Set ampdu_mpdu to %d failed  %d\n",
+			__FUNCTION__, CUSTOM_AMPDU_MPDU, ret));
+	}
+}
+#endif /* DHD_TX_TPUT_UP_AMPDU_ADJUST */
+
+void dhd_cont_tput_dyna_conf(struct work_struct * work)
+{
+	struct dhd_info *dhd;
+
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+	dhd = container_of(work, struct dhd_info, tput_contend_dyna_config_work);
+	GCC_DIAGNOSTIC_POP();
+
+#ifdef DHD_TX_TPUT_UP_AMPDU_ADJUST
+	/* dynamic ampdu mpdu */
+	dhd_set_ampdu_mpdu(&dhd->pub, dhd->pub.dyna_ampdu_mpdu);
+#endif /* DHD_TX_TPUT_UP_AMPDU_ADJUST */
+
+#ifdef DHD_TX_TPUT_UP_PROPTX_ADJUST
+	/* dynamic proptx onoff */
+	dhd_dyna_wlfc_onoff(&dhd->pub, dhd->pub.dyna_wlfc_enabled);
+#endif /* DHD_TX_TPUT_UP_PROPTX_ADJUST */
+}
+
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
 
 bool
 dhd_bus_dpc(struct dhd_bus *bus)

@@ -13614,7 +13614,7 @@ wl_cfgvendor_apply_cmd_policy(struct wiphy *wiphy)
 int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)
 {
 
-	WL_INFORM_MEM(("Vendor: Register BRCM cfg80211 vendor cmd(0x%x) interface \n",
+	WL_INFORM_MEM(("Vendor: Register SYNA cfg80211 vendor cmd(0x%x) interface \n",
 		NL80211_CMD_VENDOR));
 
 	wiphy->vendor_commands	= wl_vendor_cmds;
@@ -13658,7 +13658,7 @@ int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)
 
 int wl_cfgvendor_detach(struct wiphy *wiphy)
 {
-	WL_INFORM_MEM(("Vendor: Unregister BRCM cfg80211 vendor interface \n"));
+	WL_INFORM_MEM(("Vendor: Unregister SYNA cfg80211 vendor interface \n"));
 
 	wiphy->vendor_commands  = NULL;
 	wiphy->vendor_events    = NULL;

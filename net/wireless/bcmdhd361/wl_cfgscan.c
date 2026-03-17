@@ -166,6 +166,12 @@ void print_roam_cache(struct bcm_cfg80211 *cfg);
 
 extern int passive_channel_skip;
 
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+int g_dhd_escan_on = TRUE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
+
 #ifdef WL_P2P_6G
 bool wl_chaninfo_is_vlp_psc(struct bcm_cfg80211 *cfg, chanspec_t chspec);
 #endif
@@ -2678,6 +2684,16 @@ wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 	PRINT_WDEV_INFO(ndev);
 #endif /* WL_CFG80211_P2P_DEV_IF */
 #endif /* DHD_IFDEBUG */
+
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+	/* Tput based escan on/off */
+	if (FALSE == g_dhd_escan_on) {
+		WL_ERR(("wlan0 TPUT busy.\r\n"));
+		return -EBUSY;
+	}
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
 
 	if (ndev == bcmcfg_to_prmry_ndev(cfg)) {
 		if (wl_cfg_multip2p_operational(cfg)) {

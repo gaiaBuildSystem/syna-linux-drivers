@@ -578,6 +578,9 @@ int dhd_wlfc_hostreorder_init(dhd_pub_t *dhd);
 int dhd_wlfc_cleanup_txq(dhd_pub_t *dhd, f_processpkt_t fn, void *arg);
 int dhd_wlfc_cleanup(dhd_pub_t *dhd, f_processpkt_t fn, void* arg);
 int dhd_wlfc_deinit(dhd_pub_t *dhd);
+#ifdef SYNA_RESET_PROPTX_WHEN_STA_LINK_UP
+int dhd_wlfc_get_intf_role(dhd_pub_t *dhdp, uint8 ifid, uint8 *role);
+#endif /* SYNA_RESET_PROPTX_WHEN_STA_LINK_UP */
 int dhd_wlfc_interface_event(dhd_pub_t *dhdp, uint8 action, uint8 ifid, uint8 iftype, uint8* ea);
 int dhd_wlfc_FIFOcreditmap_event(dhd_pub_t *dhdp, uint8* event_data);
 #ifdef LIMIT_BORROW

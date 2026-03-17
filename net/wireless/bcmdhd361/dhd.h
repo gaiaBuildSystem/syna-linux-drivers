@@ -2218,6 +2218,17 @@ typedef struct dhd_pub {
 #ifdef PROP_TXSTATUS_VSDB
 	int proptx_force;
 #endif /* PROP_TXSTATUS_VSDB */
+
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+	uint32 bus_ts_ms;
+	uint8 cont_tp_state;
+#ifdef DHD_TX_TPUT_UP_AMPDU_ADJUST
+	int32 dyna_ampdu_mpdu;
+#endif
+#ifdef DHD_TX_TPUT_UP_PROPTX_ADJUST
+	bool dyna_wlfc_enabled;
+#endif
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
 #if defined(DHD_WOWL_IN_SUSPEND) || defined(DHD_WOWL_IN_SUSPEND_SDIO)
 	bool wowl_en;
 #endif /* DHD_WOWL_IN_SUSPEND | DHD_WOWL_IN_SUSPEND_SDIO */

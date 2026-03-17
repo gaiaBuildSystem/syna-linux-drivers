@@ -13560,12 +13560,16 @@ dhd_histo_deinit(dhd_pub_t *dhd, uint64 *histo)
 static chip_name_map_t chip_name_map[] = {
 /*   ChipID                Rev   FW_Name               NVRAM_Name              BLOB_Name            CERT_Name  */
 #ifndef BCMSDIO
+#ifndef DHD_WFB
 	{BCM4384_CHIP_ID,  0x0, "fw_bcm4384a0.bin",    "bcmdhd_4384a0.cal",    "bcmdhd_clm_4384.blob",   NULL},
 	{BCM4384_CHIP_ID,  0x1, "fw_bcm4384b0.bin",    "bcmdhd_4384b0.cal",    "bcmdhd_clm_4384.blob",   NULL},
 	{BCM4390_CHIP_ID,  0x5, "fw_bcm4390.bin",      "bcmdhd_4390.cal",      "bcmdhd_clm_4390.blob",   NULL},
 #else
-	{BCM4384_CHIP_ID,  0x1, "fw_sd_bcm4384b0.bin",   "bcmdhd_sd_4384b0.cal",   "bcmdhd_clm_4384.blob",   NULL},
-#endif
+	{BCM4390_CHIP_ID,  0x5, "fw_bcm4390_wfb.bin",  "bcmdhd_4390.cal",      "bcmdhd_clm_4390.blob",   NULL},
+#endif /* !DHD_WFB */
+#else
+	{BCM4384_CHIP_ID,  0x1, "fw_sd_bcm4384b0.bin", "bcmdhd_sd_4384b0.cal", "bcmdhd_clm_4384.blob",   NULL},
+#endif /* !BCMSDIO */
 };
 
 int dhd_autosel_fwnv_name(dhd_pub_t *dhd, char *fw_path, char *nv_path, char* sig_cert_path)

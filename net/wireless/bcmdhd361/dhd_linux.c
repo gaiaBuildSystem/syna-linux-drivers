@@ -13813,6 +13813,13 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 #ifdef WL_CFGVENDOR_SEND_ALERT_EVENT
 	INIT_WORK(&dhd->dhd_alert_process_work, dhd_alert_process);
 #endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
+
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+	extern void dhd_cont_tput_dyna_conf(struct work_struct *work_data);
+	dhd->pub.cont_tp_state = 0;
+	INIT_WORK(&dhd->tput_contend_dyna_config_work, dhd_cont_tput_dyna_conf);
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
+
 	return &dhd->pub;
 
 fail:
@@ -18324,7 +18331,7 @@ uint32 get_default_gateway_ip(dhd_pub_t *dhdp, int ifidx)
 
 		/* fill ARP structure */
 		fl4.flowi4_oif = dev->ifindex;
-		fl4.daddr = htonl(0x08080808);          /* destination IP：8.8.8.8 */
+		fl4.daddr = htonl(0x08080808);          /* destination IP: 8.8.8.8 */
 		fl4.saddr = 0;
 		fl4.__fl_common.flowic_tos = 0;
 		fl4.__fl_common.flowic_scope = RT_SCOPE_UNIVERSE;

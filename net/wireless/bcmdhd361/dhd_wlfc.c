@@ -4075,6 +4075,37 @@ dhd_wlfc_deinit(dhd_pub_t *dhd)
 	return BCME_OK;
 } /* dhd_wlfc_init */
 
+#ifdef SYNA_RESET_PROPTX_WHEN_STA_LINK_UP
+int dhd_wlfc_get_intf_role(dhd_pub_t *dhdp, uint8 ifid, uint8 *role)
+{
+	if (dhdp == NULL) {
+		DHD_ERROR(("Error: %s():%d\n", __FUNCTION__, __LINE__));
+		return BCME_BADARG;
+	}
+
+	if (ifid >= WLFC_MAX_IFNUM)
+		return BCME_BADARG;
+
+	dhd_os_wlfc_block(dhdp);
+
+	if (!dhdp->wlfc_state || (dhdp->proptxstatus_mode == WLFC_FCMODE_NONE)) {
+		dhd_os_wlfc_unblock(dhdp);
+		return WLFC_UNSUPPORTED;
+	}
+
+	{
+		athost_wl_status_info_t* wlfc = (athost_wl_status_info_t*)dhdp->wlfc_state;
+		wlfc_mac_descriptor_t* entry = &(wlfc->destination_entries.interfaces[ifid]);
+
+		*role = entry->iftype;
+	}
+
+	dhd_os_wlfc_unblock(dhdp);
+
+	return BCME_OK;
+}
+#endif /* SYNA_RESET_PROPTX_WHEN_STA_LINK_UP */
+
 /**
  * Called on an interface event (WLC_E_IF) indicated by firmware
  *     @param[in] dhdp   Pointer to public DHD structure

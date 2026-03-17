@@ -502,6 +502,10 @@ typedef struct dhd_info {
 	bool  mon_tx_rspec_updated;
 #endif /* WL_CFG80211_MONITOR */
 
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+	struct work_struct	tput_contend_dyna_config_work;
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
+
 } dhd_info_t;
 
 #define DHD_ARP_CHECK_INTERVAL 1000 /* ms */

@@ -476,7 +476,7 @@ dhd_wlan_init(void)
 {
 	int ret = 0;
 
-#if defined(CONFIG_ARCH_ASTRA) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT)
+#if defined(CONFIG_ARCH_ASTRA) && defined(DHD_ASTRA_CUST_CHIP_SUPPORT) && defined(BCMSDIO)
 	msleep(3500);
 #endif
 

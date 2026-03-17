@@ -579,7 +579,7 @@ enum {
 	IOV_REGULATORY_DUMP,
 #if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
 	IOV_GETGWIP_ADDR,
-#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT*/
+#endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 	IOV_LAST
 };
 
@@ -3074,6 +3074,38 @@ exit:
 }
 
 #endif /* SYNA_SAR_CUSTOMER_PARAMETER */
+
+#ifdef DHD_TX_TPUT_CONTEND_ENHANCE
+#ifdef DHD_TX_TPUT_UP_PROPTX_ADJUST
+void dhd_dyna_wlfc_onoff(dhd_pub_t *dhd_pub, bool on)
+{
+	int bcmerror = 0;
+	bool wlfc_enab = FALSE;
+
+	bcmerror = dhd_wlfc_get_enable(dhd_pub, &wlfc_enab);
+	if (bcmerror != BCME_OK)
+		goto exit;
+
+	DHD_TRACE(("#Achtung: dyna wlfc %d\r\n", on));
+
+	/* wlfc is already set as desired */
+	if (wlfc_enab == (on == FALSE ? FALSE : TRUE))
+			goto exit;
+
+	if (on == TRUE) {
+		uint32 up;
+		bcmerror = dhd_wlfc_init(dhd_pub);
+		/* set WLC_UP to update wlfc credit */
+		if (dhd_wl_ioctl_cmd(dhd_pub, WLC_UP, &up, sizeof(uint32), TRUE, 0) < 0) {
+			DHD_ERROR(("%s: WLC_UP return err\n", __FUNCTION__));
+		}
+	} else
+		bcmerror = dhd_wlfc_deinit(dhd_pub);
+exit:
+	DHD_ERROR(("%s: bcmerror %d\n", __FUNCTION__, bcmerror));
+}
+#endif /* DHD_TX_TPUT_UP_PROPTX_ADJUST */
+#endif /* DHD_TX_TPUT_CONTEND_ENHANCE */
 
 static int
 dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const char *name,
@@ -6642,30 +6674,37 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 				event->ifname));
 		}
 #else
-#ifdef PROP_TXSTATUS
-		/* Link down */
-		if (!flags) {
-			struct wl_event_data_if *ifevent = (struct wl_event_data_if *)event_data;
+#if defined(PROP_TXSTATUS) && defined(SYNA_RESET_PROPTX_WHEN_STA_LINK_UP)
+		/* Link up */
+		if (flags) {
 			uint8* ea = pvt_data->eth.ether_dhost;
-			WLFC_DBGMESG(("WLC_E_LINK: idx:%d, action:%s, "
-			              "iftype:%s, ["MACDBG"]\n",
-			              ifevent->ifidx,
-			              ((flags) ? "UP":"DOWN"),
-			              ((ifevent->role == 0) ? "STA":"AP "),
-			              MAC2STRDBG(ea)));
-			(void)ea;
+			uint8 ifindex = (uint8)dhd_ifname2idx(dhd_pub->info, event->ifname);
+			uint8 role = WLC_E_IF_ROLE_STA;
+			int rc;
 
-			/* only need to handle STA here */
-			if (!ifevent->role) {
-				dhd_wlfc_interface_event(dhd_pub,
-					eWLFC_MAC_ENTRY_ACTION_DEL,
-					ifevent->ifidx, ifevent->role, ea);
-				dhd_wlfc_interface_event(dhd_pub,
-					eWLFC_MAC_ENTRY_ACTION_ADD,
-					ifevent->ifidx, ifevent->role, ea);
+			rc = dhd_wlfc_get_intf_role(dhd_pub, ifindex, &role);
+			if (rc == BCME_OK) {
+				WLFC_DBGMESG(("WLC_E_LINK: idx:%d, action:%s, "
+					"iftype:%s, ["MACDBG"]\n", ifindex,
+					((flags) ? "UP":"DOWN"),
+					((role == WLC_E_IF_ROLE_STA) ? "STA":"AP "),
+					MAC2STRDBG(ea)));
+				(void)ea;
+				/* only need to handle STA here */
+				if (role == WLC_E_IF_ROLE_STA) {
+					dhd_wlfc_interface_event(dhd_pub,
+						eWLFC_MAC_ENTRY_ACTION_DEL,
+						ifindex, role, ea);
+					dhd_wlfc_interface_event(dhd_pub,
+						eWLFC_MAC_ENTRY_ACTION_ADD,
+						ifindex, role, ea);
+				}
+			} else if (rc != WLFC_UNSUPPORTED) {
+				DHD_ERROR(("WLC_E_LINK: get interface role failed: %d\n", rc));
 			}
+			/* rc == WLFC_UNSUPPORTED means proptx is disabled. */
 		}
-#endif /* PROP_TXSTATUS */
+#endif /* PROP_TXSTATUS && SYNA_RESET_PROPTX_WHEN_STA_LINK_UP */
 #endif /* PCIE_FULL_DONGLE */
 		/* fall through */
 		fallthrough;
@@ -6713,6 +6752,11 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		}
 #endif /* DHD_POST_EAPOL_M1_AFTER_ROAM_EVT */
 		/* fall through */
+#ifdef DHD_TX_TPUT_CONTENTION_ENHANCE
+#ifdef DHD_TX_TPUT_UP_SCAN_ONOFF
+	g_dhd_escan_on = TRUE;
+#endif /* DHD_TX_TPUT_UP_SCAN_ONOFF */
+#endif /* DHD_TX_TPUT_CONTENTION_ENHANCE */
 		fallthrough;
 	default:
 		*ifidx = dhd_ifname2idx(dhd_pub->info, event->ifname);
@@ -9282,7 +9326,7 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 #endif /* SUPPORT_OTA_UPDATE */
 
 #if defined(DHD_AUTOSEL_BINARY_FILENAME)
-		dhd_autosel_blob_name(dhd, &clm_path);
+	dhd_autosel_blob_name(dhd, &clm_path);
 #endif /* DHD_AUTOSEL_BINARY_FILENAME */
 
 	/* If CLM blob file is found on the filesystem, download the file.
@@ -13282,13 +13326,17 @@ uint32 wl_set_bandwidth_capability(dhd_pub_t *dhdp,
 static chip_name_map_t chip_name_map[] = {
 /*   ChipID                Rev   FW_Name               NVRAM_Name              BLOB_Name            CERT_Name  */
 #ifndef BCMSDIO
+#ifndef DHD_WFB
 #ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
 	{BCM43752_CHIP_ID, 0x2, "fw_bcm43752.bin",     "bcmdhd_43752.cal",     "bcmdhd_clm_43752.blob",  NULL},
 	{BCM43756_CHIP_ID, 0x4, "fw_bcm43756.bin",     "bcmdhd_43756.cal",     "bcmdhd_clm_43756.blob",  NULL},
 	{BCM43756_CHIP_ID, 0x6, "fw_bcm43756e.bin",    "bcmdhd_43756e.cal",    "bcmdhd_clm_43756e.blob", NULL},
 	{BCM43711_CHIP_ID, 0x0, "fw_bcm43711.bin",     "bcmdhd_43711.cal",     "bcmdhd_clm_43711.blob",  NULL},
 	{BCM4345_CHIP_ID,  0x9, "fw_bcm43456.bin",     "bcmdhd_43456.cal",     "bcmdhd_clm_43456.blob",  NULL},
-#endif
+#endif /* !DHD_ASTRA_CUST_CHIP_SUPPORT */
+#else
+	{BCM43756_CHIP_ID, 0x6, "fw_bcm43756e_wfb.bin","bcmdhd_43756e.cal",    "bcmdhd_clm_43756e.blob", NULL},
+#endif /* !DHD_WFB */
 #else
 #ifndef DHD_ASTRA_CUST_CHIP_SUPPORT
 	{BCM43752_CHIP_ID, 0x2, "fw_sd_bcm43752.bin",  "bcmdhd_sd_43752.cal",  "bcmdhd_clm_43752.blob",  NULL},
@@ -13296,11 +13344,11 @@ static chip_name_map_t chip_name_map[] = {
 	{BCM43756_CHIP_ID, 0x6, "fw_sd_bcm43756e.bin", "bcmdhd_sd_43756e.cal", "bcmdhd_clm_43756e.blob", NULL},
 	{BCM43711_CHIP_ID, 0x0, "fw_sd_bcm43711.bin",  "bcmdhd_sd_43711.cal",  "bcmdhd_clm_43711.blob",  NULL},
 	{BCM4345_CHIP_ID,  0x9, "fw_sd_bcm43456.bin",  "bcmdhd_sd_43456.cal",  "bcmdhd_clm_43456.blob",  NULL},
-#endif
+#endif /* !DHD_ASTRA_CUST_CHIP_SUPPORT */
 	{BCM4612_CHIP_ID,  0x1, "fw_sd_bcm4612.bin",   "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
 	{BCM4612_CHIP_ID,  0x2, "fw_sd_bcm4612a2.bin", "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
 	{BCM4612_CHIP_ID,  0x3, "fw_sd_bcm4612a3.bin", "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
-#endif
+#endif /* !BCMSDIO */
 };
 
 int dhd_autosel_fwnv_name(dhd_pub_t *dhd, char *fw_path, char *nv_path, char* sig_cert_path)
@@ -13311,7 +13359,6 @@ int dhd_autosel_fwnv_name(dhd_pub_t *dhd, char *fw_path, char *nv_path, char* si
 
 	chip = dhd_bus_chip_id(dhd);
 	chiprev = dhd_bus_chiprev_id(dhd);
-
 
 	maxsize = sizeof(chip_name_map)/sizeof(chip_name_map[0]);
 	for (i = 0; i < maxsize; i++) {
@@ -13343,7 +13390,6 @@ int dhd_autosel_blob_name(dhd_pub_t *dhd, char **blob_path)
 
 	chip = dhd_bus_chip_id(dhd);
 	chiprev = dhd_bus_chiprev_id(dhd);
-
 
 	maxsize = sizeof(chip_name_map)/sizeof(chip_name_map[0]);
 	for (i = 0; i < maxsize; i++) {

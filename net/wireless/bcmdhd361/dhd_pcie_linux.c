@@ -3414,7 +3414,9 @@ dhd_dongle_mem_dump(void)
 	dhd_bus_mem_dump(g_dhd_bus->dhd);
 	return 0;
 }
+#if !defined(CONFIG_ARCH_ASTRA)
 EXPORT_SYMBOL(dhd_dongle_mem_dump);
+#endif /* !CONFIG_ARCH_ASTRA */
 #endif /* DHD_FW_COREDUMP */
 
 #ifdef CONFIG_ARCH_MSM
@@ -3445,4 +3447,6 @@ dhd_bus_check_driver_up(void)
 
 	return isup;
 }
+#if !defined(CONFIG_ARCH_ASTRA)
 EXPORT_SYMBOL(dhd_bus_check_driver_up);
+#endif /* !CONFIG_ARCH_ASTRA */
