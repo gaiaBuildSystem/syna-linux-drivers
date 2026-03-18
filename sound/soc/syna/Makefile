@@ -52,7 +52,8 @@ snd-soc-berlin-pcm-objs    += berlin_pcm.o \
 			      berlin_capture.o \
 			      berlin_util.o \
 			      berlin_playback.o \
-			      berlin_spdif.o
+			      berlin_spdif.o \
+			      pcm_volume.o
 snd-soc-berlin-dmic-objs   += dmic.o
 snd-soc-berlin-pri-objs    += i2s_pri.o
 snd-soc-berlin-i2s-dai-objs   += i2s_dai.o aud_clk.o

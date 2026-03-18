@@ -6,6 +6,7 @@
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 #include <sound/soc.h>
+#include <sound/tlv.h>
 
 #include "berlin_pcm.h"
 #include "berlin_util.h"
@@ -30,6 +31,10 @@ struct spdifo_priv {
 	u32 daifmt;
 	bool spdif_requested;
 	void *aio_handle;
+	bool mute;
+	/* PCM volume control (dB based) */
+	int volume_db;
+	struct snd_pcm_substream *ss;
 };
 
 static void outdai_set_spdif_clk(struct spdifo_priv *out, u32 div)
@@ -40,6 +45,102 @@ static void outdai_set_spdif_clk(struct spdifo_priv *out, u32 div)
 	if (ret != 0)
 		snd_printk("aio_setspdifclk() return error(ret=%d)\n", ret);
 }
+
+static int spdif_mute_get(struct snd_kcontrol *kcontrol,
+						  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct spdifo_priv *spdif = snd_soc_dai_get_drvdata(dai);
+
+	ucontrol->value.integer.value[0] = spdif->mute ? 1 : 0;
+	return 0;
+}
+
+static int spdif_mute_put(struct snd_kcontrol *kcontrol,
+						  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct spdifo_priv *spdif = snd_soc_dai_get_drvdata(dai);
+	bool mute = ucontrol->value.integer.value[0] ? true : false;
+
+	if (spdif->mute == mute)
+		return 0;
+
+	spdif->mute = mute;
+
+	/* Apply mute setting to hardware */
+	snd_printd("SPDIF mute %s\n", mute ? "ON" : "OFF");
+	if (spdif->aio_handle) {
+		aio_set_aud_ch_mute(spdif->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0,
+							mute ? 1 : 0);
+	} else {
+		snd_printk("SPDIF mute: no aio_handle, skipped\n");
+	}
+
+	return 1;
+}
+
+/* SPDIF PCM Volume Control (dB based) */
+static int spdif_volume_info(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = -6000;  /* -60.00 dB */
+	uinfo->value.integer.max = 0;      /*   0.00 dB */
+	uinfo->value.integer.step = 50;    /*   0.50 dB */
+	return 0;
+}
+
+static int spdif_volume_get(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct spdifo_priv *spdif = snd_soc_dai_get_drvdata(dai);
+
+	ucontrol->value.integer.value[0] = spdif->volume_db;
+
+	return 0;
+}
+
+static int spdif_volume_put(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct spdifo_priv *spdif = snd_soc_dai_get_drvdata(dai);
+	int db_value = ucontrol->value.integer.value[0];
+	int old_value;
+
+	if (db_value < -6000 || db_value > 0)
+		return -EINVAL;
+
+	old_value = spdif->volume_db;
+	spdif->volume_db = db_value;
+
+	if (old_value != db_value && spdif->ss)
+		berlin_pcm_set_volume_db(spdif->ss, SPDIFO_MODE, db_value);
+
+	return (old_value != db_value) ? 1 : 0;
+}
+
+/* TLV dB scale information */
+/* Note: mute=0 because -60dB is not complete silence, just very quiet */
+static const DECLARE_TLV_DB_SCALE(spdif_volume_tlv, -6000, 50, 0);
+
+/* Control definition macros (following kernel style) */
+#define SPDIF_VOLUME_CONTROL(xname, tlv_array) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE | \
+		  SNDRV_CTL_ELEM_ACCESS_TLV_READ, \
+	.tlv.p = (tlv_array), \
+	.info = spdif_volume_info, \
+	.get = spdif_volume_get, .put = spdif_volume_put}
+
+#define SPDIF_MUTE_CONTROL(xname) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE, \
+	.info = snd_ctl_boolean_mono_info, \
+	.get = spdif_mute_get, .put = spdif_mute_put}
 
 static int spdifo_daifmt_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
@@ -66,6 +167,8 @@ static int spdifo_daifmt_put(struct snd_kcontrol *kcontrol,
 static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
 	SOC_ENUM_EXT("SPDIFO DAIFMT", spdifo_daifmt,
 		spdifo_daifmt_get, spdifo_daifmt_put),
+	SPDIF_MUTE_CONTROL("SPDIF Playback Switch"),
+	SPDIF_VOLUME_CONTROL("SPDIF PCM Playback Volume", spdif_volume_tlv),
 };
 
 /*
@@ -128,9 +231,12 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 
 	snd_printd("spdif dai_fmt(%d)\n", ssparams.dai_fmt);
 	ret = berlin_pcm_request_dma_irq(substream, &ssparams);
-	if (ret == 0)
+	if (ret == 0) {
 		outdai->spdif_requested = true;
-	else
+		outdai->ss = substream;
+		berlin_pcm_set_volume_db(substream, SPDIFO_MODE,
+					     outdai->volume_db);
+	} else
 		return ret;
 	aio_setspdif_en(outdai->aio_handle, 1);
 
@@ -155,6 +261,7 @@ static int berlin_outdai_hw_free(struct snd_pcm_substream *substream,
 		berlin_pcm_free_dma_irq(substream, 1, &outdai->spdif_irq);
 		outdai->spdif_requested = false;
 	}
+	outdai->ss = NULL;
 
 	return 0;
 }
@@ -169,7 +276,13 @@ static int berlin_outdai_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		snd_printd("spdif:%s: dainame %s, cmd: %d\n", __func__, outdai->dev_name, cmd);
-		aio_set_aud_ch_mute(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 0);
+		/* Only unmute if user hasn't manually muted via amixer */
+		if (!outdai->mute) {
+			snd_printd("SPDIF playback start: unmuting\n");
+			aio_set_aud_ch_mute(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 0);
+		} else {
+			snd_printd("SPDIF playback start: keeping muted (user muted)\n");
+		}
 		aio_set_aud_ch_flush(outdai->aio_handle, AIO_ID_SPDIF_TX, AIO_TSD0, 0);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -243,6 +356,10 @@ static int spdif_outdai_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	outdai->dev_name = dev_name(dev);
 	outdai->dev = dev;
+	outdai->mute = false;
+
+	/* Initialize volume control */
+	outdai->volume_db = 0;  /* 0dB (unity gain) */
 
 	irq = platform_get_irq_byname(pdev, "spdifo");
 	if (irq < 0)

@@ -7,6 +7,7 @@
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 #include <sound/soc.h>
+#include <sound/tlv.h>
 
 #include "berlin_pcm.h"
 #include "berlin_util.h"
@@ -48,6 +49,9 @@ struct hdmi_priv {
 	struct delayed_work trigger_work;
 	struct snd_pcm_substream *ss;
 	int ss_state;
+	bool mute;
+	/* PCM volume control (dB based) */
+	int volume_db;
 };
 
 #define pr_item(a) snd_printd(#a" = %d\n", a)
@@ -674,6 +678,102 @@ static int set_hdmi_audio_fmt(struct hdmi_priv *hdmi)
 	return ret;
 }
 
+static int hdmi_mute_get(struct snd_kcontrol *kcontrol,
+						 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct hdmi_priv *hdmi = snd_soc_dai_get_drvdata(dai);
+
+	ucontrol->value.integer.value[0] = hdmi->mute ? 1 : 0;
+	return 0;
+}
+
+static int hdmi_mute_put(struct snd_kcontrol *kcontrol,
+						 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct hdmi_priv *hdmi = snd_soc_dai_get_drvdata(dai);
+	bool mute = ucontrol->value.integer.value[0] ? true : false;
+
+	if (hdmi->mute == mute)
+		return 0;
+
+	hdmi->mute = mute;
+
+	/* Apply mute setting to hardware */
+	snd_printd("HDMI mute %s\n", mute ? "ON" : "OFF");
+	if (hdmi->aio_handle) {
+		aio_set_aud_ch_mute(hdmi->aio_handle, AIO_ID_HDMI_TX, AIO_TSD0,
+							mute ? AUDCH_CTRL_MUTE_MUTE_ON : AUDCH_CTRL_MUTE_MUTE_OFF);
+	} else {
+		snd_printk("HDMI mute: no aio_handle, skipped\n");
+	}
+
+	return 1;
+}
+
+/* HDMI PCM Volume Control (dB based) */
+static int hdmi_volume_info(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = -6000;  /* -60.00 dB */
+	uinfo->value.integer.max = 0;      /*   0.00 dB */
+	uinfo->value.integer.step = 50;    /*   0.50 dB */
+	return 0;
+}
+
+static int hdmi_volume_get(struct snd_kcontrol *kcontrol,
+			   struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct hdmi_priv *hdmi = snd_soc_dai_get_drvdata(dai);
+
+	ucontrol->value.integer.value[0] = hdmi->volume_db;
+
+	return 0;
+}
+
+static int hdmi_volume_put(struct snd_kcontrol *kcontrol,
+			   struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct hdmi_priv *hdmi = snd_soc_dai_get_drvdata(dai);
+	int db_value = ucontrol->value.integer.value[0];
+	int old_value;
+
+	if (db_value < -6000 || db_value > 0)
+		return -EINVAL;
+
+	old_value = hdmi->volume_db;
+	hdmi->volume_db = db_value;
+
+	if (old_value != db_value && hdmi->ss)
+		berlin_pcm_set_volume_db(hdmi->ss, HDMIO_MODE, db_value);
+
+	return (old_value != db_value) ? 1 : 0;
+}
+
+/* TLV dB scale information */
+/* Note: mute=0 because -60dB is not complete silence, just very quiet */
+static const DECLARE_TLV_DB_SCALE(hdmi_volume_tlv, -6000, 50, 0);
+
+/* Control definition macros (following kernel style) */
+#define HDMI_VOLUME_CONTROL(xname, tlv_array) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE | \
+		  SNDRV_CTL_ELEM_ACCESS_TLV_READ, \
+	.tlv.p = (tlv_array), \
+	.info = hdmi_volume_info, \
+	.get = hdmi_volume_get, .put = hdmi_volume_put}
+
+#define HDMI_MUTE_CONTROL(xname) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE, \
+	.info = snd_ctl_boolean_mono_info, \
+	.get = hdmi_mute_get, .put = hdmi_mute_put}
+
 static int hdmio_daifmt_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
@@ -699,6 +799,8 @@ static int hdmio_daifmt_put(struct snd_kcontrol *kcontrol,
 static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
 	SOC_ENUM_EXT("HDMIO DAIFMT", hdmio_daifmt,
 		hdmio_daifmt_get, hdmio_daifmt_put),
+        HDMI_MUTE_CONTROL("HDMI Playback Switch"),
+        HDMI_VOLUME_CONTROL("HDMI PCM Playback Volume", hdmi_volume_tlv),
 };
 
 static int berlin_outdai_startup(struct snd_pcm_substream *substream,
@@ -785,7 +887,13 @@ static void trigger_hdmi(struct work_struct *work)
 	if (hdmi->ss_state == SNDRV_PCM_TRIGGER_START ||
 		hdmi->ss_state == SNDRV_PCM_TRIGGER_RESUME ||
 		hdmi->ss_state == SNDRV_PCM_TRIGGER_PAUSE_RELEASE) {
-		aio_set_aud_ch_mute(hdmi->aio_handle, AIO_ID_HDMI_TX, AIO_TSD0, AUDCH_CTRL_MUTE_MUTE_OFF);
+		/* Only unmute if user hasn't manually muted via amixer */
+		if (!hdmi->mute) {
+			snd_printd("HDMI playback start: unmuting\n");
+			aio_set_aud_ch_mute(hdmi->aio_handle, AIO_ID_HDMI_TX, AIO_TSD0, AUDCH_CTRL_MUTE_MUTE_OFF);
+		} else {
+			snd_printd("HDMI playback start: keeping muted (user muted)\n");
+		}
 		berlin_pcm_hdmi_bitstream_start(substream);
 	}
 	pr_item(hdmi->irq);
@@ -824,11 +932,13 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 
 	snd_printd("hdmi dai_fmt(%d)\n", ssparams.dai_fmt);
 	ret = berlin_pcm_request_dma_irq(substream, &ssparams);
-	if (ret == 0)
+	if (ret == 0) {
 		hdmi->requested = true;
-	else
+		berlin_pcm_set_volume_db(substream, HDMIO_MODE,
+					     hdmi->volume_db);
+	} else
 		return ret;
-	aio_set_aud_ch_mute(hdmi->aio_handle, AIO_ID_HDMI_TX, AIO_TSD0, 1);
+	aio_set_aud_ch_mute(hdmi->aio_handle, AIO_ID_HDMI_TX, AIO_TSD0, AUDCH_CTRL_MUTE_MUTE_ON);
 
 
 	hdmi->channels = params_channels(params);
@@ -890,6 +1000,7 @@ static int berlin_outdai_hw_free(struct snd_pcm_substream *substream,
 		destroy_workqueue(outdai->wq);
 		outdai->wq = NULL;
 	}
+	outdai->ss = NULL;
 	return 0;
 }
 
@@ -1029,6 +1140,10 @@ static int hdmi_outdai_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	outdai->dev_name = dev_name(dev);
 	outdai->dev = dev;
+	outdai->mute = false;
+
+	/* Initialize volume control */
+	outdai->volume_db = 0;  /* 0dB (unity gain) */
 
 	irq = platform_get_irq_byname(pdev, "hdmi");
 	if (irq < 0)

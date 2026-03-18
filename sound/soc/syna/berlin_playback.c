@@ -21,6 +21,8 @@
 #include "aio_hal.h"
 #include "avio_dhub_drv.h"
 #include "berlin_util.h"
+#include "pcm_volume.h"
+
 
 /* Enable the buffer status debugging. As some debug function may be called from isr, in case printk console log
  * level is high, isr would be waiting in console driver which would make the underrun situation more worst.
@@ -100,6 +102,10 @@ struct berlin_playback {
 	unsigned int hdmi_ratio;
 	unsigned int hdmi_ratio_denominator;
 
+	/* temporary buffer for per-period volume scaling, allocated at hw_params */
+	void *volume_buf;
+	size_t volume_buf_size;
+
 	/* hw parameter */
 	unsigned int sample_rate;
 	unsigned int sample_format;
@@ -127,6 +133,12 @@ struct berlin_playback {
 	unsigned int hdmi_ch;
 	u32 pauseSampleCounter;
 	struct berlin_chip *chip;
+
+	/* Per-DAI volume (dB), updated by each DAI driver via
+	 * berlin_pcm_set_volume_db().
+	 */
+	atomic_t hdmi_volume_db;
+	atomic_t spdif_volume_db;
 };
 
 //Sample rate fixed to 48k now, avpll setting
@@ -481,6 +493,7 @@ static void berlin_runtime_free(struct snd_pcm_runtime *runtime)
 		if (bp->entry)
 			snd_info_free_entry(bp->entry);
 
+		kfree(bp->volume_buf);
 		kfree(bp);
 		runtime->private_data = NULL;
 	}
@@ -608,6 +621,7 @@ int berlin_playback_close(struct snd_pcm_substream *ss)
 			snd_info_free_entry(bp->entry);
 			bp->entry = NULL;
 		}
+		kfree(bp->volume_buf);
 		kfree(bp);
 		runtime->private_data = NULL;
 	}
@@ -658,6 +672,10 @@ int berlin_playback_hw_free(struct snd_pcm_substream *ss)
 		snd_pcm_lib_free_pages(ss);
 		bp->pages_allocated = false;
 	}
+
+	kfree(bp->volume_buf);
+	bp->volume_buf = NULL;
+	bp->volume_buf_size = 0;
 
 	return 0;
 }
@@ -797,6 +815,14 @@ int berlin_playback_hw_params(struct snd_pcm_substream *ss,
 		zero_dma_addr = dma_map_single(&pdev->dev, zero_dma_buf,
 						   ZERO_DMA_BUFFER_SIZE, DMA_TO_DEVICE);
 	}
+
+	/* Pre-allocate scratch buffer for volume scaling */
+	bp->volume_buf = kmalloc(params_buffer_bytes(p), GFP_KERNEL);
+	if (!bp->volume_buf) {
+		snd_printk("%s: failed to allocate volume buffer\n", __func__);
+		goto err_zero_dma;
+	}
+	bp->volume_buf_size = params_buffer_bytes(p);
 
 	return 0;
 
@@ -1027,6 +1053,32 @@ static void init_hdmi_tx_passthrough(struct berlin_playback *bp,
 	}
 }
 
+void berlin_playback_set_volume_db(struct snd_pcm_substream *ss,
+				   u32 mode, int volume_db)
+{
+	struct snd_pcm_runtime *runtime = ss->runtime;
+	struct berlin_playback *bp = runtime->private_data;
+
+	if (!bp)
+		return;
+
+	if (mode == HDMIO_MODE)
+		atomic_set(&bp->hdmi_volume_db, volume_db);
+	else if (mode == SPDIFO_MODE)
+		atomic_set(&bp->spdif_volume_db, volume_db);
+}
+EXPORT_SYMBOL(berlin_playback_set_volume_db);
+
+/* Read volume stored by the active DAI driver */
+static int get_dai_volume_db(struct berlin_playback *bp)
+{
+	if (bp->output_mode & HDMIO_MODE)
+		return atomic_read(&bp->hdmi_volume_db);
+	if (bp->output_mode & SPDIFO_MODE)
+		return atomic_read(&bp->spdif_volume_db);
+	return 0;
+}
+
 static int berlin_playback_copy(struct snd_pcm_substream *ss,
 				int channel, snd_pcm_uframes_t pos,
 				void *buf, size_t bytes)
@@ -1085,6 +1137,22 @@ static int berlin_playback_copy(struct snd_pcm_substream *ss,
 
 	if (bp->sample_format == SNDRV_PCM_FORMAT_S16_LE) {
 		const int16_t *s16_pcm_source = (int16_t *)buf;
+
+		/* Apply volume control for PCM data (not passthrough) */
+		if (bp->data_format == data_format_pcm) {
+			int volume_db = get_dai_volume_db(bp);
+
+			/* Only apply if not 0dB (unity gain) */
+			if (volume_db != 0) {
+				if (bp->volume_buf) {
+					pcm_volume_apply_s16_db(bp->volume_buf, s16_pcm_source,
+										frames, channels, volume_db);
+					s16_pcm_source = bp->volume_buf;
+				} else {
+					pr_warn_ratelimited("%s: volume buffer unavailable\n", __func__);
+				}
+			}
+		}
 
 		if (bp->output_mode & HDMIO_MODE) {
 
@@ -1161,8 +1229,25 @@ static int berlin_playback_copy(struct snd_pcm_substream *ss,
 						s16_pcm_source[i * channels + j] << 16;
 			}
 		}
+
 	} else if (bp->sample_format == SNDRV_PCM_FORMAT_S32_LE) {
 		const int32_t *s32_pcm_source = (int32_t *)buf;
+
+		/* Apply volume control for PCM data (not passthrough) */
+		if (bp->data_format == data_format_pcm) {
+			int volume_db = get_dai_volume_db(bp);
+
+			/* Only apply if not 0dB (unity gain) */
+			if (volume_db != 0) {
+				if (bp->volume_buf) {
+					pcm_volume_apply_s32_db(bp->volume_buf, s32_pcm_source,
+										frames, channels, volume_db);
+					s32_pcm_source = bp->volume_buf;
+				} else {
+					pr_warn_ratelimited("%s: volume buffer unavailable\n", __func__);
+				}
+			}
+		}
 
 		if (bp->output_mode & HDMIO_MODE) {
 			int32_t *s32_pcm_dest = (int32_t *)pcm_buf;
@@ -1199,6 +1284,7 @@ static int berlin_playback_copy(struct snd_pcm_substream *ss,
 						s32_pcm_source[i * channels + j];
 			}
 		}
+
 	} else if (bp->sample_format == SNDRV_PCM_FORMAT_S24_3LE) {
 		const char *pcm_source = (char *)buf;
 		int ch_bytes = snd_pcm_format_physical_width(bp->sample_format) / 8;
@@ -1215,6 +1301,22 @@ static int berlin_playback_copy(struct snd_pcm_substream *ss,
 		}
 	} else if (bp->sample_format == SNDRV_PCM_FORMAT_S24_LE) {
 		const int32_t *s32_pcm_source = (int32_t *)buf;
+
+		/* Apply volume control for PCM data (not passthrough) */
+		if (bp->data_format == data_format_pcm) {
+			int volume_db = get_dai_volume_db(bp);
+
+			/* Only apply if not 0dB (unity gain) */
+			if (volume_db != 0) {
+				if (bp->volume_buf) {
+					pcm_volume_apply_s24_db(bp->volume_buf, s32_pcm_source,
+										frames, channels, volume_db);
+					s32_pcm_source = bp->volume_buf;
+				} else {
+					pr_warn_ratelimited("%s: volume buffer unavailable\n", __func__);
+				}
+			}
+		}
 
 		if (bp->output_mode & HDMIO_MODE) {
 			int32_t *s32_pcm_dest = (int32_t *)pcm_buf;
@@ -1249,6 +1351,7 @@ static int berlin_playback_copy(struct snd_pcm_substream *ss,
 						s32_pcm_source[i * channels + j] << 8;
 			}
 		}
+
 	} else {
 		snd_printd("Unsupported format:%s\n", snd_pcm_format_name(bp->sample_format));
 		return -EINVAL;
@@ -1356,6 +1459,8 @@ void berlin_playback_set_ch_mode(struct snd_pcm_substream *ss,
 			bp->i2s_ch = 0;
 			bp->spdif_ch = 0;
 			bp->hdmi_ch = 0;
+			atomic_set(&bp->hdmi_volume_db, 0);
+			atomic_set(&bp->spdif_volume_db, 0);
 		} else {
 			snd_printk("invalid mode setting, mod %u\n", mode);
 			return;

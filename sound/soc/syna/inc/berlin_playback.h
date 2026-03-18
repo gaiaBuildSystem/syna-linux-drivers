@@ -8,6 +8,8 @@
 
 void berlin_playback_set_ch_mode(struct snd_pcm_substream *ss,
 									u32 ch_num, u32 *ch, u32 mode, u32 dai_fmt);
+void berlin_playback_set_volume_db(struct snd_pcm_substream *ss,
+								   u32 mode, int volume_db);
 int berlin_playback_hw_free(struct snd_pcm_substream *ss);
 int berlin_playback_hw_params(struct snd_pcm_substream *ss,
 								struct snd_pcm_hw_params *p);

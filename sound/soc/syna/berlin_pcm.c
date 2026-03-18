@@ -275,6 +275,13 @@ void berlin_pcm_set_ch_mode(struct snd_pcm_substream *ss,
 }
 EXPORT_SYMBOL(berlin_pcm_set_ch_mode);
 
+void berlin_pcm_set_volume_db(struct snd_pcm_substream *ss, u32 mode, int volume_db)
+{
+	if (ss->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		berlin_playback_set_volume_db(ss, mode, volume_db);
+}
+EXPORT_SYMBOL(berlin_pcm_set_volume_db);
+
 void berlin_pcm_set_mic_mute_state(struct snd_pcm_substream *ss, int mute)
 {
 	return set_mic_mute_state(ss, mute);
