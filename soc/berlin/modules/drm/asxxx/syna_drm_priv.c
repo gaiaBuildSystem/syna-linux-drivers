@@ -83,6 +83,7 @@ void syna_read_config_priv(struct syna_drm_private *dev_priv)
 	if (lcdc_node) {
 		lcdcConfig = devm_kmalloc(dev->dev, sizeof(SYNA_LCDC_CONFIG), GFP_KERNEL);
 		if (lcdcConfig) {
+			memset(lcdcConfig, 0, sizeof(SYNA_LCDC_CONFIG));
 			of_property_read_u32(lcdc_node, "hact", &lcdcConfig->xres);
 			of_property_read_u32(lcdc_node, "hfp", &lcdcConfig->right_margin);
 			of_property_read_u32(lcdc_node, "hsa", &lcdcConfig->hsync_len);
@@ -106,7 +107,6 @@ void syna_read_config_priv(struct syna_drm_private *dev_priv)
 	if (p_vpp_config_param->mipi_resinfo_params) {
 		p_vpp_config_param->mipi_lcdc_config_params = devm_kmalloc(dev->dev,
 							sizeof(SYNA_LCDC_CONFIG), GFP_KERNEL);
-
 		if (p_vpp_config_param->mipi_lcdc_config_params) {
 			syna_vpp_convert_mipi_resinfo_to_lcdc(p_vpp_config_param->mipi_resinfo_params,
 				p_vpp_config_param->mipi_lcdc_config_params);
