@@ -176,6 +176,11 @@ else
 OBJS += src/gpu_tz.o
 endif
 
+ifeq ($(CONFIG_EVENT_TRACING),y)
+OBJS += src/pvr_gputrace.o \
+        src/trace_events.o
+endif
+
 ifdef $(DEBUG)
 OBJS += src/client_htbuffer_direct_bridge.o \
         src/htb_debug.o \
