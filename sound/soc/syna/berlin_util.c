@@ -28,40 +28,6 @@ int berlin_set_pll(void *aio_handle, u32 apll_id, u32 clk_rate)
 }
 EXPORT_SYMBOL(berlin_set_pll);
 
-u32 berlin_get_div(u32 fs)
-{
-	u32 div;
-
-	switch (fs) {
-	case 8000:
-	case 11025:
-	case 12000:
-		div = AIO_DIV32;
-		break;
-	case 16000:
-	case 22050:
-	case 24000:
-		div = AIO_DIV16;
-		break;
-	case 32000:
-	case 44100:
-	case 48000:
-		div = AIO_DIV8;
-		break;
-	case 64000:
-	case 88200:
-	case 96000:
-		div = AIO_DIV4;
-		break;
-	default:
-		div = AIO_DIV8;
-		break;
-	}
-
-	return div;
-}
-EXPORT_SYMBOL(berlin_get_div);
-
 u32 berlin_get_bclk_div(u32 mclk, u32 bclk)
 {
 	u32 bclk_div;

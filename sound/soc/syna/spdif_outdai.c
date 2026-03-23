@@ -176,12 +176,12 @@ static struct snd_kcontrol_new berlin_outdai_ctrls[] = {
  * Must be called with instance spinlock held.
  * Only one dai instance for playback, so no spin_lock needed
  */
-static void outdai_set_aio(struct spdifo_priv *out, u32 fs)
+static void outdai_set_aio(struct spdifo_priv *out, u32 fs, int width, int chnum, u32 mclkrate)
 {
 	unsigned int analog_div, spdif_div;
 
-	analog_div = berlin_get_div(fs);
-	spdif_div =  analog_div - 1;
+	analog_div = berlin_get_bclk_div(mclkrate, (fs*width*chnum));
+	spdif_div = analog_div - 1; /* SPDIF clock is half of analog clock */
 
 	outdai_set_spdif_clk(out, spdif_div);
 }
@@ -244,7 +244,7 @@ static int berlin_outdai_hw_params(struct snd_pcm_substream *substream,
 
 	berlin_set_pll(outdai->aio_handle, mclk->apll_id, mclk->apllrate);
 
-	outdai_set_aio(outdai, fs);
+	outdai_set_aio(outdai, fs, 32, params_channels(params), mclk->mclkrate);
 
 	return ret;
 }
