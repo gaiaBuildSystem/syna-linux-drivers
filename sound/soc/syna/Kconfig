@@ -71,6 +71,18 @@ config SND_SOC_BERLIN_PDMI
 	help
 	  Say Y if you want to enable Synaptics Berlin PDM capture driver.
 
+config SND_SOC_BERLIN_I2S_16CH
+	tristate "Berlin Primary and secondary port together to make 16ch TDM output"
+	default n
+	select BERLIN_AVIO
+	select SND_SOC_BERLIN_PCM
+	help
+	  Enable support for the Synaptics Berlin audio interface where the
+	  Primary (PRI) and Secondary (SEC) I2S ports are combined to provide
+	  a 16-channel TDM playback path. This driver configures both ports to
+	  work together as a single TDM output interface for multi-channel
+	  audio applications.
+
 config SND_SOC_BERLIN_MIC1
 	tristate "Berlin MIC1 dai driver"
 	select BERLIN_AVIO

@@ -353,15 +353,15 @@ int aio_set_xfeed_mode(void *hd, s32 i2sid, u32 lrclk, u32 bclk)
 	reg.u32 = aio_read(aio, offset);
 
 	switch (i2sid) {
-	case I2S1_ID:
+	case AIO_ID_PRI_TX:
 		reg.uXFEED_I2S1_LRCKIO_MODE = lrclk;
 		reg.uXFEED_I2S1_BCLKIO_MODE = bclk;
 		break;
-	case I2S2_ID:
+	case AIO_ID_MIC1_RX:
 		reg.uXFEED_I2S2_LRCKIO_MODE = lrclk;
 		reg.uXFEED_I2S2_BCLKIO_MODE = bclk;
 		break;
-	case I2S3_ID:
+	case AIO_ID_SEC_TX:
 		reg.uXFEED_I2S3_LRCKIO_MODE = lrclk;
 		reg.uXFEED_I2S3_BCLKIO_MODE = bclk;
 		break;
