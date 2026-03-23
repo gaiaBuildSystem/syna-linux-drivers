@@ -137,6 +137,7 @@ struct berlin_capture {
 	u32 mode; // I2SI_MODE OR PDMI_MODE
 	bool interleaved;
 	bool dummy_data;
+	bool multi_lanes;
 
 	/* capture status */
 	bool capturing;
@@ -867,6 +868,7 @@ static void copy_pcm(struct snd_pcm_substream *ss)
 	const int32_t *pcm_src = (int32_t *)src;
 	int frames = bc->dma_period_ch /
 			   (bc->channel_num * DHUB_FIFO_DEPTH / 8);
+	static const uint8_t channel_map[8] = {0, 1, 4, 5, 2, 3, 6, 7};
 
 	/* copy dhub to DMA, re-calculate data */
 	period_total = frames_to_bytes(runtime, frames);
@@ -891,30 +893,64 @@ static void copy_pcm(struct snd_pcm_substream *ss)
 			if (bc->sample_format == SNDRV_PCM_FORMAT_S16_LE) {
 				int16_t *pcm_dst = (int16_t *)dst;
 
-				for (i = 0; i < frames; i++) {
-					for (j = 0; j < bc->channel_num; j++)
-						*pcm_dst++ =
-							(pcm_src[i * bc->channel_num + j] >> 16) &
-							0xffff;
+				if (!bc->multi_lanes) {
+					for (i = 0; i < frames; i++) {
+						for (j = 0; j < bc->channel_num; j++)
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + j] >> 16) &
+								0xffff;
+					}
+				} else {
+					for (i = 0; i < frames; i++) {
+						for (j = 0; j < bc->channel_num; j++)
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + channel_map[j]] >> 16) &
+								0xffff;
+					}
 				}
 			} else if (bc->sample_format == SNDRV_PCM_FORMAT_S24_3LE) {
 				char *pcm_dst = (char *)dst;
 
-				for (i = 0; i < frames ; i++) {
-					for (j = 0; j < bc->channel_num; j++) {
-						*pcm_dst++ =
-							(pcm_src[i * bc->channel_num + j] >> 8) &
-							0xff;
-						*pcm_dst++ =
-							(pcm_src[i * bc->channel_num + j] >> 16) &
-							0xff;
-						*pcm_dst++ =
-							(pcm_src[i * bc->channel_num + j] >> 24) &
-							0xff;
+				if (!bc->multi_lanes) {
+					for (i = 0; i < frames ; i++) {
+						for (j = 0; j < bc->channel_num; j++) {
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + j] >> 8) &
+								0xff;
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + j] >> 16) &
+								0xff;
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + j] >> 24) &
+								0xff;
+						}
+					}
+				} else {
+					for (i = 0; i < frames ; i++) {
+						for (j = 0; j < bc->channel_num; j++) {
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + channel_map[j]] >> 8) &
+								0xff;
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + channel_map[j]] >> 16) &
+								0xff;
+							*pcm_dst++ =
+								(pcm_src[i * bc->channel_num + channel_map[j]] >> 24) &
+								0xff;
+						}
 					}
 				}
 			} else {
-				memcpy((void *)dst, (void *)src, bc->dma_period_ch);
+				if (!bc->multi_lanes) {
+					memcpy((void *)dst, (void *)src, bc->dma_period_ch);
+				} else {
+					int32_t *pcm_dst = (int32_t *)dst;
+
+					for (i = 0; i < frames ; i++) {
+						for (j = 0; j < bc->channel_num; j++)
+							*pcm_dst++ = pcm_src[i * bc->channel_num + channel_map[j]];
+					}
+				}
 			}
 		}
 	} else {
@@ -1034,7 +1070,7 @@ static void spdif_copy(struct snd_pcm_substream *ss)
 void berlin_capture_set_ch_mode(struct snd_pcm_substream *ss,
 				u32 chid_num, u32 *chid, u32 mode,
 				bool enable_mic_mute, bool interleaved_mode,
-				bool dummy_data, u32 channel_map,
+				bool dummy_data, bool multi_lanes, u32 channel_map,
 				bool ch_shift_check)
 {
 	struct snd_pcm_runtime *runtime = ss->runtime;
@@ -1049,6 +1085,7 @@ void berlin_capture_set_ch_mode(struct snd_pcm_substream *ss,
 		bc->mode = mode;
 		bc->interleaved = interleaved_mode;
 		bc->dummy_data = dummy_data;
+		bc->multi_lanes = multi_lanes;
 		bc->enable_mic_mute = enable_mic_mute;
 		bc->channel_map = channel_map;
 		bc->ch_shift_check = ch_shift_check;
@@ -1209,7 +1246,7 @@ int berlin_capture_hw_params(struct snd_pcm_substream *ss,
 		bc->mode == HDMII_MODE) {
 		bc->dma_bytes_total = pcm_buffer_size_bytes;
 		bc->dma_period_total = pcm_period_size_bytes;
-	}else if (bc->mode == DMICI_MODE) {
+	} else if (bc->mode == DMICI_MODE) {
 		bc->dma_bytes_total = pcm_buffer_size_bytes;
 		bc->dma_period_total = pcm_period_size_bytes;
 		/* Because of the format structure, for SNDRV_PCM_FORMAT_S24_LE pcm ratios should be 1*/

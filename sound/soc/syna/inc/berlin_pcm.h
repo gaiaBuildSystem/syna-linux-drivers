@@ -86,6 +86,7 @@ struct berlin_ss_params {
 	u32 channel_map;
 	bool interleaved;
 	bool dummy_data;
+	bool multi_lanes;
 	bool enable_mic_mute;
 	u32 dai_fmt;
 	bool ch_shift_check;	/* for dmic multi-channel shift check */
@@ -133,7 +134,7 @@ int berlin_pcm_indai_aip_alloc(struct snd_pcm_substream *ss, void **pFrame, int 
 void berlin_pcm_set_ch_mode(struct snd_pcm_substream *ss,
 	u32 chid_num, u32 *chid, u32 mode,
 	bool enable_mic_mute, bool interleaved_mode,
-	bool dummy_data, u32 channel_map,
+	bool dummy_data, bool multi_lanes, u32 channel_map,
 	bool ch_shift_check);
 void berlin_pcm_set_volume_db(struct snd_pcm_substream *ss, u32 mode, int volume_db);
 void berlin_pcm_set_mic_mute_state(struct snd_pcm_substream *ss, int mute);

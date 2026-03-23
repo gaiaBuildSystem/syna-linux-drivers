@@ -37,6 +37,7 @@ struct mic1_priv {
 	 *  Typically 32 is used. For some pcm mono format, 16 may be used
 	 */
 	int  sample_period;
+	u32 i2s_lanes;
 	void *aio_handle;
 };
 
@@ -51,49 +52,45 @@ static void mic1_set_rx_port_en(struct mic1_priv *mic1, bool en)
 
 static void mic1_ch_flush(struct mic1_priv *mic1, bool en)
 {
-	u32 i, tsd;
+	u32 i;
 
-	for (i = 0; i < mic1->irqc; i++) {
-		tsd = aio_get_tsd_from_chid(mic1->aio_handle, mic1->chid[i]);
-		if (tsd < MAX_TSD)
+	for (i = 0; i < mic1->i2s_lanes; i++) {
+		if (i < MAX_TSD)
 			aio_set_aud_ch_flush(mic1->aio_handle,
-				 AIO_ID_MIC1_RX, tsd, en);
+				 AIO_ID_MIC1_RX, i, en);
 	}
 }
 
 static void mic1_ch_en(struct mic1_priv *mic1, bool en)
 {
-	u32 i, tsd;
+	u32 i;
 
-	for (i = 0; i < mic1->irqc; i++) {
-		tsd = aio_get_tsd_from_chid(mic1->aio_handle, mic1->chid[i]);
-		if (tsd < MAX_TSD)
+	for (i = 0; i < mic1->i2s_lanes; i++) {
+		if (i < MAX_TSD)
 			aio_set_aud_ch_en(mic1->aio_handle,
-				 AIO_ID_MIC1_RX, tsd, en);
+				 AIO_ID_MIC1_RX, i, en);
 	}
 }
 
 static void mic1_ch_mute(struct mic1_priv *mic1, bool en)
 {
-	u32 i, tsd;
+	u32 i;
 
-	for (i = 0; i < mic1->irqc; i++) {
-		tsd = aio_get_tsd_from_chid(mic1->aio_handle, mic1->chid[i]);
-		if (tsd < MAX_TSD)
+	for (i = 0; i < mic1->i2s_lanes; i++) {
+		if (i < MAX_TSD)
 			aio_set_aud_ch_mute(mic1->aio_handle,
-				 AIO_ID_MIC1_RX, tsd, en);
+				 AIO_ID_MIC1_RX, i, en);
 	}
 }
 
 static void mic1_set_intlmode(struct mic1_priv *mic1, u32 en)
 {
-	u32 i, tsd;
+	u32 i;
 
-	for (i = 0; i < mic1->irqc; i++) {
-		tsd = aio_get_tsd_from_chid(mic1->aio_handle, mic1->chid[i]);
-		if (tsd < MAX_TSD)
+	for (i = 0; i < mic1->i2s_lanes; i++) {
+		if (i < MAX_TSD)
 			aio_set_mic_intlmode(mic1->aio_handle,
-				 AIO_ID_MIC1_RX, tsd, en);
+				 AIO_ID_MIC1_RX, i, en);
 	}
 }
 
@@ -109,12 +106,11 @@ static void mic1_enable(struct mic1_priv *mic1, bool en)
 
 static void mic1_sel_mic(struct mic1_priv *mic1)
 {
-	u32 tsd, i;
+	u32 i;
 
-	for (i = 0; i < mic1->irqc; i++) {
-		tsd = aio_get_tsd_from_chid(mic1->aio_handle, mic1->chid[i]);
-		if (tsd < MAX_TSD)
-			aio_set_pdmmicsel(mic1->aio_handle, 1);
+	for (i = 0; i < mic1->i2s_lanes; i++) {
+		if (i < MAX_TSD)
+			aio_set_pdmmicsel(mic1->aio_handle, 1<<i);
 	}
 }
 
@@ -202,7 +198,7 @@ static void i2s_mic1_shutdown(struct snd_pcm_substream *ss,
 {
 	struct mic1_priv *mic1 = snd_soc_dai_get_drvdata(dai);
 
-	snd_printd("%s: start %p %p\n", __func__, ss, dai);
+	snd_printd("%s: stop %p %p\n", __func__, ss, dai);
 	mic1_ch_mute(mic1, 1);
 	mic1_ch_en(mic1, 0);
 	aio_i2s_clk_sync_reset(mic1->aio_handle, AIO_ID_MIC1_RX);
@@ -217,7 +213,7 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 	u32 width = params_width(params);
 	u32 chnum = params_channels(params);
 	const struct mclk_info *mclk = NULL;
-	u32 dfm, cfm, chid_num, bclk;
+	u32 dfm, cfm, bclk;
 	struct aud_ctrl ctrl;
 	int ret;
 	struct berlin_ss_params ssparams;
@@ -234,7 +230,7 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 						32 : mic1->sample_period);
 	if (mic1->cfg.is_tdm) {
 		/* TDM */
-		bclk = fs * mic1->sample_period * chnum;
+		bclk = fs * mic1->sample_period * (chnum / mic1->i2s_lanes);
 	} else {
 		/* i2s mode: each I2S_DI[0:3] supports 2 channels */
 		bclk = fs * mic1->sample_period * 2;
@@ -242,7 +238,7 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 
 	mic1_sel_mic(mic1);
 
-	ctrl.chcnt	= chnum;
+	ctrl.chcnt	= chnum / mic1->i2s_lanes;
 	ctrl.sample_period_in_bclk	= cfm;
 	ctrl.sample_resolution	= dfm;
 	ctrl.data_fmt	= mic1->cfg.data_fmt;
@@ -323,25 +319,17 @@ static int i2s_mic1_hw_params(struct snd_pcm_substream *ss,
 	}
 
 	mic1_ch_flush(mic1, 0);
-	if (mic1->cfg.is_tdm) {
-		chid_num  = 1;
-	} else {
-		chid_num = (params_channels(params) + 1) / 2;
-		if (chid_num > mic1->irqc) {
-			snd_printk("max %d ch support by dts\n",
-				 2 * mic1->irqc);
-			return -EINVAL;
-		}
-	}
 
 	mic1_set_intlmode(mic1, mic1->intlmode);
 	ssparams.irq_num = 1;
-	ssparams.chid_num = chid_num;
+	ssparams.chid_num = 1;
 	ssparams.mode = I2SI_MODE;
 	ssparams.enable_mic_mute = !mic1->cfg.disable_mic_mute;
 	ssparams.irq = mic1->irq;
 	ssparams.interleaved = false;
 	ssparams.dummy_data = false;
+	ssparams.multi_lanes =
+			mic1->cfg.is_tdm ? mic1->i2s_lanes > 1 ? true : false : false;
 	ssparams.dev_name = mic1->dev_name;
 	ret = berlin_pcm_request_dma_irq(ss, &ssparams);
 	if (ret == 0)
@@ -597,6 +585,15 @@ static int i2s_mic1_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "sample-period", &mic1->sample_period);
 	if (ret)
 		mic1->sample_period = 32;
+
+	/* Get the number of i2s lanes configuration from dts to decide how many
+	 * lines among 4 MIC1 lines need to be enabled for capturing data
+	 */
+	ret = of_property_read_u32(np, "i2s-lanes", &mic1->i2s_lanes);
+	if (ret)
+		mic1->i2s_lanes = 1; //by default 1 i2s-lane for 2 ch audio data
+
+	snd_printk("[%s.%u]i2s_lanes=%u\n", __func__, __LINE__, mic1->i2s_lanes);
 
 	mic1->dev_name = dev_name(dev);
 	mic1->pdev = pdev;
