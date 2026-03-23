@@ -23,10 +23,20 @@ struct spdif_cs {
 	u32 reseverd[4];
 };
 
+/* SPDIF preamble types which HW replace with actual
+ *	preamble bits in the stream in Rx path.
+ *
+ *  TYPE_RX_B : Start of block (every 192 frames)
+ *  TYPE_RX_M : Start of subframe 1 (every frame)
+ *  TYPE_RX_W : Start of subframe 2 (every frame)
+ */
 enum subframe_type {
 	TYPE_B = 0,
 	TYPE_M = 1,
 	TYPE_W = 2,
+	TYPE_RX_B = 0x7,
+	TYPE_RX_M = 0xE,
+	TYPE_RX_W = 0x8,
 };
 
 enum burst_data_type {

@@ -576,6 +576,20 @@ static struct snd_kcontrol_new berlin_pcm_controls[] = {
 		.info = snd_ctl_boolean_mono_info,
 		.get = berlin_pcm_hdmi_spdif_out_switch_get,
 		.put = berlin_pcm_hdmi_spdif_out_switch_put,
+	},
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = SNDRV_CTL_NAME_IEC958_CAPTURE_SAMPLE_RATE,
+		.access = SNDRV_CTL_ELEM_ACCESS_READ | SNDRV_CTL_ELEM_ACCESS_VOLATILE,
+		.info = berlin_capture_spdif_sample_rate_info,
+		.get = berlin_capture_spdif_sample_rate_get,
+	},
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = SNDRV_CTL_NAME_IEC958_CAPTURE_DEFAULT,
+		.access = SNDRV_CTL_ELEM_ACCESS_READ | SNDRV_CTL_ELEM_ACCESS_VOLATILE,
+		.info = berlin_capture_spdif_control_status_buffer_info,
+		.get = berlin_capture_spdif_control_status_buffer_get,
 	}
 };
 

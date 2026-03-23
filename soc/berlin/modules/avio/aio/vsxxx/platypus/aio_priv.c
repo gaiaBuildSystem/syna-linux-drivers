@@ -4,6 +4,18 @@
 #include "aio_hal.h"
 #include "i2s_common.h"
 
+int aio_spdifi_enable_sysclk(void *hd, bool enable)
+{
+	struct aio_priv *aio = hd_to_aio(hd);
+	T32SPDIFRX_CTRL_CTRL1 reg;
+	u32 address = RA_AIO_SPDIFRX_CTRL + RA_SPDIFRX_CTRL_CTRL1;
+
+	reg.u32 = aio_read(aio, address);
+	reg.uCTRL1_CLK_GATE = enable ? 1 : 0;
+	aio_write(aio, address, reg.u32);
+	return 0;
+}
+
 int aio_enablerxport_extra(void *hd, u32 id, bool enable)
 {
 	struct aio_priv *aio = hd_to_aio(hd);

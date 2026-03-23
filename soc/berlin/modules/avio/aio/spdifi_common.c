@@ -246,8 +246,6 @@ int aio_spdifi_config(void *hd, u32 fs, u32 width)
 	ctrl_12.uCTRL12_FRAME_WIDTH = 0x2;
 	ctrl_12.uCTRL12_OP_MODE = 0x2;
 	if (width == 16)
-		ctrl_12.uCTRL12_DATAVALID_WIDTH = 0x0;
-	else if (width == 24)
 		ctrl_12.uCTRL12_DATAVALID_WIDTH = 0x3;
 	else
 		ctrl_12.uCTRL12_DATAVALID_WIDTH = 0x4;

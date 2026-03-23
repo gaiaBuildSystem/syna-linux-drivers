@@ -20,12 +20,15 @@
 			| SNDRV_PCM_RATE_176400 \
 			| SNDRV_PCM_RATE_192000)
 #define SPDIFI_FORMATS (SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE \
-			   | SNDRV_PCM_FMTBIT_S32_LE)
+			   | SNDRV_PCM_FMTBIT_S32_LE \
+			   | SNDRV_PCM_FMTBIT_S24_LE \
+			   | SNDRV_PCM_FMTBIT_S16_LE)
 
 static const struct of_device_id spdifi_dt_ids[] = {
 	{ .compatible = "syna,as370-spdifi", },
 	{ .compatible = "syna,as371-spdifi", },
 	{ .compatible = "syna,dolphin-spdifi", },
+	{ .compatible = "syna,platypus-spdifi", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, spdifi_dt_ids);
