@@ -21,7 +21,7 @@ config BERLIN_M2M
 config SYNAPTICS_CRYPTO_TEE
 	tristate "Synaptics OP-TEE Crypto Support"
 	depends on OPTEE
-	default M
+	default n
 	help
 	  This enables the custom AES-GCM hardware key API (aes_hwkey_gcm_*)
 	  It routes the cryptography requests securely to the OP-TEE Trusted
