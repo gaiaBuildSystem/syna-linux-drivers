@@ -10,9 +10,7 @@
 #endif
 #include "uapi/m2m.h"
 
-#if !IS_ENABLED(CONFIG_OPTEE)
-typedef struct TEEC_Session TEEC_Session;
-#else
+#if IS_ENABLED(CONFIG_OPTEE)
 typedef uint32_t TEEC_Session;
 #endif
 
