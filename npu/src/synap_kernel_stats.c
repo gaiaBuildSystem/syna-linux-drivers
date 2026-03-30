@@ -179,7 +179,7 @@ static ssize_t synap_networks_show(struct device *dev,
                     const struct synap_profile_layer * lyr = &layers[j];
                     len = snprintf(&buf[PAGE_SIZE - remaining], remaining,
                                    "|%4d |%9d |%8d |%9d |%9d |%3s | %s\n",
-                                   j, lyr->cycle, lyr->execution_time, lyr->byte_read, lyr->byte_write, 
+                                   j, lyr->cycle, lyr->execution_time, lyr->byte_read, lyr->byte_write,
                                    synap_operation_type2str(lyr->type), lyr->name);
                     remaining = remaining > len? remaining - len : 0;
                 }
@@ -195,7 +195,7 @@ static ssize_t synap_networks_show(struct device *dev,
 }
 
 static ssize_t synap_statistics_network_profile_read(struct file *fp, struct kobject *kobj,
-                                                     struct bin_attribute *attr, char *buf,
+                                                     const struct bin_attribute *attr, char *buf,
                                                      loff_t off, size_t count)
 {
 
@@ -244,7 +244,7 @@ static ssize_t synap_statistics_network_profile_read(struct file *fp, struct kob
                 n->io_buff_count, n->io_buff_size, n->layer_count
             );
             remaining = remaining > len? remaining - len : 0;
-            
+
             // print out the profile data in our maximal size buffer
             if (n->is_profile_mode) {
                 u32 j;
@@ -301,7 +301,7 @@ static struct attribute *synap_statistics_attrs[] = {
     NULL
 };
 
-static struct bin_attribute *synap_bin_attrs[] = {
+static const struct bin_attribute *synap_bin_attrs[] = {
     &bin_attr_network_profile,
     NULL
 };

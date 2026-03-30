@@ -458,7 +458,6 @@ static struct dma_buf *berlin_heap_allocate(struct dma_heap *heap,
 	struct berlin_heap *berlin_heap = dma_heap_get_drvdata(heap);
 	struct berlin_heap_buffer *buffer;
 	struct dma_buf *dmabuf;
-	char tmpbuf[64];
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
@@ -504,9 +503,6 @@ static struct dma_buf *berlin_heap_allocate(struct dma_heap *heap,
 		ret = PTR_ERR(dmabuf);
 		goto err_free_meta;
 	}
-	snprintf(tmpbuf, sizeof(tmpbuf), "%d %d %s\n", task_tgid_vnr(current),
-				task_pid_vnr(current), current->comm);
-	dma_buf_set_name(dmabuf, tmpbuf);
 	return dmabuf;
 
 err_free_meta:
@@ -734,5 +730,5 @@ static int __init berlin_heap_init(void)
 }
 device_initcall(berlin_heap_init);
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");
 

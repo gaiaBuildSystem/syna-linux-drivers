@@ -331,7 +331,6 @@ static struct dma_buf *cma_cust_heap_allocate(struct dma_heap *heap,
 	unsigned long align = get_order(size);
 	struct page *cma_pages;
 	struct dma_buf *dmabuf;
-	char tmpbuf[64];
 	int ret = -ENOMEM;
 	pgoff_t pg;
 
@@ -407,10 +406,7 @@ static struct dma_buf *cma_cust_heap_allocate(struct dma_heap *heap,
 		ret = PTR_ERR(dmabuf);
 		goto free_meta;
 	}
-	snprintf(tmpbuf, sizeof(tmpbuf), "%d %d %s\n", task_tgid_vnr(current),
-						task_pid_vnr(current), current->comm);
-	dma_buf_set_name(dmabuf, tmpbuf);
-	return dmabuf;
+return dmabuf;
 
 free_meta:
 	kfree(buffer->meta);
@@ -471,5 +467,5 @@ static int add_default_cma_cust_heap(void)
 module_init(add_default_cma_cust_heap);
 MODULE_DESCRIPTION("DMA-BUF CMA Cust Heap");
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");
 

@@ -14,18 +14,18 @@ TEE_INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/client
        -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd
 
 
-EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/include/
-EXTRA_CFLAGS += -I $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/include/km/
-EXTRA_CFLAGS += $(TEE_INC_PATH)
-EXTRA_CFLAGS += -Werror
+ccflags-y += -I $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/include/
+ccflags-y += -I $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/include/km/
+ccflags-y += $(TEE_INC_PATH)
+ccflags-y += -Werror
 
 
 ifeq ($(CONFIG_GPU_DOLPHIN),y)
-    EXTRA_CFLAGS += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/dolphin_config_kernel.h
+    ccflags-y += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/dolphin_config_kernel.h
 else ifeq ($(CONFIG_GPU_PLATYPUS),y)
-    EXTRA_CFLAGS += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/platypus_config_kernel.h
+    ccflags-y += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/platypus_config_kernel.h
 else ifeq ($(CONFIG_GPU_MYNA2),y)
-    EXTRA_CFLAGS += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/myna2_config_kernel.h
+    ccflags-y += -include $(srctree)/drivers/synaptics/soc/berlin/modules/rogue_ws/myna2_config_kernel.h
 endif
 
 OBJS := src/allocmem.o \

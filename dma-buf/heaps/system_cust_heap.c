@@ -452,7 +452,6 @@ static struct dma_buf *system_cust_heap_do_allocate(struct dma_heap *heap,
 	struct scatterlist *sg;
 	struct list_head pages;
 	struct page *page, *tmp_page;
-	char tmpbuf[64];
 	int i, ret = -ENOMEM;
 	u64 start_time;
 	start_time = ktime_get_ns();
@@ -528,9 +527,6 @@ static struct dma_buf *system_cust_heap_do_allocate(struct dma_heap *heap,
 		dma_unmap_sgtable(dma_heap_get_dev(heap), table, DMA_BIDIRECTIONAL, 0);
 	}
 
-	snprintf(tmpbuf, sizeof(tmpbuf), "%d %d %s\n", task_tgid_vnr(current),
-				task_pid_vnr(current), current->comm);
-	dma_buf_set_name(dmabuf, tmpbuf);
 	trace_sys_cust_alloc(uncached, len/1024, (ktime_get_ns() - start_time)/1000);
 	return dmabuf;
 
@@ -615,5 +611,5 @@ static int system_cust_heap_create(void)
 }
 module_init(system_cust_heap_create);
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");
 
