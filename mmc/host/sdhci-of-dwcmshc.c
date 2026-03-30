@@ -917,7 +917,6 @@ deselect_mux:
 	if (priv->muxs)
 		mux_state_deselect(priv->muxs);;
 free_pltfm:
-	sdhci_pltfm_free(pdev);
 	return err;
 }
 
@@ -951,8 +950,6 @@ static RET dwcmshc_remove(struct platform_device *pdev)
 
 	if (priv->muxs)
 		mux_state_deselect(priv->muxs);;
-
-	sdhci_pltfm_free(pdev);
 
 	RETURN;
 }
