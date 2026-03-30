@@ -15,6 +15,12 @@
 #define HDMITX_CORE_CONFIG_ENTRIES 2
 #define to_syna_conn_hdmi(conn) container_of(conn, struct syna_conn_hdmi, base)
 
+struct syna_hdmi_mode_map {
+	const char *name;
+	int id;
+	u32 sinkcap_bitmask;
+};
+
 typedef union SYNA_HDMITX_CONF_T {
 	UINT8 hdmiTxConfig[HDMITX_CORE_CONFIG_ENTRIES];
 	struct {

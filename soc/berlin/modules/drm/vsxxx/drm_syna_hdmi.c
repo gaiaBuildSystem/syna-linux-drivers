@@ -30,20 +30,41 @@ struct drm_edid {
 #endif
 
 #define MAX_EDID_BLOCKS 8 //Max EDID blocks supported by syna driver
+#define VPP_HDMI_SINKCAP_BITMASK_FALLBACK 0xFFFFFFFF //If no resolution is supported, default fallback will be 480p
+#define VPP_CHECK_BITMASK(VAL, MASK) ((VAL & MASK) == MASK)
+#define VPP_IS_SINK_SUPPORT_MODE(I, N, SINK_CAPS) \
+        ((I == (N - 1)) || VPP_CHECK_BITMASK(SINK_CAPS, supported_forced_mode[I].sinkcap_bitmask))
 
 static char preferred_mode_name[DRM_DISPLAY_MODE_LEN] = "1920x1080";
-static char max_supported_mode[DRM_DISPLAY_MODE_LEN] = "\0";
+static char forced_mode[DRM_DISPLAY_MODE_LEN] = "\0";
+static const struct syna_hdmi_mode_map supported_forced_mode[] = {
+	{ "4K60", RES_4Kx2K60,   (1 << VPP_HDMI_SINKCAP_BITMASK_FULL4K) },
+	{ "4K50", RES_4Kx2K50,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FULL4K) | (1 << VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) },
+	{ "4K30", RES_4Kx2K30,   (1 << VPP_HDMI_SINKCAP_BITMASK_4K30) },
+	{ "2K60", RES_1080P60,   (1 << VPP_HDMI_SINKCAP_BITMASK_FHD) },
+	{ "2K50", RES_1080P50,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FHD) | (1 << VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) },
+	{ "720p", RES_720P60,    (1 << VPP_HDMI_SINKCAP_BITMASK_720P) },
+	{ "576p", RES_625P50,    (1 << VPP_HDMI_SINKCAP_BITMASK_576P) },
+	{ "480p", RES_525P60,    VPP_HDMI_SINKCAP_BITMASK_FALLBACK },
+};
 
+/* hdmi_preferred_mode specifies the preferred UI mode for output Compositors/Display
+   managers generally pick preferred mode */
 module_param_string(hdmi_preferred_mode,
 			preferred_mode_name, DRM_DISPLAY_MODE_LEN, 0444);
 
 MODULE_PARM_DESC(hdmi_preferred_mode,
-		 "Specify the preferred mode (if supported), e.g. 1280x1024.");
+		 "Specify the preferred mode (if supported), e.g. 1920x1080");
 
-module_param_string(hdmi_fixed_4K_mode,
-			max_supported_mode, DRM_DISPLAY_MODE_LEN, 0444);
-MODULE_PARM_DESC(hdmi_fixed_4K_mode,
-		"When on fixed mode from driver, select max 4K mode. eg:4K60/4K30");
+/* hdmi_force_mode specifies the forced output mode for HDMI output
+   user can force a specific resolution of their choice, if the connected
+   sink supports it then this resolution will be forced all the time
+   if unused, driver will auto select the resolution */
+module_param_string(hdmi_force_mode,
+			forced_mode, DRM_DISPLAY_MODE_LEN, 0444);
+MODULE_PARM_DESC(hdmi_force_mode,
+		"Force a specific resolution in fixed mode.\
+		 Current support:4K60, 4K50, 4K30, 2K60, 2K50, 720p, 576p, 480p");
 
 static int force_persistent_res;
 module_param(force_persistent_res, int, 0444);
@@ -315,10 +336,14 @@ static int syna_configure_def_res(void)
 	VPP_HDMI_SINK_CAPS sinkCaps;
 	int retVal;
 	VPP_DISP_OUT_PARAMS dispParams;
-	int len = strlen(max_supported_mode);
+	int len = strlen(forced_mode);
 	int applyFlag = 1;
 	int bl_resId;
 	avio_fastlogo_info display_info = avio_get_fastlogo_status();
+	int i = 0;
+	int best_res_id_ndx = -1;
+	int forced_res_id = -1;
+	const int mode_array_size = (ARRAY_SIZE(supported_forced_mode));
 
 	retVal = MV_VPP_GetDispOutParams(CPCB_1, &dispParams);
 	if (retVal == MV_VPP_OK) {
@@ -331,31 +356,46 @@ static int syna_configure_def_res(void)
 	/*configure the default resolution set on HDMI connection*/
 	retVal = wrap_MV_VPPOBJ_GetHDMISinkFeatureMap(&sinkCaps);
 	if ((retVal == MV_VPP_OK)) {
-		/*Fixed mode only: Hardcode resolution to 4K30 on 4K TV, otherwise to 1080p60*/
-		if (sinkCaps & ((1<<VPP_HDMI_SINKCAP_BITMASK_FULL4K)|(1<<VPP_HDMI_SINKCAP_BITMASK_4K30))) {
-			dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-				HDMI_MAX_RES_ENABLED_50_25:HDMI_MAX_RES_ENABLED_60_30;
-			if (len) {
-				if (!strcmp("4K60", max_supported_mode))
-					dispParams.uiResId = RES_4Kx2K60;
-					else if (!strcmp("4K50", max_supported_mode))
-						dispParams.uiResId = RES_4Kx2K50;
-					else if (!strcmp("4K30", max_supported_mode))
-						dispParams.uiResId = RES_4Kx2K30;
-					else
-						dispParams.uiResId = RES_1080P60;
+		/* Priority 1: User specified module param (Force Mode) */
+		if (len > 0) {
+			if (forced_mode[len - 1] == '\n')
+				forced_mode[--len] = '\0';
 
-					DRM_DEBUG_DRIVER("select resIndex:%d from user config\n", dispParams.uiResId);
+			for (; i < mode_array_size; i++) {
+				bool is_supported = VPP_IS_SINK_SUPPORT_MODE(i, mode_array_size, sinkCaps);
+				//lock in the first best supported mode, as look up table is highest res first.
+				if (best_res_id_ndx == -1 && is_supported)
+					best_res_id_ndx = i;
+
+				if (!strcasecmp(supported_forced_mode[i].name, forced_mode)) {
+					if (is_supported) {
+						forced_res_id = supported_forced_mode[i].id;
+						DRM_DEBUG_DRIVER("Force Mode selected : %s\n", forced_mode);
+						break;
+					} else {
+						DRM_DEBUG_DRIVER("Forced mode %s not supported by sink (sinkCaps=0x%x, mask=0x%x)\n",
+								forced_mode, sinkCaps, supported_forced_mode[i].sinkcap_bitmask);
+					}
 				}
-			} else if (sinkCaps & ((1<<VPP_HDMI_SINKCAP_BITMASK_FHD)))
-				dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-					RES_1080P50:RES_1080P60;
-			else
-				dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-					RES_720P50:RES_720P60;
+			}
+		}
 
-		DRM_DEBUG_DRIVER("HDMI_HPD detected, setting res to resId:%d colorfmt:%d bidepth:%d sinkcaps:%d\n",
-				dispParams.uiResId,dispParams.uiColorFmt,dispParams.uiBitDepth,
+		/* Priority 2: Auto-detect based on EDID Sink Caps */
+		if (forced_res_id == -1) {
+			/* Try to find the best res-id, if not yet found */
+			for (; (best_res_id_ndx == -1) && (i < mode_array_size); i++) {
+				if (VPP_IS_SINK_SUPPORT_MODE(i, mode_array_size, sinkCaps)) {
+					best_res_id_ndx = i;
+					break;
+				}
+			}
+			DRM_DEBUG_DRIVER("Unknown Force Mode: %s, Best sink mode selected :%s\n", forced_mode, supported_forced_mode[best_res_id_ndx].name);
+		}
+
+		//select forced res if set and suppored, else set best supported resolution
+		dispParams.uiResId = forced_res_id != -1 ? forced_res_id : supported_forced_mode[best_res_id_ndx].id;
+		DRM_DEBUG_DRIVER("HDMI_HPD detected, force mode:%d setting res to resId:%d colorfmt:%d bidepth:%d sinkcaps:%d\n",
+				forced_res_id, dispParams.uiResId,dispParams.uiColorFmt,dispParams.uiBitDepth,
 				(retVal)?-1:sinkCaps);
 
 		if (display_info.u.status && bl_resId == dispParams.uiResId)
