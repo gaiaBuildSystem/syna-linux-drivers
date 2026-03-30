@@ -322,7 +322,7 @@ static int berlin_add_pcie_port(struct berlin_pcie *priv,
 	return 0;
 }
 
-static int berlin_pcie_link_up(struct dw_pcie *pci)
+static bool berlin_pcie_link_up(struct dw_pcie *pci)
 {
 	struct berlin_pcie *priv = to_berlin_pcie(pci);
 	u32 val = dw_pcie_readw_dbi(pci, priv->pcie_cap_base + PCI_EXP_LNKSTA);
