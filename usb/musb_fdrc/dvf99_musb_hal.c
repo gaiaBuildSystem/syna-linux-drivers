@@ -21,6 +21,7 @@
  * Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -143,7 +144,11 @@ static void dvf99_musb_try_idle(struct musb *musb, unsigned long timeout)
 	     (musb->xceiv->otg->state == OTG_STATE_A_WAIT_BCON))) {
 		dev_dbg(musb->controller, "%s active, deleting timer\n",
 			usb_otg_state_string(musb->xceiv->otg->state));
+		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		timer_delete(&musb->idle_timer);
+#else
 		del_timer(&musb->idle_timer);
+#endif
 		last_timer = jiffies;
 		return;
 	}
@@ -438,7 +443,11 @@ static void dvf99_musb_disable(struct musb *musb)
 
 static int dvf99_musb_exit(struct musb *musb)
 {
+	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+	timer_delete_sync(&musb->idle_timer);
+#else
 	del_timer_sync(&musb->idle_timer);
+#endif
 
 	dvf99_low_level_exit(musb);
 	usb_put_phy(musb->xceiv);
@@ -513,7 +522,7 @@ void _dvf99_disconnect_prep(struct work_struct *data)
 		power = musb_readb(musb->mregs, MUSB_POWER);
 		cnt--;
 	} while ((power & MUSB_POWER_RESET) && (cnt > 0));
-	
+
 
 	musb_root_disconnect(musb);
 

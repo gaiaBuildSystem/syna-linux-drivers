@@ -11,6 +11,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/platform_device.h>
 
 #define SEMAHUB_ARR	0x100
 #define SEMAPHORE_CFG	0x0
@@ -113,10 +114,10 @@ static void berlin_dhub_mask_irq(struct irq_data *d)
 	irq_hw_number_t hw_irq = irqd_to_hwirq(d);
 	u32 mask = 1 << hw_irq;
 
-	irq_gc_lock(gc);
+	raw_spin_lock(&gc->lock);
 	gc_data->cached_ictl_mask |= mask;
 	semahub_cell_write(gc, hw_irq, SEMAPHORE_INTR, 0);
-	irq_gc_unlock(gc);
+	raw_spin_unlock(&gc->lock);
 }
 
 static void berlin_dhub_unmask_irq(struct irq_data *d)
@@ -126,10 +127,10 @@ static void berlin_dhub_unmask_irq(struct irq_data *d)
 	irq_hw_number_t hw_irq = irqd_to_hwirq(d);
 	u32 mask = 1 << hw_irq;
 
-	irq_gc_lock(gc);
+	raw_spin_lock(&gc->lock);
 	gc_data->cached_ictl_mask &= ~mask;
 	semahub_cell_write(gc, hw_irq, SEMAPHORE_INTR, SEMAINTR_MASK_FULL);
-	irq_gc_unlock(gc);
+	raw_spin_unlock(&gc->lock);
 }
 
 static void berlin_dhub_ack_irq(struct irq_data *d)
@@ -140,12 +141,12 @@ static void berlin_dhub_ack_irq(struct irq_data *d)
 	u32 mask = d->mask;
 	u32 ack = (1 << SEMA_CPU_DELTA) | hw_irq;
 
-	irq_gc_lock(gc);
+	raw_spin_lock(&gc->lock);
 	/* CPU pop semaphore */
 	writel_relaxed(ack, gc->reg_base + gc_data->ctl->pop_offset);
 	/* clear cell full status */
 	writel_relaxed(mask, gc->reg_base + gc_data->ctl->full_offset);
-	irq_gc_unlock(gc);
+	raw_spin_unlock(&gc->lock);
 }
 
 static void berlin_dhub_irq_config(struct irq_chip_generic *gc)
@@ -191,27 +192,28 @@ static void berlin_dhub_irq_suspend(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 
-	irq_gc_lock(gc);
+	raw_spin_lock(&gc->lock);
 	berlin_dhub_irq_save_load_context(gc, true);
-	irq_gc_unlock(gc);
+	raw_spin_unlock(&gc->lock);
 }
 
 static void berlin_dhub_irq_resume(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 
-	irq_gc_lock(gc);
+	raw_spin_lock(&gc->lock);
 	berlin_dhub_irq_save_load_context(gc, false);
-	irq_gc_unlock(gc);
+	raw_spin_unlock(&gc->lock);
 }
 #else
 #define berlin_dhub_irq_suspend NULL
 #define berlin_dhub_irq_resume	NULL
 #endif /* CONFIG_PM */
 
-static int __init berlin_dhub_irq_init(struct device_node *np,
-				       struct device_node *parent)
+static int berlin_dhub_irq_init(struct platform_device *pdev,
+				 struct device_node *parent)
 {
+	struct device_node *np = pdev->dev.of_node;
 	unsigned int clr = IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN;
 	struct resource r;
 	const struct of_device_id *match;

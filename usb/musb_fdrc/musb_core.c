@@ -89,6 +89,7 @@
  * Most of the conditional compilation will (someday) vanish.
  */
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -738,7 +739,11 @@ b_host:
 			musb->xceiv->otg->state = OTG_STATE_B_HOST;
 			hcd->self.is_b_host = 1;
 			musb->ignore_disconnect = 0;
-			del_timer(&musb->otg_timer);
+			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+				timer_delete(&musb->otg_timer);
+#else
+				del_timer(&musb->otg_timer);
+#endif
 			break;
 		default:
 			/* bits VBUS[1:0] in DEVCTL of HDRC functionally
@@ -854,7 +859,11 @@ b_host:
 				break;
 			case OTG_STATE_A_PERIPHERAL:
 				musb->ignore_disconnect = 0;
+				#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+				timer_delete(&musb->otg_timer);
+#else
 				del_timer(&musb->otg_timer);
+#endif
 				musb_g_reset(musb);
 				break;
 			case OTG_STATE_B_WAIT_ACON:

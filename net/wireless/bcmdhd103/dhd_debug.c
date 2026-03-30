@@ -4012,7 +4012,7 @@ dhd_dbg_ring_write(int type, char *binary_data,
 	/* Do not print any contents to rings if called from ISR.
 	 * as ring lock is spin_lock_bh()
 	 */
-	if (in_irq()) {
+	if (in_hardirq()) {
 		return;
 	}
 #endif /* __linux__ */

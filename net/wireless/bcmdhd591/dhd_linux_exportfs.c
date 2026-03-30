@@ -3161,7 +3161,7 @@ static struct kobj_type dhd_dpc_bounds_ktype = {
 #ifdef CSI_SUPPORT
 /* Function to show current ccode */
 static ssize_t read_csi_data(struct file *filp, struct kobject *kobj,
-	struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
+	const struct bin_attribute *bin_attr, char *buf, loff_t off, size_t count)
 {
 	dhd_info_t *dhd = to_dhd(kobj);
 	int n = 0;

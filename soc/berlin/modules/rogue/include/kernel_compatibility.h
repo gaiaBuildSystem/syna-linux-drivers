@@ -330,4 +330,12 @@ static inline void pvr_vm_flags_clear(struct vm_area_struct *vma,
 	#endif
 #endif
 
-#endif /* __KERNEL_COMPATIBILITY_H__ */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
+/* pfn_t and helpers were removed in kernel 6.17; provide compat shims */
+typedef unsigned long pfn_t;
+#define phys_to_pfn_t(phys, flags) ((pfn_t)((phys) >> PAGE_SHIFT))
+#define pfn_t_to_pfn(t) (t)
+#define pfn_t_to_page(t) pfn_to_page(t)
+#define pfn_t_valid(t) pfn_valid(t)
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)) */
+

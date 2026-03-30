@@ -181,5 +181,5 @@ void * VPP_MEM_PhysToVirt(VPP_MEM_LIST *shm_list, phys_addr_t pa)
 }
 EXPORT_SYMBOL(VPP_MEM_PhysToVirt);
 
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");
 MODULE_LICENSE("GPL");

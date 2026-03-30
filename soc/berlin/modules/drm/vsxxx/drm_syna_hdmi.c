@@ -12,6 +12,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_edid.h>
+#include <drm/drm_print.h>
 #include "drm_syna_drv.h"
 #include "syna_drm_priv.h"
 #include "drm_syna_hdmi.h"
@@ -231,8 +232,8 @@ static int syna_check_mode_enabled(int res_id, struct syna_conn_hdmi *syna_hdmi)
 	return -1;
 }
 
-static int syna_hdmi_connector_helper_mode_valid(struct drm_connector *connector,
-						struct drm_display_mode *mode)
+static enum drm_mode_status syna_hdmi_connector_helper_mode_valid(struct drm_connector *connector,
+						const struct drm_display_mode *mode)
 {
 	int res_id = MV_VPP_GetResIndex(mode->hdisplay, mode->vdisplay,
 			mode->flags & DRM_MODE_FLAG_INTERLACE, mode->clock,

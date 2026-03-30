@@ -321,7 +321,7 @@ static int bluesleep_suspend(struct platform_device *pdev, pm_message_t state)
 
 static struct platform_driver bluesleep_driver = {
 	.probe = bluesleep_probe,
-	.remove_new = bluesleep_remove,
+	.remove = bluesleep_remove,
 	.suspend = bluesleep_suspend,
 	.resume = bluesleep_resume,
 	.driver = {

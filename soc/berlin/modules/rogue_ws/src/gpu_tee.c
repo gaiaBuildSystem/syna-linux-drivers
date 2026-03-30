@@ -86,7 +86,7 @@ static PVRSRV_ERROR allocateFWAddress(void *pvOSDevice)
 	fw_secure_dma_heap = dma_heap_find("Secure");
 	if (fw_secure_dma_heap == NULL) {
 		dev_warn(dev, "Secure heap is unavailable, deferring probe\n");
-		goto defer_probe;
+		goto free1;
 	}
 
 	fw_src_dma_buf = dma_heap_buffer_alloc(fw_nonsecure_dma_heap, ALLOC_SIZE, 0, 0);
@@ -102,23 +102,31 @@ static PVRSRV_ERROR allocateFWAddress(void *pvOSDevice)
 	}
 
 	fw_src_buf_attach = dma_buf_attach(fw_src_dma_buf, dev);
-	if (fw_src_buf_attach == NULL) {
+	if (IS_ERR_OR_NULL(fw_src_buf_attach)) {
 		dev_err(dev, "fw src dma buf attach failed, error %ld", PTR_ERR(fw_src_buf_attach));
 		goto free4;
 	}
 	fw_buf_attach = dma_buf_attach(fw_dma_buf, dev);
-	if (fw_buf_attach == NULL) {
+	if (IS_ERR_OR_NULL(fw_buf_attach)) {
 		dev_err(dev, "fw dma buf attach failed, error %ld", PTR_ERR(fw_buf_attach));
 		goto free5;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+	fw_src_table = dma_buf_map_attachment_unlocked(fw_src_buf_attach, DMA_FROM_DEVICE);
+#else
 	fw_src_table = dma_buf_map_attachment(fw_src_buf_attach, DMA_FROM_DEVICE);
-	if (fw_src_table == NULL) {
+#endif
+	if (IS_ERR_OR_NULL(fw_src_table)) {
 		dev_err(dev, "fw src dma bufmap attach failed, error %ld", PTR_ERR(fw_src_table));
 		goto free6;
 	}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+	fw_table = dma_buf_map_attachment_unlocked(fw_buf_attach, DMA_BIDIRECTIONAL);
+#else
 	fw_table = dma_buf_map_attachment(fw_buf_attach, DMA_BIDIRECTIONAL);
-	if (fw_table == NULL) {
+#endif
+	if (IS_ERR_OR_NULL(fw_table)) {
 		dev_err(dev, "fw dma bufmap attach failed, error %ld", PTR_ERR(fw_table));
 		goto free7;
 	}
@@ -128,7 +136,11 @@ static PVRSRV_ERROR allocateFWAddress(void *pvOSDevice)
 
 	return PVRSRV_OK;
 free7:
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+	dma_buf_unmap_attachment_unlocked(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#else
 	dma_buf_unmap_attachment(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#endif
 free6:
 	dma_buf_detach(fw_dma_buf, fw_buf_attach);
 free5:
@@ -139,6 +151,8 @@ free3:
 	dma_heap_buffer_free(fw_src_dma_buf);
 free2:
 	dma_heap_put(fw_secure_dma_heap);
+free1:
+	dma_heap_put(fw_nonsecure_dma_heap);
 defer_probe:
 	return PVRSRV_ERROR_PROBE_DEFER;
 }
@@ -374,8 +388,12 @@ PVRSRV_ERROR init_tz(void *pvOSDevice)
 void deinit_tz()
 {
 	if(fw_dma_buf != NULL) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		dma_buf_unmap_attachment_unlocked(fw_buf_attach, fw_table, DMA_BIDIRECTIONAL);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 		dma_buf_unmap_attachment(fw_buf_attach, fw_table, DMA_BIDIRECTIONAL);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 		dma_buf_detach(fw_dma_buf, fw_buf_attach);
 #endif
 		dma_heap_buffer_free(fw_dma_buf);
@@ -383,8 +401,12 @@ void deinit_tz()
 		fw_dma_buf = NULL;
 	}
 	if(fw_src_dma_buf != NULL) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		dma_buf_unmap_attachment_unlocked(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 		dma_buf_unmap_attachment(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 		dma_buf_detach(fw_src_dma_buf, fw_src_buf_attach);
 #endif
 		dma_heap_buffer_free(fw_src_dma_buf);
@@ -429,7 +451,11 @@ PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *ps
 	if (iosys_map_is_null(&fw_src_data)) {
 		printk(KERN_ERR "dma heap buffer map failed\n");
 		dma_buf_end_cpu_access(fw_src_dma_buf, DMA_FROM_DEVICE);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		dma_buf_unmap_attachment_unlocked(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#else
 		dma_buf_unmap_attachment(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#endif
 		dma_buf_detach(fw_src_dma_buf, fw_src_buf_attach);
 		dma_heap_buffer_free(fw_src_dma_buf);
 		dma_heap_put(fw_nonsecure_dma_heap);
@@ -500,8 +526,12 @@ PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *ps
 	}
 
 	if(fw_src_dma_buf != NULL) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		dma_buf_unmap_attachment_unlocked(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 		dma_buf_unmap_attachment(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 		dma_buf_detach(fw_src_dma_buf, fw_src_buf_attach);
 #endif
 		dma_heap_buffer_free(fw_src_dma_buf);

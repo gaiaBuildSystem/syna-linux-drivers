@@ -491,4 +491,4 @@ out:
 }
 EXPORT_SYMBOL(isp_shm_get_page_table_address);
 
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");

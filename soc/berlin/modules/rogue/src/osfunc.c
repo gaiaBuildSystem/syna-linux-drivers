@@ -69,7 +69,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/utsname.h>
 #include <linux/scatterlist.h>
 #include <linux/interrupt.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0))
 #include <linux/pfn_t.h>
+#endif
 #include <linux/pfn.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/signal.h>
@@ -1587,8 +1589,11 @@ PVRSRV_ERROR OSDisableTimer (IMG_HANDLE hTimer)
 	flush_workqueue(psTimerWorkQueue);
 
 	/* remove timer */
-	del_timer_sync(&psTimerCBData->sTimer);
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+        timer_delete_sync(&psTimerCBData->sTimer);
+#else
+        del_timer_sync(&psTimerCBData->sTimer);
+#endif
 	/*
 	 * This second flush is to catch the case where the timer ran
 	 * before we managed to delete it, in which case, it will have

@@ -929,8 +929,8 @@ static int cx9000_setup_i2spcm(struct snd_soc_component *component,
 	 * for generating LRCK of RX and TX
 	 * 4. switch 0x0519'b0 and 0x0519'b3 to 1
 	 */
-	case SND_SOC_DAIFMT_CBM_CFM:
-	case SND_SOC_DAIFMT_CBS_CFS:
+	case SND_SOC_DAIFMT_CBP_CFP:
+	case SND_SOC_DAIFMT_CBC_CFC:
 		break;
 	default:
 		dev_err(component->dev, "Unsupported DAI mode\n");
@@ -1214,8 +1214,8 @@ static int cx9000_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	dev_dbg(component->dev, "set_dai_fmt- %08x\n", fmt);
 	/* set master/slave */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-	case SND_SOC_DAIFMT_CBM_CFM:
-	case SND_SOC_DAIFMT_CBS_CFS:
+	case SND_SOC_DAIFMT_CBP_CFP:
+	case SND_SOC_DAIFMT_CBC_CFC:
 		break;
 	default:
 		dev_err(component->dev, "Unsupported DAI master mode\n");

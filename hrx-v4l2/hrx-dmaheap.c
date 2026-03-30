@@ -741,6 +741,6 @@ void *syna_hrx_get_pt_phyaddr(void *handle)
 }
 EXPORT_SYMBOL_GPL(syna_hrx_get_pt_phyaddr);
 
-MODULE_IMPORT_NS(SYNA_BM);
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("SYNA_BM");
+MODULE_IMPORT_NS("DMA_BUF");
 #endif

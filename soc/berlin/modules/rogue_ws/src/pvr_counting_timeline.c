@@ -44,6 +44,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/kref.h>
+#include <linux/version.h>
 
 #include "services_kernel_client.h"
 #include "pvr_counting_timeline.h"
@@ -121,8 +122,12 @@ pvr_counting_fence_timeline_debug_request(void *data, u32 verbosity,
 				  value, timeline->current_value);
 		list_for_each_entry(obj, &timeline->active_fences,
 				    active_list_entry) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 			obj->fence->ops->fence_value_str(obj->fence,
 							 value, sizeof(value));
+#else
+			snprintf(value, sizeof(value), "%llu", obj->value);
+#endif
 			PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile,
 					  " @%s: val=%llu", value, obj->value);
 		}

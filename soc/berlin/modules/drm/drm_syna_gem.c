@@ -13,6 +13,7 @@
 #include <linux/capability.h>
 #include <drm/drm_mm.h>
 #include <drm/drm_prime.h>
+#include <drm/drm_print.h>
 #include <linux/version.h>
 
 #include "drm_syna_drv.h"
@@ -427,7 +428,6 @@ int syna_gem_dumb_map_offset(struct drm_file *file,
 	struct drm_gem_object *obj = NULL;
 	int err = 0;
 
-	mutex_lock(&dev->struct_mutex);
 
 	obj = drm_gem_object_lookup(file, handle);
 	if (!obj) {
@@ -445,7 +445,7 @@ int syna_gem_dumb_map_offset(struct drm_file *file,
 exit_obj_unref:
 	DRM_GEM_OBJECT_PUT(obj);
 exit_unlock:
-	mutex_unlock(&dev->struct_mutex);
+
 	return err;
 }
 
@@ -527,7 +527,6 @@ int syna_gem_object_cpu_prep_ioctl(struct drm_device *dev, void *data,
 		return -EINVAL;
 	}
 
-	mutex_lock(&dev->struct_mutex);
 
 	obj = drm_gem_object_lookup(file, args->handle);
 	if (!obj) {
@@ -552,7 +551,6 @@ int syna_gem_object_cpu_prep_ioctl(struct drm_device *dev, void *data,
 exit_unref:
 	DRM_GEM_OBJECT_PUT(obj);
 exit_unlock:
-	mutex_unlock(&dev->struct_mutex);
 	return err;
 }
 
@@ -570,7 +568,6 @@ int syna_gem_object_cpu_fini_ioctl(struct drm_device *dev, void *data,
 		return -EINVAL;
 	}
 
-	mutex_lock(&dev->struct_mutex);
 
 	obj = drm_gem_object_lookup(file, args->handle);
 	if (!obj) {
@@ -590,6 +587,5 @@ int syna_gem_object_cpu_fini_ioctl(struct drm_device *dev, void *data,
 exit_unref:
 	DRM_GEM_OBJECT_PUT(obj);
 exit_unlock:
-	mutex_unlock(&dev->struct_mutex);
 	return err;
 }

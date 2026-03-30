@@ -20,6 +20,7 @@
 #include <drm/drm_modes.h>
 #include <video/videomode.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_print.h>
 
 #include "drm_syna_drv.h"
 
@@ -59,8 +60,8 @@ static int syna_dsi_connector_helper_get_modes(struct drm_connector *connector)
 	return num_modes;
 }
 
-static int syna_dsi_connector_helper_mode_valid(struct drm_connector *connector,
-						struct drm_display_mode *mode)
+static enum drm_mode_status syna_dsi_connector_helper_mode_valid(struct drm_connector *connector,
+						const struct drm_display_mode *mode)
 {
 	struct syna_drm_private *dev_priv = connector->dev->dev_private;
 	VPP_MIPI_CONFIG_PARAMS *pvpp_mipi_param = dev_priv->vpp_config_param.mipi_resinfo_params;

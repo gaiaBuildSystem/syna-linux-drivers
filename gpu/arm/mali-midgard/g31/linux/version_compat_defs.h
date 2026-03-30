@@ -406,6 +406,11 @@ static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct m
 #define __maybe_unused __attribute__((unused))
 #endif
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+#define del_timer(t) timer_delete(t)
+#define del_timer_sync(t) timer_delete_sync(t)
+#endif
+
 /* Definition of struct defined as extern in of.h */
 #if KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE
 #define mali_kobj_type const struct kobj_type

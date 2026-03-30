@@ -1006,4 +1006,4 @@ module_platform_driver(shm_driver);
 MODULE_AUTHOR("synaptics");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("shm module");
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");

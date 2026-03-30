@@ -115,8 +115,12 @@ DECLARE_EVENT_CLASS(pvr_fence,
 			fence->base.ops->get_driver_name(&fence->base));
 		pvr_assign_str(timeline,
 			fence->base.ops->get_timeline_name(&fence->base));
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 		fence->base.ops->fence_value_str(&fence->base,
 			__entry->val, sizeof(__entry->val));
+#else
+		snprintf(__entry->val, sizeof(__entry->val), "%llu", fence->base.seqno);
+#endif
 		__entry->context = fence->base.context;
 	),
 
@@ -174,8 +178,12 @@ DECLARE_EVENT_CLASS(pvr_fence_foreign,
 			fence->base.ops->get_driver_name(&fence->base));
 		pvr_assign_str(timeline,
 			fence->base.ops->get_timeline_name(&fence->base));
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 		fence->base.ops->fence_value_str(&fence->base, __entry->val,
 			sizeof(__entry->val));
+#else
+		snprintf(__entry->val, sizeof(__entry->val), "%llu", fence->base.seqno);
+#endif
 		__entry->context = fence->base.context;
 		pvr_assign_str(foreign_driver,
 			fence->fence->ops->get_driver_name ?
@@ -185,12 +193,16 @@ DECLARE_EVENT_CLASS(pvr_fence_foreign,
 			fence->fence->ops->get_timeline_name ?
 			fence->fence->ops->get_timeline_name(fence->fence) :
 			"unknown");
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 		fence->fence->ops->fence_value_str ?
 			fence->fence->ops->fence_value_str(
 				fence->fence, __entry->foreign_val,
 				sizeof(__entry->foreign_val)) :
 			(void) OSStringSafeCopy(__entry->foreign_val,
 				"unknown", sizeof(__entry->foreign_val));
+#else
+		snprintf(__entry->foreign_val, sizeof(__entry->foreign_val), "%llu", fence->fence->seqno);
+#endif
 		__entry->foreign_context = fence->fence->context;
 	),
 

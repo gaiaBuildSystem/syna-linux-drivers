@@ -66,7 +66,7 @@ static inline bool is_cust_dmabuf(struct dma_buf *dmabuf)
 {
 	unsigned long flags;
 
-	if (dma_buf_get_flags(dmabuf, &flags))
+	if (!dmabuf->ops->get_flags || dmabuf->ops->get_flags(dmabuf, &flags))
 		return false;
 
 	if (flags & DMA_BUF_FLAG_CUST_HEAP)
@@ -80,7 +80,7 @@ static struct berlin_meta *dmabuf_get_meta(struct dma_buf *dmabuf)
 	unsigned long dmabuf_flags;
 	berlin_meta_t *data;
 
-	if (dma_buf_get_flags(dmabuf, &dmabuf_flags))
+	if (!dmabuf->ops->get_flags || dmabuf->ops->get_flags(dmabuf, &dmabuf_flags))
 		return NULL;
 
 	if (dmabuf_flags & DMA_BUF_FLAG_CUST_HEAP) {
@@ -96,7 +96,7 @@ struct berlin_meta *bm_fetch_meta(struct dma_buf *dmabuf)
 {
 	return dmabuf_get_meta(dmabuf);
 }
-EXPORT_SYMBOL_NS(bm_fetch_meta, SYNA_BM);
+EXPORT_SYMBOL_NS(bm_fetch_meta, "SYNA_BM");
 
 static void print_pte_node(struct seq_file *s, int i, struct berlin_pte_node *pn)
 {
@@ -125,7 +125,7 @@ static void print_pte_node(struct seq_file *s, int i, struct berlin_pte_node *pn
 	phys = PFN_PHYS(page_to_pfn(page));
 	size = pn->dmabuf->size;
 	seq_printf(s, "|%4d|%4ld|%8d|%16s|%8d|%16s|%8llx|%8zx|%8llx|%8zx|\n",
-		   i, atomic_long_read(&pn->dmabuf->file->f_count),
+		   i, file_count(pn->dmabuf->file),
 		   pn->pid, pn->task_comm,
 		   pn->tid, pn->thread_name,
 		   phys, size,
@@ -353,7 +353,7 @@ int bm_create_pt(struct dma_buf *dmabuf, u32 flags,
 
 	return ret;
 }
-EXPORT_SYMBOL_NS(bm_create_pt, SYNA_BM);
+EXPORT_SYMBOL_NS(bm_create_pt, "SYNA_BM");
 
 static int bm_alloc_pt(int fd, u32 flags, struct bm_fb_param *fb_param,
 		       struct bm_pt_param *pt_param)
@@ -397,7 +397,7 @@ int bm_fetch_pt(struct dma_buf *dmabuf, struct bm_pt_param *pt_param)
 
 	return ret;
 }
-EXPORT_SYMBOL_NS(bm_fetch_pt, SYNA_BM);
+EXPORT_SYMBOL_NS(bm_fetch_pt, "SYNA_BM");
 
 static int bm_get_pt(int fd, struct bm_pt_param *pt_param)
 {
@@ -430,7 +430,7 @@ static int pte_node_destroy_by_callback(struct berlin_pte_node *pn)
 
 	pr_debug("start free pte node %pa, dma buf %p, ref %ld\n",
 		&pn->phy_addr_pt, pn->dmabuf,
-		atomic_long_read(&pn->dmabuf->file->f_count));
+		file_count(pn->dmabuf->file));
 
 	down_write(&bm_dev.pte_lock);
 	list_del(&pn->list);
@@ -703,4 +703,4 @@ module_platform_driver(bm_driver);
 MODULE_AUTHOR("synaptics");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("berlin bm module");
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");

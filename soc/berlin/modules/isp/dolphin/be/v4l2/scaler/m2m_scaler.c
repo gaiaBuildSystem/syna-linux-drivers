@@ -687,8 +687,6 @@ static const struct vb2_ops scaler_qops = {
 	.buf_prepare     = m2m_scaler_buf_prepare,
 	.buf_finish      = m2m_scaler_buf_finish,
 	.buf_queue       = m2m_scaler_buf_queue,
-	.wait_prepare    = vb2_ops_wait_prepare,
-	.wait_finish     = vb2_ops_wait_finish,
 	.stop_streaming  = m2m_scaler_stop_streaming,
 	.start_streaming = m2m_scaler_start_streaming,
 };
@@ -1336,7 +1334,7 @@ static int m2m_scaler_open(struct file *file)
 	/* Use separate control handler per file handle */
 	ctx->fh.ctrl_handler = &ctx->ctrl_handler;
 	file->private_data = &ctx->fh;
-	v4l2_fh_add(&ctx->fh);
+	v4l2_fh_add(&ctx->fh, file);
 
 	/* Set default formats for source and destination */
 	ctx->src = scaler_output_dflt_fmt;
@@ -1393,7 +1391,7 @@ error_scaler_fail:
 error_ctx_fail:
 	m2m_scaler_ctrls_delete(ctx);
 error_fh:
-	v4l2_fh_del(&ctx->fh);
+	v4l2_fh_del(&ctx->fh, file);
 	v4l2_fh_exit(&ctx->fh);
 	kfree(ctx);
 unlock:
@@ -1446,7 +1444,7 @@ static int m2m_scaler_release(struct file *file)
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 
 	/* Remove the context file handle from the V4L2 framework */
-	v4l2_fh_del(&ctx->fh);
+	v4l2_fh_del(&ctx->fh, file);
 
 	/* Clean up the context file handle resources */
 	v4l2_fh_exit(&ctx->fh);

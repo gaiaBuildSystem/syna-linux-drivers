@@ -26,6 +26,10 @@
 #include <drm/drm_fbdev_ttm.h>
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0))
+#include <drm/clients/drm_client_setup.h>
+#endif
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
 #define pde_data PDE_DATA
 #endif
@@ -52,7 +56,9 @@ typedef int RET_TYPE;
 #define SYNA_CLASS_CREATE(dev_name) class_create(THIS_MODULE, dev_name);
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0))
+#define SYNA_DRM_FBDEV_SETUP(DDEV, BBP) drm_client_setup_with_color_mode(DDEV, BBP)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0))
 #define SYNA_DRM_FBDEV_SETUP(DDEV, BBP) drm_fbdev_ttm_setup(DDEV, BBP)
 #else
 #define SYNA_DRM_FBDEV_SETUP(DDEV, BBP) drm_fbdev_generic_setup(DDEV, BBP)

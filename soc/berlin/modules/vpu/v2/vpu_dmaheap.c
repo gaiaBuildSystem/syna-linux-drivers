@@ -912,5 +912,5 @@ const struct vb2_mem_ops syna_bm_dh_memops = {
 	.mmap = vb2_syna_dh_bm_mmap,
 };
 
-MODULE_IMPORT_NS(SYNA_BM);
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("SYNA_BM");
+MODULE_IMPORT_NS("DMA_BUF");

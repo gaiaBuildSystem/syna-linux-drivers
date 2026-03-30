@@ -9,7 +9,7 @@
 #include <linux/dma-buf.h>
 #include <linux/module.h>
 
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");
 
 struct synap_mem {
     struct synap_device *owner;

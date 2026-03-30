@@ -1118,8 +1118,6 @@ static void vb2ops_venc_buf_queue(struct vb2_buffer *vb)
 
 static const struct vb2_ops syan_venc_vb2_ops = {
 	.queue_setup = vb2ops_syna_vpu_queue_setup,
-	.wait_prepare = vb2_ops_wait_prepare,
-	.wait_finish = vb2_ops_wait_finish,
 	.buf_out_validate = vb2ops_venc_buf_out_validate,
 	.buf_init = vb2ops_syna_vpu_buf_init,
 	.buf_prepare = vb2ops_venc_buf_prepare,
@@ -1460,7 +1458,7 @@ static int vepu_driver_open(struct file *filp)
 	}
 
 	filp->private_data = &ctx->fh;
-	v4l2_fh_add(&ctx->fh);
+	v4l2_fh_add(&ctx->fh, filp);
 
 	ret = vpu_enc_ctrls_init(&ctx->ctrl_handler);
 	if (ret) {
@@ -1473,7 +1471,7 @@ static int vepu_driver_open(struct file *filp)
 	return 0;
 
 err_fh_free:
-	v4l2_fh_del(&ctx->fh);
+	v4l2_fh_del(&ctx->fh, filp);
 	v4l2_fh_exit(&ctx->fh);
 err_ctx_free:
 	syna_venc_destroy_instance(ctx);
@@ -1497,7 +1495,7 @@ static int vepu_driver_release(struct file *filp)
 	int ret;
 
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
-	v4l2_fh_del(&ctx->fh);
+	v4l2_fh_del(&ctx->fh, filp);
 	v4l2_fh_exit(&ctx->fh);
 	vpu_enc_ctrls_deinit(&ctx->ctrl_handler);
 

@@ -8,6 +8,7 @@
  */
 
 #include "drm_syna_common.h"
+#include <drm/drm_print.h>
 
 const struct vm_operations_struct syna_gem_vm_ops = {
 	.open = drm_gem_vm_open,

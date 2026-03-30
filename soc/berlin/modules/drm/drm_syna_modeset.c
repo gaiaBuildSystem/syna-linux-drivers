@@ -19,6 +19,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_print.h>
 #include "syna_vpp.h"
 
 static bool async_flip_enable = true;
@@ -55,6 +56,7 @@ void __weak syna_hdmi_remove_debugfs_entry(struct syna_drm_private *dev_priv)
 
 static struct drm_framebuffer *syna_fb_create(struct drm_device *dev,
 						  struct drm_file *file,
+						  const struct drm_format_info *info,
 						  const struct drm_mode_fb_cmd2
 						  *mode_cmd)
 {
@@ -92,7 +94,7 @@ static struct drm_framebuffer *syna_fb_create(struct drm_device *dev,
 		return ERR_PTR(-EINVAL);
 	}
 
-	fb = drm_gem_fb_create(dev, file, mode_cmd);
+	fb = drm_gem_fb_create(dev, file, info, mode_cmd);
 	if (IS_ERR(fb))
 		goto out;
 

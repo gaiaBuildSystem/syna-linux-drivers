@@ -18,6 +18,7 @@
  * driver for PWM_GEN blocks of DSPG DVF platforms
  */
 
+#include <linux/version.h>
 #include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/io.h>
@@ -337,7 +338,11 @@ static int dvf_pwm_remove(struct platform_device *pdev)
 {
 	struct dvf_pwm_chip *pwm = platform_get_drvdata(pdev);
 
-	del_timer_sync(&pwm->clk_off_timer);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+        timer_delete_sync(&pwm->clk_off_timer);
+#else
+        del_timer_sync(&pwm->clk_off_timer);
+#endif
 
 	if (reset_control_assert(pwm->rc))
 		dev_err(pwm->chip.dev, "unable to assert reset");

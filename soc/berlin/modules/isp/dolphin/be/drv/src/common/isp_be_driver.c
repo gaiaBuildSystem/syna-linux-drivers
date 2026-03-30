@@ -111,7 +111,7 @@ static struct platform_driver isp_be_driver = {
 
 module_platform_driver(isp_be_driver);
 
-MODULE_IMPORT_NS(SYNA_BM);
+MODULE_IMPORT_NS("SYNA_BM");
 MODULE_AUTHOR("Synaptics");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ISP BE Driver");

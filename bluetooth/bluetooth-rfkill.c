@@ -137,7 +137,7 @@ MODULE_DEVICE_TABLE(of, rfkill_of_match);
 
 static struct platform_driver rfkill_bluetooth_driver = {
 	.probe  = rfkill_bluetooth_probe,
-	.remove_new = rfkill_bluetooth_remove,
+	.remove = rfkill_bluetooth_remove,
 	.driver = {
 		.name = "bluetooth-rfkill",
 		.of_match_table = rfkill_of_match,

@@ -233,14 +233,14 @@ static int i2s_mic6_set_dai_fmt(struct snd_soc_dai *dai,
 	}
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-	case SND_SOC_DAIFMT_CBM_CFM:
+	case SND_SOC_DAIFMT_CBP_CFP:
 		outdai->cfg.is_master = false;
 		break;
-	case SND_SOC_DAIFMT_CBS_CFS:
+	case SND_SOC_DAIFMT_CBC_CFC:
 		outdai->cfg.is_master = true;
 		break;
-	case SND_SOC_DAIFMT_CBM_CFS:
-	case SND_SOC_DAIFMT_CBS_CFM:
+	case SND_SOC_DAIFMT_CBP_CFC:
+	case SND_SOC_DAIFMT_CBC_CFP:
 	default:
 		dev_err(dai->dev, "Do not support DAI master mask %x\n", fmt);
 		return -EINVAL;

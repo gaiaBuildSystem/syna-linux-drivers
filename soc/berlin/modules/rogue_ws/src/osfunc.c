@@ -69,7 +69,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/utsname.h>
 #include <linux/scatterlist.h>
 #include <linux/interrupt.h>
-#include <linux/pfn_t.h>
 #include <linux/pfn.h>
 #include <linux/pid.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
@@ -1452,7 +1451,7 @@ static void OSTimerCallbackBody(TIMER_CALLBACK_DATA *psTimerCBData)
 */ /**************************************************************************/
 static void OSTimerCallbackWrapper(struct timer_list *psTimer)
 {
-	TIMER_CALLBACK_DATA *psTimerCBData = from_timer(psTimerCBData, psTimer, sTimer);
+	TIMER_CALLBACK_DATA *psTimerCBData = timer_container_of(psTimerCBData, psTimer, sTimer);
 #else
 /*************************************************************************/ /*!
 @Function       OSTimerCallbackWrapper
@@ -1594,7 +1593,7 @@ PVRSRV_ERROR OSDisableTimer (IMG_HANDLE hTimer)
 	flush_workqueue(psTimerWorkQueue);
 
 	/* remove timer */
-	del_timer_sync(&psTimerCBData->sTimer);
+	timer_delete_sync(&psTimerCBData->sTimer);
 
 	/*
 	 * This second flush is to catch the case where the timer ran

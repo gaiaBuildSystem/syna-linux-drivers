@@ -10,6 +10,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_encoder.h>
 #include <drm/drm_modeset_helper_vtables.h>
+#include <drm/drm_print.h>
 #include "drm_syna_drv.h"
 #include "vpp_api.h"
 #include <drm/drm_panel.h>

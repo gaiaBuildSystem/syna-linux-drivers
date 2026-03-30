@@ -20,6 +20,7 @@
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_drv.h>
+#include <drm/drm_print.h>
 #include <drm/drm_gem.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_ioctl.h>
@@ -35,7 +36,6 @@
 
 #define DRIVER_NAME "synaptics"
 #define DRIVER_DESC "Synaptics DRM Display Driver"
-#define DRIVER_DATE "20200101"
 
 #define MAX_THEAD_NAME_CHAR 16
 
@@ -292,7 +292,6 @@ static struct drm_driver syna_drm_driver = {
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
-	.date = DRIVER_DATE,
 	.major = SYNA_VERSION_MAJ,
 	.minor = SYNA_VERSION_MIN,
 	.patchlevel = SYNA_VERSION_BUILD,
@@ -479,7 +478,7 @@ static void __exit syna_exit(void)
 late_initcall(syna_init);
 module_exit(syna_exit);
 
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");
 MODULE_AUTHOR("Synaptics");
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("Dual MIT/GPL");

@@ -1005,6 +1005,7 @@ static int vvcam_videoc_s_input(struct file *file, void *fh, unsigned int input)
     return input == 0 ? 0 : -EINVAL;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 static int vvcam_videoc_queryctrl(struct file *file, void *fh,
                 struct v4l2_queryctrl *a)
 {
@@ -1041,6 +1042,7 @@ static int vvcam_videoc_queryctrl(struct file *file, void *fh,
 
     return ret;
 }
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) */
 
 static int vvcam_videoc_query_ext_ctrl(struct file *file, void *fh,
                 struct v4l2_query_ext_ctrl *a)
@@ -1079,6 +1081,7 @@ static int vvcam_videoc_query_ext_ctrl(struct file *file, void *fh,
     return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 static int vvcam_vidioc_g_ctrl(struct file *file, void *fh,
             struct v4l2_control *a)
 {
@@ -1153,6 +1156,7 @@ static int vvcam_vidioc_s_ctrl(struct file *file, void *fh,
 
     return ret;
 }
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) */
 
 static int vvcam_vidioc_g_ext_ctrls(struct file *file, void *fh,
                 struct v4l2_ext_controls *a)
@@ -1349,10 +1353,14 @@ static const struct v4l2_ioctl_ops vvcam_video_ioctl_ops = {
     .vidioc_s_parm              = vvcam_videoc_s_parm,
     .vidioc_enum_framesizes     = vvcam_videoc_enum_framesizes,
     .vidioc_enum_frameintervals = vvcam_videoc_enum_frmaeintervals,*/
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
     .vidioc_queryctrl           = vvcam_videoc_queryctrl,
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) */
     .vidioc_query_ext_ctrl      = vvcam_videoc_query_ext_ctrl,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
     .vidioc_g_ctrl              = vvcam_vidioc_g_ctrl,
     .vidioc_s_ctrl              = vvcam_vidioc_s_ctrl,
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) */
     .vidioc_g_ext_ctrls         = vvcam_vidioc_g_ext_ctrls,
     .vidioc_s_ext_ctrls         = vvcam_vidioc_s_ext_ctrls,
     .vidioc_try_ext_ctrls       = vvcam_vidioc_try_ext_ctrls,
@@ -1678,8 +1686,6 @@ static const struct vb2_ops vvcam_video_queue_ops = {
     .queue_setup     = vvcam_video_vb2_queue_setup,
     .buf_prepare     = vvcam_video_vb2_buf_prepare,
     .buf_queue       = vvcam_video_vb2_buf_queue,
-    .wait_prepare    = vb2_ops_wait_prepare,
-    .wait_finish     = vb2_ops_wait_finish,
     .start_streaming = vvcam_video_vb2_start_streaming,
     .stop_streaming  = vvcam_video_vb2_stop_streaming,
 };

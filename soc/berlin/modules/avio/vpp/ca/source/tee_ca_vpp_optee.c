@@ -8,6 +8,7 @@
 #include <linux/mutex.h>
 #include <linux/proc_fs.h>
 #include <linux/tee_drv.h>
+#include <linux/fdtable.h>
 
 #include "tee_ca_vpp.h"
 #include "tee_ca_common.h"
@@ -74,7 +75,6 @@ static int VPP_CA_alloc(unsigned int len, void **handle)
 	shm = tee_shm_alloc_kernel_buf(g_vppCaContext.context, len);
 	if (IS_ERR(shm)) {
 		pr_err("fail to allocate share memory: size %x\n", len);
-		kfree(shm);
 		return -ENOMEM;
 	}
 
@@ -90,18 +90,20 @@ static void VPP_CA_free(void *handle)
 
 static int VPP_CA_RegisterMemory(VPP_MEM *vppMem)
 {
-	int fd;
 	struct tee_shm *shm;
 
-	fd = dma_buf_fd(vppMem->handle, O_RDWR);
-	if (fd < 0) {
-		pr_err("failed to get dma-buf fd (err=%d/%x)\n", fd, fd);
-		return -ENOMEM;
-	}
-
-	shm = tee_shm_register_fd(g_vppCaContext.context, fd);
+	/*
+	 * tee_shm_register_fd() requires the dma_buf to come from a TEE DMA
+	 * heap (checked via dmabuf->ops == &tee_heap_buf_ops). VPP buffers are
+	 * from CMA/NonSecure-NC heaps which are NOT TEE heaps, so that path
+	 * always returns -EINVAL.  Use tee_shm_register_kernel_buf() instead:
+	 * it registers the kernel virtual address directly as OP-TEE dynamic
+	 * shared memory without any heap-ops check.
+	 */
+	shm = tee_shm_register_kernel_buf(g_vppCaContext.context,
+					  vppMem->k_addr, vppMem->size);
 	if (IS_ERR(shm)) {
-		pr_err("failed to register fd %x\n", fd);
+		pr_err("failed to register kernel buf (err=%ld)\n", PTR_ERR(shm));
 		return -ENOMEM;
 	}
 
@@ -397,6 +399,8 @@ int VPP_CA_PassVbufInfo(int is_vpp_ta, void *Vbuf, unsigned int VbufSize,
 	if (!vppMem->teeShm) {
 		//Register the VBUF_INFO Only once
 		ret = VPP_CA_RegisterMemory(vppMem);
+		if (ret)
+			return ret;
 	}
 
 	index = VPP_CA_GetInstanceID();

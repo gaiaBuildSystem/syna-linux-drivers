@@ -12,6 +12,7 @@
 #include <linux/platform_device.h>
 
 #include "drm_syna_drv.h"
+#include <drm/drm_print.h>
 
 #include "vpp_api.h"
 #include "syna_vpp.h"

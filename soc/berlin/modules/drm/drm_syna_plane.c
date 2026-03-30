@@ -10,6 +10,7 @@
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_print.h>
 #include "drm_syna_drv.h"
 #include "drm_syna_gem.h"
 #include "syna_vpp.h"
@@ -60,7 +61,7 @@ static void syna_plane_set_surface(struct drm_crtc *crtc, struct drm_plane *plan
 static int syna_plane_helper_atomic_check(struct drm_plane *plane,
 					  syna_drm_plane_state *state)
 {
-	struct drm_plane_state *plane_state = syna_get_drm_plane_state(state, plane);
+	struct drm_plane_state *plane_state = syna_get_drm_plane_state_by_new(state, plane);
 	struct drm_crtc_state *crtc_new_state;
 
 	if (!plane_state->crtc)

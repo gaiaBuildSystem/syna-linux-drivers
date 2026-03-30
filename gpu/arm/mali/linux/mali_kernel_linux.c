@@ -1,9 +1,9 @@
 /**
  * Copyright (C) 2010-2016, 2018 ARM Limited. All rights reserved.
- * 
+ *
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
+ *
  * A copy of the licence is included with the program, and can also be obtained from Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
@@ -384,8 +384,11 @@ void mali_init_cpu_time_counters_on_all_cpus(int print_only)
 	while (jiffies_wait) jiffies_wait = schedule_timeout_uninterruptible(jiffies_wait);
 
 	for (i = 0 ; i < 8 ; i++) {
-		del_timer_sync(&mali_init_cpu_clock_timers[i]);
-	}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+                timer_delete_sync(&mali_init_cpu_clock_timers[i]);
+#else
+                del_timer_sync(&mali_init_cpu_clock_timers[i]);
+#endif
 
 	if (print_only) {
 		if ((0 == mali_cpu_clock_last_value[2]) && (0 == mali_cpu_clock_last_value[3])) {

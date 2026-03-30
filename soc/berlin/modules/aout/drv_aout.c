@@ -1919,4 +1919,4 @@ module_platform_driver(aout_driver);
 MODULE_AUTHOR("synaptics");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("AOUT module driver");
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("DMA_BUF");

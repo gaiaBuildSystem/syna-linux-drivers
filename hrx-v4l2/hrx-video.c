@@ -333,8 +333,6 @@ static const struct vb2_ops syna_hrx_vb2_ops = {
 	.buf_queue = vb2ops_hrx_buf_queue,
 	.start_streaming = vb2ops_hrx_start_streaming,
 	.stop_streaming = vb2ops_hrx_stop_streaming,
-	.wait_prepare = vb2_ops_wait_prepare,
-	.wait_finish = vb2_ops_wait_finish,
 };
 
 static int queue_init(void *priv)

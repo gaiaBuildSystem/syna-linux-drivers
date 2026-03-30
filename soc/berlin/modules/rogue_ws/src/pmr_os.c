@@ -45,7 +45,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0))
 #include <linux/pfn_t.h>
+#endif
 #include <linux/pfn.h>
 
 #include "img_defs.h"

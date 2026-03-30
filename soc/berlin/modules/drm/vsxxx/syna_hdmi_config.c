@@ -5,6 +5,7 @@
  */
 
 #include "syna_hdmi_config.h"
+#include <drm/drm_print.h>
 
 int syna_hdmi_tx_read_config(struct syna_conn_hdmi *syna_hdmi)
 {

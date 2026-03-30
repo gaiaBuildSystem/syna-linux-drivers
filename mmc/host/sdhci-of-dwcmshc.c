@@ -355,6 +355,32 @@ static void dwcmshc_reset(struct sdhci_host *host, u8 mask)
 	}
 }
 
+static unsigned int dwcmshc_get_max_clock(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	unsigned int rate = 0;
+
+	if (pltfm_host->clk)
+		rate = sdhci_pltfm_clk_get_max_clock(host);
+	else
+		rate = pltfm_host->clock;
+
+	if (rate)
+		return rate;
+
+	if (host->version >= SDHCI_SPEC_300)
+		rate = FIELD_GET(SDHCI_CLOCK_V3_BASE_MASK, host->caps);
+	else
+		rate = FIELD_GET(SDHCI_CLOCK_BASE_MASK, host->caps);
+
+	rate *= 1000000;
+	if (rate)
+		pr_warn("%s: core clk rate is 0, fallback to caps clock %u Hz\n",
+			mmc_hostname(host->mmc), rate);
+
+	return rate;
+}
+
 static const u8 phy_reg_val[][22] = {
 	{
 		/* 3.3V */
@@ -779,7 +805,7 @@ static const struct sdhci_ops sdhci_dwcmshc_ops = {
 	.set_clock		= sdhci_set_clock,
 	.set_bus_width		= sdhci_set_bus_width,
 	.set_uhs_signaling	= dwcmshc_set_uhs_signaling,
-	.get_max_clock		= sdhci_pltfm_clk_get_max_clock,
+	.get_max_clock		= dwcmshc_get_max_clock,
 	.reset			= dwcmshc_reset,
 	.adma_write_desc	= dwcmshc_adma_write_desc,
 };
@@ -796,6 +822,7 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	struct sdhci_pltfm_host *pltfm_host;
 	struct sdhci_host *host;
 	struct dwcmshc_priv *priv;
+	u32 caps;
 	int err;
 	u32 extra;
 
@@ -893,6 +920,10 @@ static int dwcmshc_probe(struct platform_device *pdev)
 
 	priv->vendor_ptr = sdhci_readw(host, SDHCI_VENDOR_PTR_R);
 
+	caps = sdhci_readl(host, SDHCI_CAPABILITIES);
+	if (caps & SDHCI_CAN_64BIT_V4)
+		sdhci_enable_v4_mode(host);
+
 	host->mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY;
 
 	pm_runtime_get_noresume(&pdev->dev);
@@ -912,7 +943,8 @@ err_rpm:
 	pm_runtime_put_noidle(&pdev->dev);
 err_clk:
 	clk_disable_unprepare(pltfm_host->clk);
-	clk_disable_unprepare(priv->bus_clk);
+	if (!IS_ERR(priv->bus_clk))
+		clk_disable_unprepare(priv->bus_clk);
 deselect_mux:
 	if (priv->muxs)
 		mux_state_deselect(priv->muxs);;
@@ -946,7 +978,8 @@ static RET dwcmshc_remove(struct platform_device *pdev)
 	dwcmshc_disable_card_clk(host);
 
 	clk_disable_unprepare(pltfm_host->clk);
-	clk_disable_unprepare(priv->bus_clk);
+	if (!IS_ERR(priv->bus_clk))
+		clk_disable_unprepare(priv->bus_clk);
 
 	if (priv->muxs)
 		mux_state_deselect(priv->muxs);;
@@ -985,8 +1018,10 @@ static int dwcmshc_resume(struct device *dev)
 	struct dwcmshc_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
 
-	reset_control_reset(priv->rst);
-	reset_control_assert(priv->phy_rst);
+	if (!IS_ERR(priv->rst))
+		reset_control_reset(priv->rst);
+	if (!IS_ERR(priv->phy_rst))
+		reset_control_assert(priv->phy_rst);
 
 	ret = clk_prepare_enable(pltfm_host->clk);
 	if (ret)
@@ -1060,14 +1095,14 @@ static void dwcmshc_shutdown(struct platform_device *pdev)
 }
 
 static const struct of_device_id sdhci_dwcmshc_dt_ids[] = {
-	{ .compatible = "snps,dwcmshc-sdhci" },
+	{ .compatible = "synaptics,syna-dwcmshc" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, sdhci_dwcmshc_dt_ids);
 
 static struct platform_driver sdhci_dwcmshc_driver = {
 	.driver	= {
-		.name	= "sdhci-dwcmshc",
+		.name	= "sdhci-synaptics-dwcmshc",
 		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 		.of_match_table = sdhci_dwcmshc_dt_ids,
 		.pm = &dwcmshc_pmops,

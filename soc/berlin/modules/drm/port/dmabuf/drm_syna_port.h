@@ -35,11 +35,11 @@
 
 typedef struct drm_atomic_state syna_drm_crtc_state;
 #define syna_get_drm_crtc_state(state, crtc) \
-	drm_atomic_get_crtc_state(state, crtc);
+	drm_atomic_get_old_crtc_state(state, crtc)
 
 typedef struct drm_atomic_state syna_drm_plane_state;
 #define syna_get_drm_plane_state(state, plane) \
-			drm_atomic_get_plane_state(state, plane)
+			drm_atomic_get_old_plane_state(state, plane)
 #define syna_get_drm_plane_state_by_new(state, plane) \
 			drm_atomic_get_new_plane_state(state, plane)
 

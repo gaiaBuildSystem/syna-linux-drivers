@@ -45,6 +45,7 @@
 #include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 
 #include "pvr_fence.h"
 #include "services_kernel_client.h"
@@ -131,19 +132,25 @@ pvr_fence_context_fences_dump(struct pvr_fence_context *fctx,
 		const char *timeline_value_str = "unknown timeline value";
 		const char *fence_value_str = "unknown fence value";
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 		pvr_fence->base.ops->fence_value_str(&pvr_fence->base, value,
 						     sizeof(value));
+#else
+		snprintf(value, sizeof(value), "%llu", pvr_fence->base.seqno);
+#endif
 		PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile,
 				  " @%s", value);
 
 		if (is_pvr_fence(fence))
 			continue;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 		if (fence->ops->timeline_value_str) {
 			fence->ops->timeline_value_str(fence, value,
 						       sizeof(value));
 			timeline_value_str = value;
 		}
+#endif
 
 		PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile,
 				  " | %s: %s (driver: %s)",
@@ -151,11 +158,13 @@ pvr_fence_context_fences_dump(struct pvr_fence_context *fctx,
 				  timeline_value_str,
 				  fence->ops->get_driver_name(fence));
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 		if (fence->ops->fence_value_str) {
 			fence->ops->fence_value_str(fence, value,
 						    sizeof(value));
 			fence_value_str = value;
 		}
+#endif
 
 		PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile,
 				  " |  @%s (foreign)", fence_value_str);
@@ -547,6 +556,7 @@ pvr_fence_get_timeline_name(struct dma_fence *fence)
 	return NULL;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 static
 void pvr_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
 {
@@ -580,6 +590,7 @@ void pvr_fence_timeline_value_str(struct dma_fence *fence, char *str, int size)
 	if (pvr_fence)
 		pvr_context_value_str(pvr_fence->fctx, str, size);
 }
+#endif
 
 static bool
 pvr_fence_enable_signaling(struct dma_fence *fence)
@@ -644,8 +655,10 @@ pvr_fence_release(struct dma_fence *fence)
 const struct dma_fence_ops pvr_fence_ops = {
 	.get_driver_name = pvr_fence_get_driver_name,
 	.get_timeline_name = pvr_fence_get_timeline_name,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 	.fence_value_str = pvr_fence_fence_value_str,
 	.timeline_value_str = pvr_fence_timeline_value_str,
+#endif
 	.enable_signaling = pvr_fence_enable_signaling,
 	.signaled = pvr_fence_is_signaled,
 	.wait = dma_fence_default_wait,
@@ -738,6 +751,7 @@ pvr_fence_foreign_get_timeline_name(struct dma_fence *fence)
 	return "foreign";
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 static
 void pvr_fence_foreign_fence_value_str(struct dma_fence *fence, char *str,
 				       int size)
@@ -779,6 +793,7 @@ void pvr_fence_foreign_timeline_value_str(struct dma_fence *fence, char *str,
 	if (pvr_fence)
 		pvr_context_value_str(pvr_fence->fctx, str, size);
 }
+#endif
 
 static bool
 pvr_fence_foreign_enable_signaling(struct dma_fence *fence)
@@ -825,8 +840,10 @@ pvr_fence_foreign_release(struct dma_fence *fence)
 const struct dma_fence_ops pvr_fence_foreign_ops = {
 	.get_driver_name = pvr_fence_foreign_get_driver_name,
 	.get_timeline_name = pvr_fence_foreign_get_timeline_name,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 	.fence_value_str = pvr_fence_foreign_fence_value_str,
 	.timeline_value_str = pvr_fence_foreign_timeline_value_str,
+#endif
 	.enable_signaling = pvr_fence_foreign_enable_signaling,
 	.wait = pvr_fence_foreign_wait,
 	.release = pvr_fence_foreign_release,

@@ -21,6 +21,7 @@
 
 #include "syna_drm_priv.h"
 #include "syna_vpp_config.h"
+#include <drm/drm_print.h>
 
 #define VPP_GET_MTR_STRIDE(mtrcfg2) (((mtrcfg2 >> 4) & 0x3FFFFF) << (6 + 2))
 #define DEFAULT_DEVICE_ROTATION 0

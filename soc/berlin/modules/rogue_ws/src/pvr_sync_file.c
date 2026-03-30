@@ -1247,7 +1247,11 @@ static void _dump_sync_point(struct dma_fence *fence,
 	bool signaled = dma_fence_is_signaled(fence);
 	char time[16] = { '\0' };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0))
 	fence_ops->timeline_value_str(fence, time, sizeof(time));
+#else
+	snprintf(time, sizeof(time), "%llu", (u64) fence->seqno);
+#endif
 
 	PVR_DUMPDEBUG_LOG(dump_debug_printf,
 					  dump_debug_file,

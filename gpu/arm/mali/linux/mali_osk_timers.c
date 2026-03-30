@@ -1,9 +1,9 @@
 /*
  * Copyright (C) 2010-2014, 2018 ARM Limited. All rights reserved.
- * 
+ *
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
+ *
  * A copy of the licence is included with the program, and can also be obtained from Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
@@ -47,16 +47,21 @@ void _mali_osk_timer_mod(_mali_osk_timer_t *tim, unsigned long ticks_to_expire)
 void _mali_osk_timer_del(_mali_osk_timer_t *tim)
 {
 	MALI_DEBUG_ASSERT_POINTER(tim);
-	del_timer_sync(&(tim->timer));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+        timer_delete_sync(&(tim->timer));
+#else
+        del_timer_sync(&(tim->timer));
+#endif
 }
 
 void _mali_osk_timer_del_async(_mali_osk_timer_t *tim)
 {
-	MALI_DEBUG_ASSERT_POINTER(tim);
-	del_timer(&(tim->timer));
-}
-
-mali_bool _mali_osk_timer_pending(_mali_osk_timer_t *tim)
+        MALI_DEBUG_ASSERT_POINTER(tim);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+        timer_delete(&(tim->timer));
+#else
+        del_timer(&(tim->timer));
+#endif
 {
 	MALI_DEBUG_ASSERT_POINTER(tim);
 	return 1 == timer_pending(&(tim->timer));

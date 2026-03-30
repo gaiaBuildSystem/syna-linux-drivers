@@ -716,8 +716,8 @@ void *isp_dma_heap_get_pagetbl_phyaddr(void *handle)
 }
 EXPORT_SYMBOL_GPL(isp_dma_heap_get_pagetbl_phyaddr);
 
-MODULE_IMPORT_NS(SYNA_BM);
-MODULE_IMPORT_NS(DMA_BUF);
+MODULE_IMPORT_NS("SYNA_BM");
+MODULE_IMPORT_NS("DMA_BUF");
 MODULE_AUTHOR("Synaptics");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("DMA Heap memory driver");
