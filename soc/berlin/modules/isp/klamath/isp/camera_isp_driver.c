@@ -227,6 +227,19 @@ static const struct sensor_mode *find_scalable_mode(struct camera_isp_dev *isp_d
 	return best;
 }
 
+static void camera_isp_reset_controls(struct camera_isp_dev *isp_dev)
+{
+	struct v4l2_ctrl *ctrl;
+
+	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_WB_ENABLE);
+	if (ctrl)
+		v4l2_ctrl_s_ctrl(ctrl, ctrl->default_value);
+
+	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_DISABLE_SCALE_CROP);
+	if (ctrl)
+		v4l2_ctrl_s_ctrl(ctrl, ctrl->default_value);
+}
+
 /**
  * camera_isp_select_optimal_sensor_mode - Select optimal sensor mode
  * @requested_code: Preferred media bus format code (e.g. RGB888_1X24 or YUYV8_2X8)
@@ -301,6 +314,7 @@ static int camera_isp_select_optimal_sensor_mode(struct camera_isp_dev *isp_dev,
 			}
 		}
 		if (!selected) {
+			camera_isp_reset_controls(isp_dev);
 			dev_err(isp_dev->dev,
 				"bypass_isp_enabled: no sensor mode for %ux%u\n",
 				requested_width, requested_height);
@@ -681,19 +695,6 @@ static void camera_isp_csi_try_power_on(struct camera_isp_dev *isp_dev, int on)
 
 	if (call_csi_power)
 		camera_isp_csi_power(isp_dev, on);
-}
-
-static void camera_isp_reset_controls(struct camera_isp_dev *isp_dev)
-{
-	struct v4l2_ctrl *ctrl;
-
-	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_WB_ENABLE);
-	if (ctrl)
-		v4l2_ctrl_s_ctrl(ctrl, ctrl->default_value);
-
-	ctrl = v4l2_ctrl_find(&isp_dev->ctrl_handler, V4L2_CID_USER_DISABLE_SCALE_CROP);
-	if (ctrl)
-		v4l2_ctrl_s_ctrl(ctrl, ctrl->default_value);
 }
 
 static int camera_isp_s_stream(struct v4l2_subdev *sd, void *arg)
