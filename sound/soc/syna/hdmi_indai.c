@@ -203,6 +203,7 @@ static int berlin_indai_hw_params(struct snd_pcm_substream *substream,
 	ssparams.enable_mic_mute = true;
 	ssparams.interleaved = false;
 	ssparams.dummy_data = false;
+	ssparams.multi_lanes = false;
 
 	berlin_pcm_set_ch_mode(substream, ssparams.chid_num, 0,
 			ssparams.mode,
