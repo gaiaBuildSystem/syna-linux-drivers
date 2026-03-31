@@ -1170,11 +1170,12 @@ static void dmic_copy(struct snd_pcm_substream *ss)
 static __always_inline void process_spdif_channel_status(struct berlin_capture *bc, u32 sample)
 {
 	u8 preamble;
+	u8 c_bit;
 	int byte_idx, bit_idx;
 
 	/* Extract preamble type and C-bit from the sample */
 	preamble = (sample >> 28) & 0xF;
-	u8 c_bit = (sample >> 26) & 0x1;
+	c_bit = (sample >> 26) & 0x1;
 
 	/* Handle preamble B (start of block) */
 	if (unlikely(preamble == TYPE_RX_B)) {
@@ -1228,14 +1229,14 @@ static void spdif_copy(struct snd_pcm_substream *ss)
 	u32 *src = (u32 *)(bc->dma_area[0] + bc->read_offset);
 	u32 *dst = (u32 *)(runtime->dma_area + bc->runtime_offset);
 	const int32_t *spdif_src = (int32_t *)src;
+	int16_t *spdif_dst_16 = (int16_t *)dst;
+	int32_t *spdif_dst = (int32_t *)dst;
 	unsigned long flags;
 	int i, j;
 	int frames = bc->dma_period_ch /
 				(bc->channel_num * DHUB_FIFO_DEPTH / 8);
 
 	period_total = frames_to_bytes(runtime, frames);
-	int16_t *spdif_dst_16 = (int16_t *)dst;
-	int32_t *spdif_dst = (int32_t *)dst;
 
 	switch (bc->sample_format) {
 	case SNDRV_PCM_FORMAT_S16_LE:
