@@ -1398,7 +1398,7 @@ int berlin_capture_hw_params(struct snd_pcm_substream *ss,
 	bc->pcm_ratio_div = 1;
 	if (bc->sample_format == SNDRV_PCM_FORMAT_S16_LE)
 		bc->pcm_ratio *= 2;
-	else if (params_width(params)/8 == 3) {
+	else if (bc->sample_format == SNDRV_PCM_FORMAT_S24_3LE) {
 		bc->pcm_ratio *= 4;
 		bc->pcm_ratio_div = 3;
 	}
