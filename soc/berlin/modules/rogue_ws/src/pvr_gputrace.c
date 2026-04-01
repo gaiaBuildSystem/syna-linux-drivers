@@ -451,7 +451,6 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 		{
 			/* this enables FTrace globally (if not enabled nothing will appear
 			 * in the FTrace buffer) */
-			tracing_on();
 		}
 	}
 }
@@ -1369,7 +1368,6 @@ static PVRSRV_ERROR _GpuTraceSetEnabledCallback(
 		{
 			/* this enables FTrace globally (if not enabled nothing will appear
 			 * in the FTrace buffer) */
-			tracing_on();
 		}
 
 		/*  The HWPerf supplier is activated here,
