@@ -5,7 +5,9 @@ INC_PATH += -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/client_api
            -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tee/common \
            -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/include \
            -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd \
-           -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tz/common
+           -I$(srctree)/drivers/synaptics/soc/berlin/modules/tzd/tz/common \
+           -I$(srctree)/drivers/synaptics/soc/berlin/modules/tsp    \
+           -I$(srctree)/drivers/synaptics/soc/berlin/modules/msgQ
 endif
 
 ccflags-y += -Werror

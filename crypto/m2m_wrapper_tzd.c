@@ -6,13 +6,16 @@
 
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
+#include <linux/firmware.h>
 #include "tee_client_api.h"
 #include "uapi/m2m.h"
 #include "m2m_wrapper.h"
+#include "tsp.h"
 
 #define TA_M2M_UUID {0x1316a183, 0x894d, 0x43fe, \
 					{0x98, 0x93, 0xbb, 0x94, 0x6a, 0xe1, 0x03, 0xe9} }
 #define TSP_FIGO_REG_SIZE	    0x20000
+#define TA_IMG_PATH_M2M      "ta/libm2m.ta"
 
 static TEEC_UUID m2m_ta_uuid = TA_M2M_UUID;
 static TEEC_Context teec_ctx;
@@ -61,6 +64,49 @@ struct m2m_shadow_buff {
 	void *vir;
 };
 static struct m2m_shadow_buff shadow_dma_buff;
+
+
+static int tz_m2m_load_ta(struct device *dev, const char *ta_img_path)
+{
+	const struct firmware *fw = NULL;
+	TEEC_SharedMemory fw_shm = {};
+	TEEC_Parameter tee_param = {};
+	int ret;
+
+	ret = request_firmware(&fw, ta_img_path, dev);
+	if (ret) {
+		pr_err("faild req fw 0x%x %s\n", ret, ta_img_path);
+		return ret;
+	}
+
+	fw_shm.size = ALIGN(fw->size, PAGE_SIZE);
+	fw_shm.flags = TEEC_MEM_INPUT | TEEC_MEM_OUTPUT;
+	ret = TEEC_AllocateSharedMemory(&teec_ctx, &fw_shm);
+	if (ret || !fw_shm.buffer) {
+		pr_err("can't allocate memory(%zu) for firmware loading: 0x%x\n",
+			fw_shm.size, ret);
+		ret = -ENOMEM;
+		goto free_fw;
+	}
+	memcpy(fw_shm.buffer, fw->data, fw->size);
+
+	tee_param.memref.parent = &fw_shm;
+	tee_param.memref.size = fw_shm.size;
+	ret = TEEC_RegisterTA(&teec_ctx, &tee_param, TEEC_MEMREF_PARTIAL_INPUT);
+	if (TEEC_ERROR_ACCESS_CONFLICT == ret) {
+		pr_warn("%s TA has been loaded\n", ta_img_path);
+		ret = 0;
+	} else if (ret) {
+		pr_err("can't register %s TA: 0x%08x\n", ta_img_path, ret);
+	} else {
+		pr_info("TA loaded sucessfully - %s\n", ta_img_path);
+	}
+
+	TEEC_ReleaseSharedMemory(&fw_shm);
+free_fw:
+	release_firmware(fw);
+	return ret;
+}
 
 static int tz_m2m_errcode_translate(TEEC_Result result)
 {
@@ -214,8 +260,15 @@ int m2m_wrapper_init(struct device *dev)
 		pr_err("fail to initialize TEEC context: 0x%x\n", ret);
 		ctx_created = false;
 		goto error;
-	} else
+	} else {
 		ctx_created = true;
+	}
+
+	ret = tz_m2m_load_ta(dev, TA_IMG_PATH_M2M);
+	if (ret) {
+		pr_err("fail to load m2m ta\n");
+		goto error;
+	}
 
 	ret = m2m_wrapper_alloc(sizeof(struct drm_crypto_info), (void **)&pCryptoSM);
 	if (ret) {

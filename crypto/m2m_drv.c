@@ -36,6 +36,7 @@
 #include "m2m_wrapper.h"
 #if !IS_ENABLED(CONFIG_OPTEE)
 #include "tz_driver.h"
+#include "tsp.h"
 #else
 #include <linux/tee_drv.h>
 #endif
@@ -840,6 +841,9 @@ static int m2m_drv_probe(struct platform_device *pdev)
 #if !IS_ENABLED(CONFIG_OPTEE)
 	/* Defer probe since there is dependency of tzd */
 	if (!tzd_get_kernel_dev_file())
+		return -EPROBE_DEFER;
+
+	if (!tz_get_tsp_ta_status())
 		return -EPROBE_DEFER;
 #endif
 
