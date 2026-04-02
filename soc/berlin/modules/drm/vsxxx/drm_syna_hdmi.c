@@ -37,9 +37,8 @@ struct drm_edid {
 
 static char preferred_mode_name[DRM_DISPLAY_MODE_LEN] = "1920x1080";
 static char forced_mode[DRM_DISPLAY_MODE_LEN] = "\0";
+//TODO: add 4K60/50 after interop tests
 static const struct syna_hdmi_mode_map supported_forced_mode[] = {
-	{ "4K60", RES_4Kx2K60,   (1 << VPP_HDMI_SINKCAP_BITMASK_FULL4K) },
-	{ "4K50", RES_4Kx2K50,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FULL4K) | (1 << VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) },
 	{ "4K30", RES_4Kx2K30,   (1 << VPP_HDMI_SINKCAP_BITMASK_4K30) },
 	{ "2K60", RES_1080P60,   (1 << VPP_HDMI_SINKCAP_BITMASK_FHD) },
 	{ "2K50", RES_1080P50,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FHD) | (1 << VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) },
