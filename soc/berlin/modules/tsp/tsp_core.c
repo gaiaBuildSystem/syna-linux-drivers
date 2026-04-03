@@ -586,14 +586,14 @@ static int berlin_tsp_probe(struct platform_device *pdev)
 	tsp_virt_addr = devm_ioremap_resource(&pdev->dev, pTspRes);
 	if (IS_ERR(tsp_virt_addr)) {
 		res = PTR_ERR(tsp_virt_addr);
-		goto err_prob_device_2;
+		goto err_prob_device_3;
 	}
 
 	tsp_dev.TspCtx.core = devm_clk_get_optional(&pdev->dev, "core");
 	if (IS_ERR(tsp_dev.TspCtx.core)) {
 		res = PTR_ERR(tsp_dev.TspCtx.core);
 		pr_err("error in getting core clk handle: %d\n", res);
-		goto err_prob_device_2;
+		goto err_prob_device_3;
 	}
 
 	clk_prepare_enable(tsp_dev.TspCtx.core);
@@ -603,24 +603,34 @@ static int berlin_tsp_probe(struct platform_device *pdev)
 	tsp_dev.major = MAJOR(dev);
 	if (res < 0) {
 		pr_err("alloc_chrdev_region() failed for tsp\n");
-		goto err_prob_device_1;
+		goto err_prob_device_2;
 	}
 	pr_info("register cdev device major [%d]\n", tsp_dev.major);
 
 	res = tsp_drv_init(&tsp_dev);
 	if (res < 0) {
 		pr_err("tsp_drv_init fail!\n");
+		goto err_prob_device_1;
+	}
+
+#if !IS_ENABLED(CONFIG_OPTEE)
+	res = tz_tsp_load_ta(&pdev->dev);
+	if (res) {
+		pr_err("tz_tsp_load_ta failed, res = 0x%08X\n", res);
 		goto err_prob_device_0;
 	}
+#endif
 	pr_info("berlin_tsp_probe OK\n");
 
 	return 0;
 
 err_prob_device_0:
-	unregister_chrdev_region(MKDEV(tsp_dev.major, 0), TSP_MAX_DEVS);
+	tsp_drv_exit(&tsp_dev);
 err_prob_device_1:
-	clk_disable_unprepare(tsp_dev.TspCtx.core);
+	unregister_chrdev_region(MKDEV(tsp_dev.major, 0), TSP_MAX_DEVS);
 err_prob_device_2:
+	clk_disable_unprepare(tsp_dev.TspCtx.core);
+err_prob_device_3:
 	pr_info("tsp_probe failed !!! (%d)\n", res);
 	return res;
 }

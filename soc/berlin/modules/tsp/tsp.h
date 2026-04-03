@@ -101,3 +101,8 @@ int tz_tsp_save_hw_context(uint32_t figo_id);
 int tz_tsp_restore_hw_context(uint32_t figo_id);
 int tz_tsp_set_figo_state(uint32_t figo_id, uint32_t state);
 int tz_tsp_get_figo_state(uint32_t figo_id, uint32_t *state);
+
+#if !IS_ENABLED(CONFIG_OPTEE)
+int tz_tsp_load_ta(struct device *dev);
+bool tz_get_tsp_ta_status(void);
+#endif

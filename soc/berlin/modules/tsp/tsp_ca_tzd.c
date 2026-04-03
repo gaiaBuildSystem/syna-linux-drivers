@@ -4,11 +4,74 @@
  */
 #include "tsp.h"
 #include "tee_client_api.h"
+#include <linux/firmware.h>
+
+#define TA_IMG_PATH_TSP      "ta/libtsp.ta"
 
 static const TEEC_UUID ta_tsp_uuid = {0x1316a183, 0x894d, 0x43fe, \
 	{0x98, 0x93, 0xbb, 0x94, 0x6a, 0xe1, 0x03, 0xe8} };
 static TEEC_Context context;
 static TEEC_Session session[TSP_FIGO_NUM];
+static bool g_tsp_ta_loaded = false;
+
+bool tz_get_tsp_ta_status(void)
+{
+	return g_tsp_ta_loaded;
+}
+EXPORT_SYMBOL(tz_get_tsp_ta_status);
+
+int tz_tsp_load_ta(struct device *dev)
+{
+	const struct firmware *fw = NULL;
+	TEEC_SharedMemory fw_shm = {};
+	TEEC_Parameter tee_param = {};
+	int ret;
+
+	ret = request_firmware(&fw, TA_IMG_PATH_TSP, dev);
+	if (ret) {
+		pr_err("faild req fw 0x%x %s\n", ret, TA_IMG_PATH_TSP);
+		return ret;
+	}
+
+	ret = TEEC_InitializeContext(
+				NULL,
+				&context);
+	if (ret != TEEC_SUCCESS) {
+		pr_err("TEEC_InitializeContext ret=0x%08x\n", ret);
+		return ret;
+	} else {
+		pr_info("TEEC_InitializeContext success\n");
+	}
+
+	fw_shm.size = ALIGN(fw->size, PAGE_SIZE);
+	fw_shm.flags = TEEC_MEM_INPUT | TEEC_MEM_OUTPUT;
+	ret = TEEC_AllocateSharedMemory(&context, &fw_shm);
+	if (ret || !fw_shm.buffer) {
+		pr_err("can't allocate memory(%zu) for firmware loading: 0x%x\n",
+			fw_shm.size, ret);
+		ret = -ENOMEM;
+		goto free_fw;
+	}
+	memcpy(fw_shm.buffer, fw->data, fw->size);
+
+	tee_param.memref.parent = &fw_shm;
+	tee_param.memref.size = fw_shm.size;
+	ret = TEEC_RegisterTA(&context, &tee_param, TEEC_MEMREF_PARTIAL_INPUT);
+	if (TEEC_ERROR_ACCESS_CONFLICT == ret) {
+		pr_warn("%s TA has been loaded\n", TA_IMG_PATH_TSP);
+		ret = 0;
+	} else if (ret) {
+		pr_err("can't register %s TA: 0x%08x\n", TA_IMG_PATH_TSP, ret);
+	} else {
+		pr_info("TA loaded sucessfully - %s\n", TA_IMG_PATH_TSP);
+		g_tsp_ta_loaded = true;
+	}
+
+	TEEC_ReleaseSharedMemory(&fw_shm);
+free_fw:
+	release_firmware(fw);
+	return ret;
+}
 
 static int tz_tsp_errcode_translate(TEEC_Result result)
 {
@@ -36,17 +99,7 @@ int tz_tsp_initialize(void)
 	TEEC_Result result = TEEC_SUCCESS;
 	uint32_t i;
 
-	/* [1] Connect to TEE */
-	result = TEEC_InitializeContext(
-				NULL,
-				&context);
-	if (result != TEEC_SUCCESS) {
-		pr_err("TEEC_InitializeContext ret=0x%08x\n", result);
-		goto fun_ret;
-	} else
-		pr_info("TEEC_InitializeContext success\n");
-
-	/* [2] Open session with TEE application */
+	/* [1] Open session with TEE application */
 	for (i = 0; i < TSP_FIGO_NUM; i++) {
 		TEEC_Operation operation;
 
