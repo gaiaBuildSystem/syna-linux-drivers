@@ -32,7 +32,13 @@
 
 #define DMA_BUFFER_SIZE        (256 * 1024)
 #define DMA_BUFFER_MIN         (512)
-#define MAX_BUFFER_SIZE        (DMA_BUFFER_SIZE << 2)
+/* Stitched 16-channel mode (Primary + Secondary streams).
+ * This configuration is not needed for SL261x series,
+ * so a reduced buffer size is used instead.
+ *
+ * #define MAX_BUFFER_SIZE (DMA_BUFFER_SIZE << 2)
+ */
+#define MAX_BUFFER_SIZE        (DMA_BUFFER_SIZE << 1)
 
 #define ZERO_DMA_BUFFER_SIZE   (32)
 #define DHUB_DMA_DEPTH           4
@@ -1710,7 +1716,10 @@ int berlin_playback_isr(struct snd_pcm_substream *ss,
 		snd_pcm_period_elapsed(ss);
 
 	spin_lock(&bp->lock);
-
+	for (i = 0; i < bp->chid_num; ++i) {
+		if (bp->ma_dma_pending[i])
+			pending = true;
+	}
 	//Avoid pushing DHUB cmd after channel clear and disable in trigger stop
 	if (!pending && !bp->spdif_dma_pending && !bp->in_dma_size) {
 		snd_printd("[%s.%u]STOP/PAUSE Inprogress\n", __func__, __LINE__);
