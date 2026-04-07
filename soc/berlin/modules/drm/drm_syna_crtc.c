@@ -13,6 +13,7 @@
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_vblank.h>
+#include <drm/drm_color_mgmt.h>
 
 #include "drm_syna_drv.h"
 #include "drm_syna_gem.h"
@@ -180,13 +181,30 @@ static void syna_crtc_helper_atomic_flush(struct drm_crtc *crtc,
 					  syna_drm_crtc_state *old_crtc_state)
 {
 	struct drm_crtc_state *new_crtc_state = crtc->state;
+	struct syna_crtc *syna_crtc = to_syna_crtc(crtc);
 	struct drm_crtc_state *old_drm_crtc_state = syna_get_drm_crtc_state(old_crtc_state, crtc);
 
 	if (!new_crtc_state->active || !old_drm_crtc_state->active)
 		return;
 
+	if (new_crtc_state->color_mgmt_changed) {
+		if (new_crtc_state->gamma_lut) {
+			if (new_crtc_state->gamma_lut->length !=
+			    (SYNA_GAMMA_LUT_SIZE * sizeof(struct drm_color_lut))) {
+				DRM_ERROR("Invalid gamma data length: %lu\n",
+					  new_crtc_state->gamma_lut->length);
+			} else {
+				syna_vpp_update_gamma(crtc->dev, syna_crtc->number,
+					new_crtc_state->gamma_lut->data,
+					new_crtc_state->gamma_lut->length);
+			}
+		} else {
+			syna_vpp_update_gamma(crtc->dev, syna_crtc->number,
+					      NULL, 0);
+		}
+	}
+
 	if (crtc->state->event) {
-		struct syna_crtc *syna_crtc = to_syna_crtc(crtc);
 		unsigned long flags;
 
 		if (!syna_crtc) {
@@ -348,6 +366,12 @@ struct drm_crtc *syna_crtc_create(struct drm_device *dev, uint32_t number,
 	drm_crtc_helper_add(&syna_crtc->base, &syna_crtc_helper_funcs);
 
 	DRM_DEBUG_DRIVER("[CRTC:%d]\n", syna_crtc->base.base.id);
+
+	drm_mode_crtc_set_gamma_size(&syna_crtc->base, SYNA_GAMMA_LUT_SIZE);
+
+	drm_crtc_enable_color_mgmt(&syna_crtc->base, 0, false, SYNA_GAMMA_LUT_SIZE);
+
+	DRM_DEBUG_DRIVER("[CRTC:%d] gamma enabled\n", syna_crtc->base.base.id);
 
 	return &syna_crtc->base;
 

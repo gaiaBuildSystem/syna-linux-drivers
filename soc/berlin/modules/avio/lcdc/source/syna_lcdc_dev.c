@@ -411,6 +411,30 @@ int syna_lcdc_pushframe(int lcdcID, void *pnew)
 	return SYNA_LCDC_OK;
 }
 
+static void syna_lcdc_set_gamma(struct syna_lcdc_dev *dev)
+{
+	int i;
+	unsigned int val;
+
+	/* Find non-zero gamma value in LUT. If not found, disable gamma */
+	void *p_gamma = memchr_inv(dev->u8Gamma, 0, sizeof(dev->u8Gamma));
+	bool b_new_gamma_en = p_gamma ? 1 : 0;
+
+	if (dev->b_gamma_en != b_new_gamma_en) {
+		dev->b_gamma_en = b_new_gamma_en;
+		syna_lcdc_write(dev, LCDC_REG_GCER, b_new_gamma_en);
+	}
+
+	if (b_new_gamma_en) {
+		/* Each register contains two 8-bit gamma values */
+		for (i = 0; i < 16; i++) {
+			val = (dev->u8Gamma[i * 2 + 1] << 8) | dev->u8Gamma[i * 2];
+			syna_lcdc_write(dev, LCDC_REG_GC0R + (i * 4), val);
+		}
+		syna_lcdc_write(dev, LCDC_REG_GC0R + (i * 4), dev->u8Gamma[32]);
+	}
+}
+
 void syna_lcdc_hw_config(int lcdcID, SYNA_LCDC_PANEL *panelcfg)
 {
 	avio_fastlogo_info display_info;
@@ -435,6 +459,7 @@ void syna_lcdc_hw_config(int lcdcID, SYNA_LCDC_PANEL *panelcfg)
 		syna_lcdc[lcdcID]->isTGConfig = 1;
 		syna_lcdc[lcdcID]->bcm_enable = 1;
 		syna_lcdc[lcdcID]->bcm_autopush_en = 1;
+		syna_lcdc[lcdcID]->update_flags = 0;
 
 		use_vbi = display_info.u.status ? 1 : 0;
 		if (!display_info.u.status) {
@@ -467,6 +492,14 @@ void syna_lcdc_irq(int intrMask)
 				if (dev->en_intr_handler) {
 					dev->is_first_frame = 0;
 					syna_bcmbuf_flip(dev);
+
+					if (dev->update_flags) {
+						if (dev->update_flags & SYNA_LCDC_GAMMA) {
+							syna_lcdc_set_gamma(dev);
+							dev->update_flags &= ~SYNA_LCDC_GAMMA;
+						}
+					}
+
 					syna_lcdc_dlr_handler(dev);
 					syna_lcdc_hw_param_update(dev); //TO handle input change
 					syna_bcmbuf_submit(dev, 1);
@@ -643,4 +676,48 @@ int syna_lcdc_suspend(int enable)
 int AVIO_MEM_IsReady(void)
 {
 	return VPP_MEM_IsReady();
+}
+
+int syna_lcdc_update_gamma_table(int lcdcID, const void *data,
+								 unsigned int length)
+{
+	struct syna_lcdc_dev *dev;
+	uint16_t *gamma16;
+	uint8_t val;
+	int i;
+
+	dev = syna_lcdc[SYNA_LCDC_GET_DEV_NDX(lcdcID)];
+	if (!dev) {
+		pr_err("LCDC%d not initialized\n", lcdcID);
+		return -EINVAL;
+	}
+
+	if (data == NULL && length == 0) {
+		memset(dev->u8Gamma, 0, sizeof(dev->u8Gamma));
+		dev->update_flags |= SYNA_LCDC_GAMMA;
+		return 0;
+	}
+
+	gamma16 = (uint16_t *)data;
+
+	/*
+	 * Convert DRM gamma LUT (256 entries, 16-bit) to LCDC format (33 entries, 8-bit).
+	 * DRM provides drm_color_lut with 4 u16s per entry (r, g, b, reserved).
+	 * Sample every 8th entry (indices 0, 8, 16, ..., 248) for first 32 values,
+	 * plus entry 255 for the last value.
+	 */
+	for (i = 0; i < SYNA_LCDC_GAMMA_LUT_ENTRRIES - 1; i++) {
+		val = gamma16[i * 8 * 4] & 0xff;
+		if (dev->u8Gamma[i] != val) {
+			dev->u8Gamma[i] = val;
+			dev->update_flags |= SYNA_LCDC_GAMMA;
+		}
+	}
+	val = gamma16[255 * 4] & 0xff;
+	if (dev->u8Gamma[SYNA_LCDC_GAMMA_LUT_ENTRRIES - 1] != val) {
+		dev->u8Gamma[SYNA_LCDC_GAMMA_LUT_ENTRRIES - 1] = val;
+		dev->update_flags |= SYNA_LCDC_GAMMA;
+	}
+
+	return 0;
 }

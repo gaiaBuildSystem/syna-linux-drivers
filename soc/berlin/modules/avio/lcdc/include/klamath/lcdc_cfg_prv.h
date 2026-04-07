@@ -21,6 +21,12 @@ do { \
 } \
 while (0)
 
+/*
+ * Klamath has only one LCDC instance (MIPI), mapped as LCDC2 in the driver
+ * for compatibility with MYNA2 encoder mapping. Always return index 1.
+ */
+#define SYNA_LCDC_GET_DEV_NDX(crtc_id) (1)
+
 // LCDC BCM Dhub handle
 #define SYNA_LCDC_BCM_DHUB_HANDLE Dhub_GetDhub2dHandle_ByDhubId(DHUB_ID_VPP_DHUB)
 

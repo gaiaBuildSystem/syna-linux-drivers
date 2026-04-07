@@ -184,3 +184,10 @@ int NTZ_MV_VPP_LoadConfigTable(ENUM_VOUT_ID voutid, int Id, void *pConfig)
 	}
 	return MV_VPP_OK;
 }
+
+int NTZ_MV_VPP_UpdateGamma(int Id, const void *gamma, int length)
+{
+	syna_lcdc_update_gamma_table(Id, gamma, length);
+
+	return MV_VPP_OK;
+}

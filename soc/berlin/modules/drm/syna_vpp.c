@@ -1124,3 +1124,9 @@ void syna_fbcon_start_work(struct work_struct *work)
 	// Schedule RCU-safe cleanup
 	call_rcu(&fbcon_start_work_temp->rcu, syna_rcu_fbcon_cleanup);
 }
+
+int syna_vpp_update_gamma(struct drm_device *dev, int Id, const void *data,
+			  unsigned int length)
+{
+	return wrap_MV_VPPOBJ_UpdateGamma(Id, data, length);
+}

@@ -40,6 +40,7 @@ int NTZ_MV_VPPOBJ_SemOper(int cmd_id, int sem_id, int *pParam);
 int NTZ_MV_VPPOBJ_SetHdmiTxControl(int enable);
 INT NTZ_MV_VPPOBJ_SetFormat (INT cpcbID, VPP_DISP_OUT_PARAMS *pDispParams);
 int NTZ_MV_VPPOBJ_GetDispOutParams(VPP_DISP_OUT_PARAMS *pdispParams, int size);
+int NTZ_MV_VPP_UpdateGamma(int Id, const void *gamma, int length);
 #ifdef __cplusplus
 }
 #endif

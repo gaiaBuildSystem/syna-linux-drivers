@@ -44,6 +44,8 @@
 #define SYNA_LCDC2_INTR_EN(intr_reg)      intr_reg.uINTR_CTRL_lcdc2_int_en = 1
 #define SYNA_MIPI_INTR_EN(intr_reg)	  intr_reg.uINTR_CTRL_mipi_int_en = 1
 
+#define SYNA_LCDC_GAMMA_LUT_ENTRRIES 33
+
 typedef enum SYNA_LCDC_ERROR_t {
 	SYNA_LCDC_OK            = 0x0000,   /**< Success. */
 	SYNA_LCDC_EBADPARAM     = 0x0001,   /**< Function parameter error. */
@@ -60,6 +62,10 @@ typedef enum _SYNA_DHUB_CFGQ_TYPE_ {
 	SYNA_DHUB_CFGQ_TYPE_BCM = 0x1,
 	SYNA_DHUB_CFGQ_TYPE_MAX = 0x2
 } SYNA_DHUB_CFGQ_TYPE;
+
+typedef enum _SYNA_LCDC_SETTING_ {
+	SYNA_LCDC_GAMMA = 0x1,
+} SYNA_LCDC_SETTING;
 
 typedef struct syna_lcdc_panel_t {
 	unsigned char intf_type;     /*DPI TFT or CPU, DSI Video or CMD*/
@@ -129,7 +135,9 @@ struct syna_lcdc_dev {
 	unsigned int m_content_width;
 	unsigned int m_content_height;
 	unsigned int m_bits_per_pixel;
-	unsigned char u8Gamma[33]; //GAMMA Table
+	unsigned char u8Gamma[SYNA_LCDC_GAMMA_LUT_ENTRRIES]; //GAMMA Table
+	unsigned int update_flags;
+	bool b_gamma_en;
 
 	VPP_MEM_LIST   *vpp_mem_list;
 	int is_first_frame;
@@ -152,4 +160,6 @@ void syna_lcdc_cfg_setbitmap(struct syna_lcdc_dev *dev, int src_fmt, int order);
 void syna_lcdc_cfg_dlr_fifoflush(struct syna_lcdc_dev *dev);
 void syna_lcdc_cfg_dlr_init(struct syna_lcdc_dev *dev, int num);
 void syna_lcdc_cfg_wrap_interrupt_enable(void);
+int syna_lcdc_update_gamma_table(int lcdcID, const void *data,
+				 unsigned int length);
 #endif

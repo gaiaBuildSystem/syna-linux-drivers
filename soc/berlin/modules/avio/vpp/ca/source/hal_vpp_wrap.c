@@ -597,6 +597,17 @@ int wrap_MV_VPPOBJ_GetHDMISinkFeatureMap(VPP_HDMI_SINK_CAPS *pSinkFeatureMap)
 	return retVal;
 }
 
+int wrap_MV_VPPOBJ_UpdateGamma(int Id, const void *data, int length)
+{
+	HRESULT Ret = MV_VPP_OK;
+	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
+
+	if (!hDhubCtx->isTeeEnabled)
+		NTZ_MV_VPP_UpdateGamma(Id, data, length);
+
+	return Ret;
+}
+
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetDispWindow);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetRefWindow);
 EXPORT_SYMBOL(wrap_MV_VPP_InitVPPS);
@@ -645,3 +656,5 @@ EXPORT_SYMBOL(wrap_MV_VPP_WaitHdmiConnChange);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetBlockStatus);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetHDMISinkFeatureMap);
 EXPORT_SYMBOL(wrap_MV_VPP_HDMITX_5v_set);
+EXPORT_SYMBOL(wrap_MV_VPPOBJ_UpdateGamma);
+

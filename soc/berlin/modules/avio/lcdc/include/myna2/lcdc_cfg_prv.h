@@ -28,6 +28,8 @@ do { \
 } \
 while (0)
 
+#define SYNA_LCDC_GET_DEV_NDX(crtc_id) (crtc_id)
+
 // LCDC BCM Dhub handle
 #define SYNA_LCDC_BCM_DHUB_HANDLE Dhub_GetDhub2dHandle_ByDhubId(DHUB_ID_AG_DHUB)
 

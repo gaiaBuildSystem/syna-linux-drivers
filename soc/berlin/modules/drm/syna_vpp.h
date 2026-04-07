@@ -98,4 +98,7 @@ void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID);
 void syna_vpp_pop_fl_frame(int crtcID, int planeID);
 void syna_fbcon_start_work(struct work_struct *work);
 void syna_vpp_isr_process(struct drm_device *dev);
+int syna_vpp_update_gamma(struct drm_device *dev, int Id, const void *data,
+					   unsigned int length);
+
 #endif /* __SYNA_VPP_H__ */
