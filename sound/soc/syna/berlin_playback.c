@@ -540,11 +540,12 @@ static void debug_entry(struct snd_info_entry *entry,
 	struct berlin_playback *bp =
 		(struct berlin_playback *)entry->private_data;
 	unsigned long flags;
+	unsigned int i;
 
 	spin_lock_irqsave(&bp->lock, flags);
 	snd_iprintf(buffer, "dma_pending:\t\tspdif-%d\n",
 			bp->spdif_dma_pending);
-	for (int i = 0; i < bp->chid_num; i++) {
+	for (i = 0; i < bp->chid_num; i++) {
 		snd_iprintf(buffer, "dma_pending:\t\tma%d-%d\n",
 			i, bp->ma_dma_pending[i]);
 	}
