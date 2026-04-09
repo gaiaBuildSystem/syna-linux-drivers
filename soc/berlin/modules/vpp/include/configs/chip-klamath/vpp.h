@@ -6,4 +6,8 @@
 
 #define SYNA_VPP_PRIMARY_INTR_NUM CPCB_2
 
+// CPCB_1 is invalid for KLAMATH
+#define SYNA_IS_VALID_CRTC_NDX(crtc_id)	((crtc_id == CPCB_2) ? true : false)
+#define SYNA_GET_VIRT_CRTC_NDX(crtc_id)	CPCB_2
+
 #endif //_VPP_H_

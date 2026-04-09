@@ -107,6 +107,8 @@ int VPP_Clock_Set_Rate_Ext(unsigned int clk_rate);
 int VPP_Is_Recovery_Mode(void);
 int VPP_Is_Vpp_Ta(void);
 int MV_VPP_GetPrimaryInterruptNum(void);
+bool MV_VPP_IsValidCrtcIndex(int crtc_id);
+int MV_VPP_GetVirtCrtcIndex(int crtc_id);
 void vpp_force_enable_recovery(bool enable);
 int is_ampless_boot(void);
 int MV_VPP_GetDispOutParams(int cpcbId, VPP_DISP_OUT_PARAMS* pDisplayOutParams);

@@ -566,6 +566,16 @@ int MV_VPP_GetPrimaryInterruptNum(void)
 	return SYNA_VPP_PRIMARY_INTR_NUM;
 }
 
+int MV_VPP_GetVirtCrtcIndex(int crtc_id)
+{
+	return SYNA_GET_VIRT_CRTC_NDX(crtc_id);
+}
+
+bool MV_VPP_IsValidCrtcIndex(int crtc_id)
+{
+	return SYNA_IS_VALID_CRTC_NDX(crtc_id);
+}
+
 EXPORT_SYMBOL(MV_VPP_Init);
 EXPORT_SYMBOL(MV_VPP_DisplayFrame);
 EXPORT_SYMBOL(MV_VPP_make_frame_data);
@@ -579,3 +589,5 @@ EXPORT_SYMBOL(MV_VPP_GetDispOutParams);
 EXPORT_SYMBOL(MV_VPP_UpdatePlaneInfo);
 EXPORT_SYMBOL(MV_VPP_GetPlaneInfo);
 EXPORT_SYMBOL(MV_VPP_GetPrimaryInterruptNum);
+EXPORT_SYMBOL(MV_VPP_GetVirtCrtcIndex);
+EXPORT_SYMBOL(MV_VPP_IsValidCrtcIndex);

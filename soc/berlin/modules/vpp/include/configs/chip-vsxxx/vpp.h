@@ -6,4 +6,7 @@
 
 #define SYNA_VPP_PRIMARY_INTR_NUM CPCB_1
 
+#define SYNA_IS_VALID_CRTC_NDX(crtc_id)	((crtc_id >= 0 && crtc_id < MAX_NUM_CPCBS) ? true : false)
+#define SYNA_GET_VIRT_CRTC_NDX(crtc_id)	crtc_id
+
 #endif //_VPP_H_
