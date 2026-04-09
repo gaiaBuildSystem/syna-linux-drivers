@@ -60,7 +60,7 @@ MODULE_PARM_DESC(hdmi_preferred_mode,
    sink supports it then this resolution will be forced all the time
    if unused, driver will auto select the resolution */
 module_param_string(hdmi_force_mode,
-			forced_mode, DRM_DISPLAY_MODE_LEN, 0444);
+			forced_mode, DRM_DISPLAY_MODE_LEN, 0644);
 MODULE_PARM_DESC(hdmi_force_mode,
 		"Force a specific resolution in fixed mode.\
 		 Current support:4K60, 4K50, 4K30, 2K60, 2K50, 720p, 576p, 480p");
