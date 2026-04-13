@@ -117,11 +117,34 @@ static int sl261x_clks_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int sl261x_clks_suspend(struct device *dev)
+{
+	if (device_is_compatible(dev, "syna,sl261x-clk"))
+		return berlin_clk_suspend(dev);
+
+	return 0;
+}
+
+static int sl261x_clks_resume(struct device *dev)
+{
+	if (device_is_compatible(dev, "syna,sl261x-clk"))
+		return berlin_clk_resume(dev);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops sl261x_clks_pmops = {
+	SET_SYSTEM_SLEEP_PM_OPS(sl261x_clks_suspend, sl261x_clks_resume)
+};
+
 static struct platform_driver sl261x_clks_driver = {
 	.probe		= sl261x_clks_probe,
 	.driver		= {
 		.name	= "syna-sl261x-clks",
 		.of_match_table = sl261x_clks_match_table,
+		.pm	= &sl261x_clks_pmops,
 	},
 };
 module_platform_driver(sl261x_clks_driver);
