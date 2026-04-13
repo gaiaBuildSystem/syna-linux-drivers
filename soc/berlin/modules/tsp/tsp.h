@@ -59,11 +59,15 @@
 #define TSP_MAX_DEVS            2
 #define TSP_MINOR               0
 
+#define DEFAULT_FIGO_NUM 	0
+#define DEFAULT_TSPFW_IDX 	1
+
 #define TSP_IOCTL_CMD_MSG       _IOW('t', 1, int[2])
 #define TSP_IOCTL_GET_MSG       _IOR('t', 2, CC_MSG_t)
 #define TSP_IOCTL_DISABLE_INT   _IO('t', 3)
 #define TSP_IOCTL_ENABLE_INT    _IO('t', 4)
 #define TSP_IOCTL_SET_CLK_RATE  _IOW('t', 5, enum clk_setting)
+#define TSP_IOCTL_LOAD_TSP_FW  _IOW('t', 6, int[2])
 
 #define TSP_FIGO_NUM    2
 
@@ -76,6 +80,7 @@ struct tsp_context {
 
 struct tsp_device_t {
 	struct tsp_context TspCtx;
+	struct device *dev;
 	unsigned char *dev_name;
 	struct cdev cdev;
 	struct class *dev_class;
@@ -89,20 +94,32 @@ enum clk_setting {
 };
 
 enum {
+/* For now TZK/OPTEE TA code is not aligned, after TA code is aligned,
+ * we can remove the ifdef and just define the command enum once
+ */
+#if IS_ENABLED(CONFIG_OPTEE)
+	TSP_FW_LOAD = 9,
+#else
+	TSP_FW_LOAD = 14,
+#endif
 	TSP_SAVE_HW_CONTEXT = 0x10000,
 	TSP_RESTORE_HW_CONTEXT,
 	TSP_SET_FIGO_STATE,
 	TSP_GET_FIGO_STATE
 };
 
-int tz_tsp_initialize(void);
+int tz_tsp_initialize(struct device *dev);
 void tz_tsp_finalize(void);
 int tz_tsp_save_hw_context(uint32_t figo_id);
 int tz_tsp_restore_hw_context(uint32_t figo_id);
 int tz_tsp_set_figo_state(uint32_t figo_id, uint32_t state);
 int tz_tsp_get_figo_state(uint32_t figo_id, uint32_t *state);
 
+
 #if !IS_ENABLED(CONFIG_OPTEE)
-int tz_tsp_load_ta(struct device *dev);
 bool tz_get_tsp_ta_status(void);
 #endif
+
+int tz_tsp_request_firmware(struct device *dev);
+int tz_tsp_release_firmware(void);
+int tz_tsp_load_firmware(struct device *dev, int figo_id, int fw_idx, bool force_load);

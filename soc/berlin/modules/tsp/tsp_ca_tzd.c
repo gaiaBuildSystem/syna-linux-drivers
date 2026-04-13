@@ -5,8 +5,11 @@
 #include "tsp.h"
 #include "tee_client_api.h"
 #include <linux/firmware.h>
-
-#define TA_IMG_PATH_TSP      "ta/libtsp.ta"
+#include <linux/dma-mapping.h>
+#include <linux/slab.h>
+#define TA_IMG_PATH_TSP      	"ta/libtsp.ta"
+#define FIRMWARE_IMG_TSP        "fw/tsp.fw"
+const struct firmware *g_tsp_fw;
 
 static const TEEC_UUID ta_tsp_uuid = {0x1316a183, 0x894d, 0x43fe, \
 	{0x98, 0x93, 0xbb, 0x94, 0x6a, 0xe1, 0x03, 0xe8} };
@@ -14,13 +17,34 @@ static TEEC_Context context;
 static TEEC_Session session[TSP_FIGO_NUM];
 static bool g_tsp_ta_loaded = false;
 
+static int tz_tsp_errcode_translate(TEEC_Result result)
+{
+	int ret;
+
+	switch (result) {
+	case TEEC_SUCCESS:
+		ret = 0;
+		break;
+	case TEEC_ERROR_ACCESS_DENIED:
+		ret = -ENOTSUPP;
+		break;
+	case TEEC_ERROR_BAD_PARAMETERS:
+		ret = -EINVAL;
+		break;
+	default:
+		ret = -EPERM;
+		break;
+	}
+	return ret;
+}
+
 bool tz_get_tsp_ta_status(void)
 {
 	return g_tsp_ta_loaded;
 }
 EXPORT_SYMBOL(tz_get_tsp_ta_status);
 
-int tz_tsp_load_ta(struct device *dev)
+static int tz_tsp_load_ta(struct device *dev)
 {
 	const struct firmware *fw = NULL;
 	TEEC_SharedMemory fw_shm = {};
@@ -31,16 +55,6 @@ int tz_tsp_load_ta(struct device *dev)
 	if (ret) {
 		pr_err("faild req fw 0x%x %s\n", ret, TA_IMG_PATH_TSP);
 		return ret;
-	}
-
-	ret = TEEC_InitializeContext(
-				NULL,
-				&context);
-	if (ret != TEEC_SUCCESS) {
-		pr_err("TEEC_InitializeContext ret=0x%08x\n", ret);
-		return ret;
-	} else {
-		pr_info("TEEC_InitializeContext success\n");
 	}
 
 	fw_shm.size = ALIGN(fw->size, PAGE_SIZE);
@@ -73,33 +87,109 @@ free_fw:
 	return ret;
 }
 
-static int tz_tsp_errcode_translate(TEEC_Result result)
+
+int tz_tsp_request_firmware(struct device *dev)
 {
 	int ret;
 
-	switch (result) {
-	case TEEC_SUCCESS:
-		ret = 0;
-		break;
-	case TEEC_ERROR_ACCESS_DENIED:
-		ret = -ENOTSUPP;
-		break;
-	case TEEC_ERROR_BAD_PARAMETERS:
-		ret = -EINVAL;
-		break;
-	default:
-		ret = -EPERM;
-		break;
+	if (g_tsp_fw) {
+		pr_info("firmware already requested\n");
+		return 0;
 	}
+	ret = request_firmware(&g_tsp_fw, FIRMWARE_IMG_TSP, dev);
+	if (ret) {
+		pr_info("faild req fw 0x%x %s, load fw at TA internal\n", ret, FIRMWARE_IMG_TSP);
+		g_tsp_fw = NULL;
+	}
+	pr_info("tz_tsp_request_firmware ret = %d g_tsp_fw = %p\n", ret, (void *)g_tsp_fw);
 	return ret;
 }
 
-int tz_tsp_initialize(void)
+int tz_tsp_release_firmware(void)
+{
+	if (g_tsp_fw) {
+		release_firmware(g_tsp_fw);
+		g_tsp_fw = NULL;
+	}
+	return 0;
+}
+
+int tz_tsp_load_firmware(struct device *dev, int figo_id, int fw_idx, bool force_load)
+{
+	void *fw_buffer = NULL;
+	dma_addr_t fw_dma_addr = 0;
+	TEEC_Operation operation;
+	TEEC_Result result = TEEC_SUCCESS;
+
+	if (g_tsp_fw) {
+		fw_buffer = kmalloc(g_tsp_fw->size, GFP_KERNEL);
+		if (!fw_buffer) {
+			pr_err("can't allocate memory for firmware loading\n");
+			return -ENOMEM;
+		}
+
+		memcpy(fw_buffer, g_tsp_fw->data, g_tsp_fw->size);
+		fw_dma_addr = dma_map_single(dev, fw_buffer, g_tsp_fw->size, DMA_TO_DEVICE);
+		if (dma_mapping_error(dev, fw_dma_addr)) {
+			pr_err("can't map DMA buffer for firmware loading\n");
+			kfree(fw_buffer);
+			return -ENOMEM;
+		}
+		operation.params[1].value.a = fw_dma_addr;
+		operation.params[1].value.b = g_tsp_fw->size;
+	}
+
+	operation.paramTypes = TEEC_PARAM_TYPES(
+		TEEC_VALUE_INPUT,
+		g_tsp_fw ? TEEC_VALUE_INPUT : TEEC_NONE,
+		TEEC_NONE,
+		TEEC_NONE);
+	operation.params[0].value.a = fw_idx;
+	operation.params[0].value.b = force_load;
+
+	result = TEEC_InvokeCommand(
+			&session[figo_id],
+			TSP_FW_LOAD,
+			&operation,
+			NULL);
+	if (result != TEEC_SUCCESS) {
+		pr_err("figo[%d] load firmware[tsp fw=%p] error: 0x%x\n", figo_id, g_tsp_fw, result);
+	}
+
+	if (g_tsp_fw) {
+		dma_unmap_single(dev, fw_dma_addr, g_tsp_fw->size, DMA_TO_DEVICE);
+		kfree(fw_buffer);
+	}
+
+	return tz_tsp_errcode_translate(result);
+}
+EXPORT_SYMBOL(tz_tsp_load_firmware);
+
+int tz_tsp_initialize(struct device *dev)
 {
 	TEEC_Result result = TEEC_SUCCESS;
 	uint32_t i;
 
-	/* [1] Open session with TEE application */
+	/* [1] Connect to TEE */
+	result = TEEC_InitializeContext(
+				NULL,
+				&context);
+	if (result != TEEC_SUCCESS) {
+		pr_err("TEEC_InitializeContext result=0x%08x\n", result);
+		return result;
+	} else {
+		pr_info("TEEC_InitializeContext success\n");
+	}
+
+	/* [2] Load TSP TA into TEE */
+	result = tz_tsp_load_ta(dev);
+	if (result) {
+		pr_err("tz_tsp_load_ta failed, res = 0x%08X\n", result);
+		TEEC_FinalizeContext(&context);
+		return result;
+	}
+
+	/* [3] Open session with TEE application */
 	for (i = 0; i < TSP_FIGO_NUM; i++) {
 		TEEC_Operation operation;
 

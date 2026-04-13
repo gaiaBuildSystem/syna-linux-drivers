@@ -11,7 +11,6 @@
 #include "tsp.h"
 
 static bool figo_running[2] = {false, false};
-
 /*
  * Static Variables
  */
@@ -197,12 +196,6 @@ static int berlin_tsp_suspend(struct device *dev)
 
 	pr_info("berlin_tsp_suspend\n");
 
-	ret = tz_tsp_initialize();
-	if (ret) {
-		pr_err("TZ TSP initialize failed.\n");
-		return ret;
-	}
-
 	tsp_disable_irq();
 
 	ret = tsp_figo_stall(0);
@@ -246,6 +239,17 @@ static int berlin_tsp_resume(struct device *dev)
 
 	pr_info("berlin_tsp_resume\n");
 
+	/* tsp.fw is located in the SRAM, TA is located in the DDR.
+	 * after resume, SRAM is cleared, but DDR is not affected,
+	 * So need to force TA to reload tsp.fw after resume.
+	*/
+	ret = tz_tsp_load_firmware(dev, DEFAULT_FIGO_NUM,
+					DEFAULT_TSPFW_IDX, true);
+	if (ret) {
+		pr_err("tz_tsp_load_firmware failed.\n");
+		return ret;
+	}
+
 	tz_tsp_set_figo_state(0, Figo_STA_RESET);
 	tz_tsp_set_figo_state(1, Figo_STA_RESET);
 
@@ -265,12 +269,10 @@ static int berlin_tsp_resume(struct device *dev)
 		goto cleanup;
 	}
 	tsp_enable_irq();
-	tz_tsp_finalize();
 	return ret;
 
 cleanup:
 	pr_err("tsp resume failed.\n");
-	tz_tsp_finalize();
 	return ret;
 }
 #endif
@@ -476,6 +478,21 @@ static long tsp_driver_ioctl_unlocked(struct file *filp,
 			break;
 		}
 		break;
+	case TSP_IOCTL_LOAD_TSP_FW:
+		{
+			int fw_info[2];
+			if (unlikely(copy_from_user
+				     (fw_info, (void __user *) arg,
+				      2 * sizeof(int)) > 0)) {
+				return -EFAULT;
+			}
+
+			if (fw_info[0] < 0 || fw_info[0] >= TSP_FIGO_NUM) {
+				pr_err("invalid figo id %d\n", fw_info[0]);
+				return -EINVAL;
+			}
+			return tz_tsp_load_firmware(tsp_dev.dev, fw_info[0], fw_info[1], false);
+		}
 	default:
 		return -EINVAL;
 	}
@@ -613,21 +630,28 @@ static int berlin_tsp_probe(struct platform_device *pdev)
 		goto err_prob_device_1;
 	}
 
-#if !IS_ENABLED(CONFIG_OPTEE)
-	res = tz_tsp_load_ta(&pdev->dev);
+	res = tz_tsp_initialize(&pdev->dev);
 	if (res) {
-		pr_err("tz_tsp_load_ta failed, res = 0x%08X\n", res);
+		pr_err("TZ TSP initialize failed.\n");
 		goto err_prob_device_0;
 	}
-#endif
+
+	tsp_dev.dev = &pdev->dev;
+
+	/* request firmware here instead of at suspend, and at resume stage,
+	* directly passed cache fw. Because:
+	 * 1. benifits the performance of suspend/resume
+	 * 2. There exists a hang issue when request firmware at suspend
+	 * 3. This will bring some memory overhead, but the memory is small
+	 * (tsp.fw size is around 128KB)
+	 */
+	res = tz_tsp_request_firmware(&pdev->dev);
 	pr_info("berlin_tsp_probe OK\n");
 
 	return 0;
 
-#if !IS_ENABLED(CONFIG_OPTEE)
 err_prob_device_0:
 	tsp_drv_exit(&tsp_dev);
-#endif
 err_prob_device_1:
 	unregister_chrdev_region(MKDEV(tsp_dev.major, 0), TSP_MAX_DEVS);
 err_prob_device_2:
@@ -640,6 +664,7 @@ err_prob_device_3:
 static RET_TYPE berlin_tsp_remove(struct platform_device *pdev)
 {
 	pr_info("tsp_remove\n");
+	tz_tsp_release_firmware();
 	tsp_drv_exit(&tsp_dev);
 	unregister_chrdev_region(MKDEV(tsp_dev.major, 0), TSP_MAX_DEVS);
 	pr_info("unregister cdev device major [%d]\n", tsp_dev.major);
