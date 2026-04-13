@@ -32,6 +32,7 @@
 struct berlin_clk {
 	struct clk_hw hw;
 	void __iomem *base;
+	u32 reg_bk;
 };
 
 struct berlin_clk_priv {
@@ -324,9 +325,35 @@ int berlin_clk_setup(struct platform_device *pdev,
 	}
 	priv->num = n;
 
+	platform_set_drvdata(pdev, priv);
+
 	return devm_of_clk_add_hw_provider(&pdev->dev, berlin_of_clk_get, priv);
 }
 EXPORT_SYMBOL_GPL(berlin_clk_setup);
+
+int berlin_clk_suspend(struct device *dev)
+{
+	struct berlin_clk_priv *priv = dev_get_drvdata(dev);
+	int i;
+
+	for (i = 0; i < priv->num; i++)
+		priv->bclk[i].reg_bk = readl_relaxed(priv->bclk[i].base);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(berlin_clk_suspend);
+
+int berlin_clk_resume(struct device *dev)
+{
+	struct berlin_clk_priv *priv = dev_get_drvdata(dev);
+	int i;
+
+	for (i = 0; i < priv->num; i++)
+		writel_relaxed(priv->bclk[i].reg_bk, priv->bclk[i].base);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(berlin_clk_resume);
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Jisheng Zhang <jszhang@kernel.org>");

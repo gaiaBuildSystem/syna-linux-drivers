@@ -42,4 +42,8 @@ int berlin_clk_setup(struct platform_device *pdev,
 int berlin_gateclk_setup(struct platform_device *pdev,
 				 const struct gateclk_desc *descs,
 				 int n);
+
+int berlin_clk_suspend(struct device *dev);
+
+int berlin_clk_resume(struct device *dev);
 #endif
