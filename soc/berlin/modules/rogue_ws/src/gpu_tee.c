@@ -4,6 +4,7 @@
 #include <linux/fs.h>
 #include <linux/errno.h>
 #include <linux/tee_drv.h>
+#include <linux/tee_core.h>
 
 #include "gpu_tz.h"
 //#include "vz_support.h"
@@ -62,6 +63,26 @@ static struct dma_buf_attachment       *fw_src_buf_attach;
 static struct dma_buf_attachment       *fw_buf_attach;
 static struct sg_table                 *fw_src_table;
 static struct sg_table                 *fw_table;
+/*
+ * Pre-registered TEE SHM for the GPU secure FW destination buffer.
+ *
+ * Kernel 7 tee_shm_register_fd() only accepts DMA-bufs backed by
+ * tee_heap_buf_ops (TEE DMA heap). The vendor "Secure" berlin_heap uses
+ * berlin_heap_buf_ops so tee_shm_register_fd() returns -EINVAL.
+ * tee_shm_register_kernel_buf() also fails because OP-TEE rejects
+ * OPTEE_MSG_CMD_REGISTER_SHM for its own secure-world pages.
+ *
+ * Solution: register the GPU secure FW physical range as a TEE DMA heap
+ * from within this driver using tee_protmem_static_pool_alloc() +
+ * tee_device_register_dma_heap(). This creates a "protected,secure-video"
+ * heap backed by tee_heap_buf_ops. Allocating from it and calling
+ * tee_shm_register_fd() sets shm->paddr = fw_phy_addr WITHOUT going through
+ * OPTEE_MSG_CMD_REGISTER_SHM. The physical address matches what sysconfig.c
+ * programs as the GPU firmware heap base, so code_base/data_base set by the
+ * TA are consistent.
+ */
+static struct tee_shm *fw_dst_shm;
+static struct tee_protmem_pool *fw_protmem_pool;
 
 extern int close_fd(unsigned int fd);
 
@@ -83,6 +104,12 @@ static PVRSRV_ERROR allocateFWAddress(void *pvOSDevice)
 		goto defer_probe;
 	}
 
+	/*
+	 * Use the vendor "Secure" heap to get the physical base of the GPU
+	 * secure FW memory. We'll allocate fw_dma_buf from it, compute
+	 * fw_phy_addr, then register that range as a TEE DMA heap ourselves so
+	 * that tee_shm_register_fd() (which requires tee_heap_buf_ops) works.
+	 */
 	fw_secure_dma_heap = dma_heap_find("Secure");
 	if (fw_secure_dma_heap == NULL) {
 		dev_warn(dev, "Secure heap is unavailable, deferring probe\n");
@@ -133,6 +160,98 @@ static PVRSRV_ERROR allocateFWAddress(void *pvOSDevice)
 
 	fw_src_phy_addr = sg_dma_address(fw_src_table->sgl);
 	fw_phy_addr = getFWSecureHeapPaddr(fw_table);
+
+	/*
+	 * Register the GPU secure FW physical range as a TEE DMA heap so we
+	 * can obtain a tee_shm backed by tee_heap_buf_ops for MEMREF_INPUT
+	 * param[1] in GPU_CMD_SEND_IMAGE.
+	 *
+	 * tee_shm_register_fd() (kernel 7) requires tee_heap_buf_ops —
+	 * absent on the vendor berlin "Secure" heap. We self-register the
+	 * range via tee_protmem_static_pool_alloc() + tee_device_register_dma_heap()
+	 * so that shm->paddr = fw_phy_addr without going through
+	 * OPTEE_MSG_CMD_REGISTER_SHM (which OP-TEE rejects for secure pages).
+	 */
+	{
+		/*
+		 * PVR_ALIGN_OFFSET is for the berlin "Secure" heap allocation to
+		 * guarantee a 64K-aligned start. fw_phy_addr is already 64K-aligned,
+		 * so the protmem pool covers exactly the firmware region without
+		 * the padding. tee_protmem_static_pool_alloc() requires page-aligned
+		 * size; (FW_CODE_SIZE + FW_DATA_SIZE) * 2 is page-aligned (matching
+		 * SYNA_SECURE_FW Total Size = 786432 = 0xC0000).
+		 */
+		size_t fw_secure_size = (FW_CODE_SIZE + FW_DATA_SIZE) * 2;
+		struct dma_heap *tee_heap;
+		struct dma_buf *tee_dma_buf;
+		int fw_dst_fd;
+		int rc;
+
+		fw_protmem_pool = tee_protmem_static_pool_alloc(fw_phy_addr,
+							fw_secure_size);
+		if (IS_ERR(fw_protmem_pool)) {
+			dev_warn(dev,
+				 "tee_protmem_static_pool_alloc(0x%llx, 0x%zx) failed: %ld\n",
+				 (u64)fw_phy_addr, fw_secure_size,
+				 PTR_ERR(fw_protmem_pool));
+			fw_protmem_pool = NULL;
+			fw_dst_shm = NULL;
+			goto skip_tee_heap;
+		}
+
+		rc = tee_device_register_dma_heap(tee_gpu_ctx->teedev,
+						  TEE_DMA_HEAP_SECURE_VIDEO_PLAY,
+						  fw_protmem_pool);
+		if (rc) {
+			dev_warn(dev,
+				 "tee_device_register_dma_heap failed: %d\n", rc);
+			fw_protmem_pool->ops->destroy_pool(fw_protmem_pool);
+			fw_protmem_pool = NULL;
+			fw_dst_shm = NULL;
+			goto skip_tee_heap;
+		}
+
+		tee_heap = dma_heap_find("protected,secure-video");
+		if (!tee_heap) {
+			dev_warn(dev,
+				 "'protected,secure-video' heap not found after registration\n");
+			fw_dst_shm = NULL;
+			goto skip_tee_heap;
+		}
+
+		tee_dma_buf = dma_heap_buffer_alloc(tee_heap, fw_secure_size, 0, 0);
+		dma_heap_put(tee_heap);
+		if (IS_ERR_OR_NULL(tee_dma_buf)) {
+			dev_warn(dev,
+				 "dma_heap_buffer_alloc for TEE secure FW buffer failed: %ld\n",
+				 IS_ERR(tee_dma_buf) ? PTR_ERR(tee_dma_buf) : -ENOMEM);
+			fw_dst_shm = NULL;
+			goto skip_tee_heap;
+		}
+
+		/* get_dma_buf() provides the reference consumed by dma_buf_fd() */
+		get_dma_buf(tee_dma_buf);
+		fw_dst_fd = dma_buf_fd(tee_dma_buf, O_CLOEXEC);
+		if (fw_dst_fd < 0) {
+			dma_buf_put(tee_dma_buf);
+			dma_buf_put(tee_dma_buf); /* release alloc ref */
+			dev_warn(dev,
+				 "dma_buf_fd for TEE secure FW buffer failed: %d\n",
+				 fw_dst_fd);
+			fw_dst_shm = NULL;
+		} else {
+			fw_dst_shm = tee_shm_register_fd(tee_gpu_ctx, fw_dst_fd);
+			close_fd((unsigned int)fw_dst_fd);
+			dma_buf_put(tee_dma_buf); /* release alloc ref */
+			if (IS_ERR(fw_dst_shm)) {
+				dev_warn(dev,
+					 "tee_shm_register_fd for TEE secure FW buffer failed: %ld\n",
+					 PTR_ERR(fw_dst_shm));
+				fw_dst_shm = NULL;
+			}
+		}
+	}
+skip_tee_heap:
 
 	return PVRSRV_OK;
 free7:
@@ -387,6 +506,11 @@ PVRSRV_ERROR init_tz(void *pvOSDevice)
 
 void deinit_tz()
 {
+	if (!IS_ERR_OR_NULL(fw_dst_shm)) {
+		tee_shm_free(fw_dst_shm);
+		fw_dst_shm = NULL;
+	}
+
 	if(fw_dma_buf != NULL) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
 		dma_buf_unmap_attachment_unlocked(fw_buf_attach, fw_table, DMA_BIDIRECTIONAL);
@@ -399,6 +523,10 @@ void deinit_tz()
 		dma_heap_buffer_free(fw_dma_buf);
 		dma_heap_put(fw_secure_dma_heap);
 		fw_dma_buf = NULL;
+	}
+	if (fw_protmem_pool) {
+		tee_device_put_all_dma_heaps(tee_gpu_ctx->teedev);
+		fw_protmem_pool = NULL;
 	}
 	if(fw_src_dma_buf != NULL) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
@@ -419,18 +547,12 @@ PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *ps
 {
 	struct tee_ioctl_invoke_arg arg;
 	struct tee_param param[4];
-	struct tee_shm* srcShm;
-	struct tee_shm* dstShm;
+	struct tee_shm* srcShm = NULL;
 	int result = 0;
 	int codeSize;
 	int dataSize;
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-	struct iosys_map fw_src_data;
-#else
-	void *fw_src_data;
-#endif
+	void *fw_src_kaddr;
 	PVRSRV_ERROR res = PVRSRV_OK;
-	int fw_src_fd, fw_dst_fd;
 
 	setFwParams(GPU_CMD_SET_FW_PARAMS,
 				psTDFWParams->uFWP.sMips.sGPURegAddr.uiAddr,
@@ -445,72 +567,57 @@ PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *ps
 				psTDFWParams->uFWP.sMips.asFWPageTableAddr[3].uiAddr);
 
 
-	dma_buf_begin_cpu_access(fw_src_dma_buf, DMA_FROM_DEVICE);
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-	dma_buf_vmap(fw_src_dma_buf, &fw_src_data);
-	if (iosys_map_is_null(&fw_src_data)) {
-		printk(KERN_ERR "dma heap buffer map failed\n");
-		dma_buf_end_cpu_access(fw_src_dma_buf, DMA_FROM_DEVICE);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
-		dma_buf_unmap_attachment_unlocked(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
-#else
-		dma_buf_unmap_attachment(fw_src_buf_attach, fw_src_table, DMA_FROM_DEVICE);
-#endif
-		dma_buf_detach(fw_src_dma_buf, fw_src_buf_attach);
-		dma_heap_buffer_free(fw_src_dma_buf);
-		dma_heap_put(fw_nonsecure_dma_heap);
-		return PVRSRV_ERROR_DEVICEMEM_MAP_FAILED;
-	}
-	memcpy(fw_src_data.vaddr, psTDFWParams->pvFirmware, psTDFWParams->ui32FirmwareSize);
-	dma_buf_vunmap(fw_src_dma_buf, &fw_src_data);
-#else
-	fw_src_data = dma_buf_kmap(fw_src_dma_buf, 0);
-	memcpy(fw_src_data, psTDFWParams->pvFirmware, psTDFWParams->ui32FirmwareSize);
-	dma_buf_kunmap(fw_src_dma_buf, 0, fw_src_data);
-#endif
-	dma_buf_end_cpu_access(fw_src_dma_buf, DMA_FROM_DEVICE);
-	get_dma_buf(fw_src_dma_buf); //take additional ref to account for fd close
-	fw_src_fd = dma_buf_fd(fw_src_dma_buf, O_RDWR);
-	if (fw_src_fd < 0) {
-		dma_buf_put(fw_src_dma_buf);
-		res = PVRSRV_ERROR_INVALID_PARAMS;
-		goto out;
-	}
-
-	get_dma_buf(fw_dma_buf); //take additional ref to account for fd close
-	srcShm = tee_shm_register_fd(tee_gpu_ctx, fw_src_fd);
+	/*
+	 * tee_shm_register_fd() in kernel 7 requires the dma_buf to come from
+	 * a TEE DMA heap (ops == tee_heap_buf_ops). The "reserved" DMA heap is
+	 * not a TEE heap, so that path always returns -EINVAL. Use
+	 * tee_shm_alloc_kernel_buf() instead and copy the FW image directly,
+	 * the same approach used by the VPP TEE CA driver.
+	 */
+	srcShm = tee_shm_alloc_kernel_buf(tee_gpu_ctx, psTDFWParams->ui32FirmwareSize);
 	if (IS_ERR(srcShm)) {
-		printk(KERN_ERR "tee_shm_register fail as:%d  (phyAddr=%llx  size=%d)\n",
-				result, (unsigned long long)fw_src_phy_addr, psTDFWParams->ui32FirmwareSize);
+		printk(KERN_ERR "tee_shm_alloc_kernel_buf fail: %ld (size=%d)\n",
+				PTR_ERR(srcShm), psTDFWParams->ui32FirmwareSize);
+		srcShm = NULL;
 		res = PVRSRV_ERROR_INVALID_PARAMS;
 		goto out;
 	}
-
-	fw_dst_fd = dma_buf_fd(fw_dma_buf, O_RDWR);
-	if (fw_dst_fd < 0) {
-		dma_buf_put(fw_dma_buf);
+	fw_src_kaddr = tee_shm_get_va(srcShm, 0);
+	if (IS_ERR(fw_src_kaddr)) {
+		printk(KERN_ERR "tee_shm_get_va fail: %ld\n", PTR_ERR(fw_src_kaddr));
 		res = PVRSRV_ERROR_INVALID_PARAMS;
 		goto out;
 	}
-
-	dstShm = tee_shm_register_fd(tee_gpu_ctx, fw_dst_fd);
-	if (IS_ERR(dstShm)) {
-		printk(KERN_ERR "tee_shm_register fail as:%d  (phyAddr=%llx  size=0x%x)\n",
-				 result, (unsigned long long) getSecureHeapPaddr(), psTDFWParams->ui32FirmwareSize);
-		res = PVRSRV_ERROR_INVALID_PARAMS;
-		goto out;
-	}
+	memcpy(fw_src_kaddr, psTDFWParams->pvFirmware, psTDFWParams->ui32FirmwareSize);
 
 	memset(param, 0, sizeof(param));
 	memset(&arg, 0, sizeof(arg));
 
+	/*
+	 * param[0]: FW source image (non-secure TEE kernel buffer, srcShm).
+	 * param[1]: secure FW destination (fw_dst_shm, pre-registered in
+	 *           allocateFWAddress() from the "protected,secure-video" heap).
+	 *
+	 * The GPU TA (copyFwImage) strictly requires MEMREF_INPUT for both.
+	 * fw_dst_shm->paddr must equal fw_phy_addr so that code_base/data_base
+	 * set by the TA match the firmware heap address in sysconfig.c.
+	 */
+	if (IS_ERR_OR_NULL(fw_dst_shm)) {
+		printk(KERN_ERR "fw_dst_shm unavailable: secure GPU FW buffer not "
+			"registered as TEE SHM. Requires 'protected,secure-video' DMA "
+			"heap (OP-TEE OPTEE_SMC_SEC_CAP_PROTMEM).\n");
+		res = PVRSRV_ERROR_INVALID_PARAMS;
+		goto out;
+	}
+
 	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INPUT;
-	param[1].attr = TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INPUT;
 	param[0].u.memref.shm = srcShm;
 	param[0].u.memref.size = psTDFWParams->ui32FirmwareSize;
 	param[0].u.memref.shm_offs = 0;
-	param[1].u.memref.shm = dstShm;
-	param[1].u.memref.size = FW_CODE_SIZE+FW_DATA_SIZE;
+
+	param[1].attr = TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INPUT;
+	param[1].u.memref.shm = fw_dst_shm;
+	param[1].u.memref.size = tee_shm_get_size(fw_dst_shm);
 	param[1].u.memref.shm_offs = 0;
 
 
@@ -570,17 +677,8 @@ PVRSRV_ERROR syna_PFN_TD_SEND_FW_IMAGE(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *ps
 	}
 
 out:
-	if (dstShm) {
-		tee_shm_free(dstShm);
-		if (fw_dst_fd > 0)
-			close_fd(fw_dst_fd);
-	}
-
-	if (srcShm) {
+	if (!IS_ERR_OR_NULL(srcShm))
 		tee_shm_free(srcShm);
-		if (fw_src_fd > 0)
-			close_fd(fw_src_fd);
-	}
 
 	return res;
 }
