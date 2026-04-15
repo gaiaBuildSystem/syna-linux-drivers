@@ -624,8 +624,10 @@ static int berlin_tsp_probe(struct platform_device *pdev)
 
 	return 0;
 
+#if !IS_ENABLED(CONFIG_OPTEE)
 err_prob_device_0:
 	tsp_drv_exit(&tsp_dev);
+#endif
 err_prob_device_1:
 	unregister_chrdev_region(MKDEV(tsp_dev.major, 0), TSP_MAX_DEVS);
 err_prob_device_2:
