@@ -9,6 +9,7 @@
 #include <linux/proc_fs.h>
 #include <linux/tee_drv.h>
 #include <linux/interrupt.h>
+#include <tee_client_api.h>
 
 #include "avio_type.h"
 #include "vpp_vbuf.h"
@@ -119,7 +120,14 @@ int syna_ovpd_ca_initialize(void)
 	if (ret < 0 || sess_arg.ret != 0) {
 		pr_err("tee_client_open_session failed with tee_ctx 0x%p code 0x%x origin 0x%x",
 		       g_ovp_ca_context.context, ret, sess_arg.ret);
-		ret = -EINVAL;
+		/* OP-TEE not ready yet or transient communication failure.
+		 * Treat as retryable so callers can defer probe or retry later.
+		 */
+		if (ret == -EIO || sess_arg.ret == TEEC_ERROR_COMMUNICATION)
+			ret = -EAGAIN;
+		else if (ret == 0)
+			ret = -EINVAL;
+
 		goto cleanup2;
 	}
 

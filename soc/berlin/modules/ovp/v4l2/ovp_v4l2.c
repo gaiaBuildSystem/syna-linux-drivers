@@ -1417,6 +1417,10 @@ err_ovpd_fail:
 	mutex_destroy(&ovpd->lock);
 	kfree(ovpd);
 
+	/* Transient failure: defer probe */
+	if (ret == -EAGAIN)
+		ret = -EPROBE_DEFER;
+
 	/* Return the error code */
 	return ret;
 }
