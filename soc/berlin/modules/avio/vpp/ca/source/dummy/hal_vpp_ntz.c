@@ -63,3 +63,8 @@ int __weak NTZ_MV_VPP_LoadConfigTable(ENUM_VOUT_ID voutid, int Id, void *pConfig
 {
 	return 0;
 }
+
+int __weak NTZ_MV_VPP_UpdateGamma(int Id, const void *gamma, int length)
+{
+	return 0;
+}

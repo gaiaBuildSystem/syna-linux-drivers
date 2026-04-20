@@ -19,6 +19,8 @@
 #define DISP_RES_MIPI_PANDA	0x03
 #define DISP_RES_MIPI_WNC	0x04
 
+#define SYNA_GAMMA_LUT_SIZE	1024
+
 /* definition of VPP video outputs */
 typedef enum {
 	FIRST_VOUT     = 0,
