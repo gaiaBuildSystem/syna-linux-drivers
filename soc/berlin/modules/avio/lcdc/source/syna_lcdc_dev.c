@@ -420,18 +420,18 @@ static void syna_lcdc_set_gamma(struct syna_lcdc_dev *dev)
 	void *p_gamma = memchr_inv(dev->u8Gamma, 0, sizeof(dev->u8Gamma));
 	bool b_new_gamma_en = p_gamma ? 1 : 0;
 
-	if (dev->b_gamma_en != b_new_gamma_en) {
-		dev->b_gamma_en = b_new_gamma_en;
-		syna_lcdc_write(dev, LCDC_REG_GCER, b_new_gamma_en);
-	}
-
 	if (b_new_gamma_en) {
 		/* Each register contains two 8-bit gamma values */
 		for (i = 0; i < 16; i++) {
 			val = (dev->u8Gamma[i * 2 + 1] << 8) | dev->u8Gamma[i * 2];
-			syna_lcdc_write(dev, LCDC_REG_GC0R + (i * 4), val);
+			GA_REG_WORD32_WRITE(dev->core_addr + LCDC_REG_GC0R + (i * 4), val);
 		}
-		syna_lcdc_write(dev, LCDC_REG_GC0R + (i * 4), dev->u8Gamma[32]);
+		GA_REG_WORD32_WRITE(dev->core_addr + LCDC_REG_GC0R + (i * 4), dev->u8Gamma[32]);
+	}
+
+	if (dev->b_gamma_en != b_new_gamma_en) {
+		dev->b_gamma_en = b_new_gamma_en;
+		GA_REG_WORD32_WRITE(dev->core_addr + LCDC_REG_GCER, b_new_gamma_en);
 	}
 }
 
@@ -492,14 +492,6 @@ void syna_lcdc_irq(int intrMask)
 				if (dev->en_intr_handler) {
 					dev->is_first_frame = 0;
 					syna_bcmbuf_flip(dev);
-
-					if (dev->update_flags) {
-						if (dev->update_flags & SYNA_LCDC_GAMMA) {
-							syna_lcdc_set_gamma(dev);
-							dev->update_flags &= ~SYNA_LCDC_GAMMA;
-						}
-					}
-
 					syna_lcdc_dlr_handler(dev);
 					syna_lcdc_hw_param_update(dev); //TO handle input change
 					syna_bcmbuf_submit(dev, 1);
@@ -695,7 +687,7 @@ int syna_lcdc_update_gamma_table(int lcdcID, const void *data,
 	if (data == NULL && length == 0) {
 		memset(dev->u8Gamma, 0, sizeof(dev->u8Gamma));
 		dev->update_flags |= SYNA_LCDC_GAMMA;
-		return 0;
+		goto update_gamma_table_exit;
 	}
 
 	gamma16 = (uint16_t *)data;
@@ -717,6 +709,13 @@ int syna_lcdc_update_gamma_table(int lcdcID, const void *data,
 	if (dev->u8Gamma[SYNA_LCDC_GAMMA_LUT_ENTRRIES - 1] != val) {
 		dev->u8Gamma[SYNA_LCDC_GAMMA_LUT_ENTRRIES - 1] = val;
 		dev->update_flags |= SYNA_LCDC_GAMMA;
+	}
+
+update_gamma_table_exit:
+	//TBD: move to ISR and convert Direct write to BCM write
+	if (dev->update_flags & SYNA_LCDC_GAMMA) {
+		dev->update_flags &= ~SYNA_LCDC_GAMMA;
+		syna_lcdc_set_gamma(dev);
 	}
 
 	return 0;
