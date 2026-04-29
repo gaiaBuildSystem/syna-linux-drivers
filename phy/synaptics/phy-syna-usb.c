@@ -156,6 +156,7 @@ static const struct phy_ops phy_dolphin_usb3_ops = {
 };
 
 #define SL261X_USB_PHY_CTRL0		0x0
+#define  TXVREFTUNE0_MASK		GENMASK(27, 24)
 #define SL261X_USB_PHY_CTRL1		0x4
 #define  PHY_USB_CTRL1_DPPULLDOWN	BIT(27)
 #define  PHY_USB_CTRL1_DMPULLDOWN	BIT(28)
@@ -166,10 +167,16 @@ static const struct phy_ops phy_dolphin_usb3_ops = {
 static int phy_sl261x_usb_power_on(struct phy *phy)
 {
 	struct phy_syna_usb2_priv *priv = phy_get_drvdata(phy);
+	u32 val;
 
 	clk_prepare_enable(priv->clk);
 	reset_control_deassert(priv->rst);
 	udelay(100);
+
+	val = readl(priv->base + SL261X_USB_PHY_CTRL0);
+	val &= ~TXVREFTUNE0_MASK;
+	val |= FIELD_PREP(TXVREFTUNE0_MASK, 0xf);
+	writel(val, priv->base + SL261X_USB_PHY_CTRL0);
 
 	return 0;
 }
