@@ -274,7 +274,8 @@
 #define NMI_IFNAME              CUSTOM_NMI_IFNAME
 #endif /* !CUSTOM_NMI_IFNAME */
 
-#define IS_NDI_IFACE(ifname) strstr(ifname, "aware_data")
+#define IS_NDI_IFACE(ifname) (strstr(ifname, "aware_data") || \
+	(strstr(ifname, "aware") && !strstr(ifname, "aware_nmi")))
 #define IS_NMI_IFACE(ifname) strstr(ifname, NMI_IFNAME)
 
 #define NAN_GEOFENCE_RTT_DEFAULT_INTVL	512u
@@ -715,6 +716,7 @@ typedef struct nan_event_data {
 	nan_str_data_t npk;		/* NPK/PMK of the PAIRING SA */
 	nan_str_data_t cookie;		/* Boostrapping cookie info */
 	nan_str_data_t npba_info;	/* NPBA attr information */
+	uint16	chanspec;
 } nan_event_data_t;
 
 /*

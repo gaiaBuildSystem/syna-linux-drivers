@@ -182,7 +182,9 @@ typedef struct wlfc_mac_descriptor {
 	int onbus_pkts_count;
 	/** flag. TRUE when remote MAC is in suppressed state */
 	uint8 suppressed;
-
+#ifdef DHD_HWTSTAMP
+	uint32 tsf[WL_TXSTATUS_FREERUNCTR_MAXNUM][2];
+#endif /* DHD_HWTSTAMP */
 #ifdef QMONITOR
 	dhd_qmon_t qmon;
 #endif /* QMONITOR */

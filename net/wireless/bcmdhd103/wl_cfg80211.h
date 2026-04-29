@@ -863,6 +863,12 @@ do {									\
 	}								\
 } while (0)
 
+#ifdef APF_DBG
+#define WL_APF_DBG	WL_ERR
+#else
+#define WL_APF_DBG
+#endif
+
 #define WL_SD(x)
 #define INDOOR_DBG(x)
 
@@ -1223,7 +1229,11 @@ enum wl_status {
 	WL_STATUS_CFG80211_CONNECT,
 	WL_STATUS_AUTHORIZED,
 	WL_STATUS_ROAMING,
-	WL_STATUS_CSA_ACTIVE
+	WL_STATUS_CSA_ACTIVE,
+	/* Avoid marking AP interface as upgraded so deletion of the interface
+	 * handles it properly as AP interface in fw
+	 */
+	WL_STATUS_CREATED_AS_AP_ITF
 };
 
 #ifdef WL_MLO
@@ -1538,6 +1548,8 @@ typedef struct wl_mlo_config {
 	u8 max_mlo_links;
 	u8 default_multilink_val;
 	bool eht_softap;
+	/* IS NL/cfg80211 layer requesting a MLO Softap */
+	bool eht_softap_nl;
 } wl_mlo_config_t;
 #endif /* WL_MLO */
 

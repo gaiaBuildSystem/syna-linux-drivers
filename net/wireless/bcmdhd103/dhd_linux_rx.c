@@ -796,7 +796,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 		}
 #endif
 
-#ifdef PCIE_FULL_DONGLE
+#if defined(PCIE_FULL_DONGLE) || defined(SYNA_FW_PKT_FWD_DISABLED)
 		if ((DHD_IF_ROLE_AP(dhdp, ifidx) || DHD_IF_ROLE_P2PGO(dhdp, ifidx)) &&
 			(!ifp->ap_isolate)) {
 			eh = (struct ether_header *)PKTDATA(dhdp->osh, pktbuf);
@@ -830,7 +830,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 				}
 			}
 		}
-#endif /* PCIE_FULL_DONGLE */
+#endif /* PCIE_FULL_DONGLE || SYNA_FW_PKT_FWD_DISABLED */
 #endif /* BCM_ROUTER_DHD */
 #ifdef DHD_POST_EAPOL_M1_AFTER_ROAM_EVT
 		if (IS_STA_IFACE(ndev_to_wdev(ifp->net)) &&

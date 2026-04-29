@@ -15772,8 +15772,10 @@ typedef wl_ftm_tlv_t wl_proxd_tlv_t;
 typedef wl_ftm_iov_t wl_proxd_iov_t;
 #endif /* FTM */
 
+#ifndef BCMUTILS_ERR_CODES
 /* FIXME: why doesn't the one defined in bcmerror.h work? */
 typedef int32 wl_proxd_status_t;
+#endif /* BCMUTILS_ERR_CODES */
 
 /* proxd errors from phy */
 #define PROXD_TOF_INIT_ERR_BITS 16

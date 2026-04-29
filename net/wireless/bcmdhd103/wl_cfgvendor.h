@@ -1234,6 +1234,7 @@ extern int wl_cfgvendor_send_supp_advlog(const char *fmt, ...);
  * preventing the creation of a 4-byte padding "hole" (memory gap) in the buffer.
  */
 #ifdef LINKSTAT_EXT_SUPPORT
+#define COMPAT_MEMCOPY_IFACE(output, total_len, normal_structure, value)	\
 	do { \
 		if (compat_task_state) {	\
 			memcpy(output, &compat_ ## value, sizeof(compat_ ## normal_structure));	\

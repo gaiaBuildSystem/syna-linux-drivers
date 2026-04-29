@@ -4538,6 +4538,10 @@ wl_cfg80211_create_iface(struct wiphy *wiphy,
 		event, addr, name, !rtnl_is_locked());
 
 	if (new_ndev) {
+		if (wl_iftype == WL_IF_TYPE_AP) {
+			wl_set_drv_status(cfg, CREATED_AS_AP_ITF, new_ndev);
+		}
+
 		/* Iface post ops successful. Return ndev/wdev ptr */
 		return new_ndev->ieee80211_ptr;
 	}
@@ -10728,7 +10732,11 @@ wl_apply_per_sta_conn_suspend_settings(struct bcm_cfg80211 *cfg,
 
 	BCM_REFERENCE(err);
 
+#ifdef APF_DBG
+	WL_APF_DBG(("%s suspend %d\n", __FUNCTION__, suspend));
+#else
 	WL_INFORM_MEM(("apply sta settings for suspend:%d\n", suspend));
+#endif /* APF_DBG */
 #ifdef WLTDLS
 	if (suspend && dhd->tdls_mode) {
 			WL_DBG_MEM(("skip dtim settings in tdls mode\n"));
@@ -10805,9 +10813,12 @@ wl_apply_sta_role_settings(struct bcm_cfg80211 *cfg, bool suspend)
 	for_each_ndev(cfg, iter, next) {
 		if (iter->ndev && (iter->wdev->iftype == NL80211_IFTYPE_STATION)) {
 
+#ifdef APF_DBG
+			WL_APF_DBG(("%s apply sta settings suspend %d\n", __FUNCTION__, suspend));
+#else
 			WL_DBG_MEM(("apply sta %s settings for %s\n",
 				(suspend ? "suspend" : "resume"), iter->ndev->name));
-
+#endif /* APF_DBG */
 			/* settings that needs to be applied per connection */
 			if (wl_get_drv_status(cfg, CONNECTED, iter->ndev)) {
 				wl_apply_per_sta_conn_suspend_settings(cfg, iter->ndev, suspend);
@@ -13515,6 +13526,10 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0))
 	wiphy_ext_feature_set(wdev->wiphy, NL80211_EXT_FEATURE_MULTICAST_REGISTRATIONS);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0) */
+
+#ifdef WL_DFS_OFFLD
+	wiphy_ext_feature_set(wdev->wiphy, NL80211_EXT_FEATURE_DFS_OFFLOAD);
+#endif /* WL_DFS_OFFLD */
 
 	/* Now we can register wiphy with cfg80211 module */
 	err = wiphy_register(wdev->wiphy);
@@ -26722,6 +26737,7 @@ wl_cfg80211_debug_data_dump(struct net_device *dev, u8 *buf, u32 buf_len)
 	return len;
 }
 
+#ifdef WL_CLIENT_SAE
 static void
 wl_cfg80211_lock(struct wireless_dev *wdev)
 {
@@ -26744,7 +26760,6 @@ wl_cfg80211_unlock(struct wireless_dev *wdev)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
 }
 
-#ifdef WL_CLIENT_SAE
 static bool
 wl_is_pmkid_available(struct net_device *dev, const u8 *bssid)
 {
@@ -28024,9 +28039,11 @@ wl_cfg80211_actframe_fillup_v2(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgd
 {
 	s32 err = 0;
 	wl_action_frame_v2_t *action_frame_v2_p;
+	struct net_info *netinfo = NULL;
 	struct ether_addr rand_mac_mask = {{0}};
 	WL_DBG(("Enter \n"));
 
+	netinfo = wl_get_netinfo_by_netdev(cfg, dev);
 	af_params_v2_p->version = WL_ACTFRAME_VERSION_MAJOR_2;
 	af_params_v2_p->length = wl_af_params_size;
 	af_params_v2_p->channel = af_params->channel;
@@ -28046,11 +28063,10 @@ wl_cfg80211_actframe_fillup_v2(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgd
 		WL_ERR(("actframe :memcpy failed\n"));
 		return -ENOMEM;
 	}
-
 	/* check if local admin bit is set and addr is different from ndev addr */
-	if ((IS_LOCAL_ETHERADDR(sa)) &&
-		(cfgdev->iftype == NL80211_IFTYPE_STATION) &&
-		memcmp(sa, dev->dev_addr, ETH_ALEN)) {
+	if ((cfgdev->iftype == NL80211_IFTYPE_STATION) &&
+		(((IS_LOCAL_ETHERADDR(sa)) && memcmp(sa, dev->dev_addr, ETH_ALEN)) ||
+		(netinfo && netinfo->mlinfo.num_links))) {
 		/* Use mask to avoid randomization, as the address from supplicant
 		 * is already randomized.
 		 */

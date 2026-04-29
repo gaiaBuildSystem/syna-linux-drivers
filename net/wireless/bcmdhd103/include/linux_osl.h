@@ -50,6 +50,10 @@
 #include <linux/sched/clock.h>
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+#define in_hardirq()	in_irq()
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) */
+
 #define DECLSPEC_ALIGN(x)	__attribute__ ((aligned(x)))
 
 /* Linux Kernel: File Operations: start */

@@ -75,7 +75,11 @@
 #define WLAN_SCAN_BUF_SIZE		(64 * 1024)
 
 #define WLAN_DHD_INFO_BUF_SIZE		(64 * 1024)
+#ifdef DHD_HWTSTAMP
+#define WLAN_DHD_WLFC_BUF_SIZE		(256 * 1024)
+#else
 #define WLAN_DHD_WLFC_BUF_SIZE		(64 * 1024)
+#endif /* DHD_HWTSTAMP */
 #define WLAN_DHD_IF_FLOW_LKUP_SIZE	(64 * 1024)
 /* Have 4MB ramsize to accomodate future chips */
 #define WLAN_DHD_MEMDUMP_SIZE		(4 * 1024 * 1024)

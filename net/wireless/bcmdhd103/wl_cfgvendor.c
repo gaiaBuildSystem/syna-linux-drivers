@@ -4773,6 +4773,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->ndp_instance_id = nla_get_u32(iter);
+			WL_TRACE(("ndp_instance_id = %d\n", cmd_data->ndp_instance_id));
 			break;
 		case NAN_ATTRIBUTE_IFACE:
 			if (nla_len(iter) >= sizeof(cmd_data->ndp_iface)) {
@@ -4782,6 +4783,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 			}
 			strlcpy((char *)cmd_data->ndp_iface, (char *)nla_data(iter),
 				nla_len(iter));
+			WL_TRACE(("ndp_iface = %s\n", cmd_data->ndp_iface));
 			break;
 		case NAN_ATTRIBUTE_SECURITY:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -4789,6 +4791,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->ndp_cfg.security_cfg = nla_get_u8(iter);
+			WL_TRACE(("security_cfg = %d\n", cmd_data->ndp_cfg.security_cfg));
 			break;
 		case NAN_ATTRIBUTE_QOS:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -4796,6 +4799,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->ndp_cfg.qos_cfg = nla_get_u8(iter);
+			WL_TRACE(("qos_cfg = %d\n", cmd_data->ndp_cfg.qos_cfg));
 			break;
 		case NAN_ATTRIBUTE_RSP_CODE:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -4803,6 +4807,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->rsp_code = nla_get_u8(iter);
+			WL_TRACE(("rsp_code = %d\n", cmd_data->rsp_code));
 			break;
 		case NAN_ATTRIBUTE_INST_COUNT:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -4810,6 +4815,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->num_ndp_instances = nla_get_u8(iter);
+			WL_TRACE(("num_ndp_instances = %d\n", cmd_data->num_ndp_instances));
 			break;
 		case NAN_ATTRIBUTE_PEER_DISC_MAC_ADDR:
 			if (nla_len(iter) != ETHER_ADDR_LEN) {
@@ -4822,6 +4828,8 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				WL_ERR(("Failed to copy peer_disc_mac_addr\n"));
 				goto exit;
 			}
+			WL_TRACE(("peer_disc_mac_addr = " MACDBG "\n",
+				MAC2STRDBG(cmd_data->peer_disc_mac_addr)));
 			break;
 		case NAN_ATTRIBUTE_PEER_NDI_MAC_ADDR:
 			if (nla_len(iter) != ETHER_ADDR_LEN) {
@@ -4834,6 +4842,8 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				WL_ERR(("Failed to copy peer_ndi_mac_addr\n"));
 				goto exit;
 			}
+			WL_TRACE(("peer_ndi_mac_addr = " MACDBG "\n",
+				MAC2STRDBG(cmd_data->peer_ndi_mac_addr)));
 			break;
 		case NAN_ATTRIBUTE_MAC_ADDR:
 			if (nla_len(iter) != ETHER_ADDR_LEN) {
@@ -4846,6 +4856,8 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				WL_ERR(("Failed to copy mac_addr\n"));
 				goto exit;
 			}
+			WL_TRACE(("mac_addr = " MACDBG "\n",
+				MAC2STRDBG(&cmd_data->mac_addr)));
 			break;
 		case NAN_ATTRIBUTE_IF_ADDR:
 			if (nla_len(iter) != ETHER_ADDR_LEN) {
@@ -4858,6 +4870,8 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				WL_ERR(("Failed to copy if_addr\n"));
 				goto exit;
 			}
+			WL_TRACE(("if_addr = " MACDBG "\n",
+				MAC2STRDBG(&cmd_data->if_addr)));
 			break;
 		case NAN_ATTRIBUTE_ENTRY_CONTROL:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -4865,6 +4879,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->avail_params.duration = nla_get_u8(iter);
+			WL_TRACE(("duration = %d\n", cmd_data->avail_params.duration));
 			break;
 		case NAN_ATTRIBUTE_AVAIL_BIT_MAP:
 			if (nla_len(iter) != sizeof(uint32)) {
@@ -4872,6 +4887,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->avail_params.bmap = nla_get_u32(iter);
+			WL_TRACE(("bmap = 0x%08x\n", cmd_data->avail_params.bmap));
 			break;
 		case NAN_ATTRIBUTE_CHANNEL: {
 			if (nla_len(iter) != sizeof(uint32)) {
@@ -4898,6 +4914,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->avail_params.no_config_avail = (bool)nla_get_u8(iter);
+			WL_ERR(("no_config_avail = %d\n", cmd_data->avail_params.no_config_avail));
 			break;
 		case NAN_ATTRIBUTE_SERVICE_NAME_LEN: {
 			if (nla_len(iter) != sizeof(uint16)) {
@@ -4995,6 +5012,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->pub_id = nla_get_u32(iter);
+			WL_TRACE(("pub_id = %d\n", cmd_data->pub_id));
 			break;
 		case NAN_ATTRIBUTE_CIPHER_SUITE_TYPE:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -5074,7 +5092,9 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->service_instance_id = nla_get_u16(iter);
+			WL_TRACE(("service_instance_id = %d\n", cmd_data->service_instance_id));
 			break;
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 		case  NAN_ATTRIBUTE_GTK_CSID:
 			if (nla_len(iter) != sizeof(uint8)) {
 				ret = -EINVAL;
@@ -5087,6 +5107,7 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 			} else {
 				ret = BCME_UNSUPPORTED;
 			}
+			WL_TRACE(("gtk_csid = %d\n", cmd_data->gtk_csid));
 
 			break;
 		case  NAN_ATTRIBUTE_CSIA_CAPABILITIES:
@@ -5104,8 +5125,9 @@ wl_cfgvendor_nan_parse_datapath_args(struct wiphy *wiphy,
 				NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK))) {
 				ret = BCME_UNSUPPORTED;
 			}
-
+			WL_TRACE(("csia_cap = %d\n", cmd_data->csia_cap));
 			break;
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 		default:
 			WL_ERR(("Unknown type, %d\n", attr_type));
 			ret = -EINVAL;
@@ -5144,6 +5166,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->token = nla_get_u16(iter);
+			WL_TRACE(("token = %d\n", cmd_data->token));
 			break;
 		case NAN_ATTRIBUTE_PERIODIC_SCAN_INTERVAL:
 			break;
@@ -5156,10 +5179,13 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 			}
 			cmd_data->pub_id = nla_get_u32(iter);
 			cmd_data->local_id = cmd_data->pub_id;
+			WL_TRACE(("pub_id = %d\n", cmd_data->pub_id));
+			WL_TRACE(("local_id = %d\n", cmd_data->local_id));
 			break;
 		case NAN_ATTRIBUTE_MAC_ADDR:
 			if (nla_len(iter) != ETHER_ADDR_LEN) {
 				ret = -EINVAL;
+				WL_TRACE(("invalid mac addr len:%d\n", nla_len(iter)));
 				goto exit;
 			}
 			ret = memcpy_s((char*)&cmd_data->mac_addr, ETHER_ADDR_LEN,
@@ -5168,6 +5194,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				WL_ERR(("Failed to copy mac addr\n"));
 				return ret;
 			}
+			WL_TRACE(("mac_addr " MACDBG "\n", MAC2STRDBG(&cmd_data->mac_addr)));
 			break;
 		case NAN_ATTRIBUTE_SERVICE_SPECIFIC_INFO_LEN:
 			if (nla_len(iter) != sizeof(uint16)) {
@@ -5222,6 +5249,8 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 			}
 			cmd_data->sub_id = nla_get_u16(iter);
 			cmd_data->local_id = cmd_data->sub_id;
+			WL_TRACE(("sub_id = %d \n", cmd_data->sub_id));
+			WL_TRACE(("local_id = %d \n", cmd_data->local_id));
 			break;
 		case NAN_ATTRIBUTE_SUBSCRIBE_TYPE:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -5229,6 +5258,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->flags |= nla_get_u8(iter) ? WL_NAN_SUB_ACTIVE : 0;
+			WL_TRACE(("subscribe type = %x\n", cmd_data->flags));
 			break;
 		case NAN_ATTRIBUTE_PUBLISH_COUNT:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -5236,6 +5266,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->life_count = nla_get_u8(iter);
+			WL_TRACE(("life_count = %d\n", cmd_data->life_count));
 			break;
 		case NAN_ATTRIBUTE_PUBLISH_TYPE: {
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -5250,6 +5281,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 			} else {
 				cmd_data->flags |= WL_NAN_PUB_BOTH;
 			}
+			WL_TRACE(("publish type = %x\n", cmd_data->flags));
 			break;
 		}
 		case NAN_ATTRIBUTE_PERIOD: {
@@ -5265,6 +5297,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 			if (nla_get_u16(iter)) {
 				cmd_data->period = 1 << (nla_get_u16(iter)-1);
 			}
+			WL_TRACE(("period = %d\n", cmd_data->period));
 			break;
 		}
 		case NAN_ATTRIBUTE_REPLIED_EVENT_FLAG:
@@ -5275,6 +5308,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->ttl = nla_get_u16(iter);
+			WL_TRACE(("ttl = %d\n", cmd_data->ttl));
 			break;
 		case NAN_ATTRIBUTE_SERVICE_NAME_LEN: {
 			if (nla_len(iter) != sizeof(uint16)) {
@@ -5330,6 +5364,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->remote_id = nla_get_u32(iter);
+			WL_TRACE(("remote_id = %d\n", cmd_data->remote_id));
 			break;
 		case NAN_ATTRIBUTE_INST_ID:
 			if (nla_len(iter) != sizeof(uint16)) {
@@ -5337,6 +5372,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->local_id = nla_get_u16(iter);
+			WL_TRACE(("local_id = %d\n", cmd_data->local_id));
 			break;
 		case NAN_ATTRIBUTE_SUBSCRIBE_COUNT:
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -5344,6 +5380,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			cmd_data->life_count = nla_get_u8(iter);
+			WL_TRACE(("life_count = %d\n", cmd_data->life_count));
 			break;
 		case NAN_ATTRIBUTE_SSIREQUIREDFORMATCHINDICATION: {
 			if (nla_len(iter) != sizeof(uint8)) {
@@ -5353,6 +5390,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 			bit_flag = (u32)nla_get_u8(iter);
 			cmd_data->flags |=
 				bit_flag ? WL_NAN_SUB_MATCH_IF_SVC_INFO : 0;
+			WL_TRACE(("SSI required for match indication = %x\n", bit_flag));
 			break;
 		}
 		case NAN_ATTRIBUTE_SUBSCRIBE_MATCH:
@@ -5362,6 +5400,13 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				goto exit;
 			}
 			flag_match = nla_get_u8(iter);
+
+			/* For SVT automation, we expect continuous
+			 * match algorithm, so override tool default
+			 * settings (halutil 16 sets to single match
+			 * by default.)
+			 */
+			flag_match = NAN_MATCH_ALG_MATCH_CONTINUOUS;
 
 			switch (flag_match) {
 			case NAN_MATCH_ALG_MATCH_CONTINUOUS:
@@ -5378,6 +5423,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				ret = -EINVAL;
 				goto exit;
 			}
+			WL_TRACE(("subscribe/publish match alg = %x\n", flag_match));
 			break;
 		}
 		case NAN_ATTRIBUTE_SERVICERESPONSEFILTER:
@@ -5913,6 +5959,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 			}
 			cmd_data->response = nla_get_u8(iter);
 			break;
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 		case  NAN_ATTRIBUTE_GTK_CSID:
 			if (nla_len(iter) != sizeof(uint8)) {
 				ret = -EINVAL;
@@ -5940,6 +5987,7 @@ wl_cfgvendor_nan_parse_discover_args(struct wiphy *wiphy,
 				ret = BCME_UNSUPPORTED;
 			}
 			break;
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 		default:
 			WL_ERR(("Unknown attr type, %d\n", attr_type));
 			ret = -EINVAL;
@@ -7331,6 +7379,7 @@ wl_cfgvendor_nan_sub_match_event_filler(struct sk_buff *msg,
 		goto fail;
 	}
 #endif /* WL_NAN_INSTANT_MODE */
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 	if (event_data->sde_control_flag & NAN_SDE_CF_GTK_REQUIRED) {
 		ret = nla_put_u8(msg, NAN_ATTRIBUTE_GTK_CSID, event_data->peer_gtk_csid);
 		if (unlikely(ret)) {
@@ -7346,6 +7395,7 @@ wl_cfgvendor_nan_sub_match_event_filler(struct sk_buff *msg,
 			goto fail;
 		}
 	}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 	if (event_data->publish_rssi) {
 		event_data->publish_rssi = -event_data->publish_rssi;
@@ -9564,6 +9614,7 @@ static u8 wl_map_fw_to_wifihal_ac(u8 wme_ac)
 	return ac;
 }
 
+#ifndef LINKSTAT_EXT_SUPPORT
 static u8 wl_map_to_wifihal_link_state(u8 link_power_state)
 {
 	u8 hal_link_power_state = WIFI_LINK_STATE_UNKNOWN;
@@ -9577,6 +9628,7 @@ static u8 wl_map_to_wifihal_link_state(u8 link_power_state)
 
 	return hal_link_power_state;
 }
+#endif /* !LINKSTAT_EXT_SUPPORT */
 
 static int
 wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
@@ -9657,7 +9709,7 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 	COMPAT_ASSIGN_VALUE(iface, frequency,
 		wl_channel_to_frequency(wf_chspec_primary20_chan(chanspec),
 		CHSPEC_BAND(chanspec)));
-#endif /* LINKSTAT_EXT_SUPPORT */
+#endif /* !LINKSTAT_EXT_SUPPORT */
 
 	COMPAT_ASSIGN_VALUE(iface, ac[WIFI_AC_VO].ac, WIFI_AC_VO);
 	COMPAT_ASSIGN_VALUE(iface, ac[WIFI_AC_VI].ac, WIFI_AC_VI);
@@ -9921,7 +9973,7 @@ wl_update_ml_link_stat(struct bcm_cfg80211 *cfg, struct net_device *inet_ndev,
 #ifndef LINKSTAT_EXT_SUPPORT
 	*output += (sizeof(wifi_peer_info_v1) + sizeof(wifi_rate_stat_v1));
 	*total_len += (sizeof(wifi_peer_info_v1) + sizeof(wifi_rate_stat_v1));
-#endif /* LINKSTAT_EXT_SUPPORT */
+#endif /* !LINKSTAT_EXT_SUPPORT */
 
 	if ((err == BCME_OK) && (peer_list_info && peer_list_info->count > 0)) {
 		for (i = 0; i < num_rate; i++) {
@@ -10022,7 +10074,7 @@ static int wl_update_multi_link_stat(struct bcm_cfg80211 *cfg, struct net_device
 
 	*output += sizeof(wifi_iface_ml_stat);
 	*total_len += sizeof(wifi_iface_ml_stat);
-#endif /* LINKSTAT_EXT_SUPPORT */
+#endif /* !LINKSTAT_EXT_SUPPORT */
 
 	/* Update per link info */
 	for (i = 0; i < ml_iface.num_links; i++) {
@@ -16143,7 +16195,7 @@ wl_cfgvendor_apply_cmd_policy(struct wiphy *wiphy)
 int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)
 {
 
-	WL_INFORM_MEM(("Vendor: Register BRCM cfg80211 vendor cmd(0x%x) interface \n",
+	WL_INFORM_MEM(("Vendor: Register SYNA cfg80211 vendor cmd(0x%x) interface \n",
 		NL80211_CMD_VENDOR));
 
 	wiphy->vendor_commands	= wl_vendor_cmds;
@@ -16187,7 +16239,7 @@ int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)
 
 int wl_cfgvendor_detach(struct wiphy *wiphy)
 {
-	WL_INFORM_MEM(("Vendor: Unregister BRCM cfg80211 vendor interface \n"));
+	WL_INFORM_MEM(("Vendor: Unregister SYNA cfg80211 vendor interface \n"));
 
 	wiphy->vendor_commands  = NULL;
 	wiphy->vendor_events    = NULL;

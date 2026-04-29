@@ -496,32 +496,39 @@ dhd_preinit_config_proc(dhd_pub_t *dhd, int ifidx, char *name, char *value)
 		}
 	}
 	/* 802.11 mode */
+	/* 802.11 mode: 11be */
+	else if (!strcasecmp(name, "eht_enab")) {
+		var_int = (uint)simple_strtol(value, NULL, 0);
+		dhd_80211_mode_update(dhd, ifidx,
+		        -1, -1, -1, -1, var_int, -1);
+		return ret;
+	}
 	/* 802.11 mode: 11ax */
 	else if (!strcasecmp(name, "he_enab")) {
 		var_int = (uint)simple_strtol(value, NULL, 0);
 		dhd_80211_mode_update(dhd, ifidx,
-		        -1, -1, -1, var_int, -1);
+		        -1, -1, -1, var_int, -1, -1);
 		return ret;
 	}
 	/* 802.11 mode: 11ac */
 	else if (!strcasecmp(name, "vhtmode")) {
 		var_int = (uint)simple_strtol(value, NULL, 0);
 		dhd_80211_mode_update(dhd, ifidx,
-		        -1, -1, var_int, -1, -1);
+		        -1, -1, var_int, -1, -1, -1);
 		return ret;
 	}
 	/* 802.11 mode: 11n */
 	else if (!strcasecmp(name, "nmode")) {
 		var_int = (uint)simple_strtol(value, NULL, 0);
 		dhd_80211_mode_update(dhd, ifidx,
-		        -1, var_int, -1, -1, -1);
+		        -1, var_int, -1, -1, -1, -1);
 		return ret;
 	}
 	/* 802.11 mode: 11b/g */
 	else if (!strcasecmp(name, "gmode")) {
 		var_int = (uint)simple_strtol(value, NULL, 0);
 		dhd_80211_mode_update(dhd, ifidx,
-		        var_int, -1, -1, -1, -1);
+		        var_int, -1, -1, -1, -1, -1);
 		return ret;
 	}
 	/* 802.11 mode: only mode */
@@ -529,14 +536,14 @@ dhd_preinit_config_proc(dhd_pub_t *dhd, int ifidx, char *name, char *value)
 		var_int = (uint)simple_strtol(value, NULL, 0);
 		if (var_int == 1) {
 			dhd_80211_mode_update(dhd, ifidx,
-			        -1, -1, -1, -1, OMC_HT);
+			        -1, -1, -1, -1, -1, OMC_HT);
 		}
 		return ret;
 	}
 	else if (!strcasecmp(name, "mode_reqd")) {
 		var_int = (uint)simple_strtol(value, NULL, 0);
 		dhd_80211_mode_update(dhd, ifidx,
-		        -1, -1, -1, -1, var_int);
+		        -1, -1, -1, -1, -1, var_int);
 		return ret;
 	}
 	/* 802.11 ax features */
@@ -1170,13 +1177,16 @@ dhd_preinit_config_proc(dhd_pub_t *dhd, int ifidx, char *name, char *value)
 #if defined(ARP_CHECK_SUPPORT) && defined(ARP_OFFLOAD_SUPPORT)
 	else if (!strcasecmp(name, "arp_check_enab")) {
 		dhd->info->arp_check_enable = (bool)simple_strtol(value, NULL, 0);
-		DHD_ERROR(("%s: set the ARP CHECK enable to be %d\n", __FUNCTION__, dhd->info->arp_check_enable));
+		DHD_ERROR(("%s: set the ARP CHECK enable to be %d\n",
+			__FUNCTION__, dhd->info->arp_check_enable));
 	} else if (!strcasecmp(name, "arp_check_interval")) {
 		dhd->info->arp_check_interval = (uint)simple_strtol(value, NULL, 0);
-		DHD_ERROR(("%s: set the ARP CHECK interval to be %d\n", __FUNCTION__, dhd->info->arp_check_interval));
+		DHD_ERROR(("%s: set the ARP CHECK interval to be %d\n",
+			__FUNCTION__, dhd->info->arp_check_interval));
 	} else if (!strcasecmp(name, "arp_check_timeout")) {
 		dhd->info->arp_check_timeout = (uint)simple_strtol(value, NULL, 0);
-		DHD_ERROR(("%s: set the ARP CHECK timeout to be %d\n", __FUNCTION__, dhd->info->arp_check_timeout));
+		DHD_ERROR(("%s: set the ARP CHECK timeout to be %d\n",
+			__FUNCTION__, dhd->info->arp_check_timeout));
 	}
 #endif /* ARP_CHECK_SUPPORT && ARP_OFFLOAD_SUPPORT */
 	/* other default */

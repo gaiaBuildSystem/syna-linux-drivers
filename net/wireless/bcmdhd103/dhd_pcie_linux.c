@@ -1740,10 +1740,10 @@ static int dhdpcie_device_scan(struct device *dev, void *data)
 	if ((pcidev->vendor != VENDOR_BROADCOM) && (pcidev->vendor != VENDOR_SYNAPTICS))
 		return 0;
 
-	DHD_INFO(("Found Broadcom or Synaptics PCI device 0x%04x\n", pcidev->device));
+	DHD_INFO(("Found Synaptics or Broadcom PCI device 0x%04x\n", pcidev->device));
 	*cnt += 1;
 	if (pcidev->driver && strcmp(pcidev->driver->name, dhdpcie_driver.name))
-		DHD_PRINT(("Broadcom or Synaptics PCI Device 0x%04x has allocated with driver %s\n",
+		DHD_PRINT(("Synaptics or Broadcom PCI Device 0x%04x has allocated with driver %s\n",
 			pcidev->device, pcidev->driver->name));
 
 	return 0;
@@ -1758,7 +1758,7 @@ dhdpcie_bus_register(void)
 	if (!error) {
 		bus_for_each_dev(dhdpcie_driver.driver.bus, NULL, &error, dhdpcie_device_scan);
 		if (!error) {
-			DHD_ERROR(("No Broadcom or Synaptics PCI device enumerated!\n"));
+			DHD_ERROR(("Synaptics or Broadcom PCI device enumerated!\n"));
 		} else if (!dhdpcie_init_succeeded) {
 			DHD_ERROR(("%s: dhdpcie initialize failed.\n", __FUNCTION__));
 		} else {
@@ -3242,6 +3242,8 @@ void dhdpcie_oob_intr_set(dhd_bus_t *bus, bool enable)
 	}
 
 	dhdpcie_osinfo = (dhdpcie_os_info_t *)pch->os_cxt;
+	DHD_OOB_PRINT(("%s: enable=%d oob_irq_enabled %d oob_irq_num %d\n", __FUNCTION__,
+		enable, dhdpcie_osinfo->oob_irq_enabled, dhdpcie_osinfo->oob_irq_num));
 	DHD_OOB_IRQ_LOCK(&dhdpcie_osinfo->oob_irq_spinlock, flags);
 	if ((dhdpcie_osinfo->oob_irq_enabled != enable) &&
 		(dhdpcie_osinfo->oob_irq_num > 0)) {
@@ -3268,7 +3270,7 @@ static irqreturn_t wlan_oob_irq_isr(int irq, void *data)
 {
 	dhd_bus_t *bus = (dhd_bus_t *)data;
 	dhdpcie_oob_intr_set(bus, FALSE);
-	DHD_TRACE(("%s: IRQ ISR\n", __FUNCTION__));
+	DHD_OOB_PRINT(("%s: IRQ ISR\n", __FUNCTION__));
 	bus->last_oob_irq_isr_time = OSL_LOCALTIME_NS();
 	return IRQ_WAKE_THREAD;
 }
@@ -3279,7 +3281,7 @@ static irqreturn_t wlan_oob_irq(int irq, void *data)
 	dhd_bus_t *bus;
 	bus = (dhd_bus_t *)data;
 #ifdef DHD_USE_PCIE_OOB_THREADED_IRQ
-	DHD_TRACE(("%s: IRQ Thread\n", __FUNCTION__));
+	DHD_OOB_PRINT(("%s: IRQ Thread\n", __FUNCTION__));
 	bus->last_oob_irq_thr_time = OSL_LOCALTIME_NS();
 #else
 	dhdpcie_oob_intr_set(bus, FALSE);
@@ -3323,7 +3325,7 @@ int dhdpcie_oob_intr_register(dhd_bus_t *bus)
 	dhdpcie_info_t *pch;
 	dhdpcie_os_info_t *dhdpcie_osinfo;
 
-	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+	DHD_OOB_PRINT(("%s: Enter\n", __FUNCTION__));
 	if (bus == NULL) {
 		DHD_ERROR(("%s: bus is NULL\n", __FUNCTION__));
 		return -EINVAL;

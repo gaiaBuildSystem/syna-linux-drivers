@@ -381,6 +381,7 @@ typedef struct dhd_if {
 	int8			nmode;
 	int8			vhtmode;
 	int8			hemode;
+	int8			ehtmode;
 	int8			onlymode;
 
 #ifdef DHD_WMF
@@ -389,10 +390,14 @@ typedef struct dhd_if {
 						 * of MC group behind PSTA
 						 */
 #endif /* DHD_WMF */
-#ifdef PCIE_FULL_DONGLE
+#if defined(PCIE_FULL_DONGLE) || defined(SYNA_FW_PKT_FWD_DISABLED)
 	struct list_head sta_list;		/* sll of associated stations */
 	spinlock_t	sta_list_lock;		/* lock for manipulating sll */
-#endif /* PCIE_FULL_DONGLE */
+#endif /* PCIE_FULL_DONGLE || SYNA_FW_PKT_FWD_DISABLED */
+#if defined(SYNA_FW_PKT_FWD_DISABLED) && !defined(PCIE_FULL_DONGLE)
+	uint8	role;
+	uint8	pad[3];
+#endif /* SYNA_FW_PKT_FWD_DISABLED && !PCIE_FULL_DONGLE */
 	uint32  ap_isolate;			/* ap-isolation settings */
 #ifdef DHD_L2_FILTER
 	bool parp_enable;
@@ -445,6 +450,17 @@ typedef struct dhd_if {
 	uint8	llc_headroom_added_len;	/* Headroom length added to this net dev for LLC */
 	bool	dhcp_request_pending;
 } dhd_if_t;
+
+#if defined(SYNA_FW_PKT_FWD_DISABLED) && !defined(PCIE_FULL_DONGLE)
+bool dhd_check_if_role(dhd_pub_t *dhdp, int ifidx, uint8 type);
+void dhd_set_if_role(dhd_pub_t *dhdp, int ifidx, uint8 type);
+#ifndef DHD_IF_ROLE_AP
+#define DHD_IF_ROLE_AP(dhdp, ifidx)	dhd_check_if_role(dhdp, ifidx, WLC_E_IF_ROLE_AP)
+#endif
+#ifndef DHD_IF_ROLE_P2PGO
+#define DHD_IF_ROLE_P2PGO(dhdp, ifidx)	dhd_check_if_role(dhdp, ifidx, WLC_E_IF_ROLE_P2P_GO)
+#endif
+#endif /* SYNA_FW_PKT_FWD_DISABLED */
 
 struct ipv6_work_info_t {
 	uint8			if_idx;

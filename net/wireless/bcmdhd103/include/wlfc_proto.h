@@ -282,6 +282,7 @@ typedef enum {
 	WL_TXSTATUS_HSLOT_MASK)
 
 #define WL_TXSTATUS_FREERUNCTR_MASK		0xffu /* allow 8 bits */
+#define WL_TXSTATUS_FREERUNCTR_MAXNUM		0xffu
 
 #define WL_TXSTATUS_SET_FREERUNCTR(x, ctr)	((x)  = \
 	((x) & ~(WL_TXSTATUS_FREERUNCTR_MASK)) | \

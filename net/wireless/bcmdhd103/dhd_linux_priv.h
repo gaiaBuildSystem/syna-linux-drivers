@@ -73,6 +73,12 @@
 #include <dhd_flowring.h>
 #endif /* PCIE_FULL_DONGLE */
 
+#if defined(DHD_HWTSTAMP)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30))
+#include <linux/net_tstamp.h>
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) */
+#endif /* DHD_HWTSTAMP */
+
 #ifdef RX_PKT_POOL
 #define RX_PKTPOOL_RESCHED_DELAY_MS 500u
 #define RX_PKTPOOL_FETCH_MAX_ATTEMPTS 10u
@@ -508,7 +514,7 @@ typedef struct dhd_info {
 #ifdef ARP_CHECK_SUPPORT
 	/* variable for ARP check functions */
 	bool arp_check_enable; /* Need to enable it in config file */
-	bool arp_trigger_start; /*set it for ARP req trigger */
+	bool arp_trigger_start; /* set it for ARP req trigger */
 	bool arp_check_timer_valid;
 	uint arp_check_interval;
 	uint arp_check_timeout;
@@ -524,6 +530,9 @@ typedef struct dhd_info {
 	uint32 mon_tx_rspec;
 	bool  mon_tx_rspec_updated;
 #endif /* WL_CFG80211_MONITOR */
+#if defined(DHD_HWTSTAMP) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30))
+	struct hwtstamp_config stmpconf;
+#endif /* defined(DHD_HWTSTAMP) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) */
 } dhd_info_t;
 
 #define DHD_ARP_CHECK_INTERVAL 1000 /* ms */

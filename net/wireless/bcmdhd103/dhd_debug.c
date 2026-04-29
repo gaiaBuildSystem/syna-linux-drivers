@@ -274,6 +274,8 @@ dhd_debug_dump_ring_push(dhd_pub_t *dhdp, int ring_id, uint32 len, void *data)
 }
 #endif /* DHD_DEBUGABILITY_DEBUG_DUMP */
 
+#if defined(EWP_BCM_TRACE) || defined(EWP_RTT_LOGGING) || defined(EWP_ECNTRS_LOGGING) \
+	|| defined(EWP_EVENTTS_LOG) || defined(EWP_CX_TIMELINE)
 static void*
 dhd_dbg_fill_logbuf(dhd_pub_t *dhdp, void *data, int datalen, int *fill_len, int msgtrace_seqnum)
 {
@@ -317,8 +319,6 @@ fail:
 	return NULL;
 }
 
-#if defined(EWP_BCM_TRACE) || defined(EWP_RTT_LOGGING) || defined(EWP_ECNTRS_LOGGING) \
-	|| defined(EWP_EVENTTS_LOG) || defined(EWP_CX_TIMELINE)
 #if (defined(DEBUGABILITY) && defined(CUSTOMER_HW6)) || \
 	defined(DHD_ECNTRS_EXPOSED_DBGRING)
 static void
@@ -4012,7 +4012,7 @@ dhd_dbg_ring_write(int type, char *binary_data,
 	/* Do not print any contents to rings if called from ISR.
 	 * as ring lock is spin_lock_bh()
 	 */
-	if (in_irq()) {
+	if (in_hardirq()) {
 		return;
 	}
 #endif /* __linux__ */

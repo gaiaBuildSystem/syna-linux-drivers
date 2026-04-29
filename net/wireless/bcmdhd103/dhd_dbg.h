@@ -880,6 +880,20 @@ extern int log_print_threshold;
 /* DHD_PRINT - informational non-error messages which need to be always printed */
 #define DHD_PRINT	DHD_ERROR
 
+/* OOB debug purpose */
+#ifdef DHD_PCIE_OOB_DBG
+#define DHD_OOB_PRINT	DHD_ERROR
+#else
+#define DHD_OOB_PRINT	DHD_TRACE
+#endif /* DHD_PCIE_OOB_DBG */
+
+/* APF debug */
+#ifdef APF_DBG
+#define DHD_APF_PRINT	DHD_ERROR
+#else
+#define DHD_APF_PRINT	DHD_TRACE
+#endif /* APF_DBG */
+
 /* Defines msg bits */
 #include <dhdioctl.h>
 

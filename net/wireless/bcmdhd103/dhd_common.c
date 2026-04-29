@@ -6892,6 +6892,13 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		dhd_update_interface_flow_info(dhd_pub, ifevent->ifidx,
 			ifevent->opcode, ifevent->role, ifevent->reserved);
 #endif
+
+#ifdef SYNA_FW_PKT_FWD_DISABLED
+		if (ifevent->opcode != WLC_E_IF_DEL) {
+			dhd_set_if_role(dhd_pub, ifevent->ifidx, ifevent->role);
+		}
+#endif /* SYNA_FW_PKT_FWD_DISABLED */
+
 #ifdef PROP_TXSTATUS
 		{
 			uint8 *ea = pvt_data->eth.ether_dhost;
@@ -7103,8 +7110,8 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 		}
 #else
 #ifdef PROP_TXSTATUS
-		/* Link up */
-		if (flags) {
+		/* clean in link down */
+		if (!flags) {
 			struct wl_event_data_if *ifevent = (struct wl_event_data_if *)event_data;
 			uint8* ea = pvt_data->eth.ether_dhost;
 			uint8 ifindex = (uint8)dhd_ifname2idx(dhd_pub->info, event->ifname);
@@ -13118,7 +13125,8 @@ dhd_ota_buf_clean(dhd_pub_t *dhdp)
 #endif /* SUPPORT_OTA_UPDATE */
 
 int dhd_80211_mode_update(dhd_pub_t *dhdp, int ifidx,
-		int gmode, int nmode, int vhtmode, int hemode, int only_mode)
+		int gmode, int nmode, int vhtmode, int hemode,
+		int ehtmode, int only_mode)
 {
 	dhd_if_t    *ifp = NULL;
 	int          ret = -1;
@@ -13138,6 +13146,9 @@ int dhd_80211_mode_update(dhd_pub_t *dhdp, int ifidx,
 		if (-1 != hemode) {
 			ifp->hemode = hemode;
 		}
+		if (-1 != ehtmode) {
+			ifp->ehtmode = ehtmode;
+		}
 		if (-1 != only_mode) {
 			ifp->onlymode = only_mode;
 		}
@@ -13156,19 +13167,20 @@ int dhd_80211_mode_update(dhd_pub_t *dhdp, int ifidx,
  */
 int dhd_80211_mode_apply_by_value(dhd_pub_t *dhdp, int ifidx,
 		int need_down, int need_up,
-		int gmode, int nmode, int vhtmode, int hemode, int mode_reqd)
+		int gmode, int nmode, int vhtmode, int hemode,
+		int ehtmode, int mode_reqd)
 {
 	int    err = 0, ret = 0;
 	uint8  iovar_buf[DHD_IOVAR_BUF_SIZE];
 	uint16 iovar_buf_len = sizeof(iovar_buf);
 
 	DHD_ERROR(("%s: ifidx=%d, need_down=%d, gmode=%d, nmode=%d,"
-	           " vhtmode=%d, hemode=%d, mode_reqd=%d\n",
+	           " vhtmode=%d, hemode=%d, ehtmode=%d, mode_reqd=%d\n",
 	           __FUNCTION__, ifidx, need_down,
-	           gmode, nmode, vhtmode, hemode, mode_reqd));
+	           gmode, nmode, vhtmode, hemode, ehtmode, mode_reqd));
 
 	if ((gmode == -1) && (nmode == -1) && (vhtmode == -1) &&
-		(hemode == -1) && (mode_reqd == -1)) {
+		(hemode == -1) && (ehtmode == -1) && (mode_reqd == -1)) {
 		DHD_ERROR(("%s: skip since no action required\n", __FUNCTION__));
 		return 1;
 	}
@@ -13237,6 +13249,28 @@ int dhd_80211_mode_apply_by_value(dhd_pub_t *dhdp, int ifidx,
 		}
 	}
 
+	if (-1 != ehtmode) {
+		bcm_xtlv_t *pxtlv = (bcm_xtlv_t *)iovar_buf;
+		int8        eht = ehtmode;
+
+		err = bcm_pack_xtlv_entry((uint8**)&pxtlv, &iovar_buf_len,
+		            WL_EHT_CMD_ENAB, sizeof(eht),
+		            (const uint8 *)(&eht), BCM_XTLV_OPTION_ALIGN32);
+
+		if (0 > err) {
+			DHD_ERROR(("%s failed to pack eht enab, err: %s\n",
+				__FUNCTION__, bcmerrorstr(err)));
+			ret += -0x80;
+		} else {
+			err = dhd_iovar(dhdp, ifidx, "eht", (char *)&iovar_buf,
+				sizeof(iovar_buf), NULL, 0, TRUE);
+			if (0 > err) {
+				DHD_ERROR(("%s: set eht_mode=%d fail, err=%s\n",
+					__FUNCTION__, hemode, bcmerrorstr(err)));
+				ret += -0x100;
+			}
+		}
+	}
 	// request only mode
 	if (-1 != mode_reqd) {
 		err = dhd_iovar(dhdp, ifidx, "mode_reqd", (char *)&mode_reqd,

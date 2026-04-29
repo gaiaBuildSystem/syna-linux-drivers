@@ -17365,6 +17365,9 @@ void
 dhd_bus_oob_intr_set(dhd_pub_t *dhdp, bool enable)
 {
 #ifdef BCMPCIE_OOB_HOST_WAKE
+#ifdef DHD_PCIE_OOB_DBG
+	DHD_OOB_PRINT(("%s enable %d\n", __func__, enable));
+#endif /* DHD_PCIE_OOB_DBG */
 	dhdpcie_oob_intr_set(dhdp->bus, enable);
 #endif /* BCMPCIE_OOB_HOST_WAKE */
 }

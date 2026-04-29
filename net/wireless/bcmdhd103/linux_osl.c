@@ -2374,7 +2374,7 @@ osl_spin_lock(void *lock)
 	if (lock) {
 #ifdef DHD_USE_SPIN_LOCK_BH
 		/* Calling spin_lock_bh with both irq and non-irq context will lead to deadlock */
-		ASSERT(!in_irq());
+		ASSERT(!in_hardirq());
 		spin_lock_bh((spinlock_t *)lock);
 #else
 		spin_lock_irqsave((spinlock_t *)lock, flags);
@@ -2390,7 +2390,7 @@ osl_spin_unlock(void *lock, unsigned long flags)
 	if (lock) {
 #ifdef DHD_USE_SPIN_LOCK_BH
 		/* Calling spin_lock_bh with both irq and non-irq context will lead to deadlock */
-		ASSERT(!in_irq());
+		ASSERT(!in_hardirq());
 		spin_unlock_bh((spinlock_t *)lock);
 #else
 		spin_unlock_irqrestore((spinlock_t *)lock, flags);
@@ -2423,7 +2423,7 @@ osl_spin_lock_bh(void *lock)
 
 	if (lock) {
 		/* Calling spin_lock_bh with both irq and non-irq context will lead to deadlock */
-		ASSERT(!in_irq());
+		ASSERT(!in_hardirq());
 		spin_lock_bh((spinlock_t *)lock);
 	}
 
@@ -2435,7 +2435,7 @@ osl_spin_unlock_bh(void *lock, unsigned long flags)
 {
 	if (lock) {
 		/* Calling spin_lock_bh with both irq and non-irq context will lead to deadlock */
-		ASSERT(!in_irq());
+		ASSERT(!in_hardirq());
 		spin_unlock_bh((spinlock_t *)lock);
 	}
 }
@@ -2494,7 +2494,7 @@ osl_dma_lock(osl_t *osh)
 	 * Please refer to the __local_bh_enable_ip() function
 	 * in kernel/softirq.c to understand the condtion.
 	 */
-	if (likely(in_irq() || irqs_disabled())) {
+	if (likely(in_hardirq() || irqs_disabled())) {
 		spin_lock(&osh->dma_lock);
 	} else {
 		spin_lock_bh(&osh->dma_lock);

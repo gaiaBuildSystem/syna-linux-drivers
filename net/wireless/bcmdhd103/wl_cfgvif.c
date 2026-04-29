@@ -1477,7 +1477,8 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 				WL_ERR(("P2P downgrade failed \n"));
 			}
 		} else if (ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP) {
-			if (!wl_get_drv_status(cfg, AP_ROLE_UPGRADED, ndev)) {
+			if (!wl_get_drv_status(cfg, AP_ROLE_UPGRADED, ndev) ||
+				wl_get_drv_status(cfg, CREATED_AS_AP_ITF, ndev)) {
 				/* Interface created with AP type. Downgrade not required */
 				WL_DBG(("Skip AP downgrade\n"));
 			} else {
@@ -1504,8 +1505,12 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 					WL_ERR(("set ap role failed!\n"));
 					goto fail;
 				}
-				/* Mark AP role upgrade */
-				wl_set_drv_status(cfg, AP_ROLE_UPGRADED, ndev);
+				if (!wl_get_drv_status(cfg, AP_ROLE_UPGRADED, ndev)) {
+					if (!wl_get_drv_status(cfg, CREATED_AS_AP_ITF, ndev)) {
+						/* Mark AP role upgrade */
+						wl_set_drv_status(cfg, AP_ROLE_UPGRADED, ndev);
+					}
+				}
 			} else {
 				WL_INFORM_MEM(("AP_CREATED bit set. Skip role change\n"));
 			}
@@ -3576,6 +3581,60 @@ done:
 }
 #endif /* defined(WL_SAE) || defined(WL_SAE_STD_API) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && defined(WL_IDAUTH)
+static s32
+wl_cfg80211_set_idauth_pmk(
+	struct net_device *dev,
+	struct bcm_cfg80211 *cfg,
+	struct wl_security *sec,
+	struct cfg80211_crypto_settings *crypto)
+{
+	s32 err = BCME_OK;
+	if (cfg->idauth_enabled && sec->fw_wpa_auth) {
+		WL_INFORM_MEM(("fw_wpa_auth=0x%x\n", sec->fw_wpa_auth));
+
+		if (sec->fw_wpa_auth & (WPA2_AUTH_PSK | WPA_AUTH_PSK)) {
+			wsec_pmk_t pmk = {0};
+
+			/* For WPA-PSK case, the upper layer provides the PSK (PMK) */
+			if (!crypto || !crypto->psk) {
+				WL_INFORM_MEM(("idauth enabled. crypto->psk is null\n"));
+				/* multi AKM case, host can provide single passphrase for
+				 * wpa-psk and sae. so gracefully proceed for multi AKM
+				 * involving SAE. if SAE is not present and psk null, exit.
+				 */
+				if (!(sec->fw_wpa_auth &
+					(WPA3_AUTH_SAE_PSK | WPA3_AUTH_SAE_EXT_PSK))) {
+					return -EINVAL;
+				}
+			} else {
+				pmk.key_len = WL_SUPP_PMK_LEN;
+				if (pmk.key_len > sizeof(pmk.key)) {
+					return -EINVAL;
+				}
+
+				pmk.flags = 0;
+				err = memcpy_s(&pmk.key,
+					sizeof(pmk.key), crypto->psk, pmk.key_len);
+				if (err) {
+					return -EINVAL;
+				}
+
+				err = wldev_ioctl_set(dev,
+					WLC_SET_WSEC_PMK, &pmk, sizeof(pmk));
+				if (err) {
+					WL_ERR(("WLC_SET_WSEC_PMK failed, err:%d\n", err));
+					return err;
+				} else {
+					WL_INFORM(("pmk added succesfully\n"));
+				}
+			}
+		}
+	}
+	return err;
+}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && WL_IDAUTH */
+
 static s32
 wl_cfg80211_bcn_validate_sec(
 	struct net_device *dev,
@@ -3657,6 +3716,13 @@ wl_cfg80211_bcn_validate_sec(
 				bss->security_mode = false;
 				return BCME_ERROR;
 			}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && defined(WL_IDAUTH)
+			err = wl_cfg80211_set_idauth_pmk(dev, cfg, sec, crypto);
+			if (err != BCME_OK) {
+				WL_ERR(("Failed to set PMK for idauth, error:%d\n", err));
+				return err;
+			}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && WL_IDAUTH */
 		}
 		else {
 #endif /* SUPPORT_SOFTAP_WPAWPA2_MIXED */
@@ -3668,46 +3734,10 @@ wl_cfg80211_bcn_validate_sec(
 		}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && defined(WL_IDAUTH)
-		if (cfg->idauth_enabled && sec->fw_wpa_auth) {
-			WL_INFORM_MEM(("fw_wpa_auth=0x%x\n", sec->fw_wpa_auth));
-
-			if (sec->fw_wpa_auth & (WPA2_AUTH_PSK | WPA_AUTH_PSK)) {
-				wsec_pmk_t pmk = {0};
-
-				/* For WPA-PSK case, the upper layer provides the PSK (PMK) */
-				if (!crypto || !crypto->psk) {
-					WL_INFORM_MEM(("idauth enabled. crypto->psk is null\n"));
-					/* multi AKM case, host can provide single passphrase for
-					 * wpa-psk and sae. so gracefully proceed for multi AKM
-					 * involving SAE. if SAE is not present and psk null, exit.
-					 */
-					if (!(sec->fw_wpa_auth &
-						(WPA3_AUTH_SAE_PSK | WPA3_AUTH_SAE_EXT_PSK))) {
-						return -EINVAL;
-					}
-				} else {
-					pmk.key_len = WL_SUPP_PMK_LEN;
-					if (pmk.key_len > sizeof(pmk.key)) {
-						return -EINVAL;
-					}
-
-					pmk.flags = 0;
-					err = memcpy_s(&pmk.key,
-						sizeof(pmk.key), crypto->psk, pmk.key_len);
-					if (err) {
-						return -EINVAL;
-					}
-
-					err = wldev_ioctl_set(dev,
-						WLC_SET_WSEC_PMK, &pmk, sizeof(pmk));
-					if (err) {
-						WL_ERR(("WLC_SET_WSEC_PMK failed, err:%d\n", err));
-						return err;
-					} else {
-						WL_INFORM(("pmk added succesfully\n"));
-					}
-				}
-			}
+		err = wl_cfg80211_set_idauth_pmk(dev, cfg, sec, crypto);
+		if (err != BCME_OK) {
+			WL_ERR(("Failed to set PMK for idauth, error:%d\n", err));
+			return err;
 		}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)) && WL_IDAUTH */
 #if defined(WL_SAE) || defined(WL_SAE_STD_API)
@@ -4183,8 +4213,11 @@ wl_cfg80211_bcn_bringup_ap(
 	wl_cfgscan_cancel_scan(cfg);
 
 #if defined(WL_MLO) && defined(WL_MLO_AP)
-	if (IS_AP_IFACE(ndev_to_wdev(dev)) && cfg->mlo.supported && cfg->mlo.eht_softap) {
+	if (IS_AP_IFACE(ndev_to_wdev(dev)) && cfg->mlo.supported &&
+		cfg->mlo.eht_softap && cfg->mlo.eht_softap_nl) {
 		wl_mlo_ap_config(cfg, dev, TRUE);
+	} else {
+		wl_mlo_ap_config(cfg, dev, FALSE);
 	}
 #endif /* WL_MLO && WL_MLO_AP */
 
@@ -4920,6 +4953,7 @@ wl_cfg80211_start_ap(
 		int  nmode = 0;
 		int  vhtmode = 0;
 		int  hemode = 0;
+		int  ehtmode = 0;
 		int  only_mode = 0;
 
 		/* Temporary mask since we don't want to tear down other
@@ -4971,6 +5005,19 @@ wl_cfg80211_start_ap(
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)) */
 		WL_ERR(("need hemode=%d, only_mode=%d\n", hemode, only_mode));
 
+#if defined(WL_MLO) && defined(WL_MLO_AP)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+		/* EHT */
+		if (info->eht_oper) {
+			ehtmode = 1;
+			cfg->mlo.eht_softap_nl = 1;
+		} else {
+			cfg->mlo.eht_softap_nl = 0;
+		}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)) */
+		WL_ERR(("need ehtmode=%d \n", ehtmode));
+#endif /* WL_MLO && WL_MLO_AP */
+
 #if defined(WL_HOSTAPD_CFG) || defined(SYNA_80211_MODE)
 #ifdef DISABLE_MODE_CHANGE
 		if (dhd_force_max_mode) {
@@ -4978,15 +5025,17 @@ wl_cfg80211_start_ap(
 			nmode = 1;
 			vhtmode = 1;
 			hemode = 1;
+			ehtmode = 1;
 			only_mode = 0;
 			WL_ERR(("force revert to gmode=%d,nmode=%d, "
-				"vhtmode=%d,hemode=%d,only_mode=%d\n",
-				gmode, nmode, vhtmode, hemode, only_mode));
+				"vhtmode=%d,hemode=%d,ehtmode=%d only_mode=%d\n",
+				gmode, nmode, vhtmode, hemode,
+				ehtmode, only_mode));
 		}
 #endif /* DISABLE_MODE_CHANGE */
 
 		err = dhd_80211_mode_apply_by_value(dhd, ifidx, need_down, need_up,
-		        gmode, nmode, vhtmode, hemode, only_mode);
+		        gmode, nmode, vhtmode, hemode, ehtmode, only_mode);
 		if (err < 0) {
 			WL_ERR(("fail to set mode, error %d\n", err));
 		}
@@ -4999,6 +5048,7 @@ wl_cfg80211_start_ap(
 		UNUSED_PARAMETER(nmode);
 		UNUSED_PARAMETER(vhtmode);
 		UNUSED_PARAMETER(hemode);
+		UNUSED_PARAMETER(ehtmode);
 		UNUSED_PARAMETER(only_mode);
 		WL_ERR(("skip adaptation since not allow!\n"));
 #endif /* defined(WL_HOSTAPD_CFG) || defined(SYNA_80211_MODE) */
@@ -10331,6 +10381,9 @@ wl_cfgvif_interface_ops(struct bcm_cfg80211 *cfg,
 			0, ioctl_buf, sizeof(ioctl_buf), bsscfg_idx, NULL);
 		if (unlikely(ret)) {
 			WL_ERR(("Interface remove failed!! ret %d\n", ret));
+		}
+		if (wl_get_drv_status(cfg, CREATED_AS_AP_ITF, ndev)) {
+			wl_clr_drv_status(cfg, CREATED_AS_AP_ITF, ndev);
 		}
 		return ret;
 	}

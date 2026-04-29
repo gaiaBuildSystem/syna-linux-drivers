@@ -546,9 +546,11 @@ wl_cfgnan_parse_sdea_data(struct bcm_cfg80211 *cfg, const uint8 *p_attr,
 				__FUNCTION__));
 		}
 	}
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 	if (tlv_data->sde_control_flag & NAN_SDE_CF_GTK_REQUIRED) {
 		tlv_data->gtk_required = true;
 	}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 	return ret;
 fail:
 	if (tlv_data->sde_svc_info.data) {
@@ -956,10 +958,12 @@ wl_cfgnan_parse_ndpe_data(struct bcm_cfg80211 *cfg, const uint8 *p_attr,
 		ret = BCME_BUFTOOSHORT;
 		goto fail;
 	}
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 	/* For now check only for ndpe control flag GTK REQUIRED */
 	if (ndpe->control & NAN_NDPE_CTRL_GTK_REQUIRED) {
 		tlv_data->gtk_required = true;
 	}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 	return ret;
 fail:
 	WL_DBG(("Parse NDPE event data, status = %d\n", ret));
@@ -1496,6 +1500,11 @@ wl_cfgnan_set_vars_cbfn(void *ctx, const uint8 *data, uint16 type, uint16 len)
 		}
 		break;
 	}
+	case WL_NAN_XTLV_SD_CHANSPEC:
+		tlv_data->chanspec = (((uint8 *)data)[0] << 8) | ((uint8 *)data)[1];
+		WL_TRACE(("Rx on ch:0x%x\n", tlv_data->chanspec));
+		break;
+
 	default:
 		WL_ERR(("Not available for tlv type = 0x%x\n", type));
 		ret = BCME_ERROR;
@@ -2330,16 +2339,29 @@ wl_cfgnan_set_if_addr(struct bcm_cfg80211 *cfg)
 	struct ether_addr if_addr;
 	uint8 buf[NAN_IOCTL_BUF_SIZE];
 	bcm_iov_batch_buf_t *nan_buf = (bcm_iov_batch_buf_t*)buf;
+	bool rand_mac = cfg->nancfg->mac_rand;
 
 	nan_buf->version = htol16(WL_NAN_IOV_BATCH_VERSION);
 	nan_buf->count = 0;
 	nan_buf_size -= OFFSETOF(bcm_iov_batch_buf_t, cmds[0]);
 
-	/* By default randomize NAN mac address */
-	RANDOM_BYTES(if_addr.octet, 6);
-	/* restore mcast and local admin bits to 0 and 1 */
-	ETHER_SET_UNICAST(if_addr.octet);
-	ETHER_SET_LOCALADDR(if_addr.octet);
+	if (rand_mac) {
+		/* By default randomize NAN mac address */
+		RANDOM_BYTES(if_addr.octet, 6);
+		/* restore mcast and local admin bits to 0 and 1 */
+		ETHER_SET_UNICAST(if_addr.octet);
+		ETHER_SET_LOCALADDR(if_addr.octet);
+	} else {
+		/* Use primary MAC with the locally administered bit for the
+		 * NAN NMI I/F
+		 */
+		if (wl_get_vif_macaddr(cfg, WL_IF_TYPE_NAN_NMI,
+				if_addr.octet) != BCME_OK) {
+			ret = -EINVAL;
+			WL_ERR(("Failed to get mac addr for NMI\n"));
+			goto fail;
+		}
+	}
 
 	WL_INFORM_MEM(("%s: NMI " MACDBG "\n",
 			__FUNCTION__, MAC2STRDBG(if_addr.octet)));
@@ -3631,6 +3653,7 @@ wl_cfgnan_pairing_request_n_response(struct net_device *ndev, struct bcm_cfg8021
 		pairing_cmd->role = WL_NAN_PAIRING_ROLE_INITIATOR;
 		pairing_cmd->pub_id = cmd_data->req_inst_id;
 
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 		/* setup IGTK/BIGTK based on CSIA capability */
 		if (bs_entry && NAN_SEC_BIP_ENABLED(bs_entry->lcl_csia) &&
 				NAN_SEC_BIP_ENABLED(bs_entry->peer_csia)) {
@@ -3641,6 +3664,7 @@ wl_cfgnan_pairing_request_n_response(struct net_device *ndev, struct bcm_cfg8021
 				pairing_cmd->flags |= WL_NAN_PAIRING_FLAGS_BIP_CIPHER_GMAC256;
 			}
 		}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 		WL_INFORM_MEM(("[NAN] Pairing Request cmd rcvd, peer " MACDBG ", type %d pub_id %d "
 			"policy %d caching %d is_oppur %d key_type %d key_len %d csid 0x %x \n",
@@ -3664,6 +3688,7 @@ wl_cfgnan_pairing_request_n_response(struct net_device *ndev, struct bcm_cfg8021
 		pairing_cmd->response_code = cmd_data->rsp_code;
 		pairing_cmd->pairing_id = cmd_data->inst_id;
 
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 		/* check only for Publisher local csia cap, as we may not know subscriber csia */
 		if (bs_entry && NAN_SEC_BIP_ENABLED(bs_entry->lcl_csia)) {
 			pairing_cmd->flags |= WL_NAN_PAIRING_FLAGS_SETUP_BIP;
@@ -3672,6 +3697,7 @@ wl_cfgnan_pairing_request_n_response(struct net_device *ndev, struct bcm_cfg8021
 				pairing_cmd->flags |= WL_NAN_PAIRING_FLAGS_BIP_CIPHER_GMAC256;
 			}
 		}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 		WL_INFORM_MEM(("[NAN] Pairing Response cmd rcvd pairing_id %d type %d resp_code %d "
 			"policy %d caching %d is_oppur %d key_type %d key_len %d csid 0x%x\n",
@@ -7259,6 +7285,7 @@ exit:
 	return err;
 }
 
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 static int
 wl_cfgnan_gtk_csid_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg, uint8 **pxtlv,
 	uint16 *nan_buf_size, uint8 gtk_csid, uint8 csia_cap) {
@@ -7321,6 +7348,7 @@ wl_cfgnan_gtk_csid_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg, ui
 done:
 	return ret;
 }
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 static int
 wl_cfgnan_sd_params_handler(struct net_device *ndev,
@@ -7645,12 +7673,14 @@ wl_cfgnan_sd_params_handler(struct net_device *ndev,
 		}
 	}
 
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 	if (cmd_data->csia_cap) {
 		if (wl_cfgnan_gtk_csid_handler(ndev, cfg, &pxtlv, nan_buf_size,
 				cmd_data->gtk_csid, cmd_data->csia_cap) != BCME_OK) {
 			goto fail;
 		}
 	}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 	/* When autoresponse is enabled, publish relies on the
 	 * NAN_ATTRIBUTE_SDE_CONTROL_SECURITY to hold that information
@@ -9396,12 +9426,14 @@ wl_cfgnan_data_path_request_handler(struct net_device *ndev,
 		}
 	}
 
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 	if (cmd_data->csia_cap) {
 		if (wl_cfgnan_gtk_csid_handler(ndev, cfg, &pxtlv, &nan_buf_size,
 				cmd_data->gtk_csid, cmd_data->csia_cap) != BCME_OK) {
 			goto fail;
 		}
 	}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 	if (cmd_data->scid.dlen && cmd_data->scid.data) {
 		WL_TRACE(("SCID present, pack it\n"));
@@ -9723,12 +9755,14 @@ wl_cfgnan_data_path_response_handler(struct net_device *ndev,
 		}
 	}
 
+#if defined(WL_NAN_GAF_PROTECT) || defined(NAN_GTK)
 	if (cmd_data->csia_cap) {
 		if (wl_cfgnan_gtk_csid_handler(ndev, cfg, &pxtlv, &nan_buf_size,
 				cmd_data->gtk_csid, cmd_data->csia_cap) != BCME_OK) {
 			goto fail;
 		}
 	}
+#endif /* WL_NAN_GAF_PROTECT || NAN_GTK */
 
 	if (cmd_data->scid.dlen && cmd_data->scid.data) {
 		WL_ERR(("SCID present, pack it\n"));

@@ -100,6 +100,16 @@ struct bdc_header {
 };
 
 #define	BDC_HEADER_LEN		4
+struct bdc_header_tsf {
+	uint8	flags;			/* Flags */
+	uint8	priority;		/* 802.1d Priority 0:2 bits, 4:7 USB flow control info */
+	uint8	flags2;
+	uint8	dataOffset;		/* Offset from end of BDC header to packet data, in
+					 * 4-byte words.  Leaves room for optional headers.
+					 */
+	uint32 tsf_h;
+	uint32 tsf_l;
+};
 
 /* flags field bitmap */
 #define BDC_FLAG_EXEMPT		0x03	/* EXT_STA: encryption exemption (host -> dongle?) */
@@ -121,6 +131,7 @@ struct bdc_header {
 #define BDC_FLAG2_FC_FLAG	0x10	/* flag to indicate if pkt contains */
 					/* FLOW CONTROL info only */
 #define BDC_FLAG2_MONITOR       0x20    /* Monitor Frame */
+#define BDC_FLAG2_TSF_FLAG	0x40	/* flag to indicate if pkt contains tsf */
 
 /* version numbers */
 #define BDC_PROTO_VER_1		1	/* Old Protocol version */

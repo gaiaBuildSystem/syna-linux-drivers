@@ -1465,6 +1465,7 @@ typedef struct dhd_pub {
 	uint maxctl;		/* Max size rxctl request from proto to bus */
 	uint rxsz;		/* Rx buffer size bus module should use */
 	uint8 wme_dp;	/* wme discard priority */
+	bool wme_sta_vi_be_equal;		/* TRUE if FW reports STA BE/VI EDCF are equal */
 #ifdef DNGL_AXI_ERROR_LOGGING
 	uint32 axierror_logbuf_addr;
 	bool axi_error;
@@ -5167,11 +5168,13 @@ void *dhd_get_roam_evt(dhd_pub_t *dhdp);
 uint8 dhd_d11_slices_num_get(dhd_pub_t *dhdp);
 
 extern int dhd_80211_mode_update(dhd_pub_t *dhdp, int ifidx,
-		int gmode, int nmode, int vhtmode, int hemode, int only_mode);
+		int gmode, int nmode, int vhtmode, int hemode, int ehtmode,
+		int only_mode);
 
 extern int dhd_80211_mode_apply_by_value(dhd_pub_t *dhd, int ifidx,
 		int need_down, int need_up,
-		int gmode, int nmode, int vhtmode, int hemode, int mode_reqd);
+		int gmode, int nmode, int vhtmode, int hemode, int ehtmode,
+		int mode_reqd);
 extern int dhd_80211_mode_apply(dhd_pub_t *dhdp, uint ifidx,
 		int need_down, int need_up);
 extern uint32 wl_set_bandwidth_capability(dhd_pub_t *dhdp,
@@ -5529,6 +5532,10 @@ int dhd_reinit_logtrace_process(void *dhd_info);
 extern void *dhd_validate_packet_address(dhd_pub_t *dhd, void *pkt);
 extern void dhd_enqueue_inv_address_queue(struct dhd_pub *dhdp, void *pkt);
 #endif /* DHD_VALIDATE_PKT_ADDRESS */
+
+#ifdef DHD_HWTSTAMP
+extern int dhd_hwtstamp_txtype(dhd_pub_t *dhdp);
+#endif /* DHD_HWTSTAMP */
 
 extern void dhd_wd_interval_set(dhd_pub_t *dhdp, uint wd_interval);
 extern int pattern_atoh_len(char *src, char *dst, int len);

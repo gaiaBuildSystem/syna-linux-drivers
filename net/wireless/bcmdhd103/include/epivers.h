@@ -60,15 +60,15 @@
 
 #define EPI_VERSION_DEV		103.10.0
 
-#define EPI_COMMIT_ID		"(123091c)"
+#define EPI_COMMIT_ID		"(4a8d0b9)"
 
 /* Driver Version String, ASCII, 32 chars max */
 #if defined (WLTEST)
-#define EPI_VERSION_STR		"103.20.53 (WLTEST)"
+#define EPI_VERSION_STR		"103.20.58 (WLTEST)"
 #elif (defined (BCMDBG_ASSERT) && !defined (BCMDBG_ASSERT_DISABLED))
-#define EPI_VERSION_STR		"103.20.53 (ASSRT)"
+#define EPI_VERSION_STR		"103.20.58 (ASSRT)"
 #else
-#define EPI_VERSION_STR		"103.20.53"
+#define EPI_VERSION_STR		"103.20.58"
 #endif /* BCMINTERNAL */
 
 #endif /* _epivers_h_ */
