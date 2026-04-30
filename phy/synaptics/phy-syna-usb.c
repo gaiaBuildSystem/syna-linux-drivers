@@ -120,7 +120,7 @@ static int phy_dolphin_usb3_power_on(struct phy *phy)
 	udelay(1);
 
 	reset_control_deassert(priv->rst);
-	udelay(10);
+	msleep(100);
 
 	return 0;
 }
