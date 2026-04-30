@@ -13348,6 +13348,7 @@ static chip_name_map_t chip_name_map[] = {
 	{BCM4612_CHIP_ID,  0x1, "fw_sd_bcm4612.bin",   "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
 	{BCM4612_CHIP_ID,  0x2, "fw_sd_bcm4612a2.bin", "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
 	{BCM4612_CHIP_ID,  0x3, "fw_sd_bcm4612a3.bin", "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
+	{BCM4612_CHIP_ID,  0x4, "fw_sd_bcm4612a4.bin", "bcmdhd_sd_4612.cal",   "bcmdhd_clm_4612.blob",   NULL},
 #endif /* !BCMSDIO */
 };
 
