@@ -608,6 +608,28 @@ int wrap_MV_VPPOBJ_UpdateGamma(int Id, const void *data, int length)
 	return Ret;
 }
 
+int wrap_MV_VPPOBJ_UpdateBrightness(int Id, int channel, uint64_t val)
+{
+	HRESULT Ret = MV_VPP_OK;
+	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
+
+	if (!hDhubCtx->isTeeEnabled)
+		Ret = NTZ_MV_VPP_UpdateBrightness(Id, channel, val);
+
+	return Ret;
+}
+
+int wrap_MV_VPPOBJ_GetBrightness(int Id, int channel, uint64_t *val)
+{
+	HRESULT Ret = MV_VPP_OK;
+	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
+
+	if (!hDhubCtx->isTeeEnabled)
+		Ret = NTZ_MV_VPP_GetBrightness(Id, channel, val);
+
+	return Ret;
+}
+
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetDispWindow);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetRefWindow);
 EXPORT_SYMBOL(wrap_MV_VPP_InitVPPS);
@@ -657,4 +679,5 @@ EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetBlockStatus);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetHDMISinkFeatureMap);
 EXPORT_SYMBOL(wrap_MV_VPP_HDMITX_5v_set);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_UpdateGamma);
-
+EXPORT_SYMBOL(wrap_MV_VPPOBJ_UpdateBrightness);
+EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetBrightness);

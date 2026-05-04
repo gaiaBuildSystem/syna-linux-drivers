@@ -337,6 +337,8 @@ static const struct drm_crtc_funcs syna_crtc_funcs = {
 	.page_flip = drm_atomic_helper_page_flip,
 	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
+	.atomic_set_property = syna_crtc_set_property,
+	.atomic_get_property = syna_crtc_get_property,
 	SYNA_DRM_CRTC_VBLANK_INTERFACES()
 };
 
@@ -372,6 +374,12 @@ struct drm_crtc *syna_crtc_create(struct drm_device *dev, uint32_t number,
 	drm_crtc_enable_color_mgmt(&syna_crtc->base, 0, false, SYNA_GAMMA_LUT_SIZE);
 
 	DRM_DEBUG_DRIVER("[CRTC:%d] gamma enabled\n", syna_crtc->base.base.id);
+
+	err = syna_create_brightness_prop(dev, &syna_crtc->base);
+	if (err) {
+		DRM_WARN("Failed to create brightness property for crtc %d\n",
+			  syna_crtc->base.base.id);
+	}
 
 	return &syna_crtc->base;
 

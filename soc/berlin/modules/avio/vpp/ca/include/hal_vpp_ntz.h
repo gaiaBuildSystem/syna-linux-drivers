@@ -41,6 +41,8 @@ int NTZ_MV_VPPOBJ_SetHdmiTxControl(int enable);
 INT NTZ_MV_VPPOBJ_SetFormat (INT cpcbID, VPP_DISP_OUT_PARAMS *pDispParams);
 int NTZ_MV_VPPOBJ_GetDispOutParams(VPP_DISP_OUT_PARAMS *pdispParams, int size);
 int NTZ_MV_VPP_UpdateGamma(int Id, const void *gamma, int length);
+int NTZ_MV_VPP_UpdateBrightness(int Id, int channel, uint64_t val);
+int NTZ_MV_VPP_GetBrightness(int Id, int channel, uint64_t *val);
 #ifdef __cplusplus
 }
 #endif

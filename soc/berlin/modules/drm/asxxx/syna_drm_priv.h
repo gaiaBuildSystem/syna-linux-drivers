@@ -43,5 +43,14 @@ void syna_push_default_buildin_frames_for_crtc(int crtc_id);
 void syna_push_buildin_frame(u32 plane);
 void syna_push_builtin_frames(void);
 int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t *fl_info);
+int syna_crtc_set_property(struct drm_crtc *crtc,
+					struct drm_crtc_state *state,
+				  struct drm_property *property,
+				  uint64_t val);
+int syna_crtc_get_property(struct drm_crtc *crtc,
+				  const struct drm_crtc_state *state,
+				  struct drm_property *property,
+				  uint64_t *val);
+int syna_create_brightness_prop(struct drm_device *dev, struct drm_crtc *crtc);
 
 #endif /* !defined(__SYNA_DRM_PRIV_H__) */

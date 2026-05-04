@@ -68,3 +68,14 @@ int __weak NTZ_MV_VPP_UpdateGamma(int Id, const void *gamma, int length)
 {
 	return 0;
 }
+
+
+int __weak NTZ_MV_VPP_UpdateBrightness(int Id, int channel, uint64_t val)
+{
+	return 0;
+}
+
+int __weak NTZ_MV_VPP_GetBrightness(int Id, int channel, uint64_t *val)
+{
+	return 0;
+}

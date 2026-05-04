@@ -217,3 +217,87 @@ int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t
 		return -1;
 	}
 }
+
+static const char * const syna_brightness_props[] = {
+	"R brightness",
+	"G brightness",
+	"B brightness",
+	"brightness",
+};
+
+static int syna_brightness_prop_to_channel(const char *name, int *channel)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(syna_brightness_props); i++) {
+		if (strcmp(name, syna_brightness_props[i]) == 0) {
+			*channel = i;
+			return 0;
+		}
+	}
+	return -EINVAL;
+}
+
+int syna_crtc_set_property(struct drm_crtc *crtc, struct drm_crtc_state *state,
+						   struct drm_property *property, uint64_t val)
+{
+	struct syna_crtc *syna_crtc = to_syna_crtc(crtc);
+	int channel;
+	int ret;
+
+	if (!syna_crtc) {
+		DRM_ERROR("syna crtc is NULL!!\n");
+		return -EINVAL;
+	}
+
+	if (!(ret = syna_brightness_prop_to_channel(property->name, &channel))) {
+		ret = syna_vpp_update_brightness(syna_crtc->number, channel, val);
+		if (ret) {
+			DRM_ERROR("failed to update brightness for property %s\n",
+					  property->name);
+		}
+	}
+
+	return ret;
+}
+
+int syna_crtc_get_property(struct drm_crtc *crtc,
+						   const struct drm_crtc_state *state,
+						   struct drm_property *property, uint64_t *val)
+{
+	struct syna_crtc *syna_crtc = to_syna_crtc(crtc);
+	int channel;
+	int ret;
+
+	if (!syna_crtc) {
+		DRM_ERROR("syna crtc is NULL!!\n");
+		return -EINVAL;
+	}
+
+	if (!(ret = syna_brightness_prop_to_channel(property->name, &channel))) {
+		ret = syna_vpp_get_brightness(syna_crtc->number, channel, val);
+		if (ret) {
+			DRM_ERROR("failed to get brightness for property %s\n",
+					  property->name);
+		}
+	}
+
+	return ret;
+}
+
+
+int syna_create_brightness_prop(struct drm_device *dev, struct drm_crtc *crtc)
+{
+	struct drm_property *prop;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(syna_brightness_props); i++) {
+		prop = drm_property_create_signed_range(dev, 0,
+				syna_brightness_props[i], -128, 127);
+		if (!prop)
+			return -ENOMEM;
+		drm_object_attach_property(&crtc->base, prop, 0);
+	}
+
+	return 0;
+}

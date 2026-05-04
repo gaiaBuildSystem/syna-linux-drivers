@@ -349,4 +349,23 @@ void syna_vpp_pop_fl_frame(int crtcID, int planeID)
 	return;
 }
 
+int syna_crtc_set_property(struct drm_crtc *crtc,
+					struct drm_crtc_state *state,
+				  struct drm_property *property,
+				  uint64_t val)
+{
+	return 0;
+}
+int syna_crtc_get_property(struct drm_crtc *crtc,
+				  const struct drm_crtc_state *state,
+				  struct drm_property *property,
+				  uint64_t *val)
+{
+	return 0;
+}
+int syna_create_brightness_prop(struct drm_device *dev, struct drm_crtc *crtc)
+{
+	return 0;
+}
+
 MODULE_IMPORT_NS(SYNA_BM);

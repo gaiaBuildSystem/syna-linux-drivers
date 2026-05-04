@@ -45,6 +45,7 @@
 #define SYNA_MIPI_INTR_EN(intr_reg)	  intr_reg.uINTR_CTRL_mipi_int_en = 1
 
 #define SYNA_LCDC_GAMMA_LUT_ENTRRIES 33
+#define SYNA_LCDC_BRIGHTNESS_LUT_ENTRIES 3
 
 typedef enum SYNA_LCDC_ERROR_t {
 	SYNA_LCDC_OK            = 0x0000,   /**< Success. */
@@ -65,7 +66,16 @@ typedef enum _SYNA_DHUB_CFGQ_TYPE_ {
 
 typedef enum _SYNA_LCDC_SETTING_ {
 	SYNA_LCDC_GAMMA = 0x1,
+	SYNA_LCDC_BRIGHTNESS = 0x2,
 } SYNA_LCDC_SETTING;
+
+typedef enum _SYNA_LCDC_BRIGHT_CH_ {
+	SYNA_LCDC_BRIGHT_CH_R,
+	SYNA_LCDC_BRIGHT_CH_G,
+	SYNA_LCDC_BRIGHT_CH_B,
+	SYNA_LCDC_BRIGHT_CH_ALL,
+	SYNA_LCDC_BRIGHT_CH_MAX
+} SYNA_LCDC_BRIGHT_CH;
 
 typedef struct syna_lcdc_panel_t {
 	unsigned char intf_type;     /*DPI TFT or CPU, DSI Video or CMD*/
@@ -138,6 +148,7 @@ struct syna_lcdc_dev {
 	unsigned char u8Gamma[SYNA_LCDC_GAMMA_LUT_ENTRRIES]; //GAMMA Table
 	unsigned int update_flags;
 	bool b_gamma_en;
+	uint64_t brightness[SYNA_LCDC_BRIGHT_CH_MAX];
 
 	VPP_MEM_LIST   *vpp_mem_list;
 	int is_first_frame;
@@ -162,4 +173,6 @@ void syna_lcdc_cfg_dlr_init(struct syna_lcdc_dev *dev, int num);
 void syna_lcdc_cfg_wrap_interrupt_enable(void);
 int syna_lcdc_update_gamma_table(int lcdcID, const void *data,
 				 unsigned int length);
+int syna_lcdc_update_brightness(int lcdcID, int channel, uint64_t val);
+int syna_lcdc_get_brightness(int lcdcID, int channel, uint64_t *val);
 #endif

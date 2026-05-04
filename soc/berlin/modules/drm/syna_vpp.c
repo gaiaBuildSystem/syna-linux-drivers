@@ -1130,3 +1130,13 @@ int syna_vpp_update_gamma(struct drm_device *dev, int Id, const void *data,
 {
 	return wrap_MV_VPPOBJ_UpdateGamma(Id, data, length);
 }
+
+int syna_vpp_update_brightness(int Id, int channel, uint64_t val)
+{
+	return wrap_MV_VPPOBJ_UpdateBrightness(Id, channel, val);
+}
+
+int syna_vpp_get_brightness(int Id, int channel, uint64_t *val)
+{
+	return wrap_MV_VPPOBJ_GetBrightness(Id, channel, val);
+}

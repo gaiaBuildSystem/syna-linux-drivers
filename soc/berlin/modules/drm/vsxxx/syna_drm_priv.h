@@ -52,5 +52,14 @@ struct drm_encoder *syna_tmds_encoder_create(struct drm_device *dev,
 					ENUM_VOUT_CONNECTOR vout_id, ENUM_CPCB_ID cpcb_id);
 int syna_dsi_panel_send_cmd (unsigned int cmdsize, unsigned char *pcmd);
 int syna_vpp_get_disp_info(struct drm_device *dev, int crtc_ndx, fastlogo_info_t *fl_info);
+int syna_crtc_set_property(struct drm_crtc *crtc,
+					struct drm_crtc_state *state,
+				  struct drm_property *property,
+				  uint64_t val);
+int syna_crtc_get_property(struct drm_crtc *crtc,
+				  const struct drm_crtc_state *state,
+				  struct drm_property *property,
+				  uint64_t *val);
+int syna_create_brightness_prop(struct drm_device *dev, struct drm_crtc *crtc);
 
 #endif /* !defined(__SYNA_DRM_PRIV_H__) */

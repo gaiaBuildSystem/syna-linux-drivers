@@ -80,6 +80,8 @@ int wrap_MV_VPPOBJ_GetRefWindow(int planeID, VPP_WIN *win);
 int wrap_MV_VPPOBJ_GetHDMISinkFeatureMap(VPP_HDMI_SINK_CAPS *pSinkFeatureMap);
 void wrap_MV_VPP_HDMITX_5v_set(int enable);
 int wrap_MV_VPPOBJ_UpdateGamma(int Id, const void *data, int length);
+int wrap_MV_VPPOBJ_UpdateBrightness(int Id, int channel, uint64_t val);
+int wrap_MV_VPPOBJ_GetBrightness(int Id, int channel, uint64_t *val);
 
 #ifdef __cplusplus
 }

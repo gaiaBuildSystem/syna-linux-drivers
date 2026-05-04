@@ -720,3 +720,61 @@ update_gamma_table_exit:
 
 	return 0;
 }
+
+
+static int syna_lcdc_set_brightness(struct syna_lcdc_dev *dev,
+							 SYNA_LCDC_BRIGHT_CH reg, u8 val)
+{
+
+	GA_REG_WORD32_WRITE(dev->core_addr + LCDC_REG_RBCR + reg * 4, val & 0xff);
+
+	return 0;
+}
+
+int syna_lcdc_update_brightness(int lcdcID, int channel, uint64_t val)
+{
+	struct syna_lcdc_dev *dev;
+	int64_t signed_val = (int64_t)val;
+	uint8_t reg_val;
+
+	dev = syna_lcdc[SYNA_LCDC_GET_DEV_NDX(lcdcID)];
+	if (!dev) {
+		pr_err("LCDC%d not initialized\n", lcdcID);
+		return -EINVAL;
+	}
+
+	/* Convert from signed range [-128,127] to unsigned [0,255] */
+	reg_val = signed_val + 128;
+
+	dev->brightness[channel] = val;
+	if (channel == SYNA_LCDC_BRIGHT_CH_ALL) {
+		for (int i = 0; i < SYNA_LCDC_BRIGHTNESS_LUT_ENTRIES; i++) {
+			syna_lcdc_set_brightness(dev, i, reg_val);
+			dev->brightness[i] = val;
+		}
+	} else if (channel >= SYNA_LCDC_BRIGHT_CH_R && channel <= SYNA_LCDC_BRIGHT_CH_B) {
+		syna_lcdc_set_brightness(dev, channel, reg_val);
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int syna_lcdc_get_brightness(int lcdcID, int channel, uint64_t *val)
+{
+	struct syna_lcdc_dev *dev;
+
+	dev = syna_lcdc[SYNA_LCDC_GET_DEV_NDX(lcdcID)];
+	if (!dev) {
+		pr_err("LCDC%d not initialized\n", lcdcID);
+		return -EINVAL;
+	}
+
+	if (channel > SYNA_LCDC_BRIGHT_CH_ALL)
+		return -EINVAL;
+
+	*val = dev->brightness[channel];
+
+	return 0;
+}
