@@ -250,7 +250,8 @@ PDumpPMRSAB(PVRSRV_DEVICE_NODE *psDeviceNode,
             IMG_DEVMEM_OFFSET_T uiOffset,
             IMG_DEVMEM_SIZE_T uiSize,
             const IMG_CHAR *pszFileName,
-            IMG_UINT32 uiFileOffset);
+            IMG_UINT32 uiFileOffset,
+            IMG_UINT32 uiPDumpFlags);
 
 /*
   PDumpPMRPOL()

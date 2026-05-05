@@ -184,8 +184,6 @@ static HANDLE_IMPL_FUNCTAB const *gpsHandleFuncs;
 
 static POS_LOCK gKernelHandleLock;
 static IMG_BOOL gbLockInitialised = IMG_FALSE;
-/* Pointer to process handle base currently being freed */
-static PVRSRV_HANDLE_BASE *g_psProcessHandleBaseBeingFreed;
 /* Lock for the process handle base table */
 static POS_LOCK g_hProcessHandleBaseLock;
 /* Hash table with process handle bases */
@@ -2110,66 +2108,6 @@ ExitUnlock:
 	return eError;
 }
 
-/* Only called from sync_fallback_server.c */
-#if defined(SUPPORT_FALLBACK_FENCE_SYNC)
-/*!
-*******************************************************************************
- @Function      PVRSRVRetrieveProcessHandleBase
- @Description   Returns a pointer to the process handle base for the current
-                process. If the current process is the cleanup thread, then the
-                process handle base for the process currently being cleaned up
-                is returned
- @Return        Pointer to the process handle base, or NULL if not found.
-******************************************************************************/
-PVRSRV_HANDLE_BASE *PVRSRVRetrieveProcessHandleBase(void)
-{
-	PVRSRV_HANDLE_BASE *psHandleBase = NULL;
-	PROCESS_HANDLE_BASE *psProcHandleBase = NULL;
-	IMG_PID ui32PurgePid = PVRSRVGetPurgeConnectionPid();
-	IMG_PID uiCleanupPid = PVRSRVCleanupThreadGetPid();
-	uintptr_t uiCleanupTid = PVRSRVCleanupThreadGetTid();
-
-	OSLockAcquire(g_hProcessHandleBaseLock);
-
-	/* Check to see if we're being called from the cleanup thread... */
-	if ((OSGetCurrentProcessID() == uiCleanupPid) &&
-	    (OSGetCurrentThreadID() == uiCleanupTid) &&
-	    (ui32PurgePid > 0))
-	{
-		/* Check to see if the cleanup thread has already removed the
-		 * process handle base from the HASH table.
-		 */
-		psHandleBase = g_psProcessHandleBaseBeingFreed;
-		/* psHandleBase shouldn't be null, as cleanup thread
-		 * should be removing this from the HASH table before
-		 * we get here, so assert if not.
-		 */
-		PVR_ASSERT(psHandleBase);
-	}
-	else
-	{
-		/* Not being called from the cleanup thread, so return the process
-		 * handle base for the current process.
-		 */
-		uintptr_t uiHashKey;
-
-		uiHashKey = OSAcquireCurrentPPIDResourceRefKM();
-		OSReleasePPIDResourceRefKM(uiHashKey);
-
-		psProcHandleBase = (PROCESS_HANDLE_BASE *)
-		    HASH_Retrieve(g_psProcessHandleBaseTable, uiHashKey);
-	}
-
-	OSLockRelease(g_hProcessHandleBaseLock);
-
-	if (psHandleBase == NULL && psProcHandleBase != NULL)
-	{
-		psHandleBase = psProcHandleBase->psHandleBase;
-	}
-	return psHandleBase;
-}
-#endif
-
 /*!
 *******************************************************************************
  @Function      PVRSRVAcquireProcessHandleBase
@@ -2301,23 +2239,11 @@ PVRSRV_ERROR PVRSRVFreeHandleBase(PVRSRV_HANDLE_BASE *psBase, IMG_UINT64 ui64Max
 	FREE_HANDLE_DATA sHandleData = {NULL};
 	IMG_UINT32 i;
 	PVRSRV_ERROR eError;
-	IMG_PID uiCleanupPid = PVRSRVCleanupThreadGetPid();
-	uintptr_t uiCleanupTid = PVRSRVCleanupThreadGetTid();
 	IMG_UINT32 ui32ErrorCount = 0;
 
 	PVR_ASSERT(gpsHandleFuncs);
 
 	LockHandle(psBase);
-
-	/* If this is a process handle base being freed by the cleanup
-	 * thread, store this in g_psProcessHandleBaseBeingFreed
-	 */
-	if ((OSGetCurrentProcessID() == uiCleanupPid) &&
-	    (OSGetCurrentThreadID() == uiCleanupTid) &&
-	    (psBase->eType == PVRSRV_HANDLE_BASE_TYPE_PROCESS))
-	{
-		g_psProcessHandleBaseBeingFreed = psBase;
-	}
 
 	sHandleData.psBase = psBase;
 	sHandleData.ui64TimeStart = OSClockns64();
@@ -2405,11 +2331,6 @@ PVRSRV_ERROR PVRSRVFreeHandleBase(PVRSRV_HANDLE_BASE *psBase, IMG_UINT64 ui64Max
 	return eError;
 
 ExitUnlock:
-	if ((OSGetCurrentProcessID() == uiCleanupPid) &&
-		(OSGetCurrentThreadID() == uiCleanupTid))
-	{
-		g_psProcessHandleBaseBeingFreed = NULL;
-	}
 	UnlockHandle(psBase);
 
 	return eError;

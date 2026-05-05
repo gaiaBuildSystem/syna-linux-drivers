@@ -71,13 +71,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/interrupt.h>
 #include <linux/pfn_t.h>
 #include <linux/pfn.h>
-#include <linux/pid.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
 #include <linux/sched/clock.h>
 #include <linux/sched/signal.h>
-#else
-#include <linux/sched.h>
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)) */
+#include <linux/pid.h>
 #if defined(SUPPORT_SECURE_ALLOC_KM)
 #if defined(PVR_ANDROID_HAS_DMA_HEAP_FIND)
 #include <linux/dma-heap.h>
@@ -268,7 +264,6 @@ PVRSRV_ERROR OSPhyContigPagesAlloc(PHYS_HEAP *psPhysHeap, size_t uiSize,
         gfp_flags |= __GFP_DMA;
     }
     /* end for synaptics */
-
 #else
 	PVR_UNREFERENCED_PARAMETER(psDev);
 #endif
@@ -770,11 +765,7 @@ static inline IMG_UINT64 KClockns64(void)
 {
 	ktime_t sTime = ktime_get();
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 	return sTime;
-#else
-	return sTime.tv64;
-#endif
 }
 
 PVRSRV_ERROR OSClockMonotonicns64(IMG_UINT64 *pui64Time)
@@ -1735,18 +1726,18 @@ PVRSRV_ERROR OSCopyFromUser(void *pvProcess,
 		return PVRSRV_ERROR_FAILED_TO_COPY_VIRT_MEMORY;
 }
 
-IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
+IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
 {
-	*pui32Remainder = do_div(ui64Divident, ui32Divisor);
+	*pui32Remainder = do_div(ui64Dividend, ui32Divisor);
 
-	return ui64Divident;
+	return ui64Dividend;
 }
 
-IMG_UINT32 OSDivide64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
+IMG_UINT32 OSDivide64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder)
 {
-	*pui32Remainder = do_div(ui64Divident, ui32Divisor);
+	*pui32Remainder = do_div(ui64Dividend, ui32Divisor);
 
-	return (IMG_UINT32) ui64Divident;
+	return (IMG_UINT32)ui64Dividend;
 }
 
 /* One time osfunc initialisation */
@@ -2684,7 +2675,7 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 											 ppsPMR);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PhysmemCreateNewDmaBufBackedPMR", ErrorBufDetach);
 
-	PhysmemSetDmaHeap(psPMR, heap);
+	PhysmemSetDmaHeap(*ppsPMR, heap);
 
 	return PVRSRV_OK;
 
@@ -2769,3 +2760,143 @@ OSFreeSecBuf(PMR *psPMR)
 }
 #endif
 #endif /* SUPPORT_SECURE_ALLOC_KM */
+
+PVRSRV_ERROR OSGetUID(IMG_PID pid, IMG_UINT32 *pui32UID)
+{
+	struct task_struct *psTask;
+	struct pid *psPid;
+
+	if (pui32UID == NULL)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	psPid = find_get_pid((pid_t)pid);
+	if (!psPid)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to lookup PID %u.",
+		                        __func__, pid));
+		return PVRSRV_ERROR_NOT_FOUND;
+	}
+
+	psTask = get_pid_task(psPid, PIDTYPE_PID);
+	put_pid(psPid);
+	if (!psTask)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get pid task for PID %u.",
+		                        __func__, pid));
+		return PVRSRV_ERROR_NOT_FOUND;
+	}
+
+	*pui32UID = from_kuid(&init_user_ns, psTask->cred->uid);
+	put_task_struct(psTask);
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR OSFindFreeCPURangeTopDown(IMG_UINT64 ui64RangeStart,
+                                       IMG_UINT64 ui64RangeEnd,
+                                       IMG_UINT64 ui64Size,
+                                       IMG_UINT64 ui64AddrHint,
+                                       IMG_UINT64 *pui64Addr)
+{
+	struct vm_area_struct *psVma, *psPrevVma;
+	unsigned long uiTargetAddr;
+	IMG_BOOL bFoundAddress = IMG_FALSE;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	struct vma_iterator sItr;
+#endif
+
+#if !defined(CONFIG_64BIT)
+	if (ui64RangeEnd > IMG_UINT32_MAX)
+	{
+		ui64RangeEnd = IMG_UINT32_MAX;
+	}
+#endif
+
+	PVR_LOG_RETURN_IF_INVALID_PARAM(ui64RangeStart < ui64RangeEnd, "ui64RangeStart");
+
+	PVR_ASSERT(ui64Size != 0);
+	PVR_ASSERT(ui64Size <= (ui64RangeEnd - ui64RangeStart));
+	PVR_ASSERT(pui64Addr != NULL);
+
+	if (ui64AddrHint == 0)
+	{
+		uiTargetAddr = ui64RangeEnd - ui64Size;
+	}
+	else
+	{
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui64AddrHint >= ui64RangeStart,
+		                                "ui64AddrHint invalid");
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui64AddrHint < ui64RangeEnd,
+		                                "ui64AddrHint invalid");
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui64AddrHint + ui64Size < ui64RangeEnd,
+		                                "ui64AddrHint invalid");
+
+		uiTargetAddr = ui64AddrHint;
+		PVR_DPF((PVR_DBG_MESSAGE, "%s: SVM Address hint = 0x%08lx", __func__, uiTargetAddr));
+	}
+
+	mmap_read_lock(current->mm);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	vma_iter_init(&sItr, current->mm, (unsigned long)uiTargetAddr);
+	/* We only care about vma's within the range. */
+	psVma = vma_find(&sItr, ui64RangeEnd);
+#else
+	psVma = find_vma(current->mm, uiTargetAddr);
+#endif
+
+	/* psVma may be NULL in the case that there is no valid VMA with
+	 * vma->vm_end > uiTargetAddr
+	 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	if (psVma == NULL)
+#else
+	if (psVma == NULL || psVma->vm_start > uiTargetAddr + ui64Size)
+#endif
+	{
+		*pui64Addr = uiTargetAddr;
+		bFoundAddress = IMG_TRUE;
+		goto out;
+	}
+
+	while (psVma != NULL)
+	{
+		PVR_ASSERT(psVma->vm_start < psVma->vm_end);
+		/* We expect no wrap around of the VMAs traversal. */
+		PVR_ASSERT(psVma->vm_start <= ui64RangeEnd);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+		psPrevVma = vma_prev(&sItr);
+#else
+		psPrevVma = psVma->vm_prev;
+#endif
+
+		if (psVma->vm_start < ui64RangeStart)
+		{
+			PVR_DPF((PVR_DBG_MESSAGE, "%s: VMA was below range!", __func__));
+			break;
+		}
+
+		/* If there is no previous vma or a gap we can calculate the address. */
+		if (psPrevVma == NULL || psVma->vm_start - psPrevVma->vm_end >= ui64Size)
+		{
+			uiTargetAddr = psVma->vm_start - ui64Size;
+			/* Ensure address is properly within bounds. */
+			if (uiTargetAddr >= ui64RangeStart && uiTargetAddr < psVma->vm_start)
+			{
+				*pui64Addr = uiTargetAddr;
+				bFoundAddress = IMG_TRUE;
+				break;
+			}
+		}
+
+		psVma = psPrevVma;
+	}
+
+out:
+	mmap_read_unlock(current->mm);
+
+	return (bFoundAddress == IMG_TRUE) ? PVRSRV_OK : PVRSRV_ERROR_CPU_ADDR_NOT_FOUND;
+}

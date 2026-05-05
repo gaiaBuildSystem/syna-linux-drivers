@@ -130,4 +130,14 @@ PhysmemImportSparseDmaBuf(CONNECTION_DATA *psConnection,
                           IMG_DEVMEM_SIZE_T *puiSize,
                           IMG_DEVMEM_ALIGN_T *puiAlign);
 
+#if defined(ANDROID)
+PVRSRV_ERROR
+PhysmemRequestFBC(CONNECTION_DATA *psConnection, PVRSRV_DEVICE_NODE *psDevNode,
+                  IMG_INT fd);
+
+void
+PhysmemFreeFBC(CONNECTION_DATA *psConnection, PVRSRV_DEVICE_NODE *psDevNode,
+                  struct dma_buf *psDmaBuf);
+#endif
+
 #endif /* !defined(PHYSMEM_DMABUF_H) */

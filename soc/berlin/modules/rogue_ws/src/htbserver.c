@@ -367,11 +367,7 @@ HTBDeInit_Impl( void )
 		g_hTLStream = NULL;
 	}
 
-	if (g_sCtrl.hRepeatMarkerLock != NULL)
-	{
-		OSSpinLockDestroy(g_sCtrl.hRepeatMarkerLock);
-		g_sCtrl.hRepeatMarkerLock = NULL;
-	}
+	OSSpinLockDestroy(g_sCtrl.hRepeatMarkerLock);
 
 	g_sCtrl.bInitDone = IMG_FALSE;
 	return PVRSRV_OK;
@@ -473,7 +469,7 @@ HTBLogKM(IMG_UINT32 PID,
 {
 #if defined(PVRSRV_ENABLE_HTB)
 
-	OS_SPINLOCK_FLAGS uiSpinLockFlags;
+	OS_SPINLOCK_FLAGS uiSpinLockFlags = 0;
 	IMG_UINT32 ui32ReturnFlags = 0;
 	IMG_UINT32 ui32CurrentArg = 0;
 

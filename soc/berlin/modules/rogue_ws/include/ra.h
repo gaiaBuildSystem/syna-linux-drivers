@@ -584,9 +584,9 @@ RA_FreeMultiSparse(RA_ARENA *pArena,
  *  @Description   Transfers a set of indices specified in puiTransferIndices from
  *                 aSrcBaseArray to aDstBaseArray.
  *                 Called when some pages of the base array need to be
- *                 transfered to another base array. As a result of this call,
+ *                 transferred to another base array. As a result of this call,
  *                 some ghost addresses in aBaseArray might be converted to
- *                 real addresses before being transferred..
+ *                 real addresses before being transferred.
  *
  *  @Input  pArena     - The arena the segment was originally allocated from.
  *  @Input  aSrcBaseArray - The array to transfer bases from.

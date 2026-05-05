@@ -45,8 +45,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxmem.h"
 #include "allocmem.h"
 #include "devicemem.h"
+#include "devicemem_server.h"
 #include "devicemem_server_utils.h"
 #include "devicemem_pdump.h"
+#include "pvrsrv_memallocflags.h"
 #include "rgxdevice.h"
 #include "rgx_fwif_km.h"
 #include "rgxfwutils.h"
@@ -58,12 +60,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_memallocflags.h"
 #include "rgx_bvnc_defs_km.h"
 #include "info_page.h"
+#include "rgx_heaps.h"
 
 # include "rgxmmudefs_km.h"
 
 #if defined(PDUMP)
 #include "sync.h"
 #endif
+
+typedef struct _CACHE_INVAL_WAITCOND_DATA_
+{
+	IMG_UINT32 uiSyncValExpected;
+	PVRSRV_CLIENT_SYNC_PRIM *psMMUCacheSyncPrim;
+} CACHE_INVAL_WAITCOND_DATA;
 
 struct SERVER_MMU_CONTEXT_TAG
 {
@@ -75,6 +84,7 @@ struct SERVER_MMU_CONTEXT_TAG
 	IMG_UINT64 ui64FBSCEntryMask;
 	DLLIST_NODE sNode;
 	PVRSRV_RGXDEV_INFO *psDevInfo;
+	DEVMEMINT_CTX *psDevMemCtx;
 }; /* SERVER_MMU_CONTEXT is typedef-ed in rgxmem.h */
 
 PVRSRV_ERROR RGXInvalidateFBSCTable(PVRSRV_DEVICE_NODE *psDeviceNode,
@@ -217,26 +227,35 @@ PVRSRV_ERROR _PrepareAndSubmitCacheCommand(PVRSRV_DEVICE_NODE *psDeviceNode,
 	                      ui32CacheFlags);
 #endif
 
-	/* Schedule MMU cache command */
-	eError = RGXSendCommand(psDevInfo,
-							&sFlushCmd,
-							PDUMP_FLAGS_CONTINUOUS);
-	if (eError != PVRSRV_OK)
+	LOOP_UNTIL_TIMEOUT_US(MAX_HW_TIME_US)
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "%s: Failed to schedule MMU cache command to "
-		         "DM=%d with error (%u)",
-		         __func__, eDM, eError));
-		psDeviceNode->ui32NextMMUInvalidateUpdate--;
+		/* Schedule MMU cache command */
+		eError = RGXSendCommand(psDevInfo,
+								&sFlushCmd,
+								PDUMP_FLAGS_CONTINUOUS);
+		if (eError != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+					 "%s: Failed to schedule MMU cache command to "
+					 "DM=%d with error (%u)",
+					 __func__, eDM, eError));
+			psDeviceNode->ui32NextMMUInvalidateUpdate--;
+		}
 
-		MMU_AppendCacheFlags(psDevInfo->psKernelMMUCtx, ui32CacheFlags);
+		if (!PVRSRVIsRetryError(eError))
+		{
+			break;
+		}
+		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
 	}
+	END_LOOP_UNTIL_TIMEOUT_US();
 
 	return eError;
 }
 
-PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDeviceNode,
-                                       IMG_UINT32 *pui32MMUInvalidateUpdate)
+static
+PVRSRV_ERROR _CacheInvalidateKick(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                  IMG_UINT32 *pui32MMUInvalidateUpdate)
 {
 	PVRSRV_ERROR eError;
 	IMG_UINT32 ui32FWCacheFlags;
@@ -256,8 +275,13 @@ PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDeviceNode,
 	ui32FWCacheFlags = MMU_GetAndResetCacheFlags(psDevInfo->psKernelMMUCtx);
 	if (ui32FWCacheFlags == 0)
 	{
-		/* Nothing to do if no cache ops pending */
-		eError = PVRSRV_OK;
+		/* Nothing to do if no cache ops pending.
+		 * Use this error internally to signal the caller that there was nothing
+		 * to do. Return the InvalidateUpdate of the previous command queued in
+		 * case our caller needs to wait on it.
+		 */
+		*pui32MMUInvalidateUpdate = psDeviceNode->ui32NextMMUInvalidateUpdate - 1;
+		eError = PVRSRV_ERROR_CMD_NOT_PROCESSED;
 		goto _PowerUnlockAndReturnErr;
 	}
 
@@ -271,28 +295,65 @@ PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		PVR_DPF((PVR_DBG_WARNING, "%s: failed to transition RGX to ON (%s)",
 					__func__, PVRSRVGetErrorString(eError)));
-		MMU_AppendCacheFlags(psDevInfo->psKernelMMUCtx, ui32FWCacheFlags);
-		goto _PowerUnlockAndReturnErr;
+		goto _PutCacheFlags;
 	}
 
-	LOOP_UNTIL_TIMEOUT_US(MAX_HW_TIME_US)
+	eError = _PrepareAndSubmitCacheCommand(psDeviceNode, RGXFWIF_DM_GP, ui32FWCacheFlags,
+										   IMG_TRUE, pui32MMUInvalidateUpdate);
+	if (eError != PVRSRV_OK)
 	{
-		eError = _PrepareAndSubmitCacheCommand(psDeviceNode, RGXFWIF_DM_GP, ui32FWCacheFlags,
-											   IMG_TRUE, pui32MMUInvalidateUpdate);
-		if (!PVRSRVIsRetryError(eError))
-		{
-			break;
-		}
-		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to schedule MMU command.", __func__));
+		goto _PutCacheFlags;
 	}
-	END_LOOP_UNTIL_TIMEOUT_US();
 
-	PVR_LOG_IF_ERROR(eError, "_PrepareAndSubmitCacheCommand");
-
+_PutCacheFlags:
+	MMU_AppendCacheFlags(psDevInfo->psKernelMMUCtx, ui32FWCacheFlags);
 _PowerUnlockAndReturnErr:
 	PVRSRVPowerUnlock(psDeviceNode);
 
 RGXMMUCacheInvalidateKick_exit:
+	return eError;
+}
+
+PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                       IMG_UINT32 *pui32MMUInvalidateUpdate)
+{
+	PVRSRV_ERROR eError = _CacheInvalidateKick(psDeviceNode, pui32MMUInvalidateUpdate);
+	return eError == PVRSRV_ERROR_CMD_NOT_PROCESSED ? PVRSRV_OK : eError;
+}
+
+static
+PVRSRV_ERROR _CacheInvalidateWaitCondition(void *pvCallbackData)
+{
+	CACHE_INVAL_WAITCOND_DATA *psData = pvCallbackData;
+
+	if (PVRSRVHasCounter32Advanced(OSReadDeviceMem32(psData->psMMUCacheSyncPrim->pui32LinAddr),
+	                               psData->uiSyncValExpected))
+	{
+		return PVRSRV_OK;
+	}
+
+	return PVRSRV_ERROR_RETRY;
+}
+
+PVRSRV_ERROR RGXMMUCacheInvalidateKickAndWait(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	IMG_UINT32 uiSync;
+
+	PVRSRV_ERROR eError = RGXMMUCacheInvalidateKick(psDeviceNode, &uiSync);
+	CACHE_INVAL_WAITCOND_DATA sWaitCondData =
+	{
+		.uiSyncValExpected = uiSync,
+		.psMMUCacheSyncPrim = psDeviceNode->psMMUCacheSyncPrim
+	};
+
+	PVR_LOG_RETURN_IF_ERROR(eError, "RGXMMUCacheInvalidateKick");
+
+	eError = PVRSRVWaitForConditionKM(_CacheInvalidateWaitCondition,
+	                                  &sWaitCondData);
+	PVR_LOG_IF_ERROR_VA(PVR_DBG_WARNING, eError, "PVRSRVWaitForConditionKM() failed waiting for "
+	                    "cache invalidate with error %s", PVRSRVGetErrorString(eError));
+
 	return eError;
 }
 
@@ -318,21 +379,15 @@ PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
 		return PVRSRV_OK;
 	}
 
-	LOOP_UNTIL_TIMEOUT_US(MAX_HW_TIME_US)
+	eError = _PrepareAndSubmitCacheCommand(psDeviceNode, eDM, ui32FWCacheFlags,
+	                                       IMG_FALSE, pui32MMUInvalidateUpdate);
+	if (eError != PVRSRV_OK)
 	{
-		eError = _PrepareAndSubmitCacheCommand(psDeviceNode, eDM, ui32FWCacheFlags,
-		                                       IMG_FALSE, pui32MMUInvalidateUpdate);
-		if (!PVRSRVIsRetryError(eError))
-		{
-			break;
-		}
-		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to schedule MMU command.", __func__));
+		MMU_AppendCacheFlags(psDevInfo->psKernelMMUCtx, ui32FWCacheFlags);
 	}
-	END_LOOP_UNTIL_TIMEOUT_US();
 
-	PVR_LOG_RETURN_IF_ERROR(eError, "_PrepareAndSubmitCacheCommand");
-
-	return PVRSRV_OK;
+	return eError;
 }
 
 #if defined(RGX_BRN71422_TARGET_HARDWARE_PHYSICAL_ADDR)
@@ -531,18 +586,76 @@ void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData)
 	OSFreeMem(psServerMMUContext);
 }
 
+IMG_BOOL RGXValidateAddressPermissions(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                       MMU_CONTEXT *psMMUContext,
+                                       IMG_DEV_VIRTADDR sVDevAddr,
+                                       PVRSRV_MEMALLOCFLAGS_T uiFlags)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+
+	/* We need to perform the validation only for application memory context.
+	 * Kernel/Firmware memory context doesn't require it. */
+	if (psDevInfo->psKernelMMUCtx == psMMUContext)
+	{
+		return IMG_TRUE;
+	}
+
+	if (uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT))
+	{
+		/* Virtual allocations with the PMMETA_PROTECT flag must only made in
+		 * specific virtual heaps. */
+		if (sVDevAddr.uiAddr != RGX_PMMETA_PROTECT_HEAP_BASE &&
+		    sVDevAddr.uiAddr != RGX_FIRMWARE_MAIN_HEAP_BASE &&
+		    sVDevAddr.uiAddr != RGX_FIRMWARE_CONFIG_HEAP_BASE)
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: PMMETA_PROTECT flag set but valid heap was not used.",
+			         __func__));
+			return IMG_FALSE;
+		}
+	}
+	else
+	{
+		/* Allocations without the flag must not be made in the
+		 * PMMETA_PROTECT heap. */
+		if (sVDevAddr.uiAddr == RGX_PMMETA_PROTECT_HEAP_BASE)
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Attempt to allocate virtual range within "
+			         RGX_PMMETA_PROTECT_HEAP_IDENT " without PMMETA_PROTECT flag",
+			         __func__));
+			return IMG_FALSE;
+		}
+	}
+
+	return IMG_TRUE;
+}
+
+IMG_BOOL RGXValidateExportableFlags(PVRSRV_MEMALLOCFLAGS_T uiFlags)
+{
+	if (uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT))
+	{
+		return IMG_FALSE;
+	}
+
+	return IMG_TRUE;
+}
+
 /*
  * RGXRegisterMemoryContext
  */
-PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,
-									  MMU_CONTEXT			*psMMUContext,
-									  IMG_HANDLE			*hPrivData)
+PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
+									  MMU_CONTEXT *psMMUContext,
+									  DEVMEMINT_CTX *psDevMemCtx,
+									  IMG_HANDLE *hPrivData)
 {
 	PVRSRV_ERROR			eError;
 	PVRSRV_RGXDEV_INFO		*psDevInfo = psDeviceNode->pvDevice;
 	RGXFWIF_FWMEMCONTEXT	*psFWMemContext;
 	DEVMEM_MEMDESC			*psFWMemContextMemDesc;
 	SERVER_MMU_CONTEXT *psServerMMUContext;
+
+	PVR_ASSERT(psDevMemCtx != NULL);
 
 	if (psDevInfo->psKernelMMUCtx == NULL)
 	{
@@ -564,6 +677,7 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,
 		psServerMMUContext->psDevInfo = psDevInfo;
 		psServerMMUContext->ui64FBSCEntryMask = 0;
 		psServerMMUContext->sFWMemContextDevVirtAddr.ui32Addr = 0;
+		psServerMMUContext->psDevMemCtx = psDevMemCtx;
 
 		/*
 			Allocate device memory for the firmware memory context for the new
@@ -731,6 +845,18 @@ fail_alloc_fw_ctx:
 fail_alloc_server_ctx:
 	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
+}
+
+PVRSRV_ERROR RGXServerMMUContextRef(SERVER_MMU_CONTEXT *psServerMMUContext)
+{
+	PVR_ASSERT(psServerMMUContext != NULL);
+	return DevmemIntCtxRef(psServerMMUContext->psDevMemCtx);
+}
+
+void RGXServerMMUContextUnref(SERVER_MMU_CONTEXT *psServerMMUContext)
+{
+	PVR_ASSERT(psServerMMUContext != NULL);
+	DevmemIntCtxUnref(psServerMMUContext->psDevMemCtx);
 }
 
 DEVMEM_MEMDESC *RGXGetFWMemDescFromMemoryContextHandle(IMG_HANDLE hPriv)

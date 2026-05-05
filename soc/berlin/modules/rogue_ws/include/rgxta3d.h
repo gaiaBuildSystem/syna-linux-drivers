@@ -45,7 +45,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGXTA3D_H
 
 #include "devicemem.h"
-#include "devicemem_server.h"
+#include "opaque_types.h"
 #include "device.h"
 #include "rgxdevice.h"
 #include "rgx_fwif_shared.h"
@@ -158,8 +158,8 @@ struct _RGX_FREELIST_ {
 	IMG_UINT32				ui32GrowFLPages;
 	IMG_UINT32				ui32ReadyFLPages;
 	IMG_UINT32				ui32GrowThreshold;		/* Percentage of FL memory used that should trigger a new grow request */
-	IMG_UINT32				ui32FreelistID;
-	IMG_UINT32				ui32FreelistGlobalID;	/* related global freelist for this freelist */
+	IMG_UINT64				ui64FreelistID;
+	IMG_UINT64				ui64FreelistGlobalID;	/* related global freelist for this freelist */
 	IMG_UINT64				ui64FreelistChecksum;	/* checksum over freelist content */
 	IMG_BOOL				bCheckFreelist;			/* freelist check enabled */
 	IMG_UINT32				ui32RefCount;			/* freelist reference counting */
@@ -228,38 +228,8 @@ IMG_BOOL RGXDumpFreeListPageList(RGX_FREELIST *psFreeList);
 PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA          *psConnection,
                                   PVRSRV_DEVICE_NODE       *psDeviceNode,
                                   IMG_DEV_VIRTADDR          asVHeapTableDevVAddr[RGXMKIF_NUM_GEOMDATAS],
-                                  IMG_DEV_VIRTADDR          psPMMListDevVAddr[RGXMKIF_NUM_RTDATAS],
+                                  DEVMEMINT_RESERVATION    *psPMMListsReservation,
                                   RGX_FREELIST	           *apsFreeLists[RGXMKIF_NUM_RTDATA_FREELISTS],
-                                  IMG_UINT32                ui32ScreenPixelMax,
-                                  IMG_UINT64                ui64MultiSampleCtl,
-                                  IMG_UINT64                ui64FlippedMultiSampleCtl,
-                                  IMG_UINT32                ui32TPCStride,
-                                  IMG_DEV_VIRTADDR          asTailPtrsDevVAddr[RGXMKIF_NUM_GEOMDATAS],
-                                  IMG_UINT32                ui32TPCSize,
-                                  IMG_UINT32                ui32TEScreen,
-                                  IMG_UINT32                ui32TEAA,
-                                  IMG_UINT32                ui32TEMTILE1,
-                                  IMG_UINT32                ui32TEMTILE2,
-                                  IMG_UINT32                ui32MTileStride,
-                                  IMG_UINT32                ui32ISPMergeLowerX,
-                                  IMG_UINT32                ui32ISPMergeLowerY,
-                                  IMG_UINT32                ui32ISPMergeUpperX,
-                                  IMG_UINT32                ui32ISPMergeUpperY,
-                                  IMG_UINT32                ui32ISPMergeScaleX,
-                                  IMG_UINT32                ui32ISPMergeScaleY,
-                                  IMG_DEV_VIRTADDR          sMacrotileArrayDevVAddr[RGXMKIF_NUM_RTDATAS],
-                                  IMG_DEV_VIRTADDR          sRgnHeaderDevVAddr[RGXMKIF_NUM_RTDATAS],
-                                  IMG_DEV_VIRTADDR          asRTCDevVAddr[RGXMKIF_NUM_GEOMDATAS],
-                                  IMG_UINT32                uiRgnHeaderSize,
-                                  IMG_UINT32                ui32ISPMtileSize,
-                                  IMG_UINT16                ui16MaxRTs,
-                                  RGX_KM_HW_RT_DATASET     *pasKMHWRTDataSet[RGXMKIF_NUM_RTDATAS]);
-
-PVRSRV_ERROR RGXCreateHWRTDataSet2(CONNECTION_DATA          *psConnection,
-                                  PVRSRV_DEVICE_NODE        *psDeviceNode,
-                                  IMG_DEV_VIRTADDR          asVHeapTableDevVAddr[RGXMKIF_NUM_GEOMDATAS],
-                                  DEVMEMINT_RESERVATION     *psPMMListsReservation,
-                                  RGX_FREELIST	             *apsFreeLists[RGXMKIF_NUM_RTDATA_FREELISTS],
                                   IMG_UINT32                ui32ScreenPixelMax,
                                   IMG_UINT64                ui64MultiSampleCtl,
                                   IMG_UINT64                ui64FlippedMultiSampleCtl,
@@ -373,13 +343,18 @@ PVRSRV_ERROR RGXDestroyFreeList(RGX_FREELIST *psFreeList);
 	RGXProcessRequestGrow
 */
 void RGXProcessRequestGrow(PVRSRV_RGXDEV_INFO *psDevInfo,
-						   IMG_UINT32 ui32FreelistID);
+						   IMG_UINT64 ui64FreelistID);
 
+typedef enum {
+	RECONSTRUCTION_INPUT_32BIT_IDS,
+	RECONSTRUCTION_INPUT_64BIT_IDS
+} RECONSTRUCTION_INPUT_TYPE;
 
 /* Reconstruct free list after Hardware Recovery */
 void RGXProcessRequestFreelistsReconstruction(PVRSRV_RGXDEV_INFO *psDevInfo,
 											  IMG_UINT32 ui32FreelistsCount,
-											  const IMG_UINT32 *paui32Freelists);
+											  const void *pvFreelists,
+											  RECONSTRUCTION_INPUT_TYPE eType);
 
 /*!
 *******************************************************************************
@@ -418,8 +393,10 @@ PVRSRV_ERROR PVRSRVRGXCreateRenderContextKM(CONNECTION_DATA				*psConnection,
 											IMG_UINT32					ui32FrameworkCommandSize,
 											IMG_PBYTE					pabyFrameworkCommand,
 											IMG_HANDLE					hMemCtxPrivData,
-											IMG_UINT32					ui32StaticRenderContextStateSize,
-											IMG_PBYTE					pStaticRenderContextState,
+                                            IMG_UINT32					ui32GeomContextDataSize,
+                                            IMG_PBYTE					pGeomData,
+                                            IMG_UINT32					ui32FragContextDataSize,
+                                            IMG_PBYTE					pFragData,
 											IMG_UINT32					ui32PackedCCBSizeU8888,
 											IMG_UINT32					ui32ContextFlags,
 											IMG_UINT64					ui64RobustnessAddress,
@@ -520,11 +497,6 @@ PVRSRV_ERROR PVRSRVRGXSetRenderContextPriorityKM(CONNECTION_DATA *psConnection,
                                                  PVRSRV_DEVICE_NODE * psDevNode,
                                                  RGX_SERVER_RENDER_CONTEXT *psRenderContext,
                                                  IMG_INT32 i32Priority);
-
-PVRSRV_ERROR PVRSRVRGXSetRenderContextPropertyKM(RGX_SERVER_RENDER_CONTEXT *psRenderContext,
-												 RGX_CONTEXT_PROPERTY eContextProperty,
-												 IMG_UINT64 ui64Input,
-												 IMG_UINT64 *pui64Output);
 
 /* Debug - Dump debug info of render contexts on this device */
 void DumpRenderCtxtsInfo(PVRSRV_RGXDEV_INFO *psDevInfo,

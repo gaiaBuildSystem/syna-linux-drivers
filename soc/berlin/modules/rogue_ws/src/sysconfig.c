@@ -229,6 +229,7 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	IMG_INT32 i32Irq = -1;
 	IMG_INT32 i32Status = PVRSRV_OK;
 	IMG_UINT64 ui64ClockSpeed = 0;
+	IMG_BOOL bNeedAllocFromDMAZone = IMG_FALSE;
 	SYNA_SYS_DATA *pSysData = NULL;
 	struct resource *pResource = NULL;
 	struct clk *pCoreClk = NULL;
@@ -249,8 +250,9 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	pCoreClk    = devm_clk_get(&pPlatformDev->dev, "gfx3dcore");
 	pGfxAxiClk  = devm_clk_get_optional(&pPlatformDev->dev, "gfxaxi");
 	if (IS_ERR(pSysClk) || IS_ERR(pCoreClk) || IS_ERR(pGfxAxiClk)) {
-		if (IS_ERR_PROBE_DEFER(pSysClk) || IS_ERR_PROBE_DEFER(pCoreClk) ||
-					IS_ERR_PROBE_DEFER(pGfxAxiClk)) {
+		if ((IS_ERR(pSysClk) && (PTR_ERR(pSysClk) == -EPROBE_DEFER)) ||
+		    (IS_ERR(pCoreClk) && (PTR_ERR(pCoreClk) == -EPROBE_DEFER)) ||
+		    (IS_ERR(pGfxAxiClk) && (PTR_ERR(pGfxAxiClk) == -EPROBE_DEFER))) {
 			return PVRSRV_ERROR_PROBE_DEFER;
 		} else {
 			printk(KERN_ERR "pvr: get clock from DTS failed.\n");
@@ -361,13 +363,13 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	}
 	gsDevices[0].ui32IRQ                = i32Irq;
 
-	gsDevices[0].ui32NeedAllocFromDMAZone = of_property_read_bool(pDeviceNode, "alloc-from-dma-zone");
+	bNeedAllocFromDMAZone = of_property_read_bool(pDeviceNode, "alloc-from-dma-zone");
 
 	printk(KERN_INFO "pvr: clockspeed:          %u\n", gsRGXTimingInfo.ui32CoreClockSpeed);
 	printk(KERN_INFO "pvr: register base:       0x%llx\n", gsDevices[0].sRegsCpuPBase.uiAddr);
 	printk(KERN_INFO "pvr: register size:       0x%x\n", gsDevices[0].ui32RegsSize);
 	printk(KERN_INFO "pvr: irq:                 %d\n", gsDevices[0].ui32IRQ);
-	printk(KERN_INFO "pvr: need alloc from dma zone: %s.\n", gsDevices[0].ui32NeedAllocFromDMAZone?"true":"false");
+	printk(KERN_INFO "pvr: need alloc from dma zone: %s.\n", bNeedAllocFromDMAZone ? "true" : "false");
 
 	gsDevices[0].eCacheSnoopingMode     = PVRSRV_DEVICE_SNOOP_NONE;
 

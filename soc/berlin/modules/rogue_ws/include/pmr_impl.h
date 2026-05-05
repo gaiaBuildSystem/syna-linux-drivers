@@ -388,7 +388,7 @@ typedef PVRSRV_ERROR (*PFN_WRITE_BYTES_FN)(PMR_IMPL_PRIVDATA pvPriv,
                 successfully, an error code otherwise.
 */ /**************************************************************************/
 typedef PVRSRV_ERROR (*PFN_CHANGE_SPARSE_MEM_FN)(PMR_IMPL_PRIVDATA pPriv,
-                      const PMR *psPMR,
+                      PMR *psPMR,
                       IMG_UINT32 ui32AllocPageCount,
                       IMG_UINT32 *pai32AllocIndices,
                       IMG_UINT32 ui32FreePageCount,

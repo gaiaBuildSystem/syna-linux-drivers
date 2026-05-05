@@ -49,6 +49,7 @@
 
 struct pvr_fence;
 struct pvr_fence_context;
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
 #define pvr_assign_str __assign_str
 #else

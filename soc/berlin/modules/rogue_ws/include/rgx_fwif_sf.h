@@ -279,8 +279,8 @@ X(167, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_STALE_KCCB_CMDS, "Driver ID %u has %u sta
 X(168, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_TA_VCE_PAUSE, "Applying VCE pause", 0) \
 X(169, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_KCCB_UPDATE_RTN_SLOT_DEPRECATED, "OSid %u KCCB slot %u value updated to %u", 3) \
 X(170, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_KCCB_COMMAND, "Unknown KCCB Command: KCCBCtl=0x%08x, KCCB=0x%08x, Roff=%u, Woff=%u, Wrap=%u, Cmd=0x%08x, CmdType=0x%08x", 7) \
-X(171, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
-X(172, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
+X(171, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1_DEPRECATED, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
+X(172, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2_DEPRECATED, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
 X(173, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_INVALID_KCCB_KICK_CMD, "Null FWCtx in KCCB kick cmd for Driver ID %u with WOff %u", 2) \
 X(174, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_FLUSHINVAL_CMD_INVALID, "Discarding invalid SLC flushinval command for Driver ID %u, FWCtx 0x%08x", 2) \
 X(175, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_INVALID_NOTIFY_WRITE_OFFSET_UPDATE, "Invalid Write Offset update notification from Driver ID %u: FWCtx 0x%08x, MemCtx 0x%08x", 3) \
@@ -397,8 +397,17 @@ X(286, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_FBSC_INVAL, "FBSC invalidate for Context 
 X(287, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_CANCEL_WORK_CMD_DROPPED, "Dropped cancel request with intjobref from 0x%08x to 0x%08x, DM = %u, FWCtx = 0x%08.8x", 4) \
 X(288, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_ZERO_LM, "Zeroing local memory after context storing FWCtx = 0x%08.8x", 1) \
 X(289, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_FAILED_IRQ_CLEAR, "Host failed to clear IRQ DriverID: %u Reg: 0x%08x",2) \
-X(290, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_KILLDM_ABORTED, "Kill DM%u aborted", 1) \
+X(290, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_KILLDM_ABORTED, "Kill signal for DM%u not issued due to pipelined kick in progress", 1) \
 X(291, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_SOC_CLOCK_SPEED_CHANGE, "SOC clock set to %u Hz", 1) \
+X(292, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_DM_RESET, "Triggered reset and cleanup for DM%u", 1) \
+X(293, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_CROSSDM_SYNC_FOUND, "CrossDM: Sync found [DriverID: %u, FwMemCtx: 0x%08x, sync: 0x%08x], [FwCtx: 0x%08x DM: %u Task Offset: %u] dependent on [FwCtx: 0x%08x DM: %u Update Offset: %u]", 9) \
+X(294, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_DM_PAUSE_DEPRECATED, "CrossDM: DM: %u set to paused state: %u (1: successfully, 0: failed), by [DM: %u DriverID: %u, FwMemCtx: 0x%08x, FwCtx: 0x%08x, Task Offset: %u]", 7) \
+X(295, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_DM_UNPAUSE_DEPRECATED, "CrossDM: DM: %u set to un-paused state: %u (1: successfully, 0: failed) by [DM: %u DriverID: %u, FwMemCtx: 0x%08x, FwCtx: 0x%08x, Offset: %u]", 7) \
+X(296, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_DM_PAUSE, "CrossDM: DM: %u KickID: %u set to paused state: %u (1: DM + state, 0: state only), by [DM: %u DriverID: %u, FwMemCtx: 0x%08x, FwCtx: 0x%08x, Task Offset: %u]", 8) \
+X(297, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_DM_UNPAUSE, "CrossDM: DM: %u KickID: %u set to un-paused state: %u (1: DM + state, 0: state only) by [DM: %u DriverID: %u, FwMemCtx: 0x%08x, FwCtx: 0x%08x, Offset: %u]", 8) \
+X(298, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_SOC_USC_TIMER_SYNC, "Offset for Core: %u, Cluster: %u: 0x%08x%08x", 4) \
+X(299, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 9) \
+X(300, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 9) \
 \
 X(  1, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK_DEPRECATED, "Bg Task DM = %u, counted = %u", 2) \
 X(  2, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_COMPLETE_DEPRECATED, "Bg Task complete DM = %u", 1) \
@@ -408,7 +417,7 @@ X(  5, RGXFW_GROUP_MTS, RGXFW_SF_MTS_KICK_MTS_BG_ALL_DEPRECATED, "Kick MTS Bg ta
 X(  6, RGXFW_GROUP_MTS, RGXFW_SF_MTS_KICK_MTS_IRQ, "Kick MTS Irq task DM=%u", 1) \
 X(  7, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYCELLTYPE_DEPRECATED, "Ready queue debug DM = %u, celltype = %u", 2) \
 X(  8, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYTORUN_DEPRECATED, "Ready-to-run debug DM = %u, item = 0x%x", 2) \
-X(  9, RGXFW_GROUP_MTS, RGXFW_SF_MTS_CMDHEADER, "Client command header DM = %u, client CCB = 0x%x, cmd = 0x%x", 3) \
+X(  9, RGXFW_GROUP_MTS, RGXFW_SF_MTS_CMDHEADER_DEPRECATED, "Client command header DM = %u, client CCB = 0x%x, cmd = 0x%x", 3) \
 X( 10, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYTORUN, "Ready-to-run debug Driver ID = %u, DM = %u, item = 0x%x", 3) \
 X( 11, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYCELLTYPE_DEPRECATED2, "Ready queue debug DM = %u, celltype = %u, OSid = %u", 3) \
 X( 12, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK_DEPRECATED2, "Bg Task DM = %u, counted = %u, OSid = %u", 3) \
@@ -421,6 +430,7 @@ X( 18, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK, "Bg Task Driver ID = %u", 1) \
 X( 19, RGXFW_GROUP_MTS, RGXFW_SF_MTS_KCCBCMD_EXEC, "KCCB Slot %u: Cmd=0x%08x, Driver ID=%u", 3) \
 X( 20, RGXFW_GROUP_MTS, RGXFW_SF_MTS_IRQ_KICK, "Irq Task (EVENT_STATUS=0x%08x)", 1) \
 X( 21, RGXFW_GROUP_MTS, RGXFW_SF_MTS_VZ_SIDEBAND, "VZ sideband test, kicked with DriverID=%u from MTS, OSid for test=%u", 2) \
+X( 22, RGXFW_GROUP_MTS, RGXFW_SF_MTS_CMDHEADER, "Client command header DM = %u, cmd = 0x%x", 2) \
 \
 X(  1, RGXFW_GROUP_CLEANUP, RGXFW_SF_CLEANUP_FWCTX_CLEANUP, "FwCommonContext [0x%08x] cleaned", 1) \
 X(  2, RGXFW_GROUP_CLEANUP, RGXFW_SF_CLEANUP_FWCTX_BUSY, "FwCommonContext [0x%08x] is busy: ReadOffset = %u, WriteOffset = %u", 3) \
@@ -495,6 +505,7 @@ X( 51, RGXFW_GROUP_CSW, RGXFW_SF_CSW_RDM_STORE_COMPLETE, "*** RDM FWCtx store co
 X( 52, RGXFW_GROUP_CSW, RGXFW_SF_CSW_RDM_STORE_START, "*** RDM FWCtx store start", 0) \
 X( 53, RGXFW_GROUP_CSW, RGXFW_SF_CSW_RDM_NEEDS_RESUME, "RDM FWCtx 0x%08.8x needs resume", 1) \
 X( 54, RGXFW_GROUP_CSW, RGXFW_SF_CSW_RDM_RESUME, "RDM FWCtx 0x%08.8x resume", 1) \
+X( 55, RGXFW_GROUP_CSW, RGXFW_SF_CSW_BRN75978_DEFER_CS, "3D FWCtx 0x%08.8x cannot context store due to ISP %u of %u on core %u not active", 4) \
 \
 X(  1, RGXFW_GROUP_BIF, RGXFW_SF_BIF_ACTIVATE_BIFREQ_DEPRECATED, "Activate MemCtx=0x%08x BIFreq=%u secure=%u", 3) \
 X(  2, RGXFW_GROUP_BIF, RGXFW_SF_BIF_DEACTIVATE, "Deactivate MemCtx=0x%08x", 1) \
@@ -805,6 +816,9 @@ X( 71, RGXFW_GROUP_POW, RGXFW_SF_POW_SPU_RAC_POW_STATE_CHANGE, "Changing SPU pow
 X( 72, RGXFW_GROUP_POW, RGXFW_SF_POW_REQUESTEDOFF_RAC, "RAC pending? %u, RAC Active? %u", 2) \
 X( 73, RGXFW_GROUP_POW, RGXFW_SF_POW_INIOFF_RAC, "Initiate powoff query for RAC.", 0) \
 X( 74, RGXFW_GROUP_POW, RGXFW_SF_POW_PDVFS_DEFER_REACTIVE_UPDATE, "Proactive DVFS: Defer reactive update to meet next deadline 0x%08x%08x", 2) \
+X( 75, RGXFW_GROUP_POW, RGXFW_SF_POW_HWREQERYX, "HW Request On(1)/Off(0): %u, Event: 0x%08.8x, Units: Units: 0x%08x%08x", 4) \
+X( 76, RGXFW_GROUP_POW, RGXFW_SF_POW_PDVFS_HEADROOM, "Proactive DVFS: Set headroom %d", 1) \
+X( 77, RGXFW_GROUP_POW, RGXFW_SF_POW_PDVFS_CONFIG_UPDATE, "PDVFS-config %d %d", 2)\
 \
 X(  1, RGXFW_GROUP_HWR, RGXFW_SF_HWR_LOCKUP_DEPRECATED, "Lockup detected on DM%u, FWCtx: 0x%08.8x", 2) \
 X(  2, RGXFW_GROUP_HWR, RGXFW_SF_HWR_RESET_FW_DEPRECATED, "Reset fw state for DM%u, FWCtx: 0x%08.8x, MemCtx: 0x%08.8x", 3) \
@@ -857,10 +871,10 @@ X( 48, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FINAL_RESULT, "Final result for DM%u is HWR
 X( 49, RGXFW_GROUP_HWR, RGXFW_SF_HWR_USC_SLOTS_CHECK_DEPRECATED, "USC Slots result for DM%u is HWRNeeded=%u USCSlotsUsedByDM=%u", 3) \
 X( 50, RGXFW_GROUP_HWR, RGXFW_SF_HWR_DEADLINE_CHECK_DEPRECATED, "Deadline counter for DM%u is HWRDeadline=%u", 2) \
 X( 51, RGXFW_GROUP_HWR, RGXFW_SF_HWR_HOLD_SCHEDULING_DUE_TO_FREELIST_DEPRECATED, "Holding Scheduling on OSid %u due to pending freelist reconstruction", 1) \
-X( 52, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_REQUEST, "Requesting reconstruction for freelist 0x%x (ID=%u)", 2) \
-X( 53, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_PASSED, "Reconstruction of freelist ID=%u complete", 1) \
+X( 52, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_REQUEST_DEPRECATED, "Requesting reconstruction for freelist 0x%x (ID=%u)", 2) \
+X( 53, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_PASSED_DEPRECATED, "Reconstruction of freelist ID=%u complete", 1) \
 X( 54, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_NEEDED_DEPRECATED, "Reconstruction needed for freelist 0x%x (ID=%u) type: %u (0:local,1:global,2:mmu) on HW context %u", 4) \
-X( 55, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_FAILED, "Reconstruction of freelist ID=%u failed", 1) \
+X( 55, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_FAILED_DEPRECATED, "Reconstruction of freelist ID=%u failed", 1) \
 X( 56, RGXFW_GROUP_HWR, RGXFW_SF_HWR_RESTRICTING_PDS_TASKS, "Restricting PDS Tasks to help other stalling DMs (RunningMask=0x%02x, StallingMask=0x%02x, PDS_CTRL=0x%08x%08x)", 4) \
 X( 57, RGXFW_GROUP_HWR, RGXFW_SF_HWR_UNRESTRICTING_PDS_TASKS, "Unrestricting PDS Tasks again (RunningMask=0x%02x, StallingMask=0x%02x, PDS_CTRL=0x%08x%08x)", 4) \
 X( 58, RGXFW_GROUP_HWR, RGXFW_SF_HWR_USC_SLOTS_USED, "USC slots: %u used by DM%u", 2) \
@@ -873,14 +887,14 @@ X( 64, RGXFW_GROUP_HWR, RGXFW_SF_HWR_RESET_UMQ_READ_OFFSET, "User Mode Queue ROf
 X( 65, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_NEEDED_DEPRECATED2, "Reconstruction needed for freelist 0x%x (ID=%u) type: %u (0:local,1:global) on HW context %u", 4) \
 X( 66, RGXFW_GROUP_HWR, RGXFW_SF_HWR_MIPS_FAULT, "Mips page fault detected (BadVAddr: 0x%08x, EntryLo0: 0x%08x, EntryLo1: 0x%08x)", 3) \
 X( 67, RGXFW_GROUP_HWR, RGXFW_SF_HWR_ANOTHER_CHANCE, "At least one other DM is running okay so DM%u will get another chance", 1) \
-X( 68, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_FW, "Reconstructing in FW, FL: 0x%x (ID=%u)", 2) \
+X( 68, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_FW_DEPRECATED, "Reconstructing in FW, FL: 0x%x (ID=%u)", 2) \
 X( 69, RGXFW_GROUP_HWR, RGXFW_SF_HWR_ZERO_RTC, "Zero RTC for FWCtx: 0x%08.8x (RTC addr: 0x%08x%08x, size: %u bytes)", 4) \
 X( 70, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_NEEDED_DEPRECATED3, "Reconstruction needed for freelist 0x%x (ID=%u) type: %u (0:local,1:global) phase: %u (0:TA, 1:3D) on HW context %u", 5) \
 X( 71, RGXFW_GROUP_HWR, RGXFW_SF_HWR_START_LONG_HW_POLL, "Start long HW poll %u (0-Unset 1-Set) for (reg:0x%08x val:0x%08x)", 3) \
 X( 72, RGXFW_GROUP_HWR, RGXFW_SF_HWR_END_LONG_HW_POLL, "End long HW poll (result=%u)", 1) \
 X( 73, RGXFW_GROUP_HWR, RGXFW_SF_HWR_DEADLINE_CHECK, "DM%u has taken %u ticks and deadline is %u ticks", 3) \
 X( 74, RGXFW_GROUP_HWR, RGXFW_SF_HWR_WATCHDOG_CHECK_DEPRECATED, "USC Watchdog result for DM%u is HWRNeeded=%u Status=%u USCs={0x%x} with HWRChecksToGo=%u", 5) \
-X( 75, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_NEEDED, "Reconstruction needed for freelist 0x%x (ID=%u) Driver ID: %u type: %u (0:local,1:global) phase: %u (0:TA, 1:3D) on HW context %u", 6) \
+X( 75, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_NEEDED_DEPRECATED4, "Reconstruction needed for freelist 0x%x (ID=%u) Driver ID: %u type: %u (0:local,1:global) phase: %u (0:TA, 1:3D) on HW context %u", 6) \
 X( 76, RGXFW_GROUP_HWR, RGXFW_SF_HWR_SET_LOCKUP, "GPU-%u has locked up", 1) \
 X( 77, RGXFW_GROUP_HWR, RGXFW_SF_HWR_SET_LOCKUP_DM, "DM%u has locked up", 1) \
 X( 78, RGXFW_GROUP_HWR, RGXFW_SF_HWR_CORE_EVENT_STATUS_REG, "Core %u RGX_CR_EVENT_STATUS=0x%08x", 2) \
@@ -904,6 +918,13 @@ X( 95, RGXFW_GROUP_HWR, RGXFW_SF_HWR_HWR_FAULT_POLL_BIF_TEXAS_PFS, "TEXAS%u_PFS 
 X( 96, RGXFW_GROUP_HWR, RGXFW_SF_HWR_EXTRA_CHECK, "Extra Registers Check result for Core%u, DM%u is HWRNeeded=%u", 3) \
 X( 97, RGXFW_GROUP_HWR, RGXFW_SF_HWR_WRITE_TO_GPU_READONLY_ADDR, "FW attempted to write to read-only GPU address 0x%08x", 1) \
 X( 98, RGXFW_GROUP_HWR, RGXFW_SF_HWR_DM_TIMED_OUT, "DM%u timed out (phase count=0x%08x)", 2) \
+X( 99, RGXFW_GROUP_HWR, RGXFW_SF_HWR_HOLD_SCHEDULING_DUE_TO_SAFETY_RESET, "DM%u: Hold scheduling due to pending safety reset", 1) \
+X(100, RGXFW_GROUP_HWR, RGXFW_SF_HWR_HOLD_SCHEDULING_DUE_TO_FBCDC_FALURE_CLEAR, "DM%u: Hold scheduling due to pending FBCDC clear", 1) \
+X(101, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_NEEDED, "Reconstruction needed for freelist 0x%x (ID=0x%x%08x) Driver ID: %u type: %u (0:local,1:global) phase: %u (0:TA, 1:3D) on HW context %u", 7) \
+X(102, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_FW, "Reconstructing in FW, FL: 0x%x (ID=0x%x%08x)", 3) \
+X(103, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_FAILED, "Reconstruction of freelist ID=0x%x%08x failed", 2) \
+X(104, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_PASSED, "Reconstruction of freelist ID=0x%x%08x complete", 2) \
+X(105, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FL_RECON_REQUEST, "Requesting reconstruction for freelist 0x%x (ID=0x%x%08x)", 3) \
 \
 X(  1, RGXFW_GROUP_HWP, RGXFW_SF_HWP_I_CFGBLK, "Block 0x%x mapped to Config Idx %u", 2) \
 X(  2, RGXFW_GROUP_HWP, RGXFW_SF_HWP_I_OMTBLK, "Block 0x%x omitted from event - not enabled in HW", 1) \
@@ -996,9 +1017,9 @@ X(  2, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_FBCDC_FAILURE_DETECTED, "FBCDC signat
 X(  3, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_FBCDC_FAILURE_CLEARED, "FBCDC signature cleared which unlocks scheduling more work", 0) \
 X(  4, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_TRP_FAILURE, "TRP failure: %u", 1) \
 X(  5, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_SW_TRP_STATE, "SW TRP State: %u", 1) \
-X(  6, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_HW_KICK, "HW kick event (%u)", 1) \
-X(  7, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_CHECKSUMS, "GPU core (%u/%u): checksum 0x%08x vs. 0x%08x", 4) \
-X(  8, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_UNIT_CHECKSUMS, "GPU core (%u/%u), unit (%u,%u): checksum 0x%08x vs. 0x%08x", 6) \
+X(  6, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_HW_KICK, "WGP: HW kick event (%u)", 1) \
+X(  7, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_CHECKSUMS, "WGP: GPU core (%u/%u): checksum 0x%08x vs. 0x%08x", 4) \
+X(  8, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_UNIT_CHECKSUMS, "WGP: GPU core (%u/%u), unit (%u,%u): checksum 0x%08x vs. 0x%08x", 6) \
 X(  9, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_HWR_CHECK_REG, "HWR: Core%u, Register=0x%08x, OldValue=0x%08x%08x, CurrValue=0x%08x%08x", 6) \
 X( 10, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_HWR_USC_SLOTS_CHECK, "HWR: USC Core%u, ui32TotalSlotsUsedByDM=0x%08x, psDMHWCtl->ui32USCSlotsUsedByDM=0x%08x, bHWRNeeded=%u", 4) \
 X( 11, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_HWR_USC_REG_CHECK, "HWR: USC Core%u, Register=0x%08x, OldValue=0x%08x%08x, CurrValue=0x%08x%08x", 6) \
@@ -1014,6 +1035,12 @@ X( 20, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_ICS_TESTS_COMPLETION_FAILURE,"ICS tes
 X( 21, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_ICS_TESTS_START_FAILURE,"ICS tests failed to start",0) \
 X( 22, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_SELF_TEST_START,"Start Safety self-test",0) \
 X( 23, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_SELF_TEST_END,"Safety self-test completed",0) \
+X( 24, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_CLUSTER_MASKS, "WGP: Enable cluster mask 0x%08x%08x, Safety cluster mask 0x%08x%08x", 4) \
+X( 25, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_GPUS_INFO, "WGP: GPU Offset: %u Execute count: %u", 2) \
+X( 26, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_WGP_RESET, "WGP: Reset", 0) \
+X( 27, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_TRP_SPU_MASKS, "TRP: safety SPUs mask 0x%08x, BIF filter mask 0x%08x, Context: 0x%08x", 3) \
+X( 28, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_TRP_HW_KICK, "TRP: HW kick event (%u), Context: 0x%08x", 2) \
+X( 29, RGXFW_GROUP_SAFETY, RGXFW_SF_SAFETY_TRP_GEOM_CORES, "TRP: Geom kick on Core %u, Affinity core %u, Context: 0x%08x", 3) \
 \
 X(  1, RGXFW_GROUP_VERBOSE, RGXFW_SF_VERBOSE_HWR_CHECK_REG, "HWR: Core%u, Register=0x%08x, OldValue=0x%08x%08x, CurrValue=0x%08x%08x", 6) \
 X(  2, RGXFW_GROUP_VERBOSE, RGXFW_SF_VERBOSE_HWR_USC_SLOTS_CHECK, "HWR: USC Core%u, ui32TotalSlotsUsedByDM=0x%08x, psDMHWCtl->ui32USCSlotsUsedByDM=0x%08x, bHWRNeeded=%u", 4) \

@@ -68,8 +68,8 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  * | GPU-RW | CPU-RW | GPU-Caching | CPU-Caching | KM-Mappable |
  *
  * --- MISC FLAGS         15..20 (9-bits) ---
- * | 15    | 16        | 17  | 18         | 19              | 20      |
- * | Defer | Reserved  | SVM | Scratch-Pg | CPU-Cache-Clean | Zero-Pg |
+ * | 15    | 16  | 17  | 18         | 19              | 20      |
+ * | Defer | ... | SVM | Scratch-Pg | CPU-Cache-Clean | Zero-Pg |
  *
  * --- RI FLAGS  21..23 (3-bits) ---
  * | 21     | 22       | 23        |
@@ -80,16 +80,16 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  * | ...   | Device-Flags |
  *
  * --- MISC FLAGS         28..31 (4-bits) ---
- * | 28             | 29             | 30          | 31            |
- * | No-Cache-Align | Poison-On-Free | P.-On-Alloc | Zero-On-Alloc |
+ * | 28             | 29             | 30          | 31            |.32............|
+ * | No-Cache-Align | Poison-On-Free | P.-On-Alloc | Zero-On-Alloc | Kick PT Inval |
  *
  * --- VALIDATION FLAGS ---
  * | 35             |
  * | Shared-buffer  |
  *
  * --- OS SPECIFIC FLAGS ---
- * | 36             | 37            | 38              |
- * | Linux Pref CMA | Linux Movable | Linux Deny Move |
+ * | 36             | 37            | 38              | 39                  |
+ * | Linux Pref CMA | Linux Movable | Linux Deny Move | Android FBC Surface |
  *
  * --- IPA Policy ---
  * | 53-55      |
@@ -546,10 +546,8 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
 
 /*! ----- Bit 16
 
-    This flag is unused but kept for compatibility reasons. Once not a concern
-    the flag can be removed and but reused.
+    Not used.
  */
-#define PVRSRV_MEMALLOCFLAG_PHYS_RESERVED				(IMG_UINT64_C(1)<<16)
 
 /*! ----- Bit 17
 
@@ -762,7 +760,13 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  */
 #define PVRSRV_CHECK_NO_CACHE_LINE_ALIGN(uiFlags)		(((uiFlags) & PVRSRV_MEMALLOCFLAG_NO_CACHE_LINE_ALIGN) != 0U)
 
+/*!
+ * Trigger a PT invalidate kick command when mapping the allocation
+ * if immediate invalidate required rather than relying on driver default.
+ */
+#define PVRSRV_MEMALLOCFLAG_KICK_PT_INVALIDATE			(IMG_UINT64_C(1)<<32)
 
+#define PVRSRV_CHECK_KICK_PT_INVALIDATE(uiFlags)		(((uiFlags) & PVRSRV_MEMALLOCFLAG_KICK_PT_INVALIDATE) != 0U)
 /*
  *
  *  **********************************************************
@@ -825,11 +829,11 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  *  *                                                        *
  *  **********************************************************
  *
- * (Bits 36 to 38)
+ * (Bits 36 to 39)
  *
  */
 #define PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_OFFSET 36
-#define PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_MASK          (IMG_UINT64_C(7) << PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_OFFSET)
+#define PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_MASK          (IMG_UINT64_C(15) << PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_OFFSET)
 
 #define PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA        (IMG_UINT64_C(1)<<36)
 #define PVRSRV_CHECK_OS_LINUX_PREFER_CMA(uiFlags)      (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA) != 0U)
@@ -840,6 +844,8 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
 #define PVRSRV_MEMALLOCFLAG_OS_LINUX_DENY_MOVE         (IMG_UINT64_C(1)<<38)
 #define PVRSRV_CHECK_OS_LINUX_DENY_MOVE(uiFlags)       (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_LINUX_DENY_MOVE) != 0U)
 
+#define PVRSRV_MEMALLOCFLAG_OS_ANDROID_FBC_SURFACE_ALLOC     (IMG_UINT64_C(1)<<39)
+#define PVRSRV_CHECK_OS_ANDROID_FBC_SURFACE_ALLOC(uiFlags)   (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_ANDROID_FBC_SURFACE_ALLOC) != 0U)
 /*
  *
  *  **********************************************************
@@ -1115,6 +1121,7 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
   Flags that affect _virtual allocations_ in the DevMemX API
  */
 #define PVRSRV_MEMALLOCFLAGS_DEVMEMX_VIRTUAL_MASK  (PVRSRV_MEMALLOCFLAGS_GPU_MMUFLAGSMASK | \
+                                                    PVRSRV_MEMALLOCFLAG_KICK_PT_INVALIDATE | \
                                                     PVRSRV_MEMALLOCFLAG_GPU_READ_PERMITTED | \
                                                     PVRSRV_MEMALLOCFLAG_GPU_WRITE_PERMITTED)
 

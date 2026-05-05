@@ -88,9 +88,6 @@ typedef struct _RGX_INIT_APPHINTS_
 	IMG_UINT32 ui32HWRDebugDumpLimit;
 	IMG_UINT32 ui32LogType;
 	IMG_UINT32 ui32KCCBSizeLog2;
-#if defined(PVR_ARCH_VOLCANIC)
-	IMG_UINT32 ui32ISPSchedulingLatencyMode;
-#endif
 	FW_PERF_CONF eFirmwarePerf;
 	RGX_ACTIVEPM_CONF eRGXActivePMConf;
 	RGX_RD_POWER_ISLAND_CONF eRGXRDPowerIslandConf;
@@ -110,6 +107,9 @@ typedef struct _RGX_INIT_APPHINTS_
 	IMG_UINT32 ui32FDTI;
 	IMG_UINT32 ui32ICSThreshold;
 	IMG_BOOL   bTestModeOn;
+#endif
+#if defined(RGX_FEATURE_PIPELINED_DATAMASTERS_VERSION_MAX_VALUE_IDX)
+	IMG_BOOL   bEnableCrossDMPause;
 #endif
 } RGX_INIT_APPHINTS;
 

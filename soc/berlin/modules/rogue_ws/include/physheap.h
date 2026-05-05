@@ -331,7 +331,7 @@ PVRSRV_ERROR PhysHeapCreate(PPVRSRV_DEVICE_NODE psDevNode,
 							PHYS_HEAP_CONFIG *psConfig,
 							PHYS_HEAP_POLICY uiPolicy,
 							PHEAP_IMPL_DATA pvImplData,
-							PHEAP_IMPL_FUNCS *psImplFuncs,
+							const PHEAP_IMPL_FUNCS *psImplFuncs,
 							PHYS_HEAP **ppsPhysHeap);
 
 /*************************************************************************/ /*!

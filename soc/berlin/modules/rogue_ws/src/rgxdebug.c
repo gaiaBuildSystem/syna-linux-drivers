@@ -1797,10 +1797,7 @@ static void _RGXDumpFWHWRInfo(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 }
 
 
-
-
 #if !defined(NO_HARDWARE)
-
 /*!
 *******************************************************************************
 
@@ -2089,6 +2086,7 @@ void RGXDumpRGXDebugSummary(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 		                  psDevInfo->ui32ActivePMReqNonIdle,
 		                  psDevInfo->ui32ActivePMReqTotal,
 		                  psRuntimeCfg->ui32ActivePMLatencyms);
+		PVR_DUMPDEBUG_LOG("RGX FW Forced Idle Timeout Count: %d", psDevInfo->ui32FWNonIdleTimeoutCount);
 
 		ui32NumClockSpeedChanges = (IMG_UINT32) OSAtomicRead(&psDevInfo->psDeviceNode->iNumClockSpeedChanges);
 		RGXGetTimeCorrData(psDevInfo->psDeviceNode, asTimeCorrs, ARRAY_SIZE(asTimeCorrs));
@@ -2186,6 +2184,7 @@ void RGXDumpRGXDebugSummary(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 		if (bDriverIsolationEnabled)
 		{
 			PVR_DUMPDEBUG_LOG("RGX Hard Context Switch deadline: %u ms", psDevInfo->psRGXFWIfRuntimeCfg->ui32HCSDeadlineMS);
+			PVR_DUMPDEBUG_LOG("Safety isolation group reset: %s", psDevInfo->psRGXFWIfRuntimeCfg->bSafetyIsolationGroupEnabled ? "Enabled" : "Disabled");
 		}
 
 		_RGXDumpFWAssert(pfnDumpDebugPrintf, pvDumpDebugFile, psRGXFWIfTraceBufCtl);
@@ -2281,7 +2280,7 @@ PVRSRV_ERROR RGXDumpRISCVState(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 
 	PVR_DUMPDEBUG_LOG("---- [ RISC-V internal state ] ----");
 
-#if  defined(SUPPORT_RISCV_GDB)
+#if defined(SUPPORT_RISCV_GDB)
 	if (RGXRiscvIsHalted(psDevInfo))
 	{
 		/* Avoid resuming the RISC-V FW as most operations

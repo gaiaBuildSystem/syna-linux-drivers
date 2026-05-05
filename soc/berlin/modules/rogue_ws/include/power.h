@@ -591,10 +591,13 @@ PVRSRV_ERROR PVRSRVDeviceIdleLatchedPutAsyncKM(PPVRSRV_DEVICE_NODE psDeviceNode)
                                         depends upon the device-specific
                                         function subsequently called by the
                                         server via a pfn.
+@Input          bCallerHasPowerLock     Don't take power lock if the caller
+                                        already has it.
 @Return         PVRSRV_ERROR.
 */ /**************************************************************************/
 PVRSRV_ERROR PVRSRVDeviceGPUUnitsPowerChange(PPVRSRV_DEVICE_NODE psDeviceNode,
-					IMG_UINT32	ui32NewValue);
+                                             IMG_UINT32 ui32NewValue,
+                                             IMG_BOOL bCallerHasPowerLock);
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 void PVRSRVSetFirmwareStartTime(PVRSRV_POWER_DEV *psPowerDevice, IMG_UINT32 ui32TimeStamp);

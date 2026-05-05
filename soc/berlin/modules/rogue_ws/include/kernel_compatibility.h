@@ -47,8 +47,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/compiler.h>
 
 /* Explicitly error out if DDK is built against out-of-support Linux kernel */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0))
-#error Linux kernels older than 4.9.0 are not supported
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
+#error Linux kernels older than 4.14.0 are not supported
 #endif
 
 /*
@@ -62,50 +62,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * last file included, as it can affect definitions/declarations in files
  * included after it.
  */
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-#define refcount_read(r) atomic_read(r)
-#define drm_mm_insert_node(mm, node, size) drm_mm_insert_node(mm, node, size, 0, DRM_MM_SEARCH_DEFAULT)
-
-#define drm_helper_mode_fill_fb_struct(dev, fb, mode_cmd) drm_helper_mode_fill_fb_struct(fb, mode_cmd)
-
-/*
- * In Linux Kernels >= 4.12 for x86 another level of page tables has been
- * added. The added level (p4d) sits between pgd and pud, so when it
- * doesn`t exist, pud_offset function takes pgd as a parameter instead
- * of p4d.
- */
-#define p4d_t pgd_t
-#define p4d_offset(pgd, address) (pgd)
-#define p4d_none(p4d) (0)
-#define p4d_bad(p4d) (0)
-
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)) */
-
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-
-#define drm_mode_object_get(obj)          drm_mode_object_reference(obj)
-#define drm_mode_object_put(obj)          drm_mode_object_unreference(obj)
-#define drm_connector_get(obj)            drm_connector_reference(obj)
-#define drm_connector_put(obj)            drm_connector_unreference(obj)
-#define drm_framebuffer_get(obj)          drm_framebuffer_reference(obj)
-#define drm_framebuffer_put(obj)          drm_framebuffer_unreference(obj)
-#define drm_gem_object_get(obj)           drm_gem_object_reference(obj)
-#define drm_gem_object_put_locked(obj)    drm_gem_object_unreference(obj)
-#define __drm_gem_object_put(obj)         __drm_gem_object_unreference(obj)
-#define drm_property_blob_get(obj)        drm_property_reference_blob(obj)
-#define drm_property_blob_put(obj)        drm_property_unreference_blob(obj)
-
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) */
-
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
-
-#define drm_universal_plane_init(dev, plane, possible_crtcs, funcs, formats, format_count, format_modifiers, type, name, ...) \
-	({ (void) format_modifiers; drm_universal_plane_init(dev, plane, possible_crtcs, funcs, formats, format_count, type, name, ##__VA_ARGS__); })
-
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)) */
 
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
@@ -169,43 +125,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
 
-/*
- * Work around architectures, e.g. MIPS, that define copy_from_user and
- * copy_to_user as macros that call access_ok, as this gets redefined below.
- * As of kernel 4.12, these functions are no longer defined per-architecture
- * so this work around isn't needed.
- */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-#if defined(copy_from_user)
- /*
-  * NOTE: This function should not be called directly as it exists simply to
-  * work around copy_from_user being defined as a macro that calls access_ok.
-  */
-static inline int
-__pvr_copy_from_user(void *to, const void __user *from, unsigned long n)
-{
-	return copy_from_user(to, from, n);
-}
-
-#undef copy_from_user
-#define copy_from_user(to, from, n) __copy_from_user(to, from, n)
-#endif
-
-#if defined(copy_to_user)
- /*
-  * NOTE: This function should not be called directly as it exists simply to
-  * work around copy_to_user being defined as a macro that calls access_ok.
-  */
-static inline int
-__pvr_copy_to_user(void __user *to, const void *from, unsigned long n)
-{
-	return copy_to_user(to, from, n);
-}
-
-#undef copy_to_user
-#define copy_to_user(to, from, n) __copy_to_user(to, from, n)
-#endif
-#endif
 
 /*
  * Linux 5.0 dropped the type argument.
@@ -236,6 +155,10 @@ __pvr_access_ok_compat(int type, const void __user * addr, unsigned long size)
 #define MODULE_IMPORT_NS(ns)
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0))
+#define U32_MIN (0)
+#endif
+
 /*
  * Before v5.8, the "struct mm" has a semaphore named "mmap_sem" which is
  * renamed to "mmap_lock" in v5.8. Moreover, new APIs are provided to
@@ -251,11 +174,9 @@ __pvr_access_ok_compat(int type, const void __user * addr, unsigned long size)
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) */
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0))
-#define drm_gem_object_put(obj) drm_gem_object_unreference_unlocked(obj)
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0))
 #define drm_gem_object_put(obj) drm_gem_object_put_unlocked(obj)
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
 
@@ -316,12 +237,12 @@ struct dma_buf_map {
 #define kthread_complete_and_exit(comp, ret) complete_and_exit(comp, ret);
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)) */
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)) || \
+	((LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)) && !defined(CHROMIUMOS_KERNEL))
 #define iosys_map dma_buf_map
 #define iosys_map_set_vaddr dma_buf_map_set_vaddr
 #define iosys_map_set_vaddr_iomem dma_buf_map_set_vaddr_iomem
 #define iosys_map_clear dma_buf_map_clear
-#define iosys_map_is_null dma_buf_map_is_null
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
@@ -370,8 +291,10 @@ static inline void pvr_vm_flags_clear(struct vm_area_struct *vma,
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0))
 #define pvr_class_create(name) class_create(THIS_MODULE, name)
+#define pvr_thermal_zone_device_priv(thermal) ((thermal)->devdata)
 #else
 #define pvr_class_create(name) class_create(name)
+#define pvr_thermal_zone_device_priv thermal_zone_device_priv
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))

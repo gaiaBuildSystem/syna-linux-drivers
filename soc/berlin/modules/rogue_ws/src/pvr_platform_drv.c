@@ -95,8 +95,8 @@ static const struct kernel_param_ops pvr_num_devices_ops = {
 	.get = param_get_uint,
 };
 
-#define STR(s) #s
-#define STRINGIFY(s) STR(s)
+#define STR_MACRO(s) #s
+#define STRINGIFY(s) STR_MACRO(s)
 
 module_param_cb(num_devices, &pvr_num_devices_ops, &pvr_num_devices, 0444);
 MODULE_PARM_DESC(num_devices,
@@ -105,11 +105,30 @@ MODULE_PARM_DESC(num_devices,
 #endif /* defined(NO_HARDWARE) */
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
 
+static struct platform_device_id pvr_platform_ids[] = {
+#if defined(SYS_RGX_DEV_NAME)
+	{ SYS_RGX_DEV_NAME, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_0)
+	{ SYS_RGX_DEV_NAME_0, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_1)
+	{ SYS_RGX_DEV_NAME_1, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_2)
+	{ SYS_RGX_DEV_NAME_2, 0 },
+#endif
+#if defined(SYS_RGX_DEV_NAME_3)
+	{ SYS_RGX_DEV_NAME_3, 0 },
+#endif
+	{ }
+};
+
 static int pvr_devices_register(void)
 {
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 	struct platform_device_info pvr_dev_info = {
-		.name = SYS_RGX_DEV_NAME,
+		.name = NULL,
 		.id = -2,
 #if defined(NO_HARDWARE)
 		/* Not all cores have 40 bit physical support, but this
@@ -131,6 +150,15 @@ static int pvr_devices_register(void)
 		return -ENOMEM;
 
 	for (i = 0; i < pvr_num_devices; i++) {
+		if (i < ARRAY_SIZE(pvr_platform_ids) && pvr_platform_ids[i].name[0])
+		{
+			pvr_dev_info.name = pvr_platform_ids[i].name;
+		}
+		else
+		{
+			pvr_dev_info.name = pvr_platform_ids[0].name;
+		}
+		pvr_dev_info.id = i;
 		pvr_devices[i] = platform_device_register_full(&pvr_dev_info);
 		if (IS_ERR(pvr_devices[i])) {
 			DRM_ERROR("unable to register device %u (err=%ld)\n",
@@ -185,15 +213,6 @@ static int pvr_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_drm_dev_unload;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
-		pvr_drm_platform_driver.name,
-		pvr_drm_platform_driver.major,
-		pvr_drm_platform_driver.minor,
-		pvr_drm_platform_driver.patchlevel,
-		pvr_drm_platform_driver.date,
-		ddev->primary->index);
-#endif
 	return 0;
 
 err_drm_dev_unload:
@@ -202,6 +221,7 @@ err_drm_dev_put:
 	drm_dev_put(ddev);
 	return	ret;
 }
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
 static int pvr_remove(struct platform_device *pdev)
 #else
@@ -222,7 +242,7 @@ static void pvr_remove(struct platform_device *pdev)
 
 	drm_dev_put(ddev);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
-    return 0;
+	return 0;
 #endif
 }
 
@@ -239,31 +259,15 @@ static const struct of_device_id pvr_of_ids[] = {
 #if defined(SYS_RGX_OF_COMPATIBLE)
 	{ .compatible = SYS_RGX_OF_COMPATIBLE, },
 #endif
+#if defined(SYS_RGX_OF_COMPATIBLE2)
+	{ .compatible = SYS_RGX_OF_COMPATIBLE2, },
+#endif
 	{},
 };
 
 #if !defined(CHROMIUMOS_KERNEL)
 MODULE_DEVICE_TABLE(of, pvr_of_ids);
 #endif
-
-static struct platform_device_id pvr_platform_ids[] = {
-#if defined(SYS_RGX_DEV_NAME)
-	{ SYS_RGX_DEV_NAME, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_0)
-	{ SYS_RGX_DEV_NAME_0, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_1)
-	{ SYS_RGX_DEV_NAME_1, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_2)
-	{ SYS_RGX_DEV_NAME_2, 0 },
-#endif
-#if defined(SYS_RGX_DEV_NAME_3)
-	{ SYS_RGX_DEV_NAME_3, 0 },
-#endif
-	{ }
-};
 
 #if !defined(CHROMIUMOS_KERNEL)
 MODULE_DEVICE_TABLE(platform, pvr_platform_ids);

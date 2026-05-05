@@ -214,6 +214,7 @@ OSLoadFirmware(PVRSRV_DEVICE_NODE *psDeviceNode, const IMG_CHAR *pszBVNCString,
 	}
 
 	psFWImage->psFW = psFW;
+#if !defined(SUPPORT_CUSTOMER_SIGNING)
 	if (pfnVerifyFirmware != NULL && !pfnVerifyFirmware(psFWImage))
 	{
 		release_firmware(psFW);
@@ -221,6 +222,7 @@ OSLoadFirmware(PVRSRV_DEVICE_NODE *psDeviceNode, const IMG_CHAR *pszBVNCString,
 		eError = PVRSRV_ERROR_NOT_AUTHENTICATED;
 		goto err_exit;
 	}
+#endif
 
 	*ppsFWImage = psFWImage;
 	return PVRSRV_OK;

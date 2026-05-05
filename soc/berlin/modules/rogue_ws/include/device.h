@@ -69,6 +69,7 @@ typedef struct _PVRSRV_POWER_DEV_TAG_ *PPVRSRV_POWER_DEV;
 struct SYNC_RECORD;
 
 struct _CONNECTION_DATA_;
+struct _DEVMEMINT_CTX_;
 
 /*************************************************************************/ /*!
  @Function      AllocUFOBlockCallback
@@ -224,17 +225,17 @@ typedef struct _PVRSRV_DEVICE_DEBUG_INFO_
 	DI_GROUP *psGroup;
 	DI_ENTRY *psDumpDebugEntry;
 #ifdef SUPPORT_RGX
+	DI_ENTRY *psUtilStatsEntry;
 	DI_ENTRY *psFWTraceEntry;
 #ifdef SUPPORT_FIRMWARE_GCOV
 	DI_ENTRY *psFWGCOVEntry;
 #endif
 	DI_ENTRY *psFWMappingsEntry;
-#if  defined(SUPPORT_RISCV_GDB)
+#if defined(SUPPORT_RISCV_GDB)
 	DI_ENTRY *psRiscvDmiDIEntry;
 	IMG_UINT64 ui64RiscvDmi;
 #endif
 	DI_ENTRY *psDevMemEntry;
-	IMG_HANDLE hGpuUtilUserDebugFS;
 #endif /* SUPPORT_RGX */
 #ifdef SUPPORT_POWER_SAMPLING_VIA_DEBUGFS
 	DI_ENTRY *psPowerDataEntry;
@@ -371,6 +372,8 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	PVRSRV_ERROR (*pfnMMUCacheInvalidateKick)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
 	                                          IMG_UINT32 *pui32NextMMUInvalidateUpdate);
 
+	PVRSRV_ERROR (*pfnMMUCacheInvalidateKickAndWait)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
+
 	IMG_UINT32 (*pfnMMUCacheGetInvalidateCounter)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 
 	/* Callback pfnMMUTopLevelPxWorkarounds may be NULL if not required */
@@ -395,7 +398,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	void (*pfnUpdateAutoVzWatchdog)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 #endif
 
-	PVRSRV_ERROR (*pfnValidationGPUUnitsPowerChange)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT32 ui32NewState);
+	PVRSRV_ERROR (*pfnValidationGPUUnitsPowerChange)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT32 ui32NewState, IMG_BOOL bCallerHasPowerLock);
 
 	PVRSRV_ERROR (*pfnResetHWRLogs)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 
@@ -411,7 +414,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	PVRSRV_ERROR (*pfnSoftReset)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT64 ui64ResetValue1, IMG_UINT64 ui64ResetValue2);
 
 	PVRSRV_ERROR (*pfnAlignmentCheck)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT32 ui32FWAlignChecksSize, IMG_UINT32 aui32FWAlignChecks[]);
-	IMG_BOOL	(*pfnCheckDeviceFeature)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT64 ui64FeatureMask);
+	IMG_BOOL	(*pfnCheckDeviceFeature)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT16 ui16FeatureArrayIndex, IMG_UINT64 ui64FeatureMask);
 
 	IMG_INT32	(*pfnGetDeviceFeatureValue)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, enum _RGX_FEATURE_WITH_VALUE_INDEX_ eFeatureIndex);
 
@@ -421,6 +424,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	IMG_BOOL (*pfnHasFBCDCVersion31)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 
 	IMG_UINT32 (*pfnGetTFBCLossyGroup)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
+	IMG_UINT32 (*pfnGetSLCSize)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 
 	MMU_DEVICEATTRIBS* (*pfnGetMMUDeviceAttributes)(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_BOOL bKernelMemoryCtx);
 
@@ -504,8 +508,17 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	/* Functions for notification about memory contexts */
 	PVRSRV_ERROR			(*pfnRegisterMemoryContext)(struct _PVRSRV_DEVICE_NODE_	*psDeviceNode,
 														MMU_CONTEXT					*psMMUContext,
+														struct _DEVMEMINT_CTX_		*psDevMemCtx,
 														IMG_HANDLE					*hPrivData);
 	void					(*pfnUnregisterMemoryContext)(IMG_HANDLE hPrivData);
+	/* Callback for validating heap's protection flags. */
+	IMG_BOOL (*pfnValidateAddressPermissions)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
+	                                          MMU_CONTEXT *psMMUContext,
+	                                          IMG_DEV_VIRTADDR sVDevAddr,
+	                                          PVRSRV_MEMALLOCFLAGS_T uiFlags);
+
+	/* Functions for validation flags for exportable PMRs */
+	IMG_BOOL (*pfnValidateExportableFlags)(PVRSRV_MEMALLOCFLAGS_T uiFlags);
 
 	/* Functions for allocation/freeing of UFOs */
 	AllocUFOBlockCallback	pfnAllocUFOBlock;	/*!< Callback for allocation of a block of UFO memory */
@@ -611,6 +624,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
 
 	PVRSRV_DEVICE_DEBUG_INFO sDebugInfo;
 	IMG_BOOL                bEnablePFDebug;      /*!< EnablePageFaultDebug AppHint setting for device */
+	IMG_BOOL                bCleanupThreadDisabled; /*!< Set to disable further Cleanup queue requests for device */
 
 	DLLIST_NODE             sCleanupThreadWorkList; /*!< List of work for the cleanup thread associated with the device */
 	ATOMIC_T                i32NumCleanupItems;   /*!< Number of cleanup thread work items. Includes items being freed. */
@@ -630,8 +644,12 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	ATOMIC_T                iThreadsActive;       /*< Number of threads active on this device */
 	IMG_UINT64              ui64LastDeviceOffTimestamp; /* Last device power off timestamp */
 	IMG_UINT64              ui64LastDeviceOffHostTimestampNs; /* Last device power off host timestamp */
+	IMG_UINT64				ui64LastSOCTimerOffValue; /* Last device power off SOC timer value */
 #if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
 	IMG_BOOL bGPUWorkPeriodFTraceEnabled;
+#endif
+#if defined(PVRSRV_MAX_REAL_TIME_CONTEXTS) && (PVRSRV_MAX_REAL_TIME_CONTEXTS > 1)
+	IMG_UINT32              *pui32RTContextCount;
 #endif
 } PVRSRV_DEVICE_NODE;
 
@@ -641,7 +659,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
  * with the macros defined in rgx_bvnc_defs_km.h
  */
 #define PVRSRV_IS_FEATURE_SUPPORTED(psDevNode, Feature) \
-		psDevNode->pfnCheckDeviceFeature(psDevNode, RGX_FEATURE_##Feature##_BIT_MASK)
+		psDevNode->pfnCheckDeviceFeature(psDevNode, RGX_FEATURE_##Feature##_ARRAY_INDEX, RGX_FEATURE_##Feature##_BIT_MASK)
 #define PVRSRV_GET_DEVICE_FEATURE_VALUE(psDevNode, Feature) \
 		psDevNode->pfnGetDeviceFeatureValue(psDevNode, RGX_FEATURE_##Feature##_IDX)
 
@@ -658,7 +676,6 @@ void PVRSRVDeviceSetState(PVRSRV_DEVICE_NODE *psDeviceNode, PVRSRV_DEVICE_STATE 
 	(((eStatus == PVRSRV_DEVICE_HEALTH_STATUS_DEAD)) ? \
 	 IMG_FALSE : IMG_TRUE)
 
-#if defined(SUPPORT_PMR_DEFERRED_FREE) || defined(SUPPORT_MMU_DEFERRED_FREE)
 /* Determines if a 32-bit `uiCurrent` counter advanced to or beyond
  * `uiRequired` value. The function takes into consideration that the
  * counter could have wrapped around. */
@@ -672,7 +689,6 @@ static INLINE IMG_BOOL PVRSRVHasCounter32Advanced(IMG_UINT32 uiCurrent,
 	    /* There can't be ~4 billion transactions pending, so consider wrapped */
 	    (((uiRequired - uiCurrent) > 0xF0000000UL) ? IMG_TRUE : IMG_FALSE);
 }
-#endif
 
 #endif /* DEVICE_H */
 

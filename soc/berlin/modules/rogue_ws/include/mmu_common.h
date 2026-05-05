@@ -445,19 +445,17 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 
 @Input          psMMUContext            MMU context to operate on
 
-@Input          uiMappingFlags          Memalloc flags for the mapping
+@Input          uiMappingFlags          Memalloc flags for the unmapping
+                                        May use the sparse / zero backing pages
+                                        if given the flags, otherwise unmap.
 
 @Input          sDevVAddr               Device virtual address of the 1st page
 
 @Input          ui32PageCount           Number of pages to unmap
 
-@Input          pai32UnmapIndicies      Array of page indices to be unmapped
+@Input          pai32UnmapIndices       Array of page indices to be unmapped
 
 @Input          uiLog2PageSize          log2 size of the page
-
-
-@Input          uiMemAllocFlags         Indicates if the unmapped regions need
-                                        to be backed by dummy or zero page
 
 @Return         PVRSRV_OK if the unmap operation was successful
 */
@@ -467,9 +465,8 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
                IMG_DEV_VIRTADDR sDevVAddr,
                IMG_UINT32 ui32PageCount,
-               IMG_UINT32 *pai32UnmapIndicies,
-               IMG_UINT32 uiLog2PageSize,
-               PVRSRV_MEMALLOCFLAGS_T uiMemAllocFlags);
+               IMG_UINT32 *pai32UnmapIndices,
+               IMG_UINT32 uiLog2PageSize);
 
 /*************************************************************************/ /*!
 @Function       MMUX_MapVRangeToBackingPage
@@ -494,6 +491,12 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
                             IMG_UINT32 ui32MapPageCount,
                             IMG_UINT32 uiLog2HeapPageSize);
 
+/* Guides the MMU when remapping valid entries to other valid entries */
+typedef enum {
+	MMU_PTE_REMAP_POLICY_ALLOW = 0,
+	MMU_PTE_REMAP_POLICY_BLOCK
+} MMU_PTE_REMAP_POLICY;
+
 /*************************************************************************/ /*!
 @Function       MMU_MapPMRFast
 
@@ -512,6 +515,10 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 
 @Input          uiMappingFlags          Memalloc flags for the mapping
 
+@Input          uiLog2PageSize          log2 size of the page
+
+@Input          eRemapPolicy            Policy of remapping PTEs
+
 @Return         PVRSRV_OK if the PMR was successfully mapped.
                 PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
                 enabled and migrate is in progress. Requests to MMU_MapPages
@@ -528,7 +535,8 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
                PMR *psPMR,
                IMG_DEVMEM_SIZE_T uiSizeBytes,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
-               IMG_UINT32 uiLog2PageSize);
+               IMG_UINT32 uiLog2PageSize,
+               MMU_PTE_REMAP_POLICY eRemapPolicy);
 
 /*************************************************************************/ /*!
 @Function       MMU_UnmapPMRFast

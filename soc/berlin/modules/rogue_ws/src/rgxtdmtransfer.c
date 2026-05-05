@@ -399,8 +399,8 @@ PVRSRV_ERROR PVRSRVRGXTDMDestroyTransferContextKM(RGX_SERVER_TQ_TDM_CONTEXT *psT
 			return eError;
 		}
 
-		RGXFwSharedMemCacheOpValue(psFWTransferContext->ui32WorkEstCCBSubmitted, INVALIDATE);
-		ui32WorkEstCCBSubmitted = psFWTransferContext->ui32WorkEstCCBSubmitted;
+		RGXFwSharedMemCacheOpValue(psFWTransferContext->sTDMContext.ui32WorkEstCCBSubmitted, INVALIDATE);
+		ui32WorkEstCCBSubmitted = psFWTransferContext->sTDMContext.ui32WorkEstCCBSubmitted;
 
 		DevmemReleaseCpuVirtAddr(psTransferContext->psFWTransferContextMemDesc);
 
@@ -470,51 +470,7 @@ fail_destroyTDM:
 /*
  * PVRSRVSubmitTQ3DKickKM
  */
-/* Old bridge call for backwards compatibility. */
 PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
-	RGX_SERVER_TQ_TDM_CONTEXT * psTransferContext,
-	IMG_UINT32                  ui32PDumpFlags,
-	IMG_UINT32                  ui32ClientUpdateCount,
-	SYNC_PRIMITIVE_BLOCK     ** pauiClientUpdateUFODevVarBlock,
-	IMG_UINT32                * paui32ClientUpdateSyncOffset,
-	IMG_UINT32                * paui32ClientUpdateValue,
-	PVRSRV_FENCE                iCheckFence,
-	PVRSRV_TIMELINE             iUpdateTimeline,
-	PVRSRV_FENCE              * piUpdateFence,
-	IMG_CHAR                    szUpdateFenceName[PVRSRV_SYNC_NAME_LENGTH],
-	IMG_UINT32                  ui32FWCommandSize,
-	IMG_UINT8                 * pui8FWCommand,
-	IMG_UINT32                  ui32ExtJobRef,
-	IMG_UINT32                  ui32SyncPMRCount,
-	IMG_UINT32                * paui32SyncPMRFlags,
-	PMR                      ** ppsSyncPMRs,
-	IMG_UINT32                  ui32TDMCharacteristic1,
-	IMG_UINT32                  ui32TDMCharacteristic2,
-	IMG_UINT64                  ui64DeadlineInus)
-{
-	return PVRSRVRGXTDMSubmitTransfer3KM(psTransferContext,
-										 ui32PDumpFlags,
-										 ui32ClientUpdateCount,
-										 pauiClientUpdateUFODevVarBlock,
-										 paui32ClientUpdateSyncOffset,
-										 paui32ClientUpdateValue,
-										 iCheckFence,
-										 iUpdateTimeline,
-										 piUpdateFence,
-										 szUpdateFenceName,
-										 PVRSRV_NO_FENCE,
-										 ui32FWCommandSize,
-										 pui8FWCommand,
-										 ui32ExtJobRef,
-										 ui32SyncPMRCount,
-										 paui32SyncPMRFlags,
-										 ppsSyncPMRs,
-										 ui32TDMCharacteristic1,
-										 ui32TDMCharacteristic2,
-										 ui64DeadlineInus);
-}
-
-PVRSRV_ERROR PVRSRVRGXTDMSubmitTransfer3KM(
 	RGX_SERVER_TQ_TDM_CONTEXT * psTransferContext,
 	IMG_UINT32                  ui32PDumpFlags,
 	IMG_UINT32                  ui32ClientUpdateCount,
@@ -1252,6 +1208,12 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransfer3KM(
 		                            psUpdateSyncCheckpoint, szUpdateFenceName);
 	}
 
+	if (iExportFenceToSignal != PVRSRV_NO_FENCE &&
+	    iUpdateTimeline != PVRSRV_NO_TIMELINE)
+	{
+		SyncCheckpointFinaliseExportFence(iExportFenceToSignal);
+	}
+
 	OSFreeMem(psCmdHelper);
 
 	/* Drop the references taken on the sync checkpoints in the
@@ -1259,7 +1221,7 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransfer3KM(
 	SyncAddrListDeRefCheckpoints(ui32FenceSyncCheckpointCount,
 	                             apsFenceSyncCheckpoints);
 	/* Free the memory that was allocated for the sync checkpoint list returned by ResolveFence() */
-	if (apsFenceSyncCheckpoints)
+	if (apsFenceSyncCheckpoints != NULL)
 	{
 		SyncCheckpointFreeCheckpointListMem(apsFenceSyncCheckpoints);
 	}
@@ -1295,11 +1257,11 @@ fail_invalfbsc:
 		pui32IntAllocatedUpdateValues = NULL;
 	}
 fail_alloc_update_values_mem:
+fail_check_fence_includes_export_fence:
 	if (psExportFenceSyncCheckpoint)
 	{
 		SyncCheckpointRollbackExportFence(iExportFenceToSignal);
 	}
-fail_check_fence_includes_export_fence:
 fail_resolve_export_fence:
 	if (iUpdateFence != PVRSRV_NO_FENCE)
 	{
@@ -1328,7 +1290,7 @@ fail_populate_sync_addr_list:
 	OSFreeMem(psCmdHelper);
 fail_allochelper:
 
-	if (apsFenceSyncCheckpoints)
+	if (apsFenceSyncCheckpoints != NULL)
 	{
 		SyncCheckpointFreeCheckpointListMem(apsFenceSyncCheckpoints);
 	}
@@ -1404,36 +1366,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPriorityKM(CONNECTION_DATA *psConnect
 
 	OSLockRelease(psTransferContext->hLock);
 	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPropertyKM(RGX_SERVER_TQ_TDM_CONTEXT *psTransferContext,
-													  RGX_CONTEXT_PROPERTY eContextProperty,
-													  IMG_UINT64 ui64Input,
-													  IMG_UINT64 *pui64Output)
-{
-	PVRSRV_ERROR eError = PVRSRV_OK;
-
-	switch (eContextProperty)
-	{
-		case RGX_CONTEXT_PROPERTY_FLAGS:
-		{
-			IMG_UINT32 ui32ContextFlags = (IMG_UINT32)ui64Input;
-
-			OSLockAcquire(psTransferContext->hLock);
-			eError = FWCommonContextSetFlags(psTransferContext->sTDMData.psServerCommonContext,
-			                                 ui32ContextFlags);
-			OSLockRelease(psTransferContext->hLock);
-			break;
-		}
-
-		default:
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: PVRSRV_ERROR_NOT_SUPPORTED - asked to set unknown property (%d)", __func__, eContextProperty));
-			eError = PVRSRV_ERROR_NOT_SUPPORTED;
-		}
-	}
-
-	return eError;
 }
 
 void DumpTDMTransferCtxtsInfo(PVRSRV_RGXDEV_INFO *psDevInfo,

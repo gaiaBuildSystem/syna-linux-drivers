@@ -138,22 +138,15 @@ typedef struct _IPA_CONFIG_
  * that have this SPAS property. If 2 physheaps on separate devices are linked with
  * the same SPAS region, the devices would be able to share one another's memory.
  *
- * The region is a dllist of physheaps.
- * If a heap is in the list, it's in the region. */
-typedef struct _PHYS_HEAP_SPAS_REGION_ {
-	/* The head of the physheap list.
-	 * May be empty. */
-	DLLIST_NODE sListHead;
-	/* Protects the list. */
-	ATOMIC_T ui32Lock;
-} PHYS_HEAP_SPAS_REGION;
-
-#define DECLARE_PHYS_HEAP_SPAS_REGION(name)            \
-PHYS_HEAP_SPAS_REGION name = {                         \
-	.ui32Lock = { 0 },                                 \
-	.sListHead = { &name.sListHead, &name.sListHead }  \
-}
-#endif
+ * The region is a list of physheaps.
+ * If a heap is in the list, it's in the region.
+ *
+ * Spas regions outlive the devices they are connected too.
+ * The lifetime can be protected by the PVRSRV_DATA::hDeviceNodeListLock */
+typedef struct _PHYS_HEAP_SPAS_REGION_ PHYS_HEAP_SPAS_REGION;
+PVRSRV_ERROR PhysHeapSpasCreate(PHYS_HEAP_SPAS_REGION **ppsSpasRegion);
+void PhysHeapSpasDestroy(PHYS_HEAP_SPAS_REGION *psSpasRegion);
+#endif /* defined(PVRSRV_ENABLE_XD_MEM) */
 
 typedef struct _PHYS_HEAP_CONFIG_LMA_
 {

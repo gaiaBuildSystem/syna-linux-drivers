@@ -74,8 +74,8 @@ typedef enum
  * time, GPU CR timer incrementing only once every 256 GPU cycles).
  * This also helps reducing the variation between consecutive calculations.
  */
-#define RGXFWIF_CONVERT_TO_KHZ(freq)   (((freq) + 500) / 1000)
-#define RGXFWIF_ROUND_TO_KHZ(freq)    ((((freq) + 500) / 1000) * 1000)
+#define RGX_CONVERT_TO_KHZ(freq)   (((freq) + 500) / 1000)
+#define RGX_ROUND_TO_KHZ(freq)    ((((freq) + 500) / 1000) * 1000)
 
 /* Constants used in different calculations */
 #define SECONDS_TO_MICROSECONDS          (1000000ULL)
@@ -85,8 +85,11 @@ typedef enum
  * Use this macro to get a more realistic GPU core clock speed than the one
  * given by the upper layers (used when doing GPU frequency calibration)
  */
-#define RGXFWIF_GET_GPU_CLOCK_FREQUENCY_HZ(deltacr_us, deltaos_us, remainder) \
+#define RGX_GET_GPU_CLOCK_FREQUENCY_HZ(deltacr_us, deltaos_us, remainder) \
     OSDivide64((deltacr_us) * CRTIME_TO_CYCLES_WITH_US_SCALE, (deltaos_us), &(remainder))
+
+#define RGX_GET_SOC_CLOCK_FREQUENCY_HZ(deltasoc_us, deltaos_us, remainder) \
+    OSDivide64((deltasoc_us) * SECONDS_TO_MICROSECONDS, (deltaos_us), &(remainder))
 
 
 /*!
@@ -105,8 +108,9 @@ typedef enum
 static inline IMG_UINT64 RGXTimeCorrGetConversionFactor(IMG_UINT32 ui32ClockSpeed)
 {
 	IMG_UINT32 ui32Remainder;
+	IMG_UINT32 ui32KHZ = RGX_CONVERT_TO_KHZ(ui32ClockSpeed);
 
-	if (RGXFWIF_CONVERT_TO_KHZ(ui32ClockSpeed) == 0)
+	if (ui32KHZ == 0)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: GPU clock frequency %u is too low",
 				 __func__, ui32ClockSpeed));
@@ -115,7 +119,7 @@ static inline IMG_UINT64 RGXTimeCorrGetConversionFactor(IMG_UINT32 ui32ClockSpee
 	}
 
 	return OSDivide64r64(CRTIME_TO_CYCLES_WITH_US_SCALE << RGXFWIF_CRDELTA_TO_OSDELTA_ACCURACY_SHIFT,
-	                     RGXFWIF_CONVERT_TO_KHZ(ui32ClockSpeed), &ui32Remainder);
+	                     ui32KHZ, &ui32Remainder);
 }
 
 /*!
@@ -136,21 +140,29 @@ static inline IMG_UINT64 RGXTimeCorrDeltaOSNsToDeltaCR(PVRSRV_DEVICE_NODE *psDev
 	PVRSRV_RGXDEV_INFO *psDevInfo;
 	RGXFWIF_TIME_CORR *psTimeCorr;
 	IMG_UINT32 ui32Remainder;
+	IMG_UINT32 ui32KNs;
 
 	PVR_ASSERT(psDeviceNode && psDeviceNode->pvDevice);
 	psDevInfo = psDeviceNode->pvDevice;
 	psGpuUtilFW = psDevInfo->psRGXFWIfGpuUtilFW;
-	PVR_ASSERT(psGpuUtilFW);
+
+	if (!psGpuUtilFW)
+	{
+		PVR_ASSERT(psGpuUtilFW);
+		return 0;
+	}
+
 	psTimeCorr = &psGpuUtilFW->sTimeCorr[RGXFWIF_TIME_CORR_CURR_INDEX(psGpuUtilFW->ui32TimeCorrSeqCount)];
 
-	if (psTimeCorr->ui64CRDeltaToOSDeltaKNs == 0)
+	ui32KNs = psTimeCorr->ui64CRDeltaToOSDeltaKNs;
+	if (ui32KNs == 0)
 	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: ui64CRDeltaToOSDeltaKNs is 0", __func__));
+		PVR_DPF((PVR_DBG_WARNING, "%s: ui64CRDeltaToOSDeltaKNs is 0", __func__));
 		return 0;
 	}
 
 	return OSDivide64r64(ui64DeltaOSNs << RGXFWIF_CRDELTA_TO_OSDELTA_ACCURACY_SHIFT,
-	                     psTimeCorr->ui64CRDeltaToOSDeltaKNs, &ui32Remainder);
+	                     ui32KNs, &ui32Remainder);
 }
 
 /*!

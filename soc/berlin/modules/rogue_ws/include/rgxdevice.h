@@ -141,12 +141,16 @@ typedef struct
 {
 	IMG_UINT64 ui64BeginCRTimestamp;
 	IMG_UINT64 ui64BeginOSTimestamp;
+	IMG_UINT64 ui64BeginSOCTimestamp;
 
 	IMG_UINT64 ui64EndCRTimestamp;
 	IMG_UINT64 ui64EndOSTimestamp;
+	IMG_UINT64 ui64EndSOCTimestamp;
 
 	IMG_UINT32 ui32EstCoreClockSpeed;
 	IMG_UINT32 ui32CoreClockSpeed;
+
+	IMG_UINT32 ui32EstSOCClockSpeed;
 } GPU_FREQ_TRACKING_HISTORY;
 #endif
 
@@ -155,10 +159,12 @@ typedef struct _RGX_GPU_DVFS_TABLE_
 	/* Beginning of current calibration period (in us) */
 	IMG_UINT64 ui64CalibrationCRTimestamp;
 	IMG_UINT64 ui64CalibrationOSTimestamp;
+	IMG_UINT64 ui64CalibrationSOCTimestamp;
 
 	/* Calculated calibration period (in us) */
 	IMG_UINT64 ui64CalibrationCRTimediff;
 	IMG_UINT64 ui64CalibrationOSTimediff;
+	IMG_UINT64 ui64CalibrationSOCTimediff;
 
 	/* Current calibration period (in us) */
 	IMG_UINT32 ui32CalibrationPeriod;
@@ -167,6 +173,9 @@ typedef struct _RGX_GPU_DVFS_TABLE_
 	IMG_UINT32 ui32FreqIndex;
 	IMG_UINT32 aui32GPUFrequency[RGX_GPU_DVFS_TABLE_SIZE];
 	GPU_FREQ_TRACKING_DATA asTrackingData[RGX_GPU_DVFS_TABLE_SIZE];
+
+	/* SOC frequency for synchronizing events between the host and GPU */
+	IMG_UINT32 ui32EstSOCClockSpeed;
 
 #if defined(PVRSRV_TIMER_CORRELATION_HISTORY)
 	IMG_UINT32 ui32HistoryIndex;
@@ -180,33 +189,28 @@ typedef struct _RGX_GPU_DVFS_TABLE_
  * GPU utilisation statistics
  *****************************************************************************/
 
-typedef struct _RGXFWIF_TEMP_GPU_UTIL_STATS_
+typedef struct _RGX_GPU_UTIL_STATS_
 {
-	IMG_UINT64 aaaui64DMOSTmpCounters[RGXFWIF_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED][RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM];
-	IMG_UINT64 aaui64DMOSTmpLastWord[RGXFWIF_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED];
-	IMG_UINT64 aaui64DMOSTmpLastState[RGXFWIF_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED];
-	IMG_UINT64 aaui64DMOSTmpLastPeriod[RGXFWIF_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED];
-	IMG_UINT64 aaui64DMOSTmpLastTime[RGXFWIF_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED];
-} RGXFWIF_TEMP_GPU_UTIL_STATS;
+	POS_SPINLOCK hSpinlock;                 /*!< Spinlock ensuring utilisation data can be handled from an interrupt context */
 
-typedef struct _RGXFWIF_GPU_UTIL_STATS_
-{
-	IMG_BOOL   bValid;                /* If TRUE, statistics are valid.
-	                                     FALSE if the driver couldn't get reliable stats. */
-	IMG_UINT64 ui64GpuStatActive;     /* GPU active statistic */
-	IMG_UINT64 ui64GpuStatBlocked;    /* GPU blocked statistic */
-	IMG_UINT64 ui64GpuStatIdle;       /* GPU idle statistic */
-	IMG_UINT64 ui64GpuStatCumulative; /* Sum of active/blocked/idle stats */
+	IMG_UINT64 ui64LastCheckTimestampNS;    /*!< Timestamp in nanoseconds of the last utilisation check */
+	IMG_UINT64 ui64LastCheckTimestampTicks; /*!< Timestamp in timer ticks of the last utilisation check */
 
-	IMG_UINT64 aaui64DMOSStatInactive[RGXFWIF_GPU_UTIL_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED];   /* Per-DM per-OS sum of idle and blocked stats */
-	IMG_UINT64 aaui64DMOSStatActive[RGXFWIF_GPU_UTIL_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED];     /* Per-DM per-OS active statistic */
-	IMG_UINT64 aaui64DMOSStatCumulative[RGXFWIF_GPU_UTIL_DM_MAX][RGX_NUM_DRIVERS_SUPPORTED]; /* Per-DM per-OS sum of active/blocked/idle stats */
+	/* Basic GPU usage statistics */
+	IMG_BOOL   bBasicStatsValid;          /*!< Boolean indicating if the current sample of basic utilisation data is valid */
+	IMG_UINT64 ui64LastGpuActiveTimeNS;   /*!< Total sum of nanoseconds the GPU spent in active state at the previous utilisation check */
+	IMG_UINT64 ui64GpuActivePeriodNS;     /*!< Time in nanoseconds the GPU spent in active state during the last measurement period */
+	IMG_UINT64 ui64MeasurementPeriodNS;   /*!< Length of last measurement period: nanoseconds elapsed since previous utilisation check */
+	IMG_UINT32 ui32GpuUsage;              /*!< Percentage of real time the GPU was active since last check */
 
-	IMG_UINT64 ui64TimeStamp;         /* Timestamp of the most recent sample of the GPU stats */
+	/* Detailed GPU usage statistics */
+	IMG_BOOL   bDetailedStatsValid;                                                                      /*!< Boolean indicating if the current sample of detailed utilisation data is valid */
+	IMG_UINT32 RGXFW_ALIGN aaui32DmActiveTimeTicksCurrent[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS]; /*!< Current snapshot of the accumulated timer ticks DMs spent in active state on behalf of each DriverID */
+	IMG_UINT32 RGXFW_ALIGN aaui32DmActiveTimeTicksPrev[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS];    /*!< Previous snapshot of the accumulated timer ticks DMs spent in active state on behalf of each DriverID */
+	IMG_UINT64 ui64MeasurementPeriodTicks;                                                               /*!< Length of last measurement period: timer ticks elapsed since previous utilisation check */
+	IMG_UINT32 aaui32DriverDmUsage[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS];                        /*!< Percentage of timer ticks each DM was used by every DriverID since the last check */
 
-	RGXFWIF_TEMP_GPU_UTIL_STATS sTempGpuStats; /* Temporary data used to calculate the per-DM per-OS statistics */
-} RGXFWIF_GPU_UTIL_STATS;
-
+} RGX_GPU_UTIL_STATS;
 
 typedef struct _RGX_REG_CONFIG_
 {
@@ -222,7 +226,7 @@ typedef struct _PVRSRV_STUB_PBDESC_ PVRSRV_STUB_PBDESC;
 typedef struct _PVRSRV_DEVICE_FEATURE_CONFIG_
 {
 	IMG_UINT64 ui64ErnsBrns;
-	IMG_UINT64 ui64Features;
+	const IMG_UINT64 *paui64Features;
 	IMG_UINT32 ui32B;
 	IMG_UINT32 ui32V;
 	IMG_UINT32 ui32N;
@@ -248,7 +252,7 @@ typedef struct _PVRSRV_DEVICE_FEATURE_CONFIG_
 
 /* This is used to check if the Boolean feature (e.g. WITHOUT an integer value) is available for the currently running BVNC or not */
 #define RGX_IS_FEATURE_SUPPORTED(psDevInfo, Feature) \
-			BITMASK_HAS(psDevInfo->sDevFeatureCfg.ui64Features, RGX_FEATURE_##Feature##_BIT_MASK)
+			BITMASK_HAS(psDevInfo->sDevFeatureCfg.paui64Features[RGX_FEATURE_##Feature##_ARRAY_INDEX], RGX_FEATURE_##Feature##_BIT_MASK)
 
 /* This is used to check if the ERN is available for the currently running BVNC or not */
 #define RGX_IS_ERN_SUPPORTED(psDevInfo, ERN) \
@@ -704,6 +708,7 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	IMG_UINT32				ui32GEOTimeoutsLastTime;
 	IMG_UINT32				ui32InterruptCountLastTime;
 	IMG_UINT32				ui32MissingInterruptsLastTime;
+	IMG_UINT32				ui32FWNonIdleTimeoutCount;
 
 	/* Client stall detection */
 	IMG_UINT32				ui32StalledClientMask;
@@ -724,7 +729,7 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 
 	/* If we do 10 deferred memory allocations per second, then the ID would wrap around after 13 years */
 	IMG_UINT32				ui32ZSBufferCurrID;	/*!< ID assigned to the next deferred devmem allocation */
-	IMG_UINT32				ui32FreelistCurrID;	/*!< ID assigned to the next freelist */
+	IMG_UINT64				ui64FreelistCurrID;	/*!< ID assigned to the next freelist */
 
 	POS_LOCK				hLockZSBuffer;		/*!< Lock to protect simultaneous access to ZSBuffers */
 	DLLIST_NODE				sZSBufferHead;		/*!< List of on-demand ZSBuffers */
@@ -746,25 +751,34 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	/* GPU DVFS Table */
 	RGX_GPU_DVFS_TABLE		*psGpuDVFSTable;
 
-	/* Pointer to function returning the GPU utilisation statistics since the last
-	 * time the function was called. Supports different users at the same time.
-	 *
-	 * psReturnStats [out]: GPU utilisation statistics (active high/active low/idle/blocked)
-	 *                      in microseconds since the last time the function was called
-	 *                      by a specific user (identified by hGpuUtilUser)
-	 *
-	 * Returns PVRSRV_OK in case the call completed without errors,
-	 * some other value otherwise.
+	/*
+	 * Pointer to function returning overall GPU usage as active time, total time
+	 * measured in nanoseconds as well as a percentage since the previous
+	 * function call. Does not sleep or block and can called from an interrupt
+	 * context. Saving all data in a given RGX_GPU_UTIL_STATS structure allows
+	 * multiple concurrent users to track the GPU utilisation at their own pace.
 	 */
-	PVRSRV_ERROR (*pfnGetGpuUtilStats) (PVRSRV_DEVICE_NODE *psDeviceNode,
-	                                    IMG_HANDLE hGpuUtilUser,
-	                                    RGXFWIF_GPU_UTIL_STATS *psReturnStats);
+	PVRSRV_ERROR (*pfnGetBasicGpuUtilStats) (PVRSRV_DEVICE_NODE *psDeviceNode,
+											RGX_GPU_UTIL_STATS *psReturnStats);
+
+	/*
+	 * Pointer to function returning the usage of every hardware Data Master
+	 * in the GPU as active time and total time measured in GPU timer ticks and
+	 * percentages categorised by VM/Hyperlane. The results reflect GPU usage
+	 * since the previous function call. The function requests data from the
+	 * Firmware and sleeps while waiting, can't be called from an interrupt.
+	 * Saving all data in a given RGX_GPU_UTIL_STATS structure allows
+	 * multiple concurrent users to track the GPU utilisation at their own pace.
+	 */
+	PVRSRV_ERROR (*pfnGetDetailedGpuUtilStats) (PVRSRV_DEVICE_NODE *psDeviceNode,
+												RGX_GPU_UTIL_STATS *psReturnStats);
 
 	/* Pointer to function that checks if the physical GPU IRQ
 	 * line has been asserted and clears it if so */
 	IMG_BOOL (*pfnRGXAckIrq) (struct _PVRSRV_RGXDEV_INFO_ *psDevInfo);
 
-	POS_LOCK				hGPUUtilLock;
+	POS_LOCK				hGPUUtilLock; /*!< Lock serialising access to the aaui32DmActiveTimeTicks
+											array from SysData in shared device memory */
 
 	/* Register configuration */
 	RGX_REG_CONFIG			sRegConfig;
@@ -879,10 +893,6 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 													  various purposes. See rgx_fwif_km.h for all use cases. */
 #endif
 
-#if defined(SUPPORT_SECURE_CONTEXT_SWITCH)
-	DEVMEM_MEMDESC			*psRGXFWScratchBufMemDesc;
-#endif
-
 	RGX_FWT_LOGTYPE			eDebugDumpFWTLogType;
 
 	RGX_FW_INFO_HEADER      sFWInfoHeader;
@@ -891,11 +901,14 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 													  setting for those cores which support
 													  this feature. */
 #endif
-	RGXFWIF_GPU_UTIL_STATS	sGpuUtilStats;          /*!< GPU usage statistics */
-	POS_LOCK				hGpuUtilStatsLock;
+
+	RGX_GPU_UTIL_STATS	sGpuUtilStats;			/*!< Gpu utilisation statistics data buffer */
+
+#if defined(SUPPORT_LINUX_DVFS)
+	RGX_GPU_UTIL_STATS	sDVFSGpuUtilStats;		/*!< DVFS gpu utilisation statistics data buffer */
+#endif
 
 } PVRSRV_RGXDEV_INFO;
-
 
 
 typedef struct _RGX_TIMING_INFORMATION_
@@ -927,6 +940,7 @@ typedef enum _RGX_QUERY_TIMESTAMP_TYPE_
 {
 	RGX_QUERY_HOST_TIMESTAMP,
 	RGX_QUERY_DEVICE_TIMESTAMP,
+	RGX_QUERY_SOC_TIMER,
 } RGX_QUERY_TIMESTAMP_TYPE;
 
 

@@ -187,6 +187,22 @@ static IMG_UINT64 RGXTimeGetDeviceTimestampInTicks(PVRSRV_DEVICE_NODE *psDeviceN
 	return ui64DeviceTimestamp;
 }
 
+static IMG_UINT64 RGXTimeGetSOCTimerValue(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	IMG_UINT64 ui64SOCTimerValue = psDeviceNode->ui64LastSOCTimerOffValue;
+
+#if defined(SUPPORT_SOC_TIMER)
+	PVRSRV_DEVICE_CONFIG *psDevConfig = psDeviceNode->psDevConfig;
+
+	if (psDevConfig && psDevConfig->pfnSoCTimerRead)
+	{
+		ui64SOCTimerValue = psDevConfig->pfnSoCTimerRead(psDevConfig->hSysData);
+	}
+#endif
+
+	return ui64SOCTimerValue;
+}
+
 void RGXGetTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode,
 							RGXFWIF_TIME_CORR *psTimeCorrs,
 							IMG_UINT32 ui32NumOut)
@@ -232,6 +248,13 @@ static inline IMG_UINT32 _RGXGetSystemLayerGPUClockSpeed(PVRSRV_DEVICE_NODE *psD
 	return psRGXData->psRGXTimingInfo->ui32CoreClockSpeed;
 }
 
+static inline IMG_UINT32 _RGXGetSystemLayerSOCClockSpeed(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	RGX_DATA *psRGXData = (RGX_DATA*)psDeviceNode->psDevConfig->hDevData;
+
+	return psRGXData->psRGXTimingInfo->ui32SOCClockSpeed;
+}
+
 static inline IMG_UINT32 _RGXGetEstimatedGPUClockSpeed(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
 	RGX_GPU_DVFS_TABLE *psGpuDVFSTable = psDevInfo->psGpuDVFSTable;
@@ -266,6 +289,27 @@ static inline void _DumpTimerCorrelationHistory(PVRSRV_RGXDEV_INFO *psDevInfo)
 		i = (i - 1) % RGX_GPU_FREQ_TRACKING_SIZE;
 
 	} while (i != psGpuDVFSTable->ui32HistoryIndex);
+
+#if defined(SUPPORT_SOC_TIMER)
+	/* Reset the history index */
+	i = psGpuDVFSTable->ui32HistoryIndex;
+
+	do
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+				 "  Begin times: OS %" IMG_UINT64_FMTSPEC ", SOC %" IMG_UINT64_FMTSPEC ", "
+				 "End times: OS %" IMG_UINT64_FMTSPEC ", SOC %" IMG_UINT64_FMTSPEC ", "
+				 "Estimated clk %u",
+				 psGpuDVFSTable->asTrackingHistory[i].ui64BeginOSTimestamp,
+				 psGpuDVFSTable->asTrackingHistory[i].ui64BeginSOCTimestamp,
+				 psGpuDVFSTable->asTrackingHistory[i].ui64EndOSTimestamp,
+				 psGpuDVFSTable->asTrackingHistory[i].ui64EndSOCTimestamp,
+				 psGpuDVFSTable->asTrackingHistory[i].ui32EstSOCClockSpeed));
+
+		i = (i - 1) % RGX_GPU_FREQ_TRACKING_SIZE;
+
+	} while (i != psGpuDVFSTable->ui32HistoryIndex);
+#endif
 }
 #endif
 
@@ -301,7 +345,7 @@ static void _RGXMakeTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode, RGXTIMECORR_E
 		((PVRSRV_RGXDEV_INFO *) psDeviceNode->pvDevice)->ui32ClockSource == RGXTIMECORR_CLOCK_MONO
 		? sTimeCorr.ui64OSMonoTimeStamp
 		: RGXTimeCorrGetClockns64(psDeviceNode);
-	sTimeCorr.ui32CoreClockSpeed = _RGXGetEstimatedGPUClockSpeed(psDevInfo);
+	sTimeCorr.ui32CoreClockSpeed = _RGXGetSystemLayerGPUClockSpeed(psDeviceNode);
 	sTimeCorr.ui64CRDeltaToOSDeltaKNs = RGXTimeCorrGetConversionFactor(sTimeCorr.ui32CoreClockSpeed);
 
 	if (sTimeCorr.ui64CRDeltaToOSDeltaKNs == 0)
@@ -326,12 +370,15 @@ static void _RGXMakeTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode, RGXTIMECORR_E
 	RGXFwSharedMemCacheOpValue(psGpuUtilFW->ui32TimeCorrSeqCount, FLUSH);
 
 
-	if (RGXTIMECORR_EVENT_POWER == eEvent && psDeviceNode->ui64LastDeviceOffTimestamp)
+	if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode))
 	{
-		/* Capture effective timestamp offset on device power on */
-		psGpuUtilFW->i64DeviceTimestampOffset = psDeviceNode->ui64LastDeviceOffTimestamp - RGXReadHWTimerReg(psDevInfo) +
-								RGXTimeCorrDeltaOSNsToDeltaCR(psDeviceNode,
-									OSClockns64() - psDeviceNode->ui64LastDeviceOffHostTimestampNs);
+		if (RGXTIMECORR_EVENT_POWER == eEvent && psDeviceNode->ui64LastDeviceOffTimestamp)
+		{
+			/* Capture effective timestamp offset on device power on */
+			psGpuUtilFW->i64DeviceTimestampOffset = psDeviceNode->ui64LastDeviceOffTimestamp - RGXReadHWTimerReg(psDevInfo) +
+									RGXTimeCorrDeltaOSNsToDeltaCR(psDeviceNode,
+										OSClockns64() - psDeviceNode->ui64LastDeviceOffHostTimestampNs);
+		}
 	}
 
 	PVR_DPF((PVR_DBG_MESSAGE,
@@ -340,7 +387,7 @@ static void _RGXMakeTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode, RGXTIMECORR_E
 	         _EventToString(eEvent),
 	         sTimeCorr.ui64OSTimeStamp,
 	         sTimeCorr.ui64CRTimeStamp,
-	         RGXFWIF_ROUND_TO_KHZ(sTimeCorr.ui32CoreClockSpeed),
+	         RGX_ROUND_TO_KHZ(sTimeCorr.ui32CoreClockSpeed),
 	         _RGXGetSystemLayerGPUClockSpeed(psDeviceNode)));
 
 	/*
@@ -409,33 +456,38 @@ static void _RGXCheckTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode,
 	 * The operands are scaled down (approximately from ns to us) so at least
 	 * the divisor fits on 32 bit.
 	 */
-	ui32Ratio = OSDivide64(((ui64EstimatedTime - psTimeCorr->ui64OSTimeStamp) * 100ULL) >> SCALING_FACTOR,
-	                       (ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp) >> SCALING_FACTOR,
-	                       &ui32Remainder);
-
-	PVR_DPF((PVR_DBG_MESSAGE,
-	         "Estimated timestamp check: diff %" IMG_INT64_FMTSPECd " ns over "
-	         "period %" IMG_UINT64_FMTSPEC " ns, estimated timer speed %u%%",
-	         i64Diff,
-	         ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp,
-	         ui32Ratio));
-
-	/* Warn if the estimated timestamp is not within +/- 1% of the current time */
-	if (ui32Ratio < 99 || ui32Ratio > 101)
+	if (((ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp) >> SCALING_FACTOR) != 0U)
 	{
-		PVR_DPF((PVR_DBG_WARNING,
-		         "Estimated timestamps generated in the last %" IMG_UINT64_FMTSPEC " ns "
-		         "were %s the real time (increasing at %u%% speed)",
-		         ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp,
-		         i64Diff > 0 ? "ahead of" : "behind",
-		         ui32Ratio));
+		ui32Ratio = OSDivide64(((ui64EstimatedTime - psTimeCorr->ui64OSTimeStamp) * 100ULL) >> SCALING_FACTOR,
+							   (ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp) >> SCALING_FACTOR,
+							   &ui32Remainder);
 
-		/* Higher ratio == higher delta OS == higher delta CR == frequency higher than expected (and viceversa) */
-		PVR_DPF((PVR_DBG_WARNING,
-		         "Current GPU frequency %u Hz (given as %u Hz) is probably %s than expected",
-		         RGXFWIF_ROUND_TO_KHZ(psTimeCorr->ui32CoreClockSpeed),
-		         _RGXGetSystemLayerGPUClockSpeed(psDeviceNode),
-		         i64Diff > 0 ? "lower" : "higher"));
+		PVR_DPF((PVR_DBG_MESSAGE,
+				 "Estimated timestamp check: diff %" IMG_INT64_FMTSPECd " ns over "
+				 "period %" IMG_UINT64_FMTSPEC " ns, estimated timer speed %u%%",
+				 i64Diff,
+				 ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp,
+				 ui32Ratio));
+
+		/* Warn if the estimated timestamp is not within +/- 1% of the current time */
+		if (ui32Ratio < 99 || ui32Ratio > 101)
+		{
+			PVR_DPF((PVR_DBG_WARNING,
+					 "Estimated timestamps generated in the last %" IMG_UINT64_FMTSPEC " ns "
+					 "were %s the real time (increasing at %u%% speed)",
+					 ui64OSTimeStamp - psTimeCorr->ui64OSTimeStamp,
+					 i64Diff > 0 ? "ahead of" : "behind",
+					 ui32Ratio));
+
+			/* Higher ratio == higher delta OS == higher delta CR == frequency higher than expected
+			 * (and vice versa)
+			 */
+			PVR_DPF((PVR_DBG_WARNING,
+					 "Current GPU frequency %u Hz (given as %u Hz) is probably %s than expected",
+					 RGX_ROUND_TO_KHZ(psTimeCorr->ui32CoreClockSpeed),
+					 _RGXGetSystemLayerGPUClockSpeed(psDeviceNode),
+					 i64Diff > 0 ? "lower" : "higher"));
+		}
 	}
 #else
 	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
@@ -481,6 +533,10 @@ static void _RGXGPUFreqCalibrationPeriodStart(PVRSRV_DEVICE_NODE *psDeviceNode, 
 
 	IMG_UINT64 ui64CRTimestamp = RGXReadHWTimerReg(psDevInfo);
 	IMG_UINT64 ui64OSTimestamp = RGXTimeCorrGetClockus64(psDeviceNode);
+#if defined(SUPPORT_SOC_TIMER)
+	IMG_UINT64 ui64SOCTimestamp = RGXTimeGetSOCTimerValue(psDeviceNode);
+	psGpuDVFSTable->ui64CalibrationSOCTimestamp = ui64SOCTimestamp;
+#endif
 
 	psGpuDVFSTable->ui64CalibrationCRTimestamp = ui64CRTimestamp;
 	psGpuDVFSTable->ui64CalibrationOSTimestamp = ui64OSTimestamp;
@@ -519,6 +575,11 @@ static void _RGXGPUFreqCalibrationPeriodStart(PVRSRV_DEVICE_NODE *psDeviceNode, 
 		psTrackingHistory->ui64BeginOSTimestamp  = ui64OSTimestamp;
 		psTrackingHistory->ui64EndCRTimestamp    = 0ULL;
 		psTrackingHistory->ui64EndOSTimestamp    = 0ULL;
+#if defined(SUPPORT_SOC_TIMER)
+		psTrackingHistory->ui64BeginSOCTimestamp = ui64SOCTimestamp;
+		psTrackingHistory->ui64EndSOCTimestamp   = 0ULL;
+		psTrackingHistory->ui32EstSOCClockSpeed  = psGpuDVFSTable->ui32EstSOCClockSpeed;
+#endif
 	}
 #endif
 }
@@ -530,6 +591,11 @@ static void _RGXGPUFreqCalibrationPeriodStop(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 	IMG_UINT64 ui64CRTimestamp = RGXReadHWTimerReg(psDevInfo);
 	IMG_UINT64 ui64OSTimestamp = RGXTimeCorrGetClockus64(psDeviceNode);
+#if defined(SUPPORT_SOC_TIMER)
+	IMG_UINT64 ui64SOCTimestamp = RGXTimeGetSOCTimerValue(psDeviceNode);
+	psGpuDVFSTable->ui64CalibrationSOCTimediff =
+		ui64SOCTimestamp - psGpuDVFSTable->ui64CalibrationSOCTimestamp;
+#endif
 
 	psGpuDVFSTable->ui64CalibrationCRTimediff =
 	    ui64CRTimestamp - psGpuDVFSTable->ui64CalibrationCRTimestamp;
@@ -547,6 +613,9 @@ static void _RGXGPUFreqCalibrationPeriodStop(PVRSRV_DEVICE_NODE *psDeviceNode,
 		psTrackingHistory = &psGpuDVFSTable->asTrackingHistory[psGpuDVFSTable->ui32HistoryIndex];
 		psTrackingHistory->ui64EndCRTimestamp = ui64CRTimestamp;
 		psTrackingHistory->ui64EndOSTimestamp = ui64OSTimestamp;
+#if defined(SUPPORT_SOC_TIMER)
+		psTrackingHistory->ui64EndSOCTimestamp = ui64SOCTimestamp;
+#endif
 	}
 #endif
 }
@@ -558,6 +627,10 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 #if !defined(DISABLE_GPU_FREQUENCY_CALIBRATION)
 	GPU_FREQ_TRACKING_DATA *psTrackingData;
 	IMG_UINT32 ui32EstCoreClockSpeed, ui32PrevCoreClockSpeed, ui32SysGPUClockSpeed;
+#if defined(SUPPORT_SOC_TIMER)
+	IMG_UINT32 ui32EstSOCClockSpeed, ui32PrevSOCClockSpeed, ui32SysSOCClockSpeed;
+	IMG_INT32  i32SOCDiff;
+#endif
 	IMG_INT32  i32Diff;
 	IMG_UINT32 ui32Remainder;
 
@@ -567,9 +640,48 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 	 * This should return a value very close to the frequency passed by the system layer.
 	 */
 	ui32EstCoreClockSpeed =
-	    RGXFWIF_GET_GPU_CLOCK_FREQUENCY_HZ(psGpuDVFSTable->ui64CalibrationCRTimediff,
+	    RGX_GET_GPU_CLOCK_FREQUENCY_HZ(psGpuDVFSTable->ui64CalibrationCRTimediff,
 	                                       psGpuDVFSTable->ui64CalibrationOSTimediff,
 	                                       ui32Remainder);
+#if defined(SUPPORT_SOC_TIMER)
+	ui32SysSOCClockSpeed = _RGXGetSystemLayerSOCClockSpeed(psDeviceNode);
+
+	ui32EstSOCClockSpeed =
+	    RGX_GET_SOC_CLOCK_FREQUENCY_HZ(psGpuDVFSTable->ui64CalibrationSOCTimediff,
+	                                       psGpuDVFSTable->ui64CalibrationOSTimediff,
+	                                       ui32Remainder);
+	ui32PrevSOCClockSpeed = psGpuDVFSTable->ui32EstSOCClockSpeed;
+	psGpuDVFSTable->ui32EstSOCClockSpeed = ui32EstSOCClockSpeed;
+	PVR_DPF((PVR_DBG_MESSAGE, "Estimated SOC clock frequency %u Hz.", ui32EstSOCClockSpeed));
+
+	i32SOCDiff = (IMG_INT32) (ui32EstSOCClockSpeed - ui32PrevSOCClockSpeed);
+	if ((i32SOCDiff < -1000000) || (i32SOCDiff > 1000000))
+	{
+		/* Warn if the frequency changed by more than 1 MHz between recalculations */
+		PVR_DPF((PVR_DBG_WARNING,
+		         "GPU frequency calibration of system layer frequency %u Hz (pre %s event): "
+		         "more than 1 MHz difference between old and new value "
+		         "(%u Hz -> %u Hz over %" IMG_UINT64_FMTSPEC " us)",
+		         ui32SysSOCClockSpeed,
+		         _EventToString(eEvent),
+		         RGX_ROUND_TO_KHZ(ui32PrevSOCClockSpeed),
+		         RGX_ROUND_TO_KHZ(ui32EstSOCClockSpeed),
+		         psGpuDVFSTable->ui64CalibrationSOCTimediff));
+	}
+
+	if (eEvent == RGXTIMECORR_EVENT_PERIODIC)
+	{
+		i32SOCDiff = (IMG_INT32) (ui32EstSOCClockSpeed - ui32SysSOCClockSpeed);
+
+		if ((i32SOCDiff < -1000000) || (i32SOCDiff > 1000000))
+		{
+			RGX_DATA *psRGXData = (RGX_DATA*)psDeviceNode->psDevConfig->hDevData;
+
+			/* Update the internal SOC clock frequency. */
+			psRGXData->psRGXTimingInfo->ui32SOCClockSpeed = RGX_ROUND_TO_KHZ(ui32EstSOCClockSpeed);
+		}
+	}
+#endif
 
 	/* Update GPU frequency used by the driver for a given system layer frequency */
 	psTrackingData = &psGpuDVFSTable->asTrackingData[psGpuDVFSTable->ui32FreqIndex];
@@ -589,8 +701,8 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 		         "(%u Hz -> %u Hz over %"  IMG_UINT64_FMTSPEC " us)",
 		         ui32SysGPUClockSpeed,
 		         _EventToString(eEvent),
-		         RGXFWIF_ROUND_TO_KHZ(ui32PrevCoreClockSpeed),
-		         RGXFWIF_ROUND_TO_KHZ(ui32EstCoreClockSpeed),
+		         RGX_ROUND_TO_KHZ(ui32PrevCoreClockSpeed),
+		         RGX_ROUND_TO_KHZ(ui32EstCoreClockSpeed),
 		         psGpuDVFSTable->ui64CalibrationOSTimediff));
 	}
 	else
@@ -600,8 +712,8 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 		         "%u Hz -> %u Hz done over %" IMG_UINT64_FMTSPEC " us",
 		         ui32SysGPUClockSpeed,
 		         _EventToString(eEvent),
-		         RGXFWIF_ROUND_TO_KHZ(ui32PrevCoreClockSpeed),
-		         RGXFWIF_ROUND_TO_KHZ(ui32EstCoreClockSpeed),
+		         RGX_ROUND_TO_KHZ(ui32PrevCoreClockSpeed),
+		         RGX_ROUND_TO_KHZ(ui32EstCoreClockSpeed),
 		         psGpuDVFSTable->ui64CalibrationOSTimediff));
 	}
 
@@ -630,7 +742,7 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 				RGX_DATA *psRGXData = (RGX_DATA*)psDeviceNode->psDevConfig->hDevData;
 
 				/* Update the internal core frequency variable and notify the Firmware of the change */
-				psRGXData->psRGXTimingInfo->ui32CoreClockSpeed = RGXFWIF_ROUND_TO_KHZ(ui32EstCoreClockSpeed);
+				psRGXData->psRGXTimingInfo->ui32CoreClockSpeed = RGX_ROUND_TO_KHZ(ui32EstCoreClockSpeed);
 
 				eError = RGXPostClockSpeedChange((IMG_HANDLE)psDeviceNode, ePowerState);
 				PVR_LOG_IF_ERROR(eError, "RGXPostClockSpeedChange");
@@ -641,6 +753,9 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 	/* Reset time deltas to avoid recalibrating the same frequency over and over again */
 	psGpuDVFSTable->ui64CalibrationCRTimediff = 0;
 	psGpuDVFSTable->ui64CalibrationOSTimediff = 0;
+#if defined(SUPPORT_SOC_TIMER)
+	psGpuDVFSTable->ui64CalibrationSOCTimediff = 0;
+#endif
 
 #if defined(PVRSRV_TIMER_CORRELATION_HISTORY)
 	/* Update tracking history */
@@ -649,6 +764,9 @@ static void _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 		psTrackingHistory = &psGpuDVFSTable->asTrackingHistory[psGpuDVFSTable->ui32HistoryIndex];
 		psTrackingHistory->ui32EstCoreClockSpeed = ui32EstCoreClockSpeed;
+#if defined(SUPPORT_SOC_TIMER)
+		psTrackingHistory->ui32EstSOCClockSpeed = ui32EstSOCClockSpeed;
+#endif
 		psGpuDVFSTable->ui32HistoryIndex =
 			(psGpuDVFSTable->ui32HistoryIndex + 1) % RGX_GPU_FREQ_TRACKING_SIZE;
 	}
@@ -668,8 +786,16 @@ void RGXTimeCorrBegin(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
 	RGX_GPU_DVFS_TABLE  *psGpuDVFSTable = psDevInfo->psGpuDVFSTable;
 	PVRSRV_VZ_RETN_IF_MODE(GUEST, DEVNODE, psDeviceNode);
 
-	_RGXGPUFreqCalibrationPeriodStart(psDeviceNode, psGpuDVFSTable);
-	_RGXMakeTimeCorrData(psDeviceNode, eEvent);
+	if (eEvent == RGXTIMECORR_EVENT_DVFS)
+	{
+		_RGXGPUFreqCalibrationPeriodStart(psDeviceNode, psGpuDVFSTable);
+	}
+
+	if (eEvent == RGXTIMECORR_EVENT_POWER ||
+	    eEvent == RGXTIMECORR_EVENT_DVFS)
+	{
+		_RGXMakeTimeCorrData(psDeviceNode, eEvent);
+	}
 }
 
 void RGXTimeCorrEnd(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
@@ -679,11 +805,14 @@ void RGXTimeCorrEnd(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
 	RGX_GPU_DVFS_TABLE  *psGpuDVFSTable = psDevInfo->psGpuDVFSTable;
 	PVRSRV_VZ_RETN_IF_MODE(GUEST, DEVNODE, psDeviceNode);
 
-	_RGXGPUFreqCalibrationPeriodStop(psDeviceNode, psGpuDVFSTable);
-
-	if (psGpuDVFSTable->ui64CalibrationOSTimediff >= psGpuDVFSTable->ui32CalibrationPeriod)
+	if (eEvent == RGXTIMECORR_EVENT_DVFS)
 	{
-		_RGXGPUFreqCalibrationCalculate(psDeviceNode, psGpuDVFSTable, eEvent);
+		_RGXGPUFreqCalibrationPeriodStop(psDeviceNode, psGpuDVFSTable);
+
+		if (psGpuDVFSTable->ui64CalibrationOSTimediff >= psGpuDVFSTable->ui32CalibrationPeriod)
+		{
+			_RGXGPUFreqCalibrationCalculate(psDeviceNode, psGpuDVFSTable, eEvent);
+		}
 	}
 
 	if (RGXTIMECORR_EVENT_POWER == eEvent)
@@ -693,6 +822,8 @@ void RGXTimeCorrEnd(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
 		/* Capture effective device power off timestamp */
 		psDeviceNode->ui64LastDeviceOffTimestamp = RGXReadHWTimerReg(psDevInfo) + psGpuUtilFW->i64DeviceTimestampOffset;
 		psDeviceNode->ui64LastDeviceOffHostTimestampNs = OSClockns64();
+
+		psDeviceNode->ui64LastSOCTimerOffValue = RGXTimeGetSOCTimerValue(psDeviceNode);
 	}
 }
 
@@ -775,7 +906,22 @@ PVRSRVRGXCurrentTime(CONNECTION_DATA    *psConnection,
 		break;
 
 		case RGX_QUERY_DEVICE_TIMESTAMP:
-		*pui64Time = RGXTimeGetDeviceTimestampInTicks(psDeviceNode);
+		if (PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode))
+		{
+			eError = PVRSRV_ERROR_INVALID_PARAMS;
+		}
+		else
+		{
+			*pui64Time = RGXTimeGetDeviceTimestampInTicks(psDeviceNode);
+		}
+		break;
+
+		case RGX_QUERY_SOC_TIMER:
+#if defined(SUPPORT_SOC_TIMER)
+		*pui64Time = RGXTimeGetSOCTimerValue(psDeviceNode);
+#else
+		eError = PVRSRV_ERROR_NOT_SUPPORTED;
+#endif
 		break;
 
 		default:

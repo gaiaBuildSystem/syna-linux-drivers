@@ -55,6 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "allocmem.h"
 #include <linux/atomic.h>
 #include <linux/version.h>
+#include <linux/spinlock.h>
 
 #define OSLockCreateNoStats(phLock) ({ \
 	PVRSRV_ERROR e = PVRSRV_ERROR_OUT_OF_MEMORY; \
@@ -86,16 +87,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define OSLockHeldAssert(hLock)
 #endif
 
-#define OSSpinLockCreate(_ppsLock) ({ \
-	PVRSRV_ERROR e = PVRSRV_ERROR_OUT_OF_MEMORY; \
-	*(_ppsLock) = OSAllocMem(sizeof(spinlock_t)); \
-	if (*(_ppsLock)) {spin_lock_init(*(_ppsLock)); e = PVRSRV_OK;} \
-	e;})
-#define OSSpinLockDestroy(_psLock) ({OSFreeMem(_psLock);})
-
 typedef unsigned long OS_SPINLOCK_FLAGS;
-#define OSSpinLockAcquire(_pLock, _flags) spin_lock_irqsave(_pLock, _flags)
-#define OSSpinLockRelease(_pLock, _flags) spin_unlock_irqrestore(_pLock, _flags)
+static inline PVRSRV_ERROR OSSpinLockCreate(POS_SPINLOCK *psSpinLock)
+{
+	PVR_ASSERT(psSpinLock != NULL);
+	spin_lock_init(psSpinLock);
+	return PVRSRV_OK;
+}
+
+static INLINE void OSSpinLockDestroy(POS_SPINLOCK psSpinLock)
+{
+	/* No need to do anything */
+	PVR_UNREFERENCED_PARAMETER(psSpinLock);
+}
+
+#define OSSpinLockAcquire(_pLock, _flags) spin_lock_irqsave(&_pLock, _flags)
+#define OSSpinLockRelease(_pLock, _flags) spin_unlock_irqrestore(&_pLock, _flags)
+
 
 /* These _may_ be reordered or optimized away entirely by the compiler/hw */
 #define OSAtomicRead(pCounter)	atomic_read(pCounter)

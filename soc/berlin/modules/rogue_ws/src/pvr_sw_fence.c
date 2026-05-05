@@ -150,6 +150,11 @@ static const struct dma_fence_ops pvr_sw_fence_ops = {
 	.release = pvr_sw_fence_release,
 };
 
+bool is_pvr_sw_fence(const struct dma_fence *fence)
+{
+	return (fence->ops == &pvr_sw_fence_ops);
+}
+
 struct pvr_sw_fence_context *
 pvr_sw_fence_context_create(const char *context_name, const char *driver_name)
 {

@@ -308,4 +308,63 @@ PVRSRV_ERROR RGXCancelForcedIdleRequest(PPVRSRV_DEVICE_NODE psDeviceNode);
 PVRSRV_ERROR RGXCancelForcedIdleRequestAsync(PPVRSRV_DEVICE_NODE psDeviceNode);
 
 
+/*!
+******************************************************************************
+
+ @Function	RGXInitGpuUtilStats
+
+ @Description Initialise structure holding GPU utilisation statistics
+
+ @Input    psDeviceNode   : RGX Device Node
+ @Output   psGpuUtilStats : Utilisation statistics structure to init
+
+******************************************************************************/
+void RGXInitGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
+						 RGX_GPU_UTIL_STATS	*psGpuUtilStats);
+
+/*!
+******************************************************************************
+
+ @Function	RGXGetGpuBasicUtilStats
+
+ @Description Obtain basic GPU utilisation data, like GPU active time and
+              total measured time in nanoseconds since the previous function
+              call. Percentage of active/total is also provided, as well as a
+              flag indicating if the data collected is valid.
+              Usage data is collected and exported periodically by the
+              firmware. This function does not sleep and can be safely called
+              from an IRQ context.
+
+ @Input    psDeviceNode   : RGX Device Node
+ @Output   psReturnStats  : Collected GPU usage statistics
+
+ @Return   PVRSRV_ERROR
+
+******************************************************************************/
+PVRSRV_ERROR RGXGetGpuBasicUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
+								RGX_GPU_UTIL_STATS *psReturnStats);
+
+/*!
+******************************************************************************
+
+ @Function	RGXGetGpuDetailedUtilStats
+
+ @Description Obtain usage data of every hardware Data Master in the GPU
+              divided by VM/Hyperlane usage. Utilisation data consists of the
+              time a GPU DM spent working on behalf of a VM/Hyperlane measured
+              in GPU Timer ticks, total time in ticks since the previous
+              function call, and the active/total percentage.
+              The larger volume of data is periodically collected by the
+              Firmware but it is exported to memory shared with the driver only
+              when explicit requested via KCCB command. The function sleeps
+              while waiting for the data and can't be called in an IRQ context.
+
+ @Input    psDeviceNode   : RGX Device Node
+ @Output   psReturnStats  : Collected GPU usage statistics
+
+ @Return   PVRSRV_ERROR
+
+******************************************************************************/
+PVRSRV_ERROR RGXGetGpuDetailedUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
+										RGX_GPU_UTIL_STATS *psReturnStats);
 #endif /* RGXPOWER_H */

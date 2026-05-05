@@ -417,12 +417,12 @@ static PVRSRV_ERROR _CreateStream(IMG_CHAR *pszStreamName, IMG_HANDLE *phStream)
 
 	/* for now only one stream can be created. Should we be able to create
 	 * per context stream? */
-	iRet = OSSNPrintf(pszStreamName, PRVSRVTL_MAX_STREAM_NAME_SIZE,
+	iRet = OSSNPrintf(pszStreamName, PVRSRVTL_MAX_STREAM_NAME_SIZE,
 	                  "di_stream_%x", OSGetCurrentClientProcessIDKM());
-	if (iRet >= PRVSRVTL_MAX_STREAM_NAME_SIZE)
+	if (iRet >= PVRSRVTL_MAX_STREAM_NAME_SIZE)
 	{
 		/* this check is superfluous because it can never happen but in case
-		 * someone changes the definition of PRVSRVTL_MAX_STREAM_NAME_SIZE
+		 * someone changes the definition of PVRSRVTL_MAX_STREAM_NAME_SIZE
 		 * handle this case */
 		pszStreamName[0] = '\0';
 		return PVRSRV_ERROR_INTERNAL_ERROR;
@@ -568,7 +568,7 @@ PVRSRV_ERROR DIWriteEntryKM(DI_CONTEXT *psContext, const IMG_CHAR *pszEntryPath,
 	}
 	else
 	{
-		PVR_LOG_MSG(PVR_DBG_WARNING, "Unable to write to Entry. Write callback not enabled");
+		PVR_LOG_MSG(PVR_DBG_ERROR, "Unable to write to DI file, writing is not supported for this file.");
 		return PVRSRV_ERROR_INVALID_REQUEST;
 	}
 	return PVRSRV_OK;

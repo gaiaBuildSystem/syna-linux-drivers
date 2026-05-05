@@ -577,10 +577,11 @@ typedef enum
                 This is used to infer whether the virtual or physical address
                 supplied to the OSCPUCacheXXXRangeKM functions can be omitted
                 when called.
-@Input          psDevNode   device on which the allocation was made
+@Input          psDevNode       device on which the allocation was made
+@Input          ePhysHeapType   physical heap type of the allocation
 @Return         OS_CACHE_OP_ADDR_TYPE
 */ /**************************************************************************/
-OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode);
+OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode, PHYS_HEAP_TYPE ePhysHeapType);
 
 /*! CPU Cache attributes available for retrieval, DCache unless specified */
 typedef enum _OS_CPU_CACHE_ATTRIBUTE_
@@ -1587,13 +1588,13 @@ static INLINE void OSWRLockReleaseWrite(POSWR_LOCK psLock)
 @Description    Divide a 64-bit value by a 32-bit value. Return the 64-bit
                 quotient.
                 The remainder is also returned in 'pui32Remainder'.
-@Input          ui64Divident        The number to be divided.
-@Input          ui32Divisor         The 32-bit value 'ui64Divident' is to
+@Input          ui64Dividend        The number to be divided.
+@Input          ui32Divisor         The 32-bit value 'ui64Dividend' is to
                                     be divided by.
 @Output         pui32Remainder      The remainder of the division.
 @Return         The 64-bit quotient (result of the division).
 */ /**************************************************************************/
-IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
+IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
 
 /*************************************************************************/ /*!
 @Function       OSDivide64
@@ -1603,13 +1604,13 @@ IMG_UINT64 OSDivide64r64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UI
                 This function allows for a more optimal implementation
                 of a 64-bit division when the result is known to be
                 representable in 32-bits.
-@Input          ui64Divident        The number to be divided.
-@Input          ui32Divisor         The 32-bit value 'ui64Divident' is to
+@Input          ui64Dividend        The number to be divided.
+@Input          ui32Divisor         The 32-bit value 'ui64Dividend' is to
                                     be divided by.
 @Output         pui32Remainder      The remainder of the division.
 @Return         The 32-bit quotient (result of the division).
 */ /**************************************************************************/
-IMG_UINT32 OSDivide64(IMG_UINT64 ui64Divident, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
+IMG_UINT32 OSDivide64(IMG_UINT64 ui64Dividend, IMG_UINT32 ui32Divisor, IMG_UINT32 *pui32Remainder);
 
 /*************************************************************************/ /*!
 @Function       OSDumpStack
@@ -1764,6 +1765,36 @@ OSAllocateSecBuf(PVRSRV_DEVICE_NODE *psDeviceNode,
 void
 OSFreeSecBuf(PMR *psPMR);
 #endif
+
+/*************************************************************************/ /*!
+@Function       OSGetUID
+@Description    Get UID for a given PID
+@Input          pid         PID to convert
+@Output         pui32UID    IMG_UINT32 pointer to write converted UID to
+@Return         PVRSRV_OK on success, a failure code otherwise.
+*/ /**************************************************************************/
+PVRSRV_ERROR OSGetUID(IMG_PID pid, IMG_UINT32 *pui32UID);
+
+/*************************************************************************/ /*!
+@Function       OSFindFreeCPURangeTopDown
+@Description    Finds a CPU address that is within a given range. If on a 32-bit
+                platform, and ui64RangeEnd is > IMG_UINT32_MAX, the value
+                will be clamped IMG_UINT32_MAX.
+@Input          ui64RangeStart  The (inclusive) start of the range to search.
+@Input          ui64RangeEnd    The (exclusive) end of the range to search.
+@Input          ui64Size        The size of the allocation to be made.
+@Input          ui64AddrHint    An address that will be used as a hint to find
+                                a free CPU address quicker. If no hint is to be
+                                supplied, a value of 0 should be given.
+@Output         pui64Addr       The address found.
+@Return         PVRSRV_OK on success, PVRSRV_ERROR_CPU_ADDR_NOT_FOUND if no address
+                was able to be found.
+*/ /**************************************************************************/
+PVRSRV_ERROR OSFindFreeCPURangeTopDown(IMG_UINT64 ui64RangeStart,
+                                       IMG_UINT64 ui64RangeEnd,
+                                       IMG_UINT64 ui64Size,
+                                       IMG_UINT64 ui64AddrHint,
+                                       IMG_UINT64 *pui64Addr);
 #endif /* OSFUNC_H */
 
 /******************************************************************************

@@ -65,7 +65,7 @@ RAMemDoPhyContigPagesAlloc(RA_ARENA *pArena,
                            IMG_PID uiPid);
 
 void
-RAMemDoPhyContigPagesFree(RA_ARENA *pArena,
+RAMemDoPhyContigPagesFree(RA_ARENA *pArena, PHYS_HEAP *psPhysHeap,
                           PG_HANDLE *psMemHandle);
 
 PVRSRV_ERROR

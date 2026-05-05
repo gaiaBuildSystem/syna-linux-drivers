@@ -1640,7 +1640,6 @@ PVRSRV_ERROR RGXHWPerfHostInit(PVRSRV_RGXDEV_INFO *psRgxDevInfo, IMG_UINT32 ui32
 	/* First packet has ordinal=1, so LastOrdinal=0 will ensure ordering logic
 	 * is maintained */
 	psRgxDevInfo->ui32HWPerfHostLastOrdinal = 0;
-	psRgxDevInfo->hHWPerfHostSpinLock = NULL;
 
 error:
 	return eError;
@@ -1849,7 +1848,6 @@ PVRSRV_ERROR RGXHWPerfHostInitOnDemandResources(PVRSRV_RGXDEV_INFO *psRgxDevInfo
 
 err_alloc_deferred_events:
 	OSSpinLockDestroy(psRgxDevInfo->hHWPerfHostSpinLock);
-	psRgxDevInfo->hHWPerfHostSpinLock = NULL;
 
 err_spinlock_create:
 	(void) OSUninstallMISR(psRgxDevInfo->pvHostHWPerfMISR);
@@ -1875,11 +1873,7 @@ void RGXHWPerfHostDeInit(PVRSRV_RGXDEV_INFO *psRgxDevInfo)
 		psRgxDevInfo->pui8DeferredEvents = NULL;
 	}
 
-	if (psRgxDevInfo->hHWPerfHostSpinLock)
-	{
-		OSSpinLockDestroy(psRgxDevInfo->hHWPerfHostSpinLock);
-		psRgxDevInfo->hHWPerfHostSpinLock = NULL;
-	}
+	OSSpinLockDestroy(psRgxDevInfo->hHWPerfHostSpinLock);
 
 	if (psRgxDevInfo->pvHostHWPerfMISR)
 	{
@@ -2200,7 +2194,7 @@ static void _GetHWPerfHostPacketSpecifics(PVRSRV_RGXDEV_INFO *psRgxDevInfo,
                                           IMG_UINT8 **ppui8Dest,
                                           IMG_BOOL    bSleepAllowed)
 {
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	/* Spin lock is required to avoid getting scheduled out by a higher priority
 	 * context while we're getting header specific details and packet place in
@@ -3723,8 +3717,10 @@ PVRSRV_ERROR PVRSRVRGXGetHWPerfTimeStampKM(
 		IMG_UINT64              *pui64TimeStamp)
 {
 	PVR_UNREFERENCED_PARAMETER(psConnection);
-	*pui64TimeStamp = RGXTimeCorrGetClockus64(psDeviceNode);
-	return PVRSRV_OK;
+	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
+	PVR_UNREFERENCED_PARAMETER(pui64TimeStamp);
+
+	return PVRSRV_ERROR_NOT_IMPLEMENTED;
 }
 
 PVRSRV_ERROR RGXHWPerfControl(
@@ -3844,13 +3840,15 @@ PVRSRV_ERROR RGXHWPerfAcquireEvents(
 		IMG_PBYTE*  ppBuf,
 		IMG_UINT32* pui32BufLen)
 {
-	PVRSRV_ERROR			eError;
-	RGX_KM_HWPERF_DEVDATA*	psDevData = (RGX_KM_HWPERF_DEVDATA*)hDevData;
-	IMG_PBYTE				pDataDest;
-	IMG_UINT32			ui32TlPackets = 0;
-	IMG_PBYTE			pBufferEnd;
-	PVRSRVTL_PPACKETHDR psHDRptr;
-	PVRSRVTL_PACKETTYPE ui16TlType;
+	PVRSRV_ERROR		  eError;
+	RGX_KM_HWPERF_DEVDATA*	  psDevData = (RGX_KM_HWPERF_DEVDATA*)hDevData;
+	IMG_PBYTE		  pDataDest;
+#if (defined(PVRSRV_NEED_PVR_DPF) && defined(DEBUG)) || defined(DOXYGEN)
+	IMG_UINT32 ui32TlPackets = 0;
+#endif
+	IMG_PBYTE		  pBufferEnd;
+	PVRSRVTL_PPACKETHDR	  psHDRptr;
+	PVRSRVTL_PACKETTYPE	  ui16TlType;
 
 	/* Reset the output arguments in case we discover an error */
 	*ppBuf = NULL;
@@ -3925,7 +3923,9 @@ PVRSRV_ERROR RGXHWPerfAcquireEvents(
 		psHDRptr = GET_NEXT_PACKET_ADDR(psHDRptr);
 		/* Updated to keep track of the next packet to be read. */
 		psDevData->pTlBufRead[eStreamId] = (IMG_PBYTE) ((void *)psHDRptr);
+#if (defined(PVRSRV_NEED_PVR_DPF) && defined(DEBUG)) || defined(DOXYGEN)
 		ui32TlPackets++;
+#endif
 	}
 
 	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfAcquireEvents: TL Packets processed %03d", ui32TlPackets));
@@ -4165,7 +4165,7 @@ PVRSRV_ERROR PVRSRVRGXOpenHWPerfClientStreamKM(CONNECTION_DATA *psConnection,
 	TL_STREAM_DESC *psTlSD;
 	PMR *psPMR;
 	PVRSRV_ERROR eError;
-	IMG_CHAR acStreamName[PRVSRVTL_MAX_STREAM_NAME_SIZE];
+	IMG_CHAR acStreamName[PVRSRVTL_MAX_STREAM_NAME_SIZE];
 
 	OSSNPrintf(acStreamName, sizeof(acStreamName),
 	           PVRSRV_TL_HWPERF_HOST_CLIENT_STREAM_FMTSPEC,

@@ -153,8 +153,8 @@ PVRSRV_ERROR
 PhysmemNewRamBackedPMR(CONNECTION_DATA * psConnection,
                        PVRSRV_DEVICE_NODE *psDevNode,
                        IMG_DEVMEM_SIZE_T uiSize,
-                       IMG_UINT32 ui32NumPhysChunks,
-                       IMG_UINT32 ui32NumVirtChunks,
+                       IMG_UINT32 ui32PhysChunkCount,
+                       IMG_UINT32 ui32LogicalChunkCount,
                        IMG_UINT32 *pui32MappingTable,
                        IMG_UINT32 uiLog2PageSize,
                        PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -169,8 +169,8 @@ PVRSRV_ERROR
 PhysmemNewRamBackedPMR_direct(CONNECTION_DATA * psConnection,
 							  PVRSRV_DEVICE_NODE *psDevNode,
 							  IMG_DEVMEM_SIZE_T uiSize,
-							  IMG_UINT32 ui32NumPhysChunks,
-							  IMG_UINT32 ui32NumVirtChunks,
+							  IMG_UINT32 ui32PhysChunkCount,
+							  IMG_UINT32 ui32LogicalChunkCount,
 							  IMG_UINT32 *pui32MappingTable,
 							  IMG_UINT32 uiLog2PageSize,
 							  PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -232,46 +232,7 @@ PVRSRVPhysHeapGetMemInfoKM(CONNECTION_DATA *psConnection,
                            PVRSRV_DEVICE_NODE *psDevNode,
                            IMG_UINT32 ui32PhysHeapCount,
                            PVRSRV_PHYS_HEAP *paePhysHeapID,
-                           PHYS_HEAP_MEM_STATS_V1 *paPhysHeapMemStats);
-
-/*************************************************************************/ /*!
-@Function       PVRSRVPhysHeapGetMemInfoKM
-@Description    Get the memory usage statistics for a given physical heap ID
-@Input          ui32PhysHeapCount      Physical Heap count
-@Input          paePhysHeapID          Array of Physical Heap ID's
-@Output         paPhysHeapMemStats     Buffer to hold the memory statistics
-@Return         PVRSRV_OK if successful
-*/ /**************************************************************************/
-PVRSRV_ERROR
-PVRSRVPhysHeapGetMemInfo2KM(CONNECTION_DATA *psConnection,
-                            PVRSRV_DEVICE_NODE *psDevNode,
-                            IMG_UINT32 ui32PhysHeapCount,
-                            PVRSRV_PHYS_HEAP *paePhysHeapID,
-                            PHYS_HEAP_MEM_STATS_V2 *paPhysHeapMemStats);
-
-/*************************************************************************/ /*!
-@Function       PhysMemValidateMappingTable
-@Description    Checks the PMR mapping table provided is valid (ie has
-                no entries with an index value outside the valid range
-                of indices for the allocation and has no repeated indices)
-
-@Input          ui32TotalNumVirtChunks Total number of virtual chunks
-                                       the allocation has.
-@Input          ui32IndexCount         Number of entries in the mapping
-                                       table.
-@Input          pui32MappingTable      Mapping Table.
-@Return         PVRSRV_OK              if parameters are valid.
-                PVRSRV_ERROR_PMR_INVALID_MAP_INDEX_ARRAY if mapping table
-                                       contains an index out of range or a
-                                       repeated index
-                PVRSRV_ERROR_OUT_OF_MEMORY if unable to allocate memory
-                                       for the index tracking table
-                                       (used internally in this function)
-*/ /**************************************************************************/
-PVRSRV_ERROR
-PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
-                            IMG_UINT32 ui32IndexCount,
-                            const IMG_UINT32 *pui32MappingTable);
+                           PHYS_HEAP_MEM_STATS *paPhysHeapMemStats);
 
 /*************************************************************************/ /*!
 @Function       PhysMemValidateParams

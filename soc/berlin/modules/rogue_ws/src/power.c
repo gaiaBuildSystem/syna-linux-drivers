@@ -897,6 +897,7 @@ PVRSRV_ERROR PVRSRVDeviceSystemPostPowerStateKM(PVRSRV_POWER_DEV		*psPowerDevice
 												PVRSRV_POWER_FLAGS		ePwrFlags)
 {
 	PVRSRV_DEV_POWER_STATE eCurrentPowerState;
+	PVRSRV_DEVICE_NODE *psDeviceNode = psPowerDevice->psDevNode;
 	IMG_UINT64 ui64SysTimer1 = 0;
 	IMG_UINT64 ui64SysTimer2 = 0;
 	IMG_UINT64 ui64DevTimer1 = 0;
@@ -925,6 +926,13 @@ PVRSRV_ERROR PVRSRVDeviceSystemPostPowerStateKM(PVRSRV_POWER_DEV		*psPowerDevice
 
 		PVR_RETURN_IF_ERROR(eError);
 	}
+
+	/* Update the new system power state to maintain consistency with the
+	 * requirement for power ON before the FW boot sequence. */
+	psDeviceNode->eCurrentSysPowerState =
+	   (eNewPowerState == PVRSRV_DEV_POWER_STATE_ON) ?
+		 PVRSRV_SYS_POWER_STATE_ON :
+		 PVRSRV_SYS_POWER_STATE_OFF;
 
 	if (psPowerDevice->pfnDevicePostPower != NULL)
 	{
@@ -985,7 +993,10 @@ PVRSRV_ERROR PVRSRVSetDevicePowerStateKM(PPVRSRV_DEVICE_NODE psDeviceNode,
 													ePwrFlags);
 		PVR_GOTO_IF_ERROR(eError, ErrorExit);
 
-		psDeviceNode->eCurrentSysPowerState = eNewPowerState;
+		psDeviceNode->eCurrentSysPowerState =
+			(eNewPowerState == PVRSRV_DEV_POWER_STATE_ON) ?
+				PVRSRV_SYS_POWER_STATE_ON :
+				PVRSRV_SYS_POWER_STATE_OFF;
 
 		/* Signal Device Watchdog Thread about power mode change. */
 		if (eNewPowerState == PVRSRV_DEV_POWER_STATE_ON)
@@ -1067,7 +1078,7 @@ PVRSRV_ERROR PVRSRVSetDeviceSystemPowerState(PPVRSRV_DEVICE_NODE psDeviceNode,
 
 	/* If setting devices to default state, force idle all devices whose default state is off */
 	pfnIsDefaultStateOff =
-	  (eNewDevicePowerState == PVRSRV_DEV_POWER_STATE_OFF) ? PVRSRVDeviceIsDefaultStateOFF : NULL;
+	  (eNewDevicePowerState == PVRSRV_DEV_POWER_STATE_OFF) ? NULL : PVRSRVDeviceIsDefaultStateOFF;
 
 	/* No power transition requested, so do nothing */
 	if (eNewSysPowerState == psDeviceNode->eCurrentSysPowerState)
@@ -1461,7 +1472,8 @@ PVRSRVDevicePostClockSpeedChange(PPVRSRV_DEVICE_NODE psDeviceNode,
 }
 
 PVRSRV_ERROR PVRSRVDeviceGPUUnitsPowerChange(PPVRSRV_DEVICE_NODE psDeviceNode,
-                                             IMG_UINT32 ui32NewValue)
+                                             IMG_UINT32 ui32NewValue,
+                                             IMG_BOOL bCallerHasPowerLock)
 {
 	PVRSRV_ERROR		eError = PVRSRV_OK;
 	PVRSRV_POWER_DEV	*psPowerDevice;
@@ -1471,8 +1483,11 @@ PVRSRV_ERROR PVRSRVDeviceGPUUnitsPowerChange(PPVRSRV_DEVICE_NODE psDeviceNode,
 	{
 		PVRSRV_DEV_POWER_STATE eDevicePowerState;
 
-		eError = PVRSRVPowerLock(psDeviceNode);
-		PVR_LOG_RETURN_IF_ERROR(eError, "PVRSRVPowerLock");
+		if (!bCallerHasPowerLock)
+		{
+			eError = PVRSRVPowerLock(psDeviceNode);
+			PVR_LOG_RETURN_IF_ERROR(eError, "PVRSRVPowerLock");
+		}
 
 		eDevicePowerState = OSAtomicRead(&psPowerDevice->eCurrentPowerState);
 		if (eDevicePowerState == PVRSRV_DEV_POWER_STATE_ON)
@@ -1509,13 +1524,19 @@ PVRSRV_ERROR PVRSRVDeviceGPUUnitsPowerChange(PPVRSRV_DEVICE_NODE psDeviceNode,
 			PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVDeviceIdleCancelRequestKM", ErrorUnlockAndExit);
 		}
 
-		PVRSRVPowerUnlock(psDeviceNode);
+		if (!bCallerHasPowerLock)
+		{
+			PVRSRVPowerUnlock(psDeviceNode);
+		}
 	}
 
 	return eError;
 
 ErrorUnlockAndExit:
-	PVRSRVPowerUnlock(psDeviceNode);
+	if (!bCallerHasPowerLock)
+	{
+		PVRSRVPowerUnlock(psDeviceNode);
+	}
 ErrorExit:
 	return eError;
 }

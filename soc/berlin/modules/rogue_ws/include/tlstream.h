@@ -213,7 +213,7 @@ TLFreeSharedMem(IMG_HANDLE hStream);
 				it is no longer required.
  @Output        phStream        Pointer to handle to store the new stream.
  @Input         szStreamName    Name of stream, maximum length:
-                                PRVSRVTL_MAX_STREAM_NAME_SIZE.
+                                PVRSRVTL_MAX_STREAM_NAME_SIZE.
                                 If a longer string is provided,creation fails.
  @Input         ui32Size        Desired buffer size in bytes.
  @Input         ui32StreamFlags Used to configure buffer behaviour. See above.

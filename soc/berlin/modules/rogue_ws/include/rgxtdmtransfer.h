@@ -95,27 +95,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 	PVRSRV_TIMELINE             iUpdateTimeline,
 	PVRSRV_FENCE              * piUpdateFence,
 	IMG_CHAR                    szUpdateFenceName[PVRSRV_SYNC_NAME_LENGTH],
-	IMG_UINT32                  ui32FWCommandSize,
-	IMG_UINT8                 * pui8FWCommand,
-	IMG_UINT32                  ui32ExtJobRef,
-	IMG_UINT32                  ui32SyncPMRCount,
-	IMG_UINT32                * pui32SyncPMRFlags,
-	PMR                      ** ppsSyncPMRs,
-	IMG_UINT32					ui32TDMCharacteristic1,
-	IMG_UINT32					ui32TDMCharacteristic2,
-	IMG_UINT64					ui64DeadlineInus);
-
-PVRSRV_ERROR PVRSRVRGXTDMSubmitTransfer3KM(
-	RGX_SERVER_TQ_TDM_CONTEXT * psTransferContext,
-	IMG_UINT32                  ui32PDumpFlags,
-	IMG_UINT32                  ui32ClientUpdateCount,
-	SYNC_PRIMITIVE_BLOCK     ** pauiClientUpdateUFODevVarBlock,
-	IMG_UINT32                * paui32ClientUpdateSyncOffset,
-	IMG_UINT32                * paui32ClientUpdateValue,
-	PVRSRV_FENCE                iCheckFence,
-	PVRSRV_TIMELINE             iUpdateTimeline,
-	PVRSRV_FENCE              * piUpdateFence,
-	IMG_CHAR                    szUpdateFenceName[PVRSRV_SYNC_NAME_LENGTH],
 	PVRSRV_FENCE                iExportFenceToSignal,
 	IMG_UINT32                  ui32FWCommandSize,
 	IMG_UINT8                 * pui8FWCommand,
@@ -135,11 +114,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPriorityKM(CONNECTION_DATA *psConnect
                                                    PVRSRV_DEVICE_NODE * psDeviceNode,
 												   RGX_SERVER_TQ_TDM_CONTEXT *psTransferContext,
 												   IMG_INT32 i32Priority);
-
-PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPropertyKM(RGX_SERVER_TQ_TDM_CONTEXT *psTransferContext,
-													 RGX_CONTEXT_PROPERTY eContextProperty,
-													 IMG_UINT64 ui64Input,
-													 IMG_UINT64 *pui64Output);
 
 /* Debug - Dump debug info of TDM transfer contexts on this device */
 void DumpTDMTransferCtxtsInfo(PVRSRV_RGXDEV_INFO *psDevInfo,

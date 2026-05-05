@@ -188,8 +188,8 @@ static void MMapPMROpen(struct vm_area_struct *ps_vma)
 	eError = PMRRefPMR(psPMR);
 	PVR_LOG_RETURN_VOID_IF_ERROR(eError, "PMRRefPMR");
 
-	eError = PMRLockSysPhysAddresses(psPMR);
-	PVR_LOG_GOTO_IF_ERROR(eError, "PMRLockSysPhysAddresses", ErrUnref);
+	eError = PMRLockPhysAddresses(psPMR);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PMRLockPhysAddresses", ErrUnref);
 
 	/* MMapPMROpen() is called when a process is forked, but only if
 	 * mappings are to be inherited - so increment mapping count of the
@@ -198,17 +198,20 @@ static void MMapPMROpen(struct vm_area_struct *ps_vma)
 	PMRClientCpuMapCountIncr(psPMR);
 
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	PMRLockPMR(psPMR);
-	eError = PMROSLinkCPUMapping(psPMR, ps_vma);
-	PMRUnlockPMR(psPMR);
-	PVR_LOG_GOTO_IF_ERROR(eError, "PMROSLinkCPUMapping", ErrUnlock);
+	if (PMR_GetType(psPMR) == PMR_TYPE_OSMEM)
+	{
+		PMRLockPMR(psPMR);
+		eError = PMROSLinkCPUMapping(psPMR, ps_vma);
+		PMRUnlockPMR(psPMR);
+		PVR_LOG_GOTO_IF_ERROR(eError, "PMROSLinkCPUMapping", ErrUnlock);
+	}
 #endif
 
 	return;
 
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
 ErrUnlock:
-	PMRUnlockSysPhysAddresses(psPMR);
+	PMRUnlockPhysAddresses(psPMR);
 #endif
 ErrUnref:
 	(void) PMRUnrefPMR(psPMR);
@@ -241,12 +244,15 @@ static void MMapPMRClose(struct vm_area_struct *ps_vma)
 #endif
 
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	PMRLockPMR(psPMR);
-	PMROSUnlinkCPUMapping(psPMR, ps_vma);
-	PMRUnlockPMR(psPMR);
+	if (PMR_GetType(psPMR) == PMR_TYPE_OSMEM)
+	{
+		PMRLockPMR(psPMR);
+		PMROSUnlinkCPUMapping(psPMR, ps_vma);
+		PMRUnlockPMR(psPMR);
+	}
 #endif
 
-	PMRUnlockSysPhysAddresses(psPMR);
+	PMRUnlockPhysAddresses(psPMR);
 	/* Decrement the mapping count before Unref of PMR (as Unref could destroy the PMR) */
 	PMRClientCpuMapCountDecr(psPMR);
 	eError = PMRUnrefPMR(psPMR);
@@ -269,6 +275,13 @@ static int MMapVAccess(struct vm_area_struct *ps_vma, unsigned long addr,
 
 	if (write)
 	{
+		if (!BITMASK_HAS(ps_vma->vm_flags, VM_WRITE))
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: Attempt to write to read only vma.",
+									__func__));
+			return -EACCES;
+		}
+
 		eError = PMR_WriteBytes(psPMR,
 					(IMG_DEVMEM_OFFSET_T) ulOffset,
 					buf,
@@ -416,7 +429,8 @@ static vm_fault_t MMapPMRFault(struct vm_fault *ps_vmf)
 
 	PVR_ASSERT(psPMR != NULL);
 
-	if (!PVRSRV_CHECK_OS_LINUX_MOVABLE(PMR_Flags(psPMR)))
+	if (!PVRSRV_CHECK_OS_LINUX_MOVABLE(PMR_Flags(psPMR)) ||
+	    PMR_GetType(psPMR) != PMR_TYPE_OSMEM)
 	{
 		PVR_DPF((PVR_DBG_WARNING, "Attempt to fault non movable PMR."));
 		return VM_FAULT_SIGBUS;
@@ -543,8 +557,14 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 	eError = PMRRefPMR(psPMR);
 	PVR_GOTO_IF_ERROR(eError, ErrReturn);
 
-	eError = PMRLockSysPhysAddresses(psPMR);
+	eError = PMRLockPhysAddresses(psPMR);
 	PVR_GOTO_IF_ERROR(eError, ErrUnrefPMR);
+
+	if (PMR_PhysicalSize(psPMR) == 0)
+	{
+		PVR_LOG_MSG(PVR_DBG_ERROR, "Can not map PMR of 0 physical size");
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_BAD_MAPPING, ErrUnlockPhysAddr);
+	}
 
 	/* Increment mapping count of the PMR so that its layout cannot be
 	 * changed (if sparse).
@@ -557,7 +577,7 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 	eError = DevmemCPUCacheMode(PMR_Flags(psPMR), &ui32CPUCacheFlags);
 	if (eError != PVRSRV_OK)
 	{
-		goto ErrUnlockPhysAddr;
+		goto ErrDecrCpuMap;
 	}
 
 	switch (ui32CPUCacheFlags)
@@ -584,7 +604,7 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 
 		default:
 				eError = PVRSRV_ERROR_INVALID_PARAMS;
-				goto ErrUnlockPhysAddr;
+				goto ErrDecrCpuMap;
 	}
 	ps_vma->vm_page_prot = sPageProt;
 
@@ -612,7 +632,7 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 	if (uiNumOfPFNs > PMR_MAX_TRANSLATION_STACK_ALLOC)
 	{
 		psCpuPAddr = OSAllocMem(uiNumOfPFNs * sizeof(*psCpuPAddr));
-		PVR_LOG_GOTO_IF_NOMEM(psCpuPAddr, eError, ErrUnlockPhysAddr);
+		PVR_LOG_GOTO_IF_NOMEM(psCpuPAddr, eError, ErrDecrCpuMap);
 
 		/* Should allocation fail, clean-up here before exiting */
 		pbValid = OSAllocMem(uiNumOfPFNs * sizeof(*pbValid));
@@ -735,14 +755,17 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 	/* Install open and close handlers for ref-counting */
 	ps_vma->vm_ops = &gsMMapOps;
 
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+	if (PMR_GetType(psPMR) == PMR_TYPE_OSMEM)
+	{
+		eError = PMROSLinkCPUMapping(psPMR, ps_vma);
+		PVR_LOG_GOTO_IF_ERROR(eError, "PMRLinkCpuMapping", ErrDecrCpuMap);
+	}
+#endif
+
 #if defined(PVRSRV_ENABLE_LINUX_MMAP_STATS)
 	/* record the stats */
 	MMapStatsAddOrUpdatePMR(psPMR, uiLength);
-#endif
-
-#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	eError = PMROSLinkCPUMapping(psPMR, ps_vma);
-	PVR_LOG_GOTO_IF_ERROR(eError, "PMRLinkCpuMapping", ErrUnlockPhysAddr);
 #endif
 
 	PMRUnlockPMR(psPMR);
@@ -759,10 +782,11 @@ ErrFreeCpuPAddr:
 	{
 		OSFreeMem(psCpuPAddr);
 	}
-ErrUnlockPhysAddr:
+ErrDecrCpuMap:
 	PMRClientCpuMapCountDecr(psPMR);
 	PMRUnlockPMR(psPMR);
-	PMRUnlockSysPhysAddresses(psPMR);
+ErrUnlockPhysAddr:
+	PMRUnlockPhysAddresses(psPMR);
 ErrUnrefPMR:
 	(void) PMRUnrefPMR(psPMR);
 ErrReturn:

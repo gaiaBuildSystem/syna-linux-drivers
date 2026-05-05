@@ -115,6 +115,15 @@ typedef PVRSRV_ERROR
 						  PVRSRV_SYS_POWER_STATE eCurrentPowerState,
 						  PVRSRV_POWER_FLAGS ePwrFlags);
 
+typedef PVRSRV_ERROR
+(*PFN_SYS_READ_REG)(IMG_HANDLE hSysData,
+					IMG_UINT32 ui32Offset);
+
+typedef void
+(*PFN_SYS_WRITE_REG)(IMG_HANDLE hSysData,
+					 IMG_UINT32 ui32Offset,
+					 IMG_UINT32 ui32Value);
+
 /*************************************************************************/ /*!
 @Brief          Callback function type PFN_SYS_GET_POWER
 
@@ -188,7 +197,7 @@ typedef PVRSRV_ERROR
 
 typedef PVRSRV_ERROR
 (*PFN_TD_SEND_FW_IMAGE)(IMG_HANDLE hSysData,
-		PVRSRV_FW_PARAMS *psTDFWParams);
+						PVRSRV_FW_PARAMS *psTDFWParams);
 
 /* modified for synaptics */
 #include "rgx_bvnc_defs_km.h"
@@ -266,6 +275,12 @@ typedef void
 (*PFN_SYS_DEV_ERROR_NOTIFY)(IMG_HANDLE hSysData,
 						    PVRSRV_ROBUSTNESS_NOTIFY_DATA *psRobustnessErrorData);
 
+#if defined(SUPPORT_NATIVE_FENCE_SYNC)
+typedef IMG_BOOL (*PFN_SYS_DEV_EXTRACT_FF_TOKEN)(IMG_HANDLE hSysData,
+                                                 IMG_HANDLE hEnvFenceObjPtr,
+                                                 SYNC_CHECKPOINT_FF_TOKEN *pui16FFToken);
+#endif
+
 struct _PVRSRV_DEVICE_CONFIG_
 {
 	/*! OS device passed to SysDevInit (linux: 'struct device') */
@@ -328,6 +343,7 @@ struct _PVRSRV_DEVICE_CONFIG_
 	/*! Callback to read SoC timer register value (mandatory). */
 	PFN_SYS_DEV_SOC_TIMER_READ	pfnSoCTimerRead;
 #endif
+
 
 	/*!
 	 *! Callback to perform host CPU cache maintenance. Might be needed for
@@ -392,6 +408,21 @@ struct _PVRSRV_DEVICE_CONFIG_
 	 *! Used for hardware validation of virtualization features only.
 	 */
 	PFN_SYS_INIT_FIREWALL		pfnSysInitFirewall;
+#endif
+
+#if defined(SUPPORT_NATIVE_FENCE_SYNC)
+	/*!
+	 *! A callback to extract a foreign fence (FF) token from the fence's user data.
+	 *! It is valid for this pfn to be NULL, in which case the FF token will be
+	 *! marked as invalid in the syncCP user data.
+	 *!
+	 *! @Input  hSysData        A system data handle.
+	 *! @Input  hEnvFenceObjPtr A pointer to a 'environment' fence object struct.
+	 *! @Output pui16FFToken    The fence token extracted from the hEnvFenceObjPtr.
+	 *!
+	 *! @Return IMG_BOOL, IMG_TRUE if a valid FF token is returned, IMG_FALSE otherwise.
+	 */
+	PFN_SYS_DEV_EXTRACT_FF_TOKEN pfnSysDevExtractFFToken;
 #endif
 
 	/*!

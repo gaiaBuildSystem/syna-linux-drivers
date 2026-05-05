@@ -82,6 +82,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PHYSHEAP_DPF_LVL PVR_DBG_WARNING
 #endif
 
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+typedef struct CLEAR_PAGE_ARRAY_CLEANUP_ITEM_TAG
+{
+	PVRSRV_CLEANUP_THREAD_WORK sCleanupThreadFn;
+} CLEAR_PAGE_ARRAY_CLEANUP_ITEM;
+
+typedef struct CLEAR_PAGE_CLEANUP_ITEM_TAG
+{
+	PVRSRV_CLEANUP_THREAD_WORK sCleanupThreadFn;
+	PHYS_HEAP *psPhysHeap;
+	RA_ARENA *pArena;
+	IMG_DEV_PHYADDR sDevPAddr;
+	IMG_UINT32 ui32NumPages;
+} CLEAR_PAGE_CLEANUP_ITEM;
+#endif
+
 /* Common Physheap Callback implementations */
 
 IMG_UINT32
@@ -193,12 +209,92 @@ RAMemDoPhyContigPagesAlloc(RA_ARENA *pArena,
 	return eError;
 }
 
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+static PVRSRV_ERROR DestroyPhyContigPages(RA_ARENA *pArena,
+										  PHYS_HEAP *psPhysHeap,
+										  IMG_DEV_PHYADDR *psDevPAddr,
+										  IMG_UINT32 ui32NumPages)
+{
+	void *pvPtr;
+	size_t uiSize;
+	IMG_CPU_PHYADDR sCpuPAddr;
+#if defined(PVRSRV_ENABLE_PROCESS_STATS)
+#if !defined(PVRSRV_ENABLE_MEMORY_STATS)
+	PVRSRVStatsDecrMemAllocStatAndUntrack(PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_LMA,
+	                                      (IMG_UINT64)psDevPAddr->uiAddr);
+#else
+	PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_LMA,
+									(IMG_UINT64)psDevPAddr->uiAddr,
+									OSGetCurrentClientProcessIDKM());
+#endif
+#endif
+
+	/* Zero pages */
+	uiSize = ui32NumPages * OSGetPageSize();
+
+	PhysHeapDevPAddrToCpuPAddr(psPhysHeap, 1, &sCpuPAddr, psDevPAddr);
+
+	pvPtr = OSMapPhysToLin(sCpuPAddr,
+						   uiSize,
+						   PVRSRV_MEMALLOCFLAG_CPU_UNCACHED_WC);
+
+	OSCachedMemSetWMB(pvPtr, 0, uiSize);
+
+	OSUnMapPhysToLin(pvPtr, uiSize);
+
+	/* Free pages */
+	RA_Free(pArena, psDevPAddr->uiAddr);
+
+	return PVRSRV_OK;
+}
+
+static PVRSRV_ERROR DeferDestroyPhyContigPages(void *pvData)
+{
+	CLEAR_PAGE_CLEANUP_ITEM *psCleanupItem = pvData;
+	RA_ARENA *pArena = psCleanupItem->pArena;
+	PHYS_HEAP *psPhysHeap = psCleanupItem->psPhysHeap;
+
+	return DestroyPhyContigPages(pArena, psPhysHeap, &psCleanupItem->sDevPAddr, psCleanupItem->ui32NumPages);
+}
+#endif
+
 void
-RAMemDoPhyContigPagesFree(RA_ARENA *pArena,
+RAMemDoPhyContigPagesFree(RA_ARENA *pArena, PHYS_HEAP *psPhysHeap,
                           PG_HANDLE *psMemHandle)
 {
-	RA_BASE_T uiCardAddr = (RA_BASE_T) psMemHandle->u.ui64Handle;
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+	CLEAR_PAGE_CLEANUP_ITEM *psCleanupItem;
+	IMG_DEV_PHYADDR sDevPAddr = { .uiAddr = psMemHandle->u.ui64Handle };
+	IMG_UINT32 ui32NumPages = (1 << psMemHandle->uiOrder);
 
+	psCleanupItem = OSAllocMem(sizeof(*psCleanupItem));
+	if (psCleanupItem == NULL)
+	{
+		PVRSRV_ERROR eError;
+
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed allocate cleanup item", __func__));
+		eError = DestroyPhyContigPages(pArena, psPhysHeap, &sDevPAddr, ui32NumPages);
+		PVR_LOG_IF_ERROR(eError, "DestroyPhyContigPages");
+	}
+	else
+	{
+		psCleanupItem->sCleanupThreadFn.pfnFree = DeferDestroyPhyContigPages;
+		psCleanupItem->sCleanupThreadFn.pvData = psCleanupItem;
+		psCleanupItem->sCleanupThreadFn.bDependsOnHW = IMG_FALSE;
+		psCleanupItem->sCleanupThreadFn.eCleanupType = PVRSRV_CLEANUP_TYPE_RAMEM;
+		psCleanupItem->psPhysHeap = psPhysHeap;
+		psCleanupItem->pArena = pArena;
+		psCleanupItem->sDevPAddr =  sDevPAddr;
+		psCleanupItem->ui32NumPages = ui32NumPages;
+		CLEANUP_THREAD_SET_RETRY_TIMEOUT(&psCleanupItem->sCleanupThreadFn,
+										 CLEANUP_THREAD_RETRY_TIMEOUT_MS_DEFAULT);
+
+		PVRSRVCleanupThreadAddWork(PhysHeapDeviceNode(psPhysHeap), &psCleanupItem->sCleanupThreadFn);
+
+		PVRSRVSignalDriverWideEO();
+	}
+#else
+	RA_BASE_T uiCardAddr = (RA_BASE_T) psMemHandle->u.ui64Handle;
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 #if !defined(PVRSRV_ENABLE_MEMORY_STATS)
 	PVRSRVStatsDecrMemAllocStatAndUntrack(PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_LMA,
@@ -212,6 +308,7 @@ RAMemDoPhyContigPagesFree(RA_ARENA *pArena,
 
 	RA_Free(pArena, uiCardAddr);
 	psMemHandle->uiOrder = 0;
+#endif
 }
 
 PVRSRV_ERROR
@@ -314,13 +411,14 @@ typedef struct _PMR_KERNEL_MAP_HANDLE_ {
 
 typedef struct _PMR_LMALLOCARRAY_DATA_ {
 
-#define FLAG_ZERO              (0U)
-#define FLAG_POISON_ON_FREE    (1U)
-#define FLAG_POISON_ON_ALLOC   (2U)
-#define FLAG_ONDEMAND          (3U)
-#define FLAG_SPARSE            (4U)
-#define FLAG_PHYS_CONTIG       (5U)
-#define FLAG_ZOMBIE            (6U)
+#define FLAG_ZERO_ON_FREE      (0U)
+#define FLAG_ZERO_ON_ALLOC     (1U)
+#define FLAG_POISON_ON_FREE    (2U)
+#define FLAG_POISON_ON_ALLOC   (3U)
+#define FLAG_ONDEMAND          (4U)
+#define FLAG_SPARSE            (5U)
+#define FLAG_PHYS_CONTIG       (6U)
+#define FLAG_ZOMBIE            (7U)
 
 	IMG_PID uiPid;
 
@@ -381,6 +479,9 @@ typedef struct _PMR_LMALLOCARRAY_DATA_ {
 	RA_BASE_ARRAY_T aBaseArray; /* Array of RA Bases */
 
 } PMR_LMALLOCARRAY_DATA;
+
+static PVRSRV_ERROR
+_FreeLMPagesContig(PMR_LMALLOCARRAY_DATA *psPageArrayData);
 
 static PVRSRV_ERROR
 _FreeLMPages(PMR_LMALLOCARRAY_DATA *psPageArrayData,
@@ -629,7 +730,7 @@ _AllocLMPageArray(PMR_SIZE_T uiSize,
 	PVRSRV_ERROR eError;
 	IMG_UINT32 uiNumPages;
 
-	PVR_ASSERT(!BIT_ISSET(ui32Flags, FLAG_ZERO) || !BIT_ISSET(ui32Flags, FLAG_POISON_ON_ALLOC));
+	PVR_ASSERT(!BIT_ISSET(ui32Flags, FLAG_ZERO_ON_ALLOC) || !BIT_ISSET(ui32Flags, FLAG_POISON_ON_ALLOC));
 	PVR_ASSERT(OSGetPageShift() <= uiLog2AllocPageSize);
 
 	/* Use of cast below is justified by the assertion that follows to
@@ -740,7 +841,7 @@ _AllocLMPagesContig(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 		PVR_LOG_GOTO_IF_ERROR(eError, "_PhysPgMemSet", errorOnPoison);
 	}
 
-	if (BIT_ISSET(ui32Flags, FLAG_ZERO))
+	if (BIT_ISSET(ui32Flags, FLAG_ZERO_ON_ALLOC))
 	{
 		eError = _PhysPgMemSet(psPageArrayData,
 		                       psPageArrayData->aBaseArray,
@@ -876,7 +977,7 @@ _AllocLMPagesSparseFull(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 		PVR_LOG_GOTO_IF_ERROR(eError, "_PhysPgMemSet", errorOnPoison);
 	}
 
-	if (BIT_ISSET(ui32Flags, FLAG_ZERO))
+	if (BIT_ISSET(ui32Flags, FLAG_ZERO_ON_ALLOC))
 	{
 		eError = _PhysPgMemSet(psPageArrayData,
 		                       psPageArrayData->aBaseArray,
@@ -1053,7 +1154,7 @@ _AllocLMPagesSparse(PMR_LMALLOCARRAY_DATA *psPageArrayData, IMG_UINT32 *pui32Map
 }
 #endif
 
-	if (BIT_ISSET(ui32Flags, FLAG_POISON_ON_ALLOC) || BIT_ISSET(ui32Flags, FLAG_ZERO))
+	if (BIT_ISSET(ui32Flags, FLAG_POISON_ON_ALLOC) || BIT_ISSET(ui32Flags, FLAG_ZERO_ON_ALLOC))
 	{
 		IMG_UINT32 i, ui32Index = 0;
 		for (i = 0; i < uiChunksToAlloc; i++)
@@ -1217,11 +1318,36 @@ static void
 _FreeLMPageArray(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 {
 	PVR_DPF((PVR_DBG_MESSAGE,
-			"physmem_lma.c: freed local memory array structure for PMR @0x%p",
+			"physmem_ramem.c: freed local memory array structure for PMR @0x%p",
 			psPageArrayData));
 
 	OSFreeMem(psPageArrayData);
 }
+
+static void
+DestroyLMPageArray(PMR_LMALLOCARRAY_DATA *psLMAllocArrayData)
+{
+	if (psLMAllocArrayData->iNumChunksAllocated != 0)
+	{
+		PVRSRV_ERROR eError;
+		eError = _FreeLMPages(psLMAllocArrayData, NULL, 0);
+		PVR_LOG_IF_ERROR(eError, "_FreeLMPages");
+		PVR_ASSERT (eError == PVRSRV_OK);
+	}
+
+	_FreeLMPageArray(psLMAllocArrayData);
+}
+
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+static PVRSRV_ERROR DeferDestroyLMPageArray(void *pvData)
+{
+	PMR_LMALLOCARRAY_DATA *psLMAllocArrayData = pvData;
+
+	DestroyLMPageArray(psLMAllocArrayData);
+
+	return PVRSRV_OK;
+}
+#endif
 
 static PVRSRV_ERROR
 _FreeLMPagesContig(PMR_LMALLOCARRAY_DATA *psPageArrayData)
@@ -1243,6 +1369,16 @@ _FreeLMPagesContig(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 	PVR_ASSERT(psPageArrayData->iNumChunksAllocated ==
 	           psPageArrayData->uiTotalNumChunks);
 
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+	if (BIT_ISSET(psPageArrayData->ui32Flags, FLAG_ZERO_ON_FREE))
+	{
+		eError = _PhysPgMemSet(psPageArrayData,
+							   psPageArrayData->aBaseArray,
+							   ui64PhysSize,
+							   0);
+		PVR_LOG_IF_ERROR(eError, "_PhysPgMemSet");
+	}
+#else
 	if (BIT_ISSET(psPageArrayData->ui32Flags, FLAG_POISON_ON_FREE))
 	{
 		eError = _PhysPgMemSet(psPageArrayData,
@@ -1251,6 +1387,7 @@ _FreeLMPagesContig(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 							   PVRSRV_POISON_ON_FREE_VALUE);
 		PVR_LOG_IF_ERROR(eError, "_PhysPgMemSet");
 	}
+#endif
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 #if !defined(PVRSRV_ENABLE_MEMORY_STATS)
@@ -1315,8 +1452,11 @@ _FreeLMPagesRemainingSparse(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 	IMG_UINT32 i;
 	PVRSRV_ERROR eError;
 	IMG_UINT64 ui64ChunkSize = IMG_PAGE2BYTES64(psPageArrayData->uiLog2ChunkSize);
-	IMG_UINT32 ui32Flags = psPageArrayData->ui32Flags;
-	IMG_BOOL bPoisonOnFree = (BIT_ISSET(ui32Flags, FLAG_POISON_ON_FREE));
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+	IMG_BOOL bZeroOnFree = (BIT_ISSET(psPageArrayData->ui32Flags, FLAG_ZERO_ON_FREE));
+#else
+	IMG_BOOL bPoisonOnFree = (BIT_ISSET(psPageArrayData->ui32Flags, FLAG_POISON_ON_FREE));
+#endif
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 	IMG_UINT32 uiStat = PVRSRV_MEM_ALLOC_TYPE_ALLOC_LMA_PAGES;
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
@@ -1348,17 +1488,24 @@ _FreeLMPagesRemainingSparse(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 				ui32AccumulatedChunks++;
 			}
 
-#if defined(PVRSRV_ENABLE_PROCESS_STATS) && defined(PVRSRV_ENABLE_MEMORY_STATS)
 			for (j = i; j < (i + ui32AccumulatedChunks); j++)
 			{
+#if defined(PVRSRV_ENABLE_PROCESS_STATS) && defined(PVRSRV_ENABLE_MEMORY_STATS)
 				PVRSRVStatsRemoveMemAllocRecord(uiStat,
 				                                RA_BASE_STRIP_GHOST_BIT(psPageArrayData->aBaseArray[j]),
 				                                psPageArrayData->uiPid);
-				if (bPoisonOnFree)
-#else
-			for (j = i; j < (i + ui32AccumulatedChunks) && bPoisonOnFree; j++)
-			{
 #endif
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+				if (bZeroOnFree)
+				{
+					eError = _PhysPgMemSet(psPageArrayData,
+										   &psPageArrayData->aBaseArray[j],
+										   ui64ChunkSize,
+										   0);
+					PVR_LOG_IF_ERROR(eError, "_PhysPgMemSet");
+				}
+#else
+				if (bPoisonOnFree)
 				{
 					eError = _PhysPgMemSet(psPageArrayData,
 										   &psPageArrayData->aBaseArray[j],
@@ -1366,6 +1513,7 @@ _FreeLMPagesRemainingSparse(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 										   PVRSRV_POISON_ON_FREE_VALUE);
 					PVR_LOG_IF_ERROR(eError, "_PhysPgMemSet");
 				}
+#endif
 			}
 
 			eError = RA_FreeMulti(psPageArrayData->psArena,
@@ -1396,8 +1544,8 @@ _FreeLMPagesSparse(PMR_LMALLOCARRAY_DATA *psPageArrayData,
 	RA_ARENA *pArena = psPageArrayData->psArena;
 	IMG_UINT32 uiLog2ChunkSize = psPageArrayData->uiLog2ChunkSize;
 	IMG_UINT64 ui64ChunkSize = IMG_PAGE2BYTES64(uiLog2ChunkSize);
-	IMG_UINT32 ui32Flags = psPageArrayData->ui32Flags;
 	IMG_UINT32 uiActualFreeCount = ui32FreeChunkCount;
+	IMG_UINT32 i;
 	PVRSRV_ERROR eError;
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 	IMG_UINT32 uiStat = PVRSRV_MEM_ALLOC_TYPE_ALLOC_LMA_PAGES;
@@ -1411,35 +1559,34 @@ _FreeLMPagesSparse(PMR_LMALLOCARRAY_DATA *psPageArrayData,
 
 	PVR_ASSERT(psPageArrayData->iNumChunksAllocated != 0);
 
+	for (i = 0; i < ui32FreeChunkCount; i++)
+	{
+		IMG_UINT32 ui32Index = pui32FreeIndices[i];
 #if defined(PVRSRV_ENABLE_PROCESS_STATS) && defined(PVRSRV_ENABLE_MEMORY_STATS)
-	{
-		IMG_UINT32 i;
-
-		for (i = 0; i < ui32FreeChunkCount; i++)
-		{
-			IMG_UINT32 ui32Index = pui32FreeIndices[i];
-
-			PVRSRVStatsRemoveMemAllocRecord(uiStat,
-			                                (IMG_UINT64) RA_BASE_STRIP_GHOST_BIT(
+		PVRSRVStatsRemoveMemAllocRecord(uiStat,
+										(IMG_UINT64) RA_BASE_STRIP_GHOST_BIT(
 			                                psPageArrayData->aBaseArray[ui32Index]),
-			                                psPageArrayData->uiPid);
-		}
-	}
+										psPageArrayData->uiPid);
 #endif
-
-	if (BIT_ISSET(ui32Flags, FLAG_POISON_ON_FREE))
-	{
-		IMG_UINT32 i, ui32Index = 0;
-		for (i = 0; i < ui32FreeChunkCount; i++)
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+		if (BIT_ISSET(psPageArrayData->ui32Flags, FLAG_ZERO_ON_FREE))
 		{
-			ui32Index = pui32FreeIndices[i];
-
+			eError = _PhysPgMemSet(psPageArrayData,
+								   &psPageArrayData->aBaseArray[ui32Index],
+								   ui64ChunkSize,
+								   0);
+			PVR_LOG_IF_ERROR(eError, "_PhysPgMemSet");
+		}
+#else
+		if (BIT_ISSET(psPageArrayData->ui32Flags, FLAG_POISON_ON_FREE))
+		{
 			eError = _PhysPgMemSet(psPageArrayData,
 								   &psPageArrayData->aBaseArray[ui32Index],
 								   ui64ChunkSize,
 								   PVRSRV_POISON_ON_FREE_VALUE);
 			PVR_LOG_IF_ERROR(eError, "_PhysPgMemSet");
 		}
+#endif
 	}
 
 	eError = RA_FreeMultiSparse(pArena,
@@ -1507,7 +1654,7 @@ _ExtractPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
 	PMR_LMALLOCARRAY_DATA* psDstPageArrayData;
 
 	/* Alloc PMR_LMALLOCARRAY_DATA for the extracted pages */
-	eError = _AllocLMPageArray(ui32ExtractPageCount << psSrcPageArrayData->uiLog2ChunkSize,
+	eError = _AllocLMPageArray((IMG_UINT64)ui32ExtractPageCount << psSrcPageArrayData->uiLog2ChunkSize,
 	                           ui32ExtractPageCount,
 	                           psSrcPageArrayData->uiLog2ChunkSize,
 	                           psSrcPageArrayData->ui32Flags,
@@ -1566,7 +1713,7 @@ _ExtractAllPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
 	}
 
 	/* Alloc PMR_LMALLOCARRAY_DATA for the extracted pages */
-	eError = _AllocLMPageArray(psSrcPageArrayData->iNumChunksAllocated << psSrcPageArrayData->uiLog2ChunkSize,
+	eError = _AllocLMPageArray((IMG_UINT64)psSrcPageArrayData->iNumChunksAllocated << psSrcPageArrayData->uiLog2ChunkSize,
 	                           psSrcPageArrayData->iNumChunksAllocated,
 	                           psSrcPageArrayData->uiLog2ChunkSize,
 	                           psSrcPageArrayData->ui32Flags,
@@ -1637,18 +1784,44 @@ _FreeLMPages(PMR_LMALLOCARRAY_DATA *psPageArrayData,
 static void
 PMRFinalizeLocalMem(PMR_IMPL_PRIVDATA pvPriv)
 {
-	PVRSRV_ERROR eError;
 	PMR_LMALLOCARRAY_DATA *psLMAllocArrayData = pvPriv;
 
-	/* We can't free pages until now. */
-	if (psLMAllocArrayData->iNumChunksAllocated != 0)
-	{
-		eError = _FreeLMPages(psLMAllocArrayData, NULL, 0);
-		PVR_LOG_IF_ERROR(eError, "_FreeLMPages");
-		PVR_ASSERT (eError == PVRSRV_OK);
-	}
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+	CLEAR_PAGE_ARRAY_CLEANUP_ITEM *psCleanupItem;
+	PVRSRV_DEVICE_NODE *psDevNode = PhysHeapDeviceNode(psLMAllocArrayData->psPhysHeap);
+	PVRSRV_DATA *psPVRSRVData = PVRSRVGetPVRSRVData();
 
-	_FreeLMPageArray(psLMAllocArrayData);
+	if (psPVRSRVData->cleanupThreadPid == OSGetCurrentProcessID())
+	{
+		/* This is already the cleanup thread, destroy immediately. */
+		DestroyLMPageArray(psLMAllocArrayData);
+	}
+	else
+	{
+		psCleanupItem = OSAllocMem(sizeof(*psCleanupItem));
+		if (psCleanupItem == NULL)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: Failed allocate cleanup item", __func__));
+			DestroyLMPageArray(psLMAllocArrayData);
+		}
+		else
+		{
+			psCleanupItem->sCleanupThreadFn.pfnFree = DeferDestroyLMPageArray;
+			psCleanupItem->sCleanupThreadFn.pvData = psLMAllocArrayData;
+			psCleanupItem->sCleanupThreadFn.bDependsOnHW = IMG_FALSE;
+			psCleanupItem->sCleanupThreadFn.eCleanupType = PVRSRV_CLEANUP_TYPE_RAMEM;
+			CLEANUP_THREAD_SET_RETRY_TIMEOUT(&psCleanupItem->sCleanupThreadFn,
+											 CLEANUP_THREAD_RETRY_TIMEOUT_MS_DEFAULT);
+
+			PVRSRVCleanupThreadAddWork(psDevNode, &psCleanupItem->sCleanupThreadFn);
+
+			PVRSRVSignalDriverWideEO();
+		}
+	}
+#else
+	/* We can't free pages until now. */
+	DestroyLMPageArray(psLMAllocArrayData);
+#endif
 }
 
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
@@ -1752,7 +1925,7 @@ static PVRSRV_ERROR PMRZombifyLocalMem(PMR_IMPL_PRIVDATA pvPriv, PMR *psPMR)
 /* callback function for locking the system physical page addresses.
    As we are LMA there is nothing to do as we control physical memory. */
 static PVRSRV_ERROR
-PMRLockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
+PMRLockPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
 {
 
 	PVRSRV_ERROR eError;
@@ -1772,11 +1945,11 @@ PMRLockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
 
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
 static PVRSRV_ERROR
-PMRUnlockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv,
+PMRUnlockPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv,
                                   PMR_IMPL_ZOMBIEPAGES *ppvZombiePages)
 #else
 static PVRSRV_ERROR
-PMRUnlockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
+PMRUnlockPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
 #endif
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
@@ -1821,9 +1994,9 @@ e0:
 	return eError;
 }
 
-/* N.B. It is assumed that PMRLockSysPhysAddressesLocalMem() is called _before_ this function! */
+/* N.B. It is assumed that PMRLockPhysAddressesLocalMem() is called _before_ this function! */
 static PVRSRV_ERROR
-PMRSysPhysAddrLocalMem(PMR_IMPL_PRIVDATA pvPriv,
+PMRDevPhysAddrLocalMem(PMR_IMPL_PRIVDATA pvPriv,
 					   IMG_UINT32 ui32Log2PageSize,
 					   IMG_UINT32 ui32NumOfPages,
 					   IMG_DEVMEM_OFFSET_T *puiOffset,
@@ -2190,7 +2363,7 @@ PMRWriteBytesLocalMem(PMR_IMPL_PRIVDATA pvPriv,
 */ /**************************************************************************/
 static PVRSRV_ERROR
 PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
-                           const PMR *psPMR,
+                           PMR *psPMR,
                            IMG_UINT32 ui32AllocPageCount,
                            IMG_UINT32 *pai32AllocIndices,
                            IMG_UINT32 ui32FreePageCount,
@@ -2276,157 +2449,160 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 	    PVRSRV_ERROR_INVALID_PARAMS
 	);
 
+	/* Validate the free page indices */
+	if (ui32FreePageCount)
 	{
-		/* Validate the free page indices */
-		if (ui32FreePageCount)
+		if (pai32FreeIndices != NULL)
 		{
-			if (pai32FreeIndices != NULL)
+			for (ui32Loop = 0; ui32Loop < ui32FreePageCount; ui32Loop++)
 			{
-				for (ui32Loop = 0; ui32Loop < ui32FreePageCount; ui32Loop++)
+				uiFreepgidx = pai32FreeIndices[ui32Loop];
+
+				if (uiFreepgidx >= psPMRPageArrayData->uiTotalNumChunks)
 				{
-					uiFreepgidx = pai32FreeIndices[ui32Loop];
+					PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE, e0);
+				}
 
-					if (uiFreepgidx >= psPMRPageArrayData->uiTotalNumChunks)
-					{
-						PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE, e0);
-					}
-
-					if (RA_BASE_IS_INVALID(paBaseArray[uiFreepgidx]))
-					{
-						PVR_LOG_GOTO_WITH_ERROR("paBaseArray[uiFreepgidx]", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
-					}
+				if (RA_BASE_IS_INVALID(paBaseArray[uiFreepgidx]))
+				{
+					PVR_LOG_GOTO_WITH_ERROR("paBaseArray[uiFreepgidx]", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
 				}
 			}
-			else
-			{
-				PVR_DPF((PVR_DBG_ERROR,
-				         "%s: Given non-zero free count but missing indices array",
-				         __func__));
-				return PVRSRV_ERROR_INVALID_PARAMS;
-			}
 		}
-
-		/* The following block of code verifies any issues with common alloc chunk indices */
-		for (ui32Loop = ui32AdtnlAllocPages; ui32Loop < ui32AllocPageCount; ui32Loop++)
+		else
 		{
-			uiAllocpgidx = pai32AllocIndices[ui32Loop];
-			if (uiAllocpgidx >= psPMRPageArrayData->uiTotalNumChunks)
-			{
-				PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE, e0);
-			}
-
-			if ((!RA_BASE_IS_INVALID(paBaseArray[uiAllocpgidx])) ||
-					(psPMRMapTable->aui32Translation[uiAllocpgidx] != TRANSLATION_INVALID))
-			{
-				PVR_LOG_GOTO_WITH_ERROR("Trying to allocate already allocated page again", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
-			}
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Given non-zero free count but missing indices array",
+			         __func__));
+			return PVRSRV_ERROR_INVALID_PARAMS;
 		}
+	}
 
-		ui32Loop = 0;
-
-		/* Allocate new chunks */
-		if (0 != ui32AdtnlAllocPages)
+	/* The following block of code verifies any issues with common alloc chunk indices */
+	for (ui32Loop = ui32AdtnlAllocPages; ui32Loop < ui32AllocPageCount; ui32Loop++)
+	{
+		uiAllocpgidx = pai32AllocIndices[ui32Loop];
+		if (uiAllocpgidx >= psPMRPageArrayData->uiTotalNumChunks)
 		{
-			/* Say how many chunks to allocate */
-			psPMRPageArrayData->uiChunksToAlloc = ui32AdtnlAllocPages;
-
-			eError = _AllocLMPages(psPMRPageArrayData, pai32AllocIndices);
-			PVR_LOG_GOTO_IF_ERROR(eError, "_AllocLMPages", e0);
-
-			/* Mark the corresponding chunks of translation table as valid */
-			for (ui32Loop = 0; ui32Loop < ui32AdtnlAllocPages; ui32Loop++)
-			{
-				psPMRMapTable->aui32Translation[pai32AllocIndices[ui32Loop]] = pai32AllocIndices[ui32Loop];
-			}
-
-			psPMRMapTable->ui32NumPhysChunks += ui32AdtnlAllocPages;
+			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE, e0);
 		}
 
+		if ((!RA_BASE_IS_INVALID(paBaseArray[uiAllocpgidx])) ||
+		    (psPMRMapTable->aui32Translation[uiAllocpgidx] != TRANSLATION_INVALID))
+		{
+			PVR_LOG_GOTO_WITH_ERROR("Trying to allocate already allocated page again", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
+		}
+	}
+
+	ui32Loop = 0;
+
+	/* Allocate new chunks */
+	if (0 != ui32AdtnlAllocPages)
+	{
+		/* Say how many chunks to allocate */
+		psPMRPageArrayData->uiChunksToAlloc = ui32AdtnlAllocPages;
+
+		eError = _AllocLMPages(psPMRPageArrayData, pai32AllocIndices);
+		PVR_LOG_GOTO_IF_ERROR(eError, "_AllocLMPages", e0);
+
+		/* Mark the corresponding chunks of translation table as valid */
+		for (ui32Loop = 0; ui32Loop < ui32AdtnlAllocPages; ui32Loop++)
+		{
+			psPMRMapTable->aui32Translation[pai32AllocIndices[ui32Loop]] = pai32AllocIndices[ui32Loop];
+		}
+
+		psPMRMapTable->ui32NumPhysChunks += ui32AdtnlAllocPages;
+	}
+
+	ui32Index = ui32Loop;
+	ui32Loop = 0;
+
+	/* Move the corresponding free chunks to alloc request */
+	eError = RA_SwapSparseMem(psPMRPageArrayData->psArena,
+	                          paBaseArray,
+	                          psPMRPageArrayData->uiTotalNumChunks,
+	                          psPMRPageArrayData->uiLog2ChunkSize,
+	                          &pai32AllocIndices[ui32Index],
+	                          &pai32FreeIndices[ui32Loop],
+	                          ui32CommonRequstCount);
+	PVR_LOG_GOTO_IF_ERROR(eError, "RA_SwapSparseMem", unwind_alloc);
+
+	for (ui32Loop = 0; ui32Loop < ui32CommonRequstCount; ui32Loop++, ui32Index++)
+	{
+		uiAllocpgidx = pai32AllocIndices[ui32Index];
+		uiFreepgidx  = pai32FreeIndices[ui32Loop];
+
+		psPMRMapTable->aui32Translation[uiFreepgidx] = TRANSLATION_INVALID;
+		psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
+
+		/* Be sure to honour the attributes associated with the allocation
+		 * such as zeroing, poisoning etc. */
+		if (BIT_ISSET(psPMRPageArrayData->ui32Flags, FLAG_POISON_ON_ALLOC))
+		{
+			eError = _PhysPgMemSet(psPMRPageArrayData,
+			                       &psPMRPageArrayData->aBaseArray[uiAllocpgidx],
+			                       ui64ChunkSize,
+			                       PVRSRV_POISON_ON_ALLOC_VALUE);
+
+			/* Consider this as a soft failure and go ahead but log error to kernel log */
+			if (eError != PVRSRV_OK)
+			{
+#if defined(DEBUG)
+				bPoisonFail = IMG_TRUE;
+#endif
+			}
+		}
+
+		if (BIT_ISSET(psPMRPageArrayData->ui32Flags, FLAG_ZERO_ON_ALLOC))
+		{
+			eError = _PhysPgMemSet(psPMRPageArrayData,
+			                       &psPMRPageArrayData->aBaseArray[uiAllocpgidx],
+			                       ui64ChunkSize,
+			                       ZERO_PAGE_VALUE);
+			/* Consider this as a soft failure and go ahead but log error to kernel log */
+			if (eError != PVRSRV_OK)
+			{
+#if defined(DEBUG)
+				/* Don't think we need to zero any chunks further */
+				bZeroFail = IMG_TRUE;
+#endif
+			}
+		}
+	}
+
+	/* Free or zombie the additional free chunks */
+	if (0 != ui32AdtnlFreePages)
+	{
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+		PMR_LMALLOCARRAY_DATA *psExtractedPagesPageArray = NULL;
+
+		eError = _ExtractPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages, &psExtractedPagesPageArray);
+		PVR_LOG_GOTO_IF_ERROR(eError, "_ExtractPages", e0);
+
+		if (psPMRPageArrayData->iNumChunksAllocated == 0)
+		{
+			PMR_SetZombieIsPMREmptyFlag(psPMR);
+		}
+
+		/* Zombify pages to get proper stats */
+		eError = PMRZombifyLocalMem(psExtractedPagesPageArray, NULL);
+		PVR_LOG_IF_ERROR(eError, "PMRZombifyLocalMem");
+
+		*ppvZombiePages = psExtractedPagesPageArray;
+#else
+		eError = _FreeLMPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages);
+		PVR_LOG_GOTO_IF_ERROR(eError, "_FreeLMPages", e0);
+#endif /* SUPPORT_PMR_PAGES_DEFERRED_FREE */
 		ui32Index = ui32Loop;
 		ui32Loop = 0;
 
-		/* Move the corresponding free chunks to alloc request */
-		eError = RA_SwapSparseMem(psPMRPageArrayData->psArena,
-		                           paBaseArray,
-		                           psPMRPageArrayData->uiTotalNumChunks,
-		                           psPMRPageArrayData->uiLog2ChunkSize,
-		                           &pai32AllocIndices[ui32Index],
-		                           &pai32FreeIndices[ui32Loop],
-		                           ui32CommonRequstCount);
-		PVR_LOG_GOTO_IF_ERROR(eError, "RA_SwapSparseMem", unwind_alloc);
-
-		for (ui32Loop = 0; ui32Loop < ui32CommonRequstCount; ui32Loop++, ui32Index++)
+		while (ui32Loop++ < ui32AdtnlFreePages)
 		{
-			uiAllocpgidx = pai32AllocIndices[ui32Index];
-			uiFreepgidx  = pai32FreeIndices[ui32Loop];
-
-			psPMRMapTable->aui32Translation[uiFreepgidx] = TRANSLATION_INVALID;
-			psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
-
-			/* Be sure to honour the attributes associated with the allocation
-			 * such as zeroing, poisoning etc. */
-			if (BIT_ISSET(psPMRPageArrayData->ui32Flags, FLAG_POISON_ON_ALLOC))
-			{
-				eError = _PhysPgMemSet(psPMRPageArrayData,
-				                       &psPMRPageArrayData->aBaseArray[uiAllocpgidx],
-				                       ui64ChunkSize,
-				                       PVRSRV_POISON_ON_ALLOC_VALUE);
-
-				/* Consider this as a soft failure and go ahead but log error to kernel log */
-				if (eError != PVRSRV_OK)
-				{
-#if defined(DEBUG)
-					bPoisonFail = IMG_TRUE;
-#endif
-				}
-			}
-
-			if (BIT_ISSET(psPMRPageArrayData->ui32Flags, FLAG_ZERO))
-			{
-				eError = _PhysPgMemSet(psPMRPageArrayData,
-									   &psPMRPageArrayData->aBaseArray[uiAllocpgidx],
-									   ui64ChunkSize,
-									   ZERO_PAGE_VALUE);
-				/* Consider this as a soft failure and go ahead but log error to kernel log */
-				if (eError != PVRSRV_OK)
-				{
-#if defined(DEBUG)
-					/* Don't think we need to zero any chunks further */
-					bZeroFail = IMG_TRUE;
-#endif
-				}
-			}
+			/* Set the corresponding mapping table entry to invalid address */
+			psPMRMapTable->aui32Translation[pai32FreeIndices[ui32Index++]] = TRANSLATION_INVALID;
 		}
 
-		/* Free or zombie the additional free chunks */
-		if (0 != ui32AdtnlFreePages)
-		{
-#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
-			PMR_LMALLOCARRAY_DATA *psExtractedPagesPageArray = NULL;
-
-			eError = _ExtractPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages, &psExtractedPagesPageArray);
-			PVR_LOG_GOTO_IF_ERROR(eError, "_ExtractPages", e0);
-
-			/* Zombify pages to get proper stats */
-			eError = PMRZombifyLocalMem(psExtractedPagesPageArray, NULL);
-			PVR_LOG_IF_ERROR(eError, "PMRZombifyLocalMem");
-
-			*ppvZombiePages = psExtractedPagesPageArray;
-#else
-			eError = _FreeLMPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages);
-			PVR_LOG_GOTO_IF_ERROR(eError, "_FreeLMPages", e0);
-#endif /* SUPPORT_PMR_PAGES_DEFERRED_FREE */
-			ui32Index = ui32Loop;
-			ui32Loop = 0;
-
-			while (ui32Loop++ < ui32AdtnlFreePages)
-			{
-				/* Set the corresponding mapping table entry to invalid address */
-				psPMRMapTable->aui32Translation[pai32FreeIndices[ui32Index++]] = TRANSLATION_INVALID;
-			}
-
-			psPMRMapTable->ui32NumPhysChunks -= ui32AdtnlFreePages;
-		}
+		psPMRMapTable->ui32NumPhysChunks -= ui32AdtnlFreePages;
 	}
 
 #if defined(DEBUG)
@@ -2456,9 +2632,9 @@ e0:
 }
 
 static PMR_IMPL_FUNCTAB _sPMRLMAFuncTab = {
-	.pfnLockPhysAddresses = &PMRLockSysPhysAddressesLocalMem,
-	.pfnUnlockPhysAddresses = &PMRUnlockSysPhysAddressesLocalMem,
-	.pfnDevPhysAddr = &PMRSysPhysAddrLocalMem,
+	.pfnLockPhysAddresses = &PMRLockPhysAddressesLocalMem,
+	.pfnUnlockPhysAddresses = &PMRUnlockPhysAddressesLocalMem,
+	.pfnDevPhysAddr = &PMRDevPhysAddrLocalMem,
 	.pfnAcquireKernelMappingData = &PMRAcquireKernelMappingDataLocalMem,
 	.pfnReleaseKernelMappingData = &PMRReleaseKernelMappingDataLocalMem,
 	.pfnReadBytes = &PMRReadBytesLocalMem,
@@ -2522,7 +2698,7 @@ PhysmemNewRAMemRamBackedPMR(PHYS_HEAP *psPhysHeap,
 
 	if (PVRSRV_CHECK_ZERO_ON_ALLOC(uiFlags))
 	{
-		BIT_SET(ui32LMAllocFlags, FLAG_ZERO);
+		BIT_SET(ui32LMAllocFlags, FLAG_ZERO_ON_ALLOC);
 	}
 
 	if (PVRSRV_CHECK_POISON_ON_ALLOC(uiFlags))
@@ -2534,6 +2710,14 @@ PhysmemNewRAMemRamBackedPMR(PHYS_HEAP *psPhysHeap,
 	if (PVRSRV_CHECK_POISON_ON_FREE(uiFlags))
 	{
 		BIT_SET(ui32LMAllocFlags, FLAG_POISON_ON_FREE);
+	}
+#endif
+
+#if defined(PVR_PHYSMEM_LMA_ZERO_ALL_PAGES)
+	if (!BITMASK_ANY(PhysHeapGetFlags(psPhysHeap),
+					 PHYS_HEAP_USAGE_GPU_PRIVATE))
+	{
+		BIT_SET(ui32LMAllocFlags, FLAG_ZERO_ON_FREE);
 	}
 #endif
 

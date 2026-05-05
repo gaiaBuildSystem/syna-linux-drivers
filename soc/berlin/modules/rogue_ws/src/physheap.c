@@ -58,6 +58,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "physmem_ima.h"
 #include "physmem_osmem.h"
 #include "debug_common.h"
+#include "physheap_config.h"
+#include "pvrsrv_memalloc_physheap.h"
+#include "pvrsrv_memallocflags.h"
 
 struct _PHYS_HEAP_
 {
@@ -91,7 +94,7 @@ struct _PHYS_HEAP_
 
 	/*! Implementation specific */
 	PHEAP_IMPL_DATA             pvImplData;
-	PHEAP_IMPL_FUNCS            *psImplFuncs;
+	const PHEAP_IMPL_FUNCS      *psImplFuncs;
 
 	/*! Pointer to next physical heap */
 	struct _PHYS_HEAP_		*psNext;
@@ -385,7 +388,7 @@ static PVRSRV_ERROR PhysHeapPrintHeapProperties(PHYS_HEAP *psPhysHeap,
 			sGPUPAddr.uiAddr = IMG_UINT64_MAX;
 		}
 
-		PVR_DUMPDEBUG_LOG("0x%p -> PdMs: %s, Type: %s, %s, "
+		PVR_DUMPDEBUG_LOG("0x"IMG_KM_PTR_FMTSPEC" -> PdMs: %s, Type: %s, %s, "
 		                  "CPU PA Base: " CPUPHYADDR_UINT_FMTSPEC", "
 		                  "GPU PA Base: 0x%08"IMG_UINT64_FMTSPECx", "
 		                  "Usage Flags: 0x%08x (%s), Refs: %d, "
@@ -410,7 +413,7 @@ static PVRSRV_ERROR PhysHeapPrintHeapProperties(PHYS_HEAP *psPhysHeap,
 		IMG_CHAR pszSpanString[128] = "\0";
 		void *pvIterHandle = NULL;
 
-		PVR_DUMPDEBUG_LOG("0x%p -> PdMs: %s, Type: %s, %s, "
+		PVR_DUMPDEBUG_LOG("0x"IMG_KM_PTR_FMTSPEC" -> PdMs: %s, Type: %s, %s, "
 		                  "Usage Flags: 0x%08x (%s), Refs: %d, "
 		                  "Free Size: %"IMG_UINT64_FMTSPEC"B, "
 		                  "Total Size: %"IMG_UINT64_FMTSPEC"B Spans:",
@@ -434,7 +437,7 @@ static PVRSRV_ERROR PhysHeapPrintHeapProperties(PHYS_HEAP *psPhysHeap,
 	}
 	else
 	{
-		PVR_DUMPDEBUG_LOG("0x%p -> PdMs: %s, Type: %s, %s, "
+		PVR_DUMPDEBUG_LOG("0x"IMG_KM_PTR_FMTSPEC" -> PdMs: %s, Type: %s, %s, "
 		                  "Usage Flags: 0x%08x (%s), Refs: %d, "
 		                  "Free Size: %"IMG_UINT64_FMTSPEC"B, "
 		                  "Total Size: %"IMG_UINT64_FMTSPEC"B"
@@ -1280,15 +1283,41 @@ void PhysHeapDeInitDeviceHeaps(PVRSRV_DEVICE_NODE *psDeviceNode)
 }
 
 #if defined(PVRSRV_ENABLE_XD_MEM)
-static void PhysHeapSpasRegionLock(PHYS_HEAP_SPAS_REGION *psSpasRegion)
+/* See PHYS_HEAP_SPAS_REGION for details */
+struct _PHYS_HEAP_SPAS_REGION_ {
+	/* The head of the physheap list.
+	 * May be empty. */
+	DLLIST_NODE sListHead;
+	/* Protects the list. */
+	POSWR_LOCK hLock;
+};
+
+PVRSRV_ERROR PhysHeapSpasCreate(PHYS_HEAP_SPAS_REGION **ppsSpasRegion)
 {
-	while (OSAtomicCompareExchange(&psSpasRegion->ui32Lock, 0, 1) != 0);
-	OSMemoryBarrier(NULL);
+	PVRSRV_ERROR eError;
+	PHYS_HEAP_SPAS_REGION *psSpasRegion;
+
+	psSpasRegion = OSAllocMem(sizeof(PHYS_HEAP_SPAS_REGION));
+	PVR_LOG_RETURN_IF_NOMEM(psSpasRegion, "PHYS_HEAP_SPAS_REGION");
+
+	eError = OSWRLockCreate(&psSpasRegion->hLock);
+	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate", err_free_spas_);
+
+	dllist_init(&psSpasRegion->sListHead);
+
+	*ppsSpasRegion = psSpasRegion;
+	return PVRSRV_OK;
+
+err_free_spas_:
+	OSFreeMem(psSpasRegion);
+	return eError;
 }
-static void PhysHeapSpasRegionUnlock(PHYS_HEAP_SPAS_REGION *psSpasRegion)
+
+void PhysHeapSpasDestroy(PHYS_HEAP_SPAS_REGION *psSpasRegion)
 {
-	OSMemoryBarrier(NULL);
-	OSAtomicWrite(&psSpasRegion->ui32Lock, 0);
+	PVR_ASSERT(dllist_is_empty(&psSpasRegion->sListHead));
+	OSWRLockDestroy(psSpasRegion->hLock);
+	OSFreeMem(psSpasRegion);
 }
 
 /* Insert the physheap into a given SPAS. */
@@ -1301,9 +1330,9 @@ static void PhysHeapSpasInsert(PHYS_HEAP* psPhysHeap, PHYS_HEAP_SPAS_REGION *psS
 
 	psPhysHeap->psSpasRegion = psSpasRegion;
 
-	PhysHeapSpasRegionLock(psSpasRegion);
+	OSWRLockAcquireWrite(psSpasRegion->hLock);
 	dllist_add_to_head(&psSpasRegion->sListHead, &psPhysHeap->sSpasSibling);
-	PhysHeapSpasRegionUnlock(psSpasRegion);
+	OSWRLockReleaseWrite(psSpasRegion->hLock);
 }
 
 /* Remove the PhysHeap from its SPAS region if it is in one. */
@@ -1314,10 +1343,10 @@ static void PhysHeapSpasRemove(PHYS_HEAP *psPhysHeap)
 	if (psSpasRegion == NULL)
 		return; /* Not in a region. */
 
-	PhysHeapSpasRegionLock(psSpasRegion);
+	OSWRLockAcquireWrite(psSpasRegion->hLock);
 	psPhysHeap->psSpasRegion = NULL;
 	dllist_remove_node(&psPhysHeap->sSpasSibling);
-	PhysHeapSpasRegionUnlock(psSpasRegion);
+	OSWRLockReleaseWrite(psSpasRegion->hLock);
 
 	psPhysHeap->psSpasRegion = NULL;
 }
@@ -1331,7 +1360,7 @@ PVRSRV_ERROR PhysHeapSpasWithDevice(PHYS_HEAP* psFromPhysHeap,
 	if (psFromPhysHeap->psSpasRegion == NULL)
 		return eError;
 
-	PhysHeapSpasRegionLock(psFromPhysHeap->psSpasRegion);
+	OSWRLockAcquireRead(psFromPhysHeap->psSpasRegion->hLock);
 	dllist_foreach_node(&psFromPhysHeap->psSpasRegion->sListHead, psNode, psNextNode)
 	{
 		PHYS_HEAP *psPhysHeapCursor = IMG_CONTAINER_OF(psNode, PHYS_HEAP, sSpasSibling);
@@ -1341,7 +1370,7 @@ PVRSRV_ERROR PhysHeapSpasWithDevice(PHYS_HEAP* psFromPhysHeap,
 		}
 	}
 exit_unlock_:
-	PhysHeapSpasRegionUnlock(psFromPhysHeap->psSpasRegion);
+	OSWRLockReleaseRead(psFromPhysHeap->psSpasRegion->hLock);
 	return eError;
 }
 
@@ -1355,13 +1384,13 @@ static IMG_UINT64 PhysHeapSpasDeviceBitmap(PHYS_HEAP* psPhysHeap)
 	if (psPhysHeap->psSpasRegion == NULL)
 		return uiDevices;
 
-	PhysHeapSpasRegionLock(psPhysHeap->psSpasRegion);
+	OSWRLockAcquireRead(psPhysHeap->psSpasRegion->hLock);
 	dllist_foreach_node(&psPhysHeap->psSpasRegion->sListHead, psNode, psNextNode)
 	{
 		PHYS_HEAP *psPhysHeapCursor = IMG_CONTAINER_OF(psNode, PHYS_HEAP, sSpasSibling);
 		uiDevices |= IMG_UINT64_C(1) << psPhysHeapCursor->psDevNode->sDevId.ui32InternalID;
 	}
-	PhysHeapSpasRegionUnlock(psPhysHeap->psSpasRegion);
+	OSWRLockReleaseRead(psPhysHeap->psSpasRegion->hLock);
 	return uiDevices;
 }
 #endif
@@ -1370,7 +1399,7 @@ PVRSRV_ERROR PhysHeapCreate(PPVRSRV_DEVICE_NODE psDevNode,
 							  PHYS_HEAP_CONFIG *psConfig,
 							  PHYS_HEAP_POLICY uiPolicy,
 							  PHEAP_IMPL_DATA pvImplData,
-							  PHEAP_IMPL_FUNCS *psImplFuncs,
+							  const PHEAP_IMPL_FUNCS *psImplFuncs,
 							  PHYS_HEAP **ppsPhysHeap)
 {
 	PHYS_HEAP *psNew;
@@ -1535,7 +1564,7 @@ void PhysHeapDestroyDeviceHeaps(PPVRSRV_DEVICE_NODE psDevNode)
 
 void PhysHeapDestroy(PHYS_HEAP *psPhysHeap)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PPVRSRV_DEVICE_NODE psDevNode = psPhysHeap->psDevNode;
 
 	PVR_DPF_ENTERED1(psPhysHeap);
@@ -1800,7 +1829,7 @@ IMG_UINT32 PhysHeapGetIPAShift(PHYS_HEAP *psPhysHeap)
 PVRSRV_ERROR PhysHeapGetDevPAddr(PHYS_HEAP *psPhysHeap,
 									   IMG_DEV_PHYADDR *psDevPAddr)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnGetDevPAddr != NULL)
@@ -1820,7 +1849,7 @@ PVRSRV_ERROR PhysHeapGetDevPAddr(PHYS_HEAP *psPhysHeap,
 PVRSRV_ERROR PhysHeapGetCpuPAddr(PHYS_HEAP *psPhysHeap,
 								IMG_CPU_PHYADDR *psCpuPAddr)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnGetCPUPAddr != NULL)
@@ -1835,7 +1864,7 @@ PVRSRV_ERROR PhysHeapGetCpuPAddr(PHYS_HEAP *psPhysHeap,
 PVRSRV_ERROR PhysHeapGetSize(PHYS_HEAP *psPhysHeap,
 								   IMG_UINT64 *puiSize)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnGetSize != NULL)
@@ -1985,14 +2014,19 @@ IMG_CHAR *PhysHeapPDumpMemspaceName(PHYS_HEAP *psPhysHeap)
 #if !defined(PVRSRV_PHYSHEAP_DISABLE_OOM_DEMOTION)
 static inline void _LogOOMDetection(IMG_BOOL isOOMDetected, PHYS_HEAP *psPhysHeap, PVRSRV_MEMALLOCFLAGS_T uiFlags)
 {
-	IMG_BOOL bExistingVal = OSAtomicExchange(&psPhysHeap->sOOMDetected, isOOMDetected);
-	PVRSRV_PHYS_HEAP ePhysIdx = PVRSRV_GET_PHYS_HEAP_HINT(uiFlags);
+	IMG_BOOL bExistingVal;
+	PVRSRV_PHYS_HEAP ePhysHeap = PVRSRV_GET_PHYS_HEAP_HINT(uiFlags);
 
+	PVR_ASSERT(psPhysHeap != NULL);
+	PVR_ASSERT(ePhysHeap > PVRSRV_PHYS_HEAP_DEFAULT);
+	PVR_ASSERT(ePhysHeap < PVRSRV_PHYS_HEAP_LAST);
+
+	bExistingVal = OSAtomicExchange(&psPhysHeap->sOOMDetected, isOOMDetected);
 	if (bExistingVal != isOOMDetected)
 	{
 		PVR_LOG(("Device: %d Physheap: %s OOM: %s",
 				(psPhysHeap->psDevNode->sDevId.ui32InternalID),
-				g_asPhysHeapUsageFlagStrings[ePhysIdx-1].pszLabel,
+				PVRSRVGetPhysHeapName(ePhysHeap),
 				(isOOMDetected) ? "Detected" : "Resolved"));
 	}
 }
@@ -2013,14 +2047,22 @@ PVRSRV_ERROR PhysHeapCreatePMR(PHYS_HEAP *psPhysHeap,
 							   PVRSRV_MEMALLOCFLAGS_T *puiOutFlags)
 {
 	PVRSRV_ERROR eError;
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs;
 #if !defined(PVRSRV_PHYSHEAP_DISABLE_OOM_DEMOTION)
 	IMG_UINT64 uiFreeBytes;
 	PVRSRV_PHYS_HEAP eDemotionPhysIdx;
 	PVRSRV_MEMALLOCFLAGS_T uiDemotionFlags = uiFlags;
 	PVRSRV_PHYS_HEAP ePhysIdx = PVRSRV_GET_PHYS_HEAP_HINT(uiFlags);
 	PHYS_HEAP *psDemotionHeap = NULL;
+
+	PVR_ASSERT(ePhysIdx > PVRSRV_PHYS_HEAP_DEFAULT);
+	PVR_ASSERT(ePhysIdx < PVRSRV_PHYS_HEAP_LAST);
 #endif
+
+	PVR_ASSERT(psPhysHeap != NULL);
+
+	psImplFuncs = psPhysHeap->psImplFuncs;
+
 	eError = psImplFuncs->pfnCreatePMR(psPhysHeap,
 									 psConnection,
 									 uiSize,
@@ -2060,11 +2102,15 @@ PVRSRV_ERROR PhysHeapCreatePMR(PHYS_HEAP *psPhysHeap,
 	}
 
 	eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+
 	for (eDemotionPhysIdx = (PVRSRV_PHYS_HEAP)(ePhysIdx-1); eDemotionPhysIdx != PVRSRV_PHYS_HEAP_DEFAULT; eDemotionPhysIdx--)
 	{
 		PVRSRV_CHANGE_PHYS_HEAP_HINT(eDemotionPhysIdx, uiDemotionFlags);
-		PVR_LOG_IF_FALSE_VA(PVR_DBG_MESSAGE, (ePhysIdx-eDemotionPhysIdx < 2), "Demoted from %s to CPU_LOCAL. "
-						"Expect Performance to be affected!", g_asPhysHeapUsageFlagStrings[ePhysIdx-1].pszLabel);
+		PVR_LOG_IF_FALSE_VA(PVR_DBG_MESSAGE,
+		                    (ePhysIdx-eDemotionPhysIdx < 2),
+		                    "Demoted from %s to CPU_LOCAL. Expect performance to be affected!",
+		                    PVRSRVGetPhysHeapName(ePhysIdx));
+
 		psDemotionHeap = _PhysHeapFindRealHeapNoFallback(eDemotionPhysIdx, psPhysHeap->psDevNode);
 
 		/* Either no alternative available, or allocation already failed on selected heap */
@@ -2103,12 +2149,13 @@ PVRSRV_ERROR PhysHeapCreatePMR(PHYS_HEAP *psPhysHeap,
 			break;
 		}
 	}
+
 	if (eError == PVRSRV_OK)
 	{
 		/* Success demotion worked error Ok - emit warning. */
 		PVR_LOG_VA(PVR_DBG_WARNING, "PhysHeap(%s) failed to allocate PMR. Demoted to %s" ,
-						g_asPhysHeapUsageFlagStrings[ePhysIdx-1].pszLabel,
-						g_asPhysHeapUsageFlagStrings[eDemotionPhysIdx-1].pszLabel);
+		           PVRSRVGetPhysHeapName(ePhysIdx),
+		           PVRSRVGetPhysHeapName(PVRSRV_GET_PHYS_HEAP_HINT(uiDemotionFlags)));
 	}
 	else
 	{
@@ -2139,7 +2186,7 @@ PVRSRV_ERROR PhysHeapCreatePMB(PHYS_HEAP *psPhysHeap,
                                RA_BASE_T *puiBase,
                                RA_LENGTH_T *puiSize)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 
 	PVR_LOG_RETURN_IF_FALSE(
 		psPhysHeap->eType == PHYS_HEAP_TYPE_DLM,
@@ -2190,7 +2237,7 @@ PVRSRV_ERROR PhysHeapPagesAllocGPV(PHYS_HEAP *psPhysHeap, size_t uiSize,
                                    IMG_DEV_PHYADDR *psDevPAddr,
                                    IMG_UINT32 ui32OSid, IMG_PID uiPid)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnPagesAllocGPV != NULL)
@@ -2208,7 +2255,7 @@ PVRSRV_ERROR PhysHeapPagesAlloc(PHYS_HEAP *psPhysHeap, size_t uiSize,
 								IMG_DEV_PHYADDR *psDevPAddr,
 								IMG_PID uiPid)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnPagesAlloc != NULL)
@@ -2222,7 +2269,7 @@ PVRSRV_ERROR PhysHeapPagesAlloc(PHYS_HEAP *psPhysHeap, size_t uiSize,
 
 void PhysHeapPagesFree(PHYS_HEAP *psPhysHeap, PG_HANDLE *psMemHandle)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 
 	PVR_ASSERT(psImplFuncs->pfnPagesFree != NULL);
 
@@ -2236,7 +2283,7 @@ void PhysHeapPagesFree(PHYS_HEAP *psPhysHeap, PG_HANDLE *psMemHandle)
 PVRSRV_ERROR PhysHeapPagesMap(PHYS_HEAP *psPhysHeap, PG_HANDLE *pshMemHandle, size_t uiSize, IMG_DEV_PHYADDR *psDevPAddr,
 							  void **pvPtr)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnPagesMap != NULL)
@@ -2250,7 +2297,7 @@ PVRSRV_ERROR PhysHeapPagesMap(PHYS_HEAP *psPhysHeap, PG_HANDLE *pshMemHandle, si
 
 void PhysHeapPagesUnMap(PHYS_HEAP *psPhysHeap, PG_HANDLE *psMemHandle, void *pvPtr)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 
 	PVR_ASSERT(psImplFuncs->pfnPagesUnMap != NULL);
 
@@ -2265,7 +2312,7 @@ PVRSRV_ERROR PhysHeapPagesClean(PHYS_HEAP *psPhysHeap, PG_HANDLE *pshMemHandle,
 							  IMG_UINT32 uiOffset,
 							  IMG_UINT32 uiLength)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	PVRSRV_ERROR eResult = PVRSRV_ERROR_NOT_IMPLEMENTED;
 
 	if (psImplFuncs->pfnPagesClean != NULL)
@@ -2279,7 +2326,7 @@ PVRSRV_ERROR PhysHeapPagesClean(PHYS_HEAP *psPhysHeap, PG_HANDLE *pshMemHandle,
 
 IMG_UINT32 PhysHeapGetPageShift(PHYS_HEAP *psPhysHeap)
 {
-	PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
+	const PHEAP_IMPL_FUNCS *psImplFuncs = psPhysHeap->psImplFuncs;
 	IMG_UINT32 ui32PageShift = 0;
 
 	PVR_ASSERT(psImplFuncs->pfnGetPageShift != NULL);

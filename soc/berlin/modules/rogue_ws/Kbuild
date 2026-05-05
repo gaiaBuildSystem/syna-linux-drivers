@@ -112,6 +112,7 @@ OBJS := src/allocmem.o \
         src/rgxhwperf_common.o \
         src/rgx_hwperf_table.o \
         src/rgxinit.o \
+        src/rgxinit_common.o \
         src/rgxlayer_impl.o \
         src/rgxlayer_impl_common.o \
         src/rgxmem.o \
@@ -181,14 +182,17 @@ OBJS += src/pvr_gputrace.o \
         src/trace_events.o
 endif
 
-ifdef $(DEBUG)
+ifdef DEBUG
 OBJS += src/client_htbuffer_direct_bridge.o \
-        src/htb_debug.o \
-        src/htbserver.o \
-        src/htbuffer.o \
-        src/rgxkicksync.o \
-        src/server_htbuffer_bridge.o \
-        src/server_rgxkicksync_bridge.o
+    src/server_htbuffer_bridge.o \
+    src/server_rgxkicksync_bridge.o \
+    src/client_ri_direct_bridge.o \
+    src/server_ri_bridge.o \
+    src/htb_debug.o \
+    src/htbserver.o \
+    src/ri_server.o \
+    src/rgxkicksync.o \
+    src/htbuffer.o
 endif
 
 obj-m += $(MODULE_NAME).o

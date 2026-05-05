@@ -197,10 +197,10 @@ typedef struct
 	                                 *    must be aligned to 16 bytes. */
 	IMG_UINT32  ui32ReadOffset;     /*!< Firmware read offset into CCB.
 	                                      Points to the command that is
-	                                 *    runnable on GPU, if R!=W */
+	                                      runnable on GPU, if R!=W */
 	IMG_UINT32  ui32DepOffset;      /*!< Firmware fence dependency offset.
-	                                 *    Points to commands not ready, i.e.
-	                                 *    fence dependencies are not met. */
+	                                      Points to commands not ready, i.e.
+	                                      fence dependencies are not met. */
 	IMG_UINT32  ui32WrapMask;       /*!< Offset wrapping mask, total capacity
 	                                      in bytes of the CCB-1 */
 
@@ -280,24 +280,6 @@ typedef struct
 } RGXFWIF_CDM_REGISTERS_CSWITCH;
 
 /*!
- * @InGroup ContextSwitching
- * @Brief Render context static register controls for context switch
- */
-typedef struct
-{
-	RGXFWIF_TAREGISTERS_CSWITCH	RGXFW_ALIGN asCtxSwitch_GeomRegs[RGX_NUM_GEOM_CORES];	/*!< Geom registers for ctx switch */
-} RGXFWIF_STATIC_RENDERCONTEXT_STATE;
-
-#define RGXFWIF_STATIC_RENDERCONTEXT_SIZE sizeof(RGXFWIF_STATIC_RENDERCONTEXT_STATE)
-
-typedef struct
-{
-	RGXFWIF_CDM_REGISTERS_CSWITCH	RGXFW_ALIGN sCtxSwitch_Regs;	/*!< CDM registers for ctx switch */
-} RGXFWIF_STATIC_COMPUTECONTEXT_STATE;
-
-#define RGXFWIF_STATIC_COMPUTECONTEXT_SIZE sizeof(RGXFWIF_STATIC_COMPUTECONTEXT_STATE)
-
-/*!
 	@Brief Context reset reason. Last reset reason for a reset context.
 */
 typedef enum
@@ -347,6 +329,10 @@ typedef struct
 #define RGX_HEAP_UM_GENERAL_RESERVED_SIZE           DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY
 #define RGX_HEAP_UM_GENERAL_RESERVED_REGION_OFFSET  0
 #define RGX_HEAP_KM_GENERAL_RESERVED_REGION_OFFSET  RGX_HEAP_UM_GENERAL_RESERVED_SIZE
+
+#define RGX_HEAP_UM_TEX_STATE_RESERVED_SIZE           DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY
+#define RGX_HEAP_UM_TEX_STATE_RESERVED_REGION_OFFSET  0
+#define RGX_HEAP_KM_TEX_STATE_RESERVED_REGION_OFFSET  RGX_HEAP_UM_TEX_STATE_RESERVED_SIZE
 
 /*************************************************************************/ /*!
  Logging type
@@ -483,6 +469,13 @@ typedef struct
 
 /*! @} End of Defgroup SRVAndFWTracing */
 
+#if defined(SUPPORT_OPEN_SOURCE_DRIVER)
+#define MAX_THREAD_NUM 2
+
+static_assert(RGXFW_THREAD_NUM <= MAX_THREAD_NUM,
+				"RGXFW_THREAD_NUM is outside of allowable range for SUPPORT_OPEN_SOURCE_DRIVER");
+#endif
+
 /*!
  * @InGroup SRVAndFWTracing
  * @Brief Firmware trace control data
@@ -578,13 +571,6 @@ typedef enum
 #undef X
 } RGXFWIF_POW_STATE;
 
-#if defined(SUPPORT_OPEN_SOURCE_DRIVER)
-#define MAX_THREAD_NUM 2
-
-static_assert(RGXFW_THREAD_NUM <= MAX_THREAD_NUM,
-				"RGXFW_THREAD_NUM is outside of allowable range for SUPPORT_OPEN_SOURCE_DRIVER");
-#endif
-
 /* Firmware HWR states */
 #define RGXFWIF_HWR_HARDWARE_OK			(IMG_UINT32_C(0x1) << 0U)	/*!< The HW state is ok or locked up */
 #define RGXFWIF_HWR_RESET_IN_PROGRESS	(IMG_UINT32_C(0x1) << 1U)	/*!< Tells if a HWR reset is in progress */
@@ -596,6 +582,9 @@ static_assert(RGXFW_THREAD_NUM <= MAX_THREAD_NUM,
 
 #define RGXFWIF_PHR_MODE_OFF			(0UL)
 #define RGXFWIF_PHR_MODE_RD_RESET		(1UL)
+
+/* Firmware SysData Flags */
+#define RGXFWIF_SYSDATA_FLAG_BLOCKED_GPU_WORK	(IMG_UINT32_C(0x1) << 0U)	/*!< GPU has pending workloads that are blocked */
 
 typedef IMG_UINT32 RGXFWIF_HWR_STATEFLAGS;
 
@@ -645,6 +634,10 @@ typedef struct
 	IMG_UINT32                 ui32FwSysDataFlags;                      /*!< Compatibility and other flags */
 	IMG_UINT32                 ui32McConfig;                            /*!< Identify whether MC config is P-P or P-S */
 	IMG_UINT32                 ui32MemFaultCheck;                       /*!< Device mem fault check on PCI systems */
+	IMG_UINT32 RGXFW_ALIGN     aaui32DmActiveTimeTicks[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS]; /*!< Shared copy of the accumulated timer ticks DMs spent in active state on behalf of each DriverID */
+	IMG_UINT64                 ui64GpuActiveTimeNS;                     /*!< Shared copy of the accumulated time in nanoseconds the GPU spent in Active state */
+	IMG_UINT64                 ui64FwStatsTimestampNS;                  /*!< Timestamp in estimated host time when the Firmware saved the utilisation data */
+	IMG_BOOL                   bGpuActive;                              /*!< Indicator specifying if the GPU was active during the Firmware's last utilisation check */
 } UNCACHED_ALIGN RGXFWIF_SYSDATA;
 
 #if defined(SUPPORT_OPEN_SOURCE_DRIVER)
@@ -666,6 +659,8 @@ typedef struct
 #endif
 
 #define RGXFWIF_OFFLINE_DATA_BUFFER_SIZE_IN_WORDS (128U)
+
+#define RGXFWIF_FWOSDATA_FLAG_64BIT_FREELIST_ID (IMG_UINT32_C(0x1) << 0U)	/*!< The FW supports 64-bit freelist id */
 
 /*!
  * @InGroup ContextSwitching
@@ -880,6 +875,77 @@ typedef struct {RGXFWIF_DEV_VIRTADDR sNext;
 
 #define RGXFWIF_MAX_NUM_CANCEL_REQUESTS		(8U)		/* Maximum number of workload cancellation requests */
 
+typedef struct
+{
+	IMG_UINT32	ui32ExtJobRefToDisableZSStore;
+	IMG_BOOL	bDisableZStore;
+	IMG_BOOL	bDisableSStore;
+} RGXFWIF_DISABLE_ZSSTORE;
+
+#define MAX_ZSSTORE_DISABLE 8
+
+typedef struct
+{
+	bool       bSaved;
+	IMG_UINT64 ui64CheckSum[4];
+}RGXFWIF_TRP_CHECKSUM_GEOM_ENTRY;
+
+typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_TQ[RGX_TRP_MAX_NUM_CORES][1];
+typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_2D[RGX_TRP_MAX_NUM_CORES][2];
+typedef IMG_UINT64 RGXFWIF_TRP_CHECKSUM_3D[RGX_TRP_MAX_NUM_CORES][4];
+typedef RGXFWIF_TRP_CHECKSUM_GEOM_ENTRY RGXFWIF_TRP_CHECKSUM_GEOM[RGX_TRP_MAX_NUM_CORES];
+
+typedef struct RGX_CONTEXT_DATA_GEOM_
+{
+	IMG_INT32				i32StatsNumOutOfMemory;		/*!< Number of OOMs on this context since last update */
+	IMG_BOOL				bGeomOOMDisabled;		/*!< True when Geom DM OOM is not allowed */
+	RGXFWIF_TAREGISTERS_CSWITCH	RGXFW_ALIGN asCtxSwitch_GeomRegs[RGX_NUM_GEOM_CORES];	/*!< Geom registers for ctx switch */
+
+#if defined(SUPPORT_TRP)
+	RGXFWIF_TRP_CHECKSUM_GEOM	aui64TRPChecksumsGeom;	/*!< Used by Firmware to store checksums during TA WRR */
+	RGXFWIF_DM			eTRPGeomCoreAffinity; /* !< Represent the DM affinity for pending 2nd TRP pass of GEOM otherwise points RGXFWIF_DM_MAX. */
+#endif
+} RGX_CONTEXT_DATA_GEOM;
+
+#define RGXFWIF_CONTEXT_DATA_GEOM_SIZE	sizeof(RGX_CONTEXT_DATA_GEOM)
+
+typedef struct RGX_CONTEXT_DATA_FRAG_
+{
+	IMG_INT32				i32StatsNumPartialRenders;	/*!< Number of PRs on this context since last update */
+
+	RGXFWIF_DISABLE_ZSSTORE sDisableZSStoreQueue[MAX_ZSSTORE_DISABLE];
+	IMG_UINT32			ui32ZSStoreQueueCount;
+	IMG_UINT32			ui32WriteOffsetOfDisableZSStore;
+
+#if defined(SUPPORT_TRP)
+	RGXFWIF_TRP_CHECKSUM_3D		aui64TRPChecksums3D;	/*!< Used by Firmware to store checksums during 3D WRR */
+#endif
+
+} RGX_CONTEXT_DATA_FRAG;
+
+#define RGXFWIF_CONTEXT_DATA_FRAG_SIZE	sizeof(RGX_CONTEXT_DATA_FRAG)
+
+typedef struct RGX_CONTEXT_DATA_COMP_
+{
+	RGXFWIF_CDM_REGISTERS_CSWITCH	RGXFW_ALIGN sCtxSwitch_Regs;	/*!< CDM registers for ctx switch */
+	IMG_UINT32		aui32WGPChecksum[RGX_WGP_MAX_NUM_CORES];
+
+} RGX_CONTEXT_DATA_COMP;
+
+#define RGXFWIF_CONTEXT_DATA_COMP_SIZE	sizeof(RGX_CONTEXT_DATA_COMP)
+
+typedef struct RGX_CONTEXT_DATA_TRANSFER_
+{
+#if defined(SUPPORT_TRP)
+	RGXFWIF_TRP_CHECKSUM_TQ aui64TRPChecksumsTQ;/*!< Used by Firmware to store checksums during TQ WRR */
+#else
+	/* Avoid empty struct warning */
+	IMG_UINT32	ui32Unused;
+#endif
+} RGX_CONTEXT_DATA_TRANSFER;
+
+#define RGXFWIF_CONTEXT_DATA_TRANSFER_SIZE sizeof(RGX_CONTEXT_DATA_TRANSFER)
+
 /*!
  * @InGroup WorkloadContexts
  * @Brief Firmware Common Context (or FWCC)
@@ -906,9 +972,6 @@ typedef struct RGXFWIF_FWCOMMONCONTEXT_
 
 	/* Statistic updates waiting to be passed back to the host... */
 	IMG_INT32				i32StatsNumStores;		/*!< Number of stores on this context since last update */
-	IMG_INT32				i32StatsNumOutOfMemory;		/*!< Number of OOMs on this context since last update */
-	IMG_INT32				i32StatsNumPartialRenders;	/*!< Number of PRs on this context since last update */
-	RGXFWIF_DM				eDM;				/*!< Data Master type */
 	RGXFW_DLLIST_NODE		RGXFW_ALIGN  sBufStalledNode;			/*!< List entry for the buffer stalled list */
 	IMG_UINT64				RGXFW_ALIGN  ui64CBufQueueCtrlAddr;	/*!< Address of the circular buffer queue pointers */
 
@@ -926,7 +989,6 @@ typedef struct RGXFWIF_FWCOMMONCONTEXT_
 	IMG_UINT32				ui32ServerCommonContextID;	/*!< the Server Common Context */
 	IMG_UINT32				ui32PID;			/*!< associated process ID */
 
-	IMG_BOOL				bGeomOOMDisabled;		/*!< True when Geom DM OOM is not allowed */
 	IMG_CHAR				szProcName[RGXFW_PROCESS_NAME_LEN];	/*!< User process name */
 	IMG_UINT32				ui32DeferCount;		/*!< Number of context defers before forced scheduling of context */
 	IMG_UINT32				aui32FirstIntJobRefToCancel[RGXFWIF_MAX_NUM_CANCEL_REQUESTS];	/*!< Saved values of the beginning of range of IntJobRefs at and above which workloads will be discarded */
@@ -934,10 +996,22 @@ typedef struct RGXFWIF_FWCOMMONCONTEXT_
 	IMG_BOOL				bCancelRangesActive;	/*!< True if any active ranges in aui32FirstIntJobRefToCancel and aui32FirstValidIntJobRef arrays */
 	IMG_BOOL				bLastKickedCmdWasSafetyOnly;
 	IMG_UINT32				ui32UID;			/*!< associated process UID used in FW managed gpu work period hwperf events */
+	IMG_UINT32				ui32WorkEstCCBSubmitted; /*!< Number of commands submitted to the WorkEst FW CCB */
+
+	struct
+	{
+		RGXFWIF_DM				eDM;				/*!< Data Master type */
+	} sRangeCheckBeforeUse;
+
+	union
+	{
+		RGX_CONTEXT_DATA_GEOM	sGeom;
+		RGX_CONTEXT_DATA_FRAG	sFrag;
+		RGX_CONTEXT_DATA_COMP	sComp;
+		RGX_CONTEXT_DATA_TRANSFER	sTransfer;
+	} uDMSpecific;
 } UNCACHED_ALIGN RGXFWIF_FWCOMMONCONTEXT;
 
-static_assert(sizeof(RGXFWIF_FWCOMMONCONTEXT) <= 256U,
-              "Size of structure RGXFWIF_FWCOMMONCONTEXT exceeds maximum expected size.");
 
 #if defined(SUPPORT_OPEN_SOURCE_DRIVER)
 static_assert(sizeof(RGXFWIF_FWCOMMONCONTEXT) == 168,
@@ -952,7 +1026,10 @@ static_assert(sizeof(RGXFWIF_FWCOMMONCONTEXT) == 168,
 typedef RGXFWIF_DEV_VIRTADDR  PRGXFWIF_FREELIST;
 
 /* HWRTData flags */
-/* Deprecated flags 1:0 */
+#if defined(SUPPORT_TRP)
+#define HWRTDATA_TRP_SAFETY_IN_PROGRESS   (IMG_UINT32_C(1) << 0)
+#define HWRTDATA_TRP_MISSION_IN_PROGRESS  (IMG_UINT32_C(1) << 1)
+#endif
 #define HWRTDATA_HAS_LAST_TA              (IMG_UINT32_C(1) << 2)
 #define HWRTDATA_PARTIAL_RENDERED         (IMG_UINT32_C(1) << 3)
 #define HWRTDATA_DISABLE_TILE_REORDERING  (IMG_UINT32_C(1) << 4)
@@ -965,9 +1042,6 @@ typedef RGXFWIF_DEV_VIRTADDR  PRGXFWIF_FREELIST;
 #define HWRTDATA_GLOBAL_PB_NUMBER_BIT1    (IMG_UINT32_C(1) << 9)
 #endif
 #define HWRTDATA_GEOM_NEEDS_RESUME        (IMG_UINT32_C(1) << 10)
-#endif
-#if defined(SUPPORT_TRP)
-#define HWRTDATA_GEOM_TRP_IN_PROGRESS          (IMG_UINT32_C(1) << 9)
 #endif
 
 typedef enum
@@ -1086,7 +1160,6 @@ typedef struct
 	RGXFWIF_DEV_VIRTADDR		RGXFW_ALIGN pui32OwnerGeomNotUsedByHost;
 #endif
 #if defined(SUPPORT_TRP) && !defined(SUPPORT_OPEN_SOURCE_DRIVER)
-	IMG_UINT32			ui32KickFlagsCopy;
 	IMG_UINT32			ui32TEPageCopy;
 	IMG_UINT32			ui32VCEPageCopy;
 #endif
@@ -1102,14 +1175,23 @@ static_assert(sizeof(RGXFWIF_HWRTDATA) == 256,
 				"RGXFWIF_HWRTDATA is incorrect size for SUPPORT_OPEN_SOURCE_DRIVER");
 #endif
 
+typedef IMG_UINT16 SYNC_CHECKPOINT_FF_TOKEN; /* Sync module foreign fence user data token */
+typedef IMG_UINT32 SYNC_CHECKPOINT_FW_UD; /* Sync Checkpoint Firmware User Data */
+
+/* FW user data masks */
+#define SYNC_CHECKPOINT_FW_UD_FF_TOKEN_MASK 0x0000FFFF     /* Identifies the bits used to store the foreign-fence token. */
+#define SYNC_CHECKPOINT_FW_UD_FF_TOKEN_VALID_EN 0x00010000 /* Identifies the bit that represents if the FF token is valid. */
+#define SYNC_CHECKPOINT_FW_UD_INTERNAL_USE_MASK 0xFFFE0000 /* Identifies reserved bits for future use. */
+
 /* Sync_checkpoint firmware object.
  * This is the FW-addressable structure used to hold the sync checkpoint's
  * state and other information which needs to be accessed by the firmware.
  */
 typedef struct
 {
-	IMG_UINT32	ui32State;          /*!< Holds the current state of the sync checkpoint */
-	IMG_UINT32	ui32FwRefCount;     /*!< Holds the FW reference count (num of fences/updates processed) */
+	IMG_UINT32 ui32State;               /*!< Holds the current state of the sync checkpoint */
+	IMG_UINT32 ui32FwRefCount;          /*!< Holds the FW reference count (num of fences/updates processed) */
+	SYNC_CHECKPOINT_FW_UD ui32UserData; /*!< Holds the checkpoint FW User data */
 } SYNC_CHECKPOINT_FW_OBJ;
 
 /* Bit mask Firmware can use to test if a checkpoint has signalled or errored */

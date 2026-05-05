@@ -67,7 +67,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #include "dma_support.h"
-#include "vz_vmm_pvz.h"
 
 /*!
  * For OSThreadDestroy(), which may require a retry
@@ -75,6 +74,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #define OS_THREAD_DESTROY_TIMEOUT_US 100000ULL
 #define OS_THREAD_DESTROY_RETRY_COUNT 10
+
+/*!
+ * Wait for number of cleanup items to reach 0 in
+ * PVRSRVCleanupThreadWaitForDevice(), default 100ms.
+ */
+#ifndef OS_CLEANUP_THREAD_TIMEOUT_US
+#define OS_CLEANUP_THREAD_TIMEOUT_US 100000ULL
+#endif
+#ifndef OS_CLEANUP_THREAD_RETRY_COUNT
+#define OS_CLEANUP_THREAD_RETRY_COUNT 10
+#endif
 
 typedef enum _POLL_FLAGS_
 {
@@ -108,6 +118,26 @@ typedef struct _DRIVER_INFO_
 	IMG_BOOL	bIsNoMatch;
 }DRIVER_INFO;
 
+
+typedef struct _PVRSRV_PVZ_CONFIG_
+{
+	/*
+	 * Flag indicating if this driver can handle inbound PVZ calls from
+	 * a Guest or the VMM. The server-side function pointers are
+	 * contained in the sServerFuncTab and sVmmFuncTab structures.
+	 */
+	POS_LOCK hPvzServerLock;          /*!< Lock protecting PVZ Server connection */
+	IMG_HANDLE hPvzServerConnection;  /*!< PVZ connection used for cross-VM hyper-calls */
+
+	/*
+	 * Flag indicating if this driver can handle outbound PVZ calls to
+	 * the Host driver. The client-side function pointers are
+	 * contained in the sClientFuncTab structure.
+	 */
+	POS_LOCK hPvzClientLock;          /*!< Lock protecting PVZ Client connection */
+	IMG_HANDLE hPvzClientConnection;  /*!< PVZ connection used for cross-VM hyper-calls */
+
+} PVRSRV_PVZ_CONFIG;
 
 typedef struct PVRSRV_DATA_TAG
 {
@@ -156,8 +186,7 @@ typedef struct PVRSRV_DATA_TAG
 	POS_LOCK              hClientStreamTableLock;         /*!< Lock for the client stream hash */
 	HASH_TABLE            *psClientStreamTable;           /*!< Hash table for client streams */
 
-	IMG_HANDLE            hPvzConnection;                 /*!< PVZ connection used for cross-VM hyper-calls */
-	POS_LOCK              hPvzConnectionLock;             /*!< Lock protecting PVZ connection */
+	PVRSRV_PVZ_CONFIG     *psPvzConfig;                     /*!< PVZ connection used for cross-VM hyper-calls */
 
 	IMG_BOOL              bUnload;                        /*!< Driver unload is in progress */
 
@@ -182,6 +211,9 @@ typedef struct PVRSRV_DATA_TAG
 
 /* Function pointer used to invalidate cache between loops in wait/poll for value functions */
 typedef PVRSRV_ERROR (*PFN_INVALIDATE_CACHEFUNC)(const volatile void*, IMG_UINT64, PVRSRV_CACHE_OP);
+
+/* Function pointer used as the wait condition for PVRSRVWaitForConditionKM() */
+typedef PVRSRV_ERROR (*PFN_WAIT_CONDITION_CALLBACK)(void *pvCallbackData);
 
 /*!
 ******************************************************************************
@@ -339,6 +371,26 @@ PVRSRVWaitForValueKM(volatile IMG_UINT32 __iomem *pui32LinMemAddr,
                      IMG_UINT32                  ui32Value,
                      IMG_UINT32                  ui32Mask,
                      PFN_INVALIDATE_CACHEFUNC    pfnFwInvalidate);
+
+/*!
+******************************************************************************
+ @Function	PVRSRVWaitForConditionKM
+
+ @Description
+ Waits (using Global EventObject) for a provided callback to return PVRSRV_OK
+ status. Global even object is signalled when a device ISR runs or when the
+ driver wide PVRSRVCheckStatus() function is called.
+
+
+ @Input pfnCondCallback        : Callback provided and contains condition to
+                                 be met.
+ @Input pvCallbackData         : Data required by the callback to determine
+                                 condition.
+ @Return PVRSRV_ERROR          :
+******************************************************************************/
+PVRSRV_ERROR
+PVRSRVWaitForConditionKM(PFN_WAIT_CONDITION_CALLBACK pfnCondCallback,
+                         void *pvCallbackData);
 
 /*!
 ******************************************************************************
@@ -518,4 +570,31 @@ PVRSRV_ERROR PVRSRVDeviceFreeze(PVRSRV_DEVICE_NODE *psDevNode);
 */ /**************************************************************************/
 PVRSRV_ERROR PVRSRVDeviceThaw(PVRSRV_DEVICE_NODE *psDevNode);
 
+/*************************************************************************/ /*!
+@Function       PVRSRVDeviceCreationPvzLock
+@Description    Lock paravirtualization functionality before device creation
+@Input          PVRSRV_DEVICE_NODE*     Device node
+*/ /**************************************************************************/
+void PVRSRVDeviceCreationPvzLock(void);
+
+/*************************************************************************/ /*!
+@Function       PVRSRVDeviceCreationPvzUnlock
+@Description    Unlock paravirtualization functionality after device creation
+@Input          PVRSRV_DEVICE_NODE*     Device node
+*/ /**************************************************************************/
+void PVRSRVDeviceCreationPvzUnlock(void);
+
+/*************************************************************************/ /*!
+@Function       PVRSRVDeviceInitPvzLock
+@Description    Lock paravirtualization functionality before device init
+@Input          PVRSRV_DEVICE_NODE*     Device node
+*/ /**************************************************************************/
+void PVRSRVDeviceInitPvzLock(PVRSRV_DEVICE_NODE *psDeviceNode);
+
+/*************************************************************************/ /*!
+@Function       PVRSRVDeviceInitPvzUnlock
+@Description    Unlock paravirtualization functionality after device init
+@Input          PVRSRV_DEVICE_NODE*     Device node
+*/ /**************************************************************************/
+void PVRSRVDeviceInitPvzUnlock(PVRSRV_DEVICE_NODE *psDeviceNode);
 #endif /* PVRSRV_H */

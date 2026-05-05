@@ -64,11 +64,7 @@
 /* This header must always be included last */
 #include "kernel_compatibility.h"
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)) && !defined(CHROMIUMOS_KERNEL)
-#define sync_file_user_name(s)	((s)->name)
-#else
 #define sync_file_user_name(s)	((s)->user_name)
-#endif
 
 #define PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile, fmt, ...) \
 	do {                                                             \
@@ -530,7 +526,7 @@ pvr_sync_resolve_fence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 	for (i = 0; i < num_fences; i++) {
 		/*
 		 * Only return the checkpoint if the fence is still active.
-		 * Don't checked for signalled on PDUMP drivers as we need
+		 * Don't check for signalled on PDUMP drivers as we need
 		 * to make sure that all fences make it to the pdump.
 		 */
 #if !defined(PDUMP)
@@ -547,9 +543,13 @@ pvr_sync_resolve_fence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 				 */
 				err = pvr_exp_fence_assign_checkpoint(PVRSRV_NO_FENCE,
 				                                      fences[i],
+				                                      EXPORT_FENCE_RESOLVE_FOR_CHECK,
 				                                      psSyncCheckpointContext,
 				                                      &checkpoints[num_used_fences]);
-				SyncCheckpointTakeRef(checkpoints[num_used_fences]);
+				if (err != PVRSRV_OK) {
+					goto err_free_checkpoints;
+				}
+
 				++num_used_fences;
 			}
 			else {
@@ -636,6 +636,7 @@ pvr_sync_resolve_export_fence(PVRSRV_FENCE fence_to_resolve,
 
 	err = pvr_exp_fence_assign_checkpoint(fence_to_resolve,
 					      fence,
+					      EXPORT_FENCE_RESOLVE_FOR_UPDATE,
 					      checkpoint_context,
 					      checkpoint_handle);
 	if (err != PVRSRV_OK) {
@@ -681,6 +682,39 @@ pvr_sync_rollback_export_fence(PVRSRV_FENCE fence_to_rollback)
 	err = pvr_exp_fence_rollback(fence);
 	if (err != PVRSRV_OK) {
 		pr_err("%s: Failed to rollback export fence\n",
+		       __func__);
+	}
+
+err_is_exp_fence:
+	dma_fence_put(fence);
+
+err_get_fence:
+	return err;
+}
+
+static enum PVRSRV_ERROR_TAG
+pvr_sync_finalise_export_fence(PVRSRV_FENCE fence_to_finalise)
+{
+	PVRSRV_ERROR err = PVRSRV_OK;
+	struct dma_fence *fence;
+
+	fence = sync_file_get_fence(fence_to_finalise);
+	if (!fence) {
+		pr_err("%s: Failed to read sync private data for fd %d\n",
+			__func__, fence_to_finalise);
+		err = PVRSRV_ERROR_HANDLE_NOT_FOUND;
+		goto err_get_fence;
+	}
+
+	if (!pvr_is_exp_fence(fence)) {
+		pr_err(FILE_NAME ": %s: Fence not a pvr export fence\n", __func__);
+		err = PVRSRV_ERROR_INVALID_PARAMS;
+		goto err_is_exp_fence;
+	}
+
+	err = pvr_exp_fence_finalise(fence);
+	if (err != PVRSRV_OK) {
+		pr_err("%s: Failed to finalise export fence\n",
 		       __func__);
 	}
 
@@ -769,7 +803,7 @@ pvr_sync_fence_get_checkpoints(PVRSRV_FENCE fence_to_pdump, u32 *nr_checkpoints,
 		if (is_pvr_fence(fences[i])) {
 			pvr_fence = to_pvr_fence(fences[i]);
 			if (pvr_fence) {
-				checkpoints[num_used_fences] = pvr_fence_get_checkpoint(pvr_fence);
+				checkpoints[num_used_fences] = pvr_fence_get_and_ref_checkpoint(pvr_fence);
 				++num_used_fences;
 			}
 		} else if (pvr_is_exp_fence(fences[i])) {
@@ -1007,6 +1041,7 @@ enum PVRSRV_ERROR_TAG pvr_sync_register_functions(void)
 #endif
 	pvr_sync_data.sync_checkpoint_ops.pfnExportFenceResolve = pvr_sync_resolve_export_fence;
 	pvr_sync_data.sync_checkpoint_ops.pfnExportFenceRollback = pvr_sync_rollback_export_fence;
+	pvr_sync_data.sync_checkpoint_ops.pfnExportFenceFinalise = pvr_sync_finalise_export_fence;
 
 	return SyncCheckpointRegisterFunctions(&pvr_sync_data.sync_checkpoint_ops);
 }
@@ -1251,7 +1286,7 @@ static void _dump_sync_point(struct dma_fence *fence,
 
 	PVR_DUMPDEBUG_LOG(dump_debug_printf,
 					  dump_debug_file,
-					  "<%p> Seq#=%llu TS=%s State=%s TLN=%s",
+					  "<"IMG_KM_PTR_FMTSPEC"> Seq#=%llu TS=%s State=%s TLN=%s",
 					  fence,
 					  (u64) fence->seqno,
 					  time,
@@ -1270,7 +1305,7 @@ static void _dump_fence(struct dma_fence *fence,
 		if (fence_array) {
 			PVR_DUMPDEBUG_LOG(dump_debug_printf,
 					  dump_debug_file,
-					  "Fence: [%p] Sync Points:\n",
+					  "Fence: ["IMG_KM_PTR_FMTSPEC"] Sync Points:\n",
 					  fence_array);
 
 			for (i = 0; i < fence_array->num_fences; i++)

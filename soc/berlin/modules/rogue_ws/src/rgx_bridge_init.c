@@ -103,6 +103,7 @@ PVRSRV_ERROR RGXRegisterBridges(PVRSRV_RGXDEV_INFO *psDevInfo)
 		}
 	}
 
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, FASTRENDER_DM))
 	{
 		if (OSAtomicIncrement(&i32RGXTQ2BridgeRefCt) == 1)
@@ -115,6 +116,7 @@ PVRSRV_ERROR RGXRegisterBridges(PVRSRV_RGXDEV_INFO *psDevInfo)
 			PVR_LOG_RETURN_IF_ERROR(eError, "InitRGXTQ2Bridge");
 		}
 	}
+#endif
 
 #if defined(SUPPORT_RGXRAY_BRIDGE)
 	if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, RAY_TRACING_ARCH) &&
@@ -145,6 +147,7 @@ void RGXUnregisterBridges(PVRSRV_RGXDEV_INFO *psDevInfo)
 		}
 	}
 
+#if defined(RGX_FEATURE_FASTRENDER_DM_BIT_MASK)
 	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, FASTRENDER_DM))
 	{
 		if (OSAtomicDecrement(&i32RGXTQ2BridgeRefCt) == 0)
@@ -152,6 +155,7 @@ void RGXUnregisterBridges(PVRSRV_RGXDEV_INFO *psDevInfo)
 			DeinitRGXTQ2Bridge();
 		}
 	}
+#endif
 
 #if defined(SUPPORT_RGXRAY_BRIDGE)
 	if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, RAY_TRACING_ARCH) &&

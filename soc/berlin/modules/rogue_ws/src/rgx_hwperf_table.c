@@ -45,6 +45,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_fwif_hwperf.h"
 #if defined(__KERNEL__)
 #include "rgxdefs_km.h"
+#include "rgx_fwif_km.h"
 #else
 #include "rgxdefs.h"
 #endif
@@ -238,8 +239,15 @@ static IMG_BOOL rgx_hwperf_blk_present_not_clustergrouping(const RGXFW_HWPERF_CN
 static IMG_UINT32 rgx_units_indirect_by_phantom(const PVRSRV_DEVICE_FEATURE_CONFIG *psFeatCfg)
 {
 	/* Run-time math for RGX_HWPERF_INDIRECT_BY_PHANTOM */
-	return ((psFeatCfg->ui64Features & RGX_FEATURE_CLUSTER_GROUPING_BIT_MASK) == 0) ? 1
-			: (psFeatCfg->ui32FeaturesValues[RGX_FEATURE_NUM_CLUSTERS_IDX]+3)/4;
+	IMG_UINT64 ui64FeatureFlags = psFeatCfg->paui64Features[RGX_FEATURE_CLUSTER_GROUPING_ARRAY_INDEX];
+	if ((ui64FeatureFlags & RGX_FEATURE_CLUSTER_GROUPING_BIT_MASK) == 0)
+	{
+		return 1;
+	}
+	else
+	{
+		return (psFeatCfg->ui32FeaturesValues[RGX_FEATURE_NUM_CLUSTERS_IDX] + 3) / 4;
+	}
 }
 
 static IMG_UINT32 rgx_units_phantom_indirect_by_dust(const PVRSRV_DEVICE_FEATURE_CONFIG *psFeatCfg)
@@ -615,6 +623,10 @@ static const RGXFW_HWPERF_CNTBLK_TYPE_MODEL gasCntBlkTypeModel[] =
 		RGXFW_HWPERF_CNTBLK_TYPE_UNSUPPORTED(RGX_CNTBLK_ID_PBE0),
 #endif
 };
+
+#if defined(__KERNEL__)
+static_assert(ARRAY_SIZE(gasCntBlkTypeModel) <= RGXFWIF_HWPERF_CTRL_BLKS_MAX, "Number of control blocks exceeds limit.");
+#endif
 
 
 IMG_INTERNAL IMG_UINT32

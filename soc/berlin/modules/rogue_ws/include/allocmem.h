@@ -47,6 +47,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "img_types.h"
 #include "pvr_debug.h"
 
+#if defined(__linux__) && defined(__KERNEL__)
+#include <linux/slab.h>
+#endif
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -92,73 +96,106 @@ extern "C" {
                                  * build option. */
 #endif
 
+#if defined(__linux__) && defined(__KERNEL__)
+	#define IMG_ZERO_SIZE_PTR ZERO_SIZE_PTR
+#else
+	#define IMG_ZERO_SIZE_PTR ((void*)16)
+#endif
 
 /**************************************************************************/ /*!
 @Function       OSAllocMem
 @Description    Allocates CPU memory. Contents are uninitialized.
-                If passed a size of zero, function should not assert,
-                but just return a NULL pointer.
+                The behaviour of this function is dependent on whether it is
+                being used in UM or KM. If in KM, a uiSize of 0 will result in
+                IMG_ZERO_SIZE_PTR being returned. In UM, the standard malloc
+                behaviour is observed. If the allocation was unsuccessful a
+                NULL pointer will be returned. In debug builds, we assert that
+                uiSize > 0 inside the macro so that the call sight of an invalid
+                OSAllocMem call can easily be found.
 @Input          ui32Size        Size of required allocation (in bytes)
-@Return         Pointer to allocated memory on success.
-                Otherwise NULL.
+@Return         Pointer to allocated memory on success. When used in KM and
+                the value of uiSize is zero, IMG_ZERO_SIZE_PTR, else NULL.
  */ /**************************************************************************/
 #if defined(DOXYGEN)
-void *OSAllocMem(IMG_UINT32 ui32Size);
+void *OSAllocMem(size_t uiSize);
 #else
-void *OSAllocMem(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS);
+void *OSAllocMem(size_t uiSize DEBUG_MEMSTATS_PARAMS);
+#if defined(__GNUC__)
+#define OSAllocMem(_size) ({ \
+		PVR_ASSERT((_size) > 0); \
+		(OSAllocMem)((_size) DEBUG_MEMSTATS_VALUES); \
+	})
+#else
 #define OSAllocMem(_size)	(OSAllocMem)((_size) DEBUG_MEMSTATS_VALUES)
+#endif
 #endif
 
 /**************************************************************************/ /*!
 @Function       OSAllocZMem
 @Description    Allocates CPU memory and initializes the contents to zero.
-                If passed a size of zero, function should not assert,
-                but just return a NULL pointer.
+                The behaviour of this function is dependent on whether it is
+                being used in UM or KM. If in KM, a uiSize of 0 will result in
+                IMG_ZERO_SIZE_PTR being returned. In UM, the standard calloc
+                behaviour is observed. If the allocation was unsuccessful a
+                NULL pointer will be returned. In debug builds, we assert that
+                uiSize > 0 inside the macro so that the call sight of an invalid
+                OSAllocZMem call can easily be found.
 @Input          ui32Size        Size of required allocation (in bytes)
-@Return         Pointer to allocated memory on success.
-                Otherwise NULL.
+@Return         Pointer to allocated memory on success. When used in KM and
+                the value of uiSize is zero, IMG_ZERO_SIZE_PTR, else NULL.
  */ /**************************************************************************/
 #if defined(DOXYGEN)
-void *OSAllocZMem(IMG_UINT32 ui32Size);
+void *OSAllocZMem(size_t uiSize);
 #else
-void *OSAllocZMem(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS);
-#define OSAllocZMem(_size)	(OSAllocZMem)((_size) DEBUG_MEMSTATS_VALUES)
+void *OSAllocZMem(size_t uiSize DEBUG_MEMSTATS_PARAMS);
+#if defined(__GNUC__)
+#define OSAllocZMem(_size) ({ \
+		PVR_ASSERT((_size) > 0); \
+		(OSAllocZMem)((_size) DEBUG_MEMSTATS_VALUES); \
+	})
+#else
+#define OSAllocZMem(_size) (OSAllocZMem)((_size) DEBUG_MEMSTATS_VALUES)
+#endif
 #endif
 
 
 /**************************************************************************/ /*!
 @Function       OSAllocMemNoStats
 @Description    Allocates CPU memory. Contents are uninitialized.
-                 If passed a size of zero, function should not assert,
-                 but just return a NULL pointer.
+                 The behaviour of this function when uiSize is zero is OS
+                 dependant. If the allocation was unsuccessful a NULL pointer
+                 will be returned.
+
                  The allocated memory is not accounted for by process stats.
                  Process stats are an optional feature (enabled only when
                  PVRSRV_ENABLE_PROCESS_STATS is defined) which track the amount
                  of memory allocated to help in debugging. Where this is not
                  required, OSAllocMem() and OSAllocMemNoStats() equate to
                  the same operation.
-@Input          ui32Size        Size of required allocation (in bytes)
-@Return         Pointer to allocated memory on success.
-                Otherwise NULL.
+@Input          uiSize        Size of required allocation (in bytes)
+@Return         Pointer to allocated memory on success. When used in KM and
+                the value of uiSize is zero, IMG_ZERO_SIZE_PTR, else NULL.
  */ /**************************************************************************/
-void *OSAllocMemNoStats(IMG_UINT32 ui32Size);
+void *OSAllocMemNoStats(size_t uiSize);
 
 /**************************************************************************/ /*!
 @Function       OSAllocZMemNoStats
 @Description    Allocates CPU memory and initializes the contents to zero.
-                 If passed a size of zero, function should not assert,
-                 but just return a NULL pointer.
+                 The behaviour of this function when uiSize is zero is OS
+                 dependant. If the allocation was unsuccessful a NULL pointer
+                 will be returned.
+
                  The allocated memory is not accounted for by process stats.
                  Process stats are an optional feature (enabled only when
                  PVRSRV_ENABLE_PROCESS_STATS is defined) which track the amount
                  of memory allocated to help in debugging. Where this is not
                  required, OSAllocZMem() and OSAllocZMemNoStats() equate to
                  the same operation.
-@Input          ui32Size        Size of required allocation (in bytes)
-@Return         Pointer to allocated memory on success.
-                Otherwise NULL.
+@Input          uiSize        Size of required allocation (in bytes)
+@Return         Pointer to allocated memory on success. When used in KM and
+                the value of uiSize is zero, IMG_ZERO_SIZE_PTR, else NULL.
  */ /**************************************************************************/
-void *OSAllocZMemNoStats(IMG_UINT32 ui32Size);
+void *OSAllocZMemNoStats(size_t uiSize);
 
 /**************************************************************************/ /*!
 @Function       OSFreeMem

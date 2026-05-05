@@ -54,7 +54,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 IMG_INTERNAL PVRSRV_ERROR BridgeHTBControl(IMG_HANDLE hBridge,
 					   IMG_UINT32 ui32NumGroups,
-					   IMG_UINT32 * pui32GroupEnable,
+					   IMG_UINT32 *pui32GroupEnable,
 					   IMG_UINT32 ui32LogLevel,
 					   IMG_UINT32 ui32EnablePID,
 					   IMG_UINT32 ui32LogMode, IMG_UINT32 ui32OpMode)

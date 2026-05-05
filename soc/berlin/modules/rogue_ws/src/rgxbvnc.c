@@ -56,40 +56,37 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_FEATURE_TRUE_VALUE_TYPE_UINT32 (RGX_FEATURE_VALUE_TYPE_UINT32 >> RGX_FEATURE_TYPE_BIT_SHIFT)
 #define RGXBVNC_BUFFER_SIZE (((PVRSRV_MAX_DEVICES)*(RGX_BVNC_STR_SIZE_MAX))+1)
 
-/* This function searches the given array for a given search value */
-static IMG_UINT64* _RGXSearchBVNCTable( IMG_UINT64 *pui64Array,
-								IMG_UINT uiEnd,
-								IMG_UINT64 ui64SearchValue,
-								IMG_UINT uiColCount)
+/* This function searches the feature array for a given BVNC */
+static const RGX_BVNC_KM_FEATURE_TABLE_ENTRY * RGXGetFeatureEntryFromBVNC(IMG_UINT64 ui64SearchValue)
 {
-	IMG_UINT uiStart = 0, index;
-	IMG_UINT64 value, *pui64Ptr = NULL;
+	IMG_UINT32 i;
 
-	while (uiStart < uiEnd)
+	for (i = 0; i < ARRAY_SIZE(gaFeatures); i++)
 	{
-		index = (uiStart + uiEnd)/2;
-		pui64Ptr = pui64Array + (index * uiColCount);
-		value = *(pui64Ptr);
-
-		if (value == ui64SearchValue)
+		if (gaFeatures[i].ui64BVNC == ui64SearchValue)
 		{
-			return pui64Ptr;
-		}
-
-		if (value > ui64SearchValue)
-		{
-			uiEnd = index;
-		}else
-		{
-			uiStart = index + 1;
+			return &gaFeatures[i];
 		}
 	}
+
 	return NULL;
 }
-#define RGX_SEARCH_BVNC_TABLE(t, b) (_RGXSearchBVNCTable((IMG_UINT64*)(t), \
-                                ARRAY_SIZE(t), (b), \
-                                sizeof((t)[0])/sizeof(IMG_UINT64)) )
 
+/* This function searches the ERN/BRN array for a given BVNC */
+static const IMG_UINT64 * RGXGetERNBRNFromBVNC(IMG_UINT64 ui64SearchValue)
+{
+	IMG_UINT32 i;
+
+	for (i = 0; i < ARRAY_SIZE(gaErnsBrns); i++)
+	{
+		if (gaErnsBrns[i][0] == ui64SearchValue)
+		{
+			return gaErnsBrns[i];
+		}
+	}
+
+	return NULL;
+}
 
 #if !defined(NO_HARDWARE)
 /*************************************************************************/ /*!
@@ -171,12 +168,20 @@ IMG_UINT64 _RGXReadBVNCFromReg(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_UINT32 ui32
 static void _RGXBvncDumpParsedConfig(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
 	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDeviceNode->pvDevice;
-	IMG_UINT64 ui64Mask = 0, ui32IdOrNameIdx = 1;
+#if defined(FEATURE_NO_VALUES_NAMES_MAX_IDX)
+	IMG_UINT16 ui16FeatureMaskIdx;
+#endif
+	IMG_UINT64 ui64Mask = 0;
+#if defined(ERNSBRNS_IDS_MAX_IDX)
+	IMG_UINT64 ui32IdOrNameIdx = 0;
+#endif
 
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "NC:       ", NUM_CLUSTERS);
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "CSF:      ", CDM_CONTROL_STREAM_FORMAT);
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "FBCDCA:   ", FBCDC_ARCHITECTURE);
+#if defined(RGX_FEATURE_META_IDX)
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "META:     ", META);
+#endif
 #if defined(RGX_FEATURE_META_COREMEM_BANKS_IDX)
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "MCMB:     ", META_COREMEM_BANKS);
 #endif
@@ -201,30 +206,40 @@ static void _RGXBvncDumpParsedConfig(PVRSRV_DEVICE_NODE *psDeviceNode)
 #endif
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "SLCBanks: ", SLC_BANKS);
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "SLCCLS:   ", SLC_CACHE_LINE_SIZE_BITS);
-	PVR_LOG(("SLCSize:   %d",  psDevInfo->sDevFeatureCfg.ui32SLCSizeInBytes));
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "VASB:     ", VIRTUAL_ADDRESS_SPACE_BITS);
 	PVR_LOG_DUMP_FEATURE_VALUE(psDevInfo, "NOSIDS:   ", NUM_OSIDS);
 
 #if defined(FEATURE_NO_VALUES_NAMES_MAX_IDX)
 	/* Dump the features with no values */
-	ui64Mask = psDevInfo->sDevFeatureCfg.ui64Features;
-	while (ui64Mask)
+	for (ui16FeatureMaskIdx = 0; ui16FeatureMaskIdx < RGX_BVNC_KM_FEATURE_FLAG_ARRAY_SIZE; ui16FeatureMaskIdx++)
 	{
-		if (ui64Mask & 0x01)
+		IMG_UINT32 ui32NameBase = ui16FeatureMaskIdx * 64;
+		IMG_UINT32 ui32Shift;
+
+		ui64Mask = psDevInfo->sDevFeatureCfg.paui64Features[ui16FeatureMaskIdx];
+
+		for (ui32Shift = 0; ui32Shift < 63; ui32Shift++)
 		{
-			if (ui32IdOrNameIdx <= FEATURE_NO_VALUES_NAMES_MAX_IDX)
+			if ((ui64Mask >> ui32Shift) == 0)
 			{
-				PVR_LOG(("%s", gaszFeaturesNoValuesNames[ui32IdOrNameIdx - 1]));
+				break;
 			}
-			else
+
+			if ((ui64Mask >> ui32Shift) & 0x01)
 			{
-				PVR_DPF((PVR_DBG_WARNING,
-				         "Feature with Mask doesn't exist: 0x%016" IMG_UINT64_FMTSPECx,
-				         ((IMG_UINT64)1 << (ui32IdOrNameIdx - 1))));
+				IMG_UINT32 ui32Index = ui32NameBase + ui32Shift;
+				if (ui32Index < FEATURE_NO_VALUES_NAMES_MAX_IDX)
+				{
+					PVR_LOG(("%s", gaszFeaturesNoValuesNames[ui32Index]));
+				}
+				else
+				{
+					PVR_DPF((PVR_DBG_WARNING,
+							"At index %u feature with mask doesn't exist: 0x%016" IMG_UINT64_FMTSPECx,
+							ui16FeatureMaskIdx, ((IMG_UINT64)1 << (ui32Shift))));
+				}
 			}
 		}
-		ui64Mask >>= 1;
-		ui32IdOrNameIdx++;
 	}
 #endif
 
@@ -253,14 +268,13 @@ static void _RGXBvncDumpParsedConfig(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 #if !defined(ERNSBRNS_IDS_MAX_IDX) && !defined(FEATURE_NO_VALUES_NAMES_MAX_IDX)
 	PVR_UNREFERENCED_PARAMETER(ui64Mask);
-	PVR_UNREFERENCED_PARAMETER(ui32IdOrNameIdx);
 #endif
 
 }
 #endif
 
 static PVRSRV_ERROR _RGXBvncParseFeatureValues(PVRSRV_RGXDEV_INFO *psDevInfo,
-                                               IMG_UINT64 *pui64Cfg)
+                                               const RGX_BVNC_KM_FEATURE_TABLE_ENTRY *psFeatureConfig)
 {
 	IMG_UINT32 ui32Index;
 
@@ -268,8 +282,9 @@ static PVRSRV_ERROR _RGXBvncParseFeatureValues(PVRSRV_RGXDEV_INFO *psDevInfo,
 	for (ui32Index = 0; ui32Index < RGX_FEATURE_WITH_VALUES_MAX_IDX; ui32Index++)
 	{
 		IMG_UINT16 ui16BitPosition = aui16FeaturesWithValuesBitPositions[ui32Index];
-		IMG_UINT64 ui64PackedValues = pui64Cfg[2 + ui16BitPosition / 64];
-		IMG_UINT16 ui16ValueIndex = (ui64PackedValues & aui64FeaturesWithValuesBitMasks[ui32Index]) >> (ui16BitPosition % 64);
+
+		IMG_UINT32 ui32ArrIdx = ui16BitPosition >> 6; // Log2 division (ui16BitPosition / 64)
+		IMG_UINT16 ui16ValueIndex = (psFeatureConfig->aui64FeatureValues[ui32ArrIdx] & aui64FeaturesWithValuesBitMasks[ui32Index]) >> (ui16BitPosition % 64);
 
 		if (ui16ValueIndex >= gaFeaturesValuesMaxIndexes[ui32Index])
 		{
@@ -332,7 +347,8 @@ static PVRSRV_ERROR _RGXBvncParseFeatureValues(PVRSRV_RGXDEV_INFO *psDevInfo,
 	{
 		RGX_LAYER_PARAMS sParams = {.psDevInfo = psDevInfo};
 
-		if (RGX_DEVICE_GET_FEATURE_VALUE(&sParams, POWER_ISLAND_VERSION) == 1)
+		if ((RGX_DEVICE_GET_FEATURE_VALUE(&sParams, POWER_ISLAND_VERSION) == 1) ||
+			(RGX_DEVICE_GET_FEATURE_VALUE(&sParams, POWER_ISLAND_VERSION) >= 7))
 		{
 			/* per SPU power island */
 			psDevInfo->sDevFeatureCfg.ui32MAXPowUnitCount = MAX(1, (RGX_GET_FEATURE_VALUE(psDevInfo, NUM_CLUSTERS) / 2));
@@ -584,104 +600,68 @@ static PVRSRV_ERROR _RGXBvncParseList(IMG_UINT32 *pB,
 	return PVRSRV_OK;
 }
 
-#if !defined(NO_HARDWARE)
-/*
- * This function obtains the SLCSize from the physical device for GPUs which provide
- * this information. If the GPU does not provide support we return a value of 0 which will
- * result in the BVNC supplied definition being used to provide the SLCSize.
- * Must only be called from driver-live with hardware powered-on.
- */
-static IMG_UINT32 _RGXBvncReadSLCSize(PVRSRV_DEVICE_NODE *psDeviceNode)
+static PVRSRV_ERROR RGXGetBVNCFromModParam(IMG_UINT32 ui32DeviceCount,
+                                           IMG_UINT32 *pui32B,
+                                           IMG_UINT32 *pui32V,
+                                           IMG_UINT32 *pui32N,
+                                           IMG_UINT32 *pui32C,
+                                           const RGX_BVNC_KM_FEATURE_TABLE_ENTRY **ppsFeatureConfig)
 {
-	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
-	IMG_UINT64 ui64SLCSize = 0ULL;
-
-#if defined(RGX_CR_SLC_SIZE_IN_KB)
-	/* Rogue hardware */
-	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, SLC_SIZE_CONFIGURABLE))
-	{
-		ui64SLCSize = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_SLC_SIZE_IN_KB);
-		if (ui64SLCSize == 0ULL)
-		{
-			PVR_DPF((PVR_DBG_MESSAGE, "%s: Unexpected 0 SLC size. Using default", __func__));
-		}
-		else
-		{
-			PVR_DPF((PVR_DBG_MESSAGE, "%s: RGX_CR_SIZE_IN_KB = %u", __func__,
-			        (IMG_UINT32) ui64SLCSize));
-		}
-	}
-#else
-	/* Volcanic hardware */
-	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, SLC_SIZE_ADJUSTMENT))
-	{
-		ui64SLCSize = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_SLC_STATUS2);
-		ui64SLCSize &= ~RGX_CR_SLC_STATUS2_SLC_SIZE_IN_KB_CLRMSK;
-		ui64SLCSize >>= RGX_CR_SLC_STATUS2_SLC_SIZE_IN_KB_SHIFT;
-
-		if (ui64SLCSize == 0ULL)
-		{
-			PVR_DPF((PVR_DBG_MESSAGE, "%s: Unexpected 0 SLC size. Using default", __func__));
-		}
-		else
-		{
-			PVR_DPF((PVR_DBG_MESSAGE, "%s: SLC_SIZE_IN_KILOBYTES = %u", __func__,
-			        (IMG_UINT32) ui64SLCSize));
-		}
-	}
-#endif
-
-	return (IMG_UINT32)ui64SLCSize * 1024U;
-}
-#endif /* !defined(NO_HARDWARE) */
-
-/* This function detects the Rogue variant and configures the essential
- * config info associated with such a device.
- * The config info includes features, errata, etc
- */
-PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
-{
-	static IMG_UINT32 ui32RGXDevCnt = 0;
-	PVRSRV_ERROR eError;
-	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
-	IMG_UINT64 ui64BVNC=0;
 	IMG_UINT32 B=0, V=0, N=0, C=0;
-	IMG_UINT64 *pui64Cfg = NULL;
-	IMG_UINT32 ui32Cores = 1U;
-	IMG_UINT32 ui32SLCSize = 0;
+	PVRSRV_ERROR eError;
 
 	/* Check for load time RGX BVNC parameter */
-	eError = _RGXBvncParseList(&B,&V,&N,&C, ui32RGXDevCnt);
-	if (PVRSRV_OK == eError)
+	eError = _RGXBvncParseList(&B,&V,&N,&C, ui32DeviceCount);
+	if (eError == PVRSRV_OK)
 	{
+		*pui32B = B;
+		*pui32V = V;
+		*pui32N = N;
+		*pui32C = C;
+
 		PVR_LOG(("Read BVNC " RGX_BVNC_STR_FMTSPEC
-				" from driver load parameter", B, V, N, C));
+		         " from driver load parameter", B, V, N, C));
 
-		/* Extract the BVNC config from the Features table */
-		ui64BVNC = BVNC_PACK(B,0,N,C);
-		pui64Cfg = RGX_SEARCH_BVNC_TABLE(gaFeatures, ui64BVNC);
-		PVR_LOG_IF_FALSE((pui64Cfg != NULL), "Driver parameter BVNC configuration not found!");
+		/* Extract the BVNC config from the Features table.
+		 * This is done to verify the BVNC is valid. */
+		*ppsFeatureConfig = RGXGetFeatureEntryFromBVNC(BVNC_PACK(B,0,N,C));
+		if (*ppsFeatureConfig != NULL)
+		{
+			return PVRSRV_OK;
+		}
+
+		PVR_LOG(("Driver parameter BVNC configuration not found!"));
 	}
 
-	{
-		void *pvAppHintState = NULL;
-		const IMG_BOOL bAppHintDefault = PVRSRV_APPHINT_IGNOREHWREPORTEDBVNC;
-
-		OSCreateAppHintState(&pvAppHintState);
-		OSGetAppHintBOOL(APPHINT_NO_DEVICE,
-							pvAppHintState,
-							IgnoreHWReportedBVNC,
-							&bAppHintDefault,
-							&psDevInfo->bIgnoreHWReportedBVNC);
-		OSFreeAppHintState(pvAppHintState);
-	}
+	return PVRSRV_ERROR_BVNC_UNSUPPORTED;
+}
 
 #if !defined(NO_HARDWARE)
+static PVRSRV_ERROR RGXGetBVNCFromHW(PVRSRV_DEVICE_NODE* psDeviceNode,
+                                     IMG_UINT32 *pui32B,
+                                     IMG_UINT32 *pui32V,
+                                     IMG_UINT32 *pui32N,
+                                     IMG_UINT32 *pui32C,
+                                     IMG_UINT32 *pui32CoreCount)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+	IMG_UINT32 B=0, V=0, N=0, C=0;
+	void *pvAppHintState = NULL;
+	const IMG_BOOL bAppHintDefault = PVRSRV_APPHINT_IGNOREHWREPORTEDBVNC;
+
+	OSCreateAppHintState(&pvAppHintState);
+	OSGetAppHintBOOL(APPHINT_NO_DEVICE,
+	                 pvAppHintState,
+	                 IgnoreHWReportedBVNC,
+	                 &bAppHintDefault,
+	                 &psDevInfo->bIgnoreHWReportedBVNC);
+	OSFreeAppHintState(pvAppHintState);
 
 	/* Try to detect the RGX BVNC from the HW device */
-	if ((NULL == pui64Cfg) && !psDevInfo->bIgnoreHWReportedBVNC)
+	if (!psDevInfo->bIgnoreHWReportedBVNC)
 	{
-		IMG_BOOL bPowerDown = ! PVRSRVIsSystemPowered(psDeviceNode);
+		IMG_BOOL bPowerDown = !PVRSRVIsSystemPowered(psDeviceNode);
+		PVRSRV_ERROR eError;
 
 		/* Power-up the device as required to read the registers */
 		if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode) && bPowerDown)
@@ -694,20 +674,20 @@ PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
 		_RGXReadBVNCFromReg(psDeviceNode, 0 /*core0*/, &B, &V, &N, &C);
 
 		PVR_LOG(("Read BVNC " RGX_BVNC_STR_FMTSPEC
-				" from HW device registers", B, V, N, C));
+		         " from HW device registers", B, V, N, C));
 
 		if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode))
 		{
 			/* Read the number of cores in the system for newer BVNC (Branch ID > 20) */
 			if (B > 20)
 			{
-				ui32Cores = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_MULTICORE_SYSTEM);
+#if defined(RGX_FEATURE_ERYX_TOP_INFRASTRUCTURE)
+				*pui32CoreCount = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_MULTICORE_DOMAIN);
+#else
+				*pui32CoreCount = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_MULTICORE_SYSTEM);
+#endif
 			}
 		}
-
-		/* Obtain the SLC size from the device */
-		ui32SLCSize = _RGXBvncReadSLCSize(psDeviceNode);
-		PVR_DPF((PVR_DBG_MESSAGE, "%s: SLC Size reported as %u", __func__, ui32SLCSize));
 
 		if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode) && bPowerDown)
 		{
@@ -716,11 +696,14 @@ PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
 		}
 
 		/* Extract the BVNC config from the Features table */
-		ui64BVNC = BVNC_PACK(B,0,N,C);
-		if (ui64BVNC != 0)
+		if (BVNC_PACK(B,0,N,C) != 0)
 		{
-			pui64Cfg = RGX_SEARCH_BVNC_TABLE(gaFeatures, ui64BVNC);
-			PVR_LOG_IF_FALSE((pui64Cfg != NULL), "HW device BVNC configuration not found!");
+			*pui32B = B;
+			*pui32V = V;
+			*pui32N = N;
+			*pui32C = C;
+
+			return PVRSRV_OK;
 		}
 		else if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode))
 		{
@@ -731,95 +714,153 @@ PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
 			PVR_LOG_ERROR(PVRSRV_ERROR_DEVICE_REGISTER_FAILED, "CORE_ID register returns zero. Unknown BVNC");
 		}
 	}
+
+	return PVRSRV_ERROR_BVNC_UNSUPPORTED;
+}
 #endif
 
+static PVRSRV_ERROR RGXGetBVNCFromBuild(IMG_UINT32 *pui32B,
+                                        IMG_UINT32 *pui32V,
+                                        IMG_UINT32 *pui32N,
+                                        IMG_UINT32 *pui32C)
+{
+
 #if defined(RGX_BVNC_KM_B) && defined(RGX_BVNC_KM_N) && defined(RGX_BVNC_KM_C)
-	if (NULL == pui64Cfg)
+	IMG_UINT32 B=0, V=0, N=0, C=0;
+	IMG_CHAR acVStr[5] = RGX_BVNC_KM_V_ST;
+
+	/* We reach here if the HW is not present,
+	 * or we are running in a guest OS with no COREID_PER_OS feature,
+	 * or HW is unstable during register read giving invalid values,
+	 * or runtime detection has been disabled - fall back to compile time BVNC
+	 */
+	B = RGX_BVNC_KM_B;
+	N = RGX_BVNC_KM_N;
+	C = RGX_BVNC_KM_C;
+
+	/* Clear any 'p' that may have been in RGX_BVNC_KM_V_ST,
+		* as OSStringToUINT32() will otherwise return an error.
+		*/
+	if (acVStr[strlen(acVStr)-1] == 'p')
 	{
-		IMG_CHAR acVStr[5] = RGX_BVNC_KM_V_ST;
-
-		/* We reach here if the HW is not present,
-		 * or we are running in a guest OS with no COREID_PER_OS feature,
-		 * or HW is unstable during register read giving invalid values,
-		 * or runtime detection has been disabled - fall back to compile time BVNC
-		 */
-		B = RGX_BVNC_KM_B;
-		N = RGX_BVNC_KM_N;
-		C = RGX_BVNC_KM_C;
-
-		/* Clear any 'p' that may have been in RGX_BVNC_KM_V_ST,
-		 * as OSStringToUINT32() will otherwise return an error.
-		 */
-		if (acVStr[strlen(acVStr)-1] == 'p')
-		{
-			acVStr[strlen(acVStr)-1] = '\0';
-		}
-
-		if (OSStringToUINT32(&acVStr[0], 0, &V) != PVRSRV_OK)
-		{
-			V = 0;
-		}
-		PVR_LOG(("Reverting to compile time BVNC %s", RGX_BVNC_KM));
-
-		/* Extract the BVNC config from the Features table */
-		ui64BVNC = BVNC_PACK(B,0,N,C);
-		pui64Cfg = RGX_SEARCH_BVNC_TABLE(gaFeatures, ui64BVNC);
-		PVR_LOG_IF_FALSE((pui64Cfg != NULL), "Compile time BVNC configuration not found!");
+		acVStr[strlen(acVStr)-1] = '\0';
 	}
+
+	if (OSStringToUINT32(&acVStr[0], 0, &V) != PVRSRV_OK)
+	{
+		V = 0;
+	}
+	PVR_LOG(("Reverting to compile time BVNC %s", RGX_BVNC_KM));
+
+	*pui32B = B;
+	*pui32V = V;
+	*pui32N = N;
+	*pui32C = C;
+
+	return PVRSRV_OK;
+#else /* defined(RGX_BVNC) */
+
+	return PVRSRV_ERROR_BVNC_UNSUPPORTED;
 #endif /* defined(RGX_BVNC) */
+}
+
+
+/* This function detects the Rogue variant and configures the essential
+ * config info associated with such a device.
+ * The config info includes features, errata, etc
+ */
+PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	static IMG_UINT32 ui32RGXDevCnt = 0;
+	PVRSRV_ERROR eError;
+	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
+	IMG_UINT64 ui64BVNC;
+	IMG_UINT32 B=0, V=0, N=0, C=0;
+	const RGX_BVNC_KM_FEATURE_TABLE_ENTRY *psFeatureConfig = NULL;
+	const IMG_UINT64 *pui64Cfg = NULL;
+	IMG_UINT32 ui32Cores = 1U;
+
+	eError = RGXGetBVNCFromModParam(ui32RGXDevCnt, &B, &V, &N, &C, &psFeatureConfig);
+	if (eError != PVRSRV_OK)
+	{
+		IMG_UINT64 ui64BNC;
+		/* If we don't find the BVNC here, something is really wrong. */
+#if !defined(NO_HARDWARE)
+		eError = RGXGetBVNCFromHW(psDeviceNode, &B, &V, &N, &C, &ui32Cores);
+		if (eError != PVRSRV_OK)
+#endif
+		{
+			eError = RGXGetBVNCFromBuild(&B, &V, &N, &C);
+			PVR_LOG_RETURN_IF_ERROR(eError, "RGXGetBVNCFromBuild");
+		}
+
+		ui64BNC = BVNC_PACK(B, 0, N, C);
+		psFeatureConfig = RGXGetFeatureEntryFromBVNC(ui64BNC);
+	}
 
 	/* Have we failed to identify the BVNC to use? */
-	if (NULL == pui64Cfg)
+	if (psFeatureConfig == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: BVNC Detection and feature lookup failed. "
-		    "Unsupported BVNC: 0x%016" IMG_UINT64_FMTSPECx, __func__, ui64BVNC));
+		    "Unsupported BVNC: %u.%u.%u.%u", __func__, B, V, N, C));
 		return PVRSRV_ERROR_BVNC_UNSUPPORTED;
 	}
 
-	PVR_DPF((PVR_DBG_MESSAGE, "%s: BVNC Feature found config: 0x%016"
-	    IMG_UINT64_FMTSPECx " 0x%016" IMG_UINT64_FMTSPECx " 0x%016"
-	    IMG_UINT64_FMTSPECx " 0x%016" IMG_UINT64_FMTSPECx "\n", __func__,
-	    pui64Cfg[0], pui64Cfg[1], pui64Cfg[2], pui64Cfg[3]));
+	PVR_DPF((PVR_DBG_MESSAGE, "%s: BVNC 0x%016"IMG_UINT64_FMTSPECx" feature config found", __func__, psFeatureConfig->ui64BVNC));
+
+#if defined(DEBUG)
+	{
+		IMG_UINT32 i;
+
+		PVR_DPF((PVR_DBG_MESSAGE, "Features without values:"));
+		for (i = 0; i < RGX_BVNC_KM_FEATURE_FLAG_ARRAY_SIZE; i++)
+		{
+			PVR_DPF((PVR_DBG_MESSAGE,
+			         "\t[%u]: 0x%016"IMG_UINT64_FMTSPECx,
+			         i,
+			         psFeatureConfig->aui64FeatureFlags[i]));
+		}
+
+		PVR_DPF((PVR_DBG_MESSAGE, "Features with values:"));
+		for (i = 0; i < RGX_BVNC_KM_FEATURE_VALUE_ARRAY_SIZE; i++)
+		{
+			PVR_DPF((PVR_DBG_MESSAGE,
+			         "\t[%u]: 0x%016"IMG_UINT64_FMTSPECx,
+			         i,
+			         psFeatureConfig->aui64FeatureValues[i]));
+		}
+	}
+#endif
 
 	/* Parsing feature config depends on available features on the core
-	 * hence this parsing should always follow the above feature assignment */
-	psDevInfo->sDevFeatureCfg.ui64Features = pui64Cfg[1];
-	eError = _RGXBvncParseFeatureValues(psDevInfo, pui64Cfg);
+	* hence this parsing should always follow the above feature assignment */
+	psDevInfo->sDevFeatureCfg.paui64Features = psFeatureConfig->aui64FeatureFlags;
+
+	eError = _RGXBvncParseFeatureValues(psDevInfo, psFeatureConfig);
 	PVR_RETURN_IF_ERROR(eError);
+
 
 	/* Add 'V' to the packed BVNC value to get the BVNC ERN and BRN config. */
 	ui64BVNC = BVNC_PACK(B,V,N,C);
-	pui64Cfg = RGX_SEARCH_BVNC_TABLE(gaErnsBrns, ui64BVNC);
+	pui64Cfg = RGXGetERNBRNFromBVNC(ui64BVNC);
 	if (NULL == pui64Cfg)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: BVNC ERN/BRN lookup failed. "
-		    "Unsupported BVNC: 0x%016" IMG_UINT64_FMTSPECx, __func__, ui64BVNC));
+			"Unsupported BVNC: 0x%016" IMG_UINT64_FMTSPECx, __func__, ui64BVNC));
 		psDevInfo->sDevFeatureCfg.ui64ErnsBrns = 0;
 		return PVRSRV_ERROR_BVNC_UNSUPPORTED;
 	}
 
 	PVR_DPF((PVR_DBG_MESSAGE, "%s: BVNC ERN/BRN Cfg: 0x%016" IMG_UINT64_FMTSPECx
-	    " 0x%016" IMG_UINT64_FMTSPECx, __func__, *pui64Cfg, pui64Cfg[1]));
+		" 0x%016" IMG_UINT64_FMTSPECx, __func__, *pui64Cfg, pui64Cfg[1]));
 	psDevInfo->sDevFeatureCfg.ui64ErnsBrns = pui64Cfg[1];
+
 
 	psDevInfo->sDevFeatureCfg.ui32B = B;
 	psDevInfo->sDevFeatureCfg.ui32V = V;
 	psDevInfo->sDevFeatureCfg.ui32N = N;
 	psDevInfo->sDevFeatureCfg.ui32C = C;
 
-
-	/*
-	 * Store the SLCSize in the device info field. If 0 it means the device uses the BVNC
-	 * values so grab them here as we've already populated the internal structures.
-	 */
-	if (ui32SLCSize == 0U)
-	{
-		ui32SLCSize = RGX_GET_FEATURE_VALUE(psDevInfo, SLC_SIZE_IN_KILOBYTES) * 1024U;
-
-		/* Verify that we have a valid value returned from the BVNC */
-		PVR_ASSERT(ui32SLCSize != 0U);
-	}
-	psDevInfo->sDevFeatureCfg.ui32SLCSizeInBytes = ui32SLCSize;
 
 	/* Message to confirm configuration look up was a success */
 	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, GPU_MULTICORE_SUPPORT) &&
@@ -855,11 +896,11 @@ PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 /*
  * This function checks if a particular feature is available on the given rgx device */
-IMG_BOOL RGXBvncCheckFeatureSupported(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_UINT64 ui64FeatureMask)
+IMG_BOOL RGXBvncCheckFeatureSupported(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_UINT16 ui16FeatureArrayIndex, IMG_UINT64 ui64FeatureMask)
 {
 	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
 
-	if (psDevInfo->sDevFeatureCfg.ui64Features & ui64FeatureMask)
+	if (psDevInfo->sDevFeatureCfg.paui64Features[ui16FeatureArrayIndex] & ui64FeatureMask)
 	{
 		return IMG_TRUE;
 	}

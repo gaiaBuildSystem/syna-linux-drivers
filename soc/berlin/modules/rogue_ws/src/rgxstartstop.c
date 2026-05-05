@@ -49,6 +49,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * which should be extended when necessary. */
 #include "rgxstartstop.h"
 
+/* This module must remain portable to allow it to be built into
+ * external system components such as the TEE. Most DDK
+ * types and helper functions can't be used here */
+#define RGX_LAYER_PARAMS   ERROR_ILLEGAL_TYPEDEF
+#define PVRSRV_RGXDEV_INFO ERROR_ILLEGAL_TYPEDEF
+#define PVRSRV_DEVICE_NODE ERROR_ILLEGAL_TYPEDEF
+#define PVR_DPF            ERROR_ILLEGAL_TYPEDEF
+
+#if defined(RGXLAYER_IMPL_H) || defined(RGXDEVICE_H) || defined(PVR_DEBUG_H)
+#warning "Driver-only headers are included that break portability."
+#endif
+
 #define SOC_FEATURE_STRICT_SAME_ADDRESS_WRITE_ORDERING
 
 /*
@@ -493,7 +505,6 @@ static void RGXInitRiscvProcWrapper(const void *hPrivate)
 		              RGX_CR_FWCORE_ADDR_REMAP_CONFIG0_FETCH_EN_EN);
 
 		RGXCommentLog(hPrivate, "RGXStart: Write boot data remap");
-		RGXAcquireBootDataAddr(hPrivate, &sTmp);
 		RGXWriteReg64(hPrivate,
 		              ui32BootDataRemap,
 		              sTmp.uiAddr |
@@ -1030,25 +1041,13 @@ PVRSRV_ERROR RGXStop(const void *hPrivate)
 	}
 
 	/* Unset MTS DM association with threads */
-	RGXWriteReg32(hPrivate,
-	              RGX_CR_MTS_INTCTX_THREAD0_DM_ASSOC,
-	              RGX_CR_MTS_INTCTX_THREAD0_DM_ASSOC_DM_ASSOC_CLRMSK
-	              & RGX_CR_MTS_INTCTX_THREAD0_DM_ASSOC_MASKFULL);
-	RGXWriteReg32(hPrivate,
-	              RGX_CR_MTS_BGCTX_THREAD0_DM_ASSOC,
-	              RGX_CR_MTS_BGCTX_THREAD0_DM_ASSOC_DM_ASSOC_CLRMSK
-	              & RGX_CR_MTS_BGCTX_THREAD0_DM_ASSOC_MASKFULL);
+	RGXWriteReg32(hPrivate, RGX_CR_MTS_INTCTX_THREAD0_DM_ASSOC, 0);
+	RGXWriteReg32(hPrivate, RGX_CR_MTS_BGCTX_THREAD0_DM_ASSOC, 0);
 
 	if (bMetaFW)
 	{
-		RGXWriteReg32(hPrivate,
-					  RGX_CR_MTS_INTCTX_THREAD1_DM_ASSOC,
-					  RGX_CR_MTS_INTCTX_THREAD1_DM_ASSOC_DM_ASSOC_CLRMSK
-					  & RGX_CR_MTS_INTCTX_THREAD1_DM_ASSOC_MASKFULL);
-		RGXWriteReg32(hPrivate,
-					  RGX_CR_MTS_BGCTX_THREAD1_DM_ASSOC,
-					  RGX_CR_MTS_BGCTX_THREAD1_DM_ASSOC_DM_ASSOC_CLRMSK
-					  & RGX_CR_MTS_BGCTX_THREAD1_DM_ASSOC_MASKFULL);
+		RGXWriteReg32(hPrivate, RGX_CR_MTS_INTCTX_THREAD1_DM_ASSOC, 0);
+		RGXWriteReg32(hPrivate, RGX_CR_MTS_BGCTX_THREAD1_DM_ASSOC, 0);
 	}
 
 #if defined(PDUMP)

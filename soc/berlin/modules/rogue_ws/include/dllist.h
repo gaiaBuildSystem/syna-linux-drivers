@@ -420,4 +420,36 @@ static INLINE void dllist_sort(PDLLIST_NODE psListHead,
 	}
 }
 
+/*************************************************************************/ /*!
+@Function       dllist_split
+
+@Description    Split the list at psNode from psOldHead and place in psNewHead
+                After the operation completes psNewHead will contain a list
+                starting at psNode and psOldHead will have psNode->prevNode as
+                its tail element (i.e.,
+                psOldHead->psPrevNode = psNode->prevNode, and the new tail
+                (psNode->prevNode->nextNode = psOldHead)).
+
+@Input          psNode                  List split-point.
+@Input          psOldHead               List head to remove psNode and remaining
+                                        nodes from.
+@Input          psNewHead               List head to receive new list
+*/
+/*****************************************************************************/
+static INLINE void dllist_split(PDLLIST_NODE psNode, PDLLIST_NODE psOldHead,
+                                PDLLIST_NODE psNewHead)
+{
+	PDLLIST_NODE psPrevNode = psNode->psPrevNode;
+	PDLLIST_NODE psCurTail = psOldHead->psPrevNode;
+
+	/* Split the list and move psNode ... psCurTail to psNewHead */
+	psNewHead->psPrevNode = psCurTail;
+	psNode->psPrevNode = psNewHead;
+	psCurTail->psNextNode = psNewHead;
+	psNewHead->psNextNode = psNode;
+
+	/* Now update the psOldHead tail pointer and psCurTail links */
+	psOldHead->psPrevNode = psPrevNode;
+	psPrevNode->psNextNode = psOldHead;
+}
 #endif /* DLLIST_H */

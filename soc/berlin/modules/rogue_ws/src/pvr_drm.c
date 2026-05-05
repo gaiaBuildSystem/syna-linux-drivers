@@ -63,6 +63,7 @@
 #include <linux/mutex.h>
 #include <linux/pci.h>
 
+#include "pvrsrv.h"
 #include "module_common.h"
 #include "pvr_drm.h"
 #include "pvr_drv.h"
@@ -302,6 +303,7 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 
 	mutex_lock(&g_device_mutex);
 
+	PVRSRVDeviceCreationPvzLock();
 	srv_err = PVRSRVCommonDeviceCreate(ddev->dev, deviceId, &priv->dev_node);
 	if (srv_err != PVRSRV_OK) {
 		DRM_ERROR("failed to create device node for device %p (%s)\n",
@@ -310,6 +312,7 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 			err = -EPROBE_DEFER;
 		else
 			err = -ENODEV;
+		PVRSRVDeviceCreationPvzUnlock();
 		goto err_unset_dma_parms;
 	}
 
@@ -317,19 +320,25 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 	if (err) {
 		DRM_ERROR("device %p initialisation failed (err=%d)\n",
 			  ddev->dev, err);
+		PVRSRVDeviceCreationPvzUnlock();
 		goto err_device_destroy;
 	}
 
 	drm_mode_config_init(ddev);
+	PVRSRVDeviceCreationPvzUnlock();
 
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_PROBE)
-	srv_err = PVRSRVCommonDeviceInitialise(priv->dev_node);
-	if (srv_err != PVRSRV_OK) {
-		err = -ENODEV;
-		DRM_ERROR("device %p initialisation failed (err=%d)\n",
-			  ddev->dev, err);
-		goto err_device_deinit;
+	PVRSRVDeviceInitPvzLock(priv->dev_node);
+	if (priv->dev_node->eDevState == PVRSRV_DEVICE_STATE_CREATED) {
+		srv_err = PVRSRVCommonDeviceInitialise(priv->dev_node);
+		if (srv_err != PVRSRV_OK) {
+			err = -ENODEV;
+			DRM_ERROR("device %p initialisation failed (err=%d)\n",
+				  ddev->dev, err);
+			goto err_device_deinit;
+		}
 	}
+	PVRSRVDeviceInitPvzUnlock(priv->dev_node);
 #endif
 
 #if defined(SUPPORT_LINUX_FDINFO)
@@ -355,6 +364,7 @@ int pvr_drm_load(struct drm_device *ddev, unsigned long flags)
 err_device_deinit:
 #endif
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_PROBE)
+	PVRSRVDeviceInitPvzUnlock(priv->dev_node);
 	drm_mode_config_cleanup(ddev);
 	PVRSRVDeviceDeinit(priv->dev_node);
 #endif
@@ -369,11 +379,7 @@ err_exit:
 	return err;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-int pvr_drm_unload(struct drm_device *ddev)
-#else
 void pvr_drm_unload(struct drm_device *ddev)
-#endif
 {
 	struct pvr_drm_private *priv = ddev->dev_private;
 
@@ -397,9 +403,6 @@ void pvr_drm_unload(struct drm_device *ddev)
 	kfree(priv);
 	ddev->dev_private = NULL;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
-	return 0;
-#endif
 }
 
 static int pvr_drm_open(struct drm_device *ddev, struct drm_file *dfile)
@@ -520,13 +523,14 @@ const struct file_operations pvr_drm_fops = {
 #if defined(SUPPORT_LINUX_FDINFO)
 	.show_fdinfo	= pvr_show_fdinfo,
 #endif /* SUPPORT_LINUX_FDINFO */
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
-    .fop_flags      = FOP_UNSIGNED_OFFSET,
+	.fop_flags		= FOP_UNSIGNED_OFFSET,
 #endif
 };
 
 const struct drm_driver pvr_drm_generic_driver = {
-	.driver_features	= DRIVER_MODESET | DRIVER_RENDER |
+	.driver_features	= DRIVER_RENDER |
 				  DRIVER_GEM | PVR_DRM_DRIVER_PRIME,
 
 	.load			= NULL,

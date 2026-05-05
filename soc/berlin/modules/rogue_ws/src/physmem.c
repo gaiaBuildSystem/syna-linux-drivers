@@ -273,12 +273,12 @@ void DevPhysMemFree(PVRSRV_DEVICE_NODE *psDevNode,
 
 }
 
-PVRSRV_ERROR PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
+static PVRSRV_ERROR _ValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
                                          IMG_UINT32 ui32IndexCount,
                                          const IMG_UINT32 *pui32MappingTable)
 {
 	IMG_UINT8 *paui8TrackedIndices;
-	IMG_UINT32 ui32BytesToTrackIndicies;
+	IMG_UINT32 ui32BytesToTrackIndices;
 	IMG_UINT32 i;
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
@@ -286,12 +286,12 @@ PVRSRV_ERROR PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
 	 * We allocate 'n' bytes with 1 bit representing each index, to allow
 	 * us to check for any repeated entries in pui32MappingTable.
 	 */
-	ui32BytesToTrackIndicies = LOG2_DIV(ui32TotalNumVirtChunks, 3);
+	ui32BytesToTrackIndices = LOG2_DIV(ui32TotalNumVirtChunks, 3);
 	if (LOG2_MOD(ui32TotalNumVirtChunks, 3) != 0)
 	{
-		++ui32BytesToTrackIndicies;
+		++ui32BytesToTrackIndices;
 	}
-	paui8TrackedIndices = OSAllocZMem(ui32BytesToTrackIndicies);
+	paui8TrackedIndices = OSAllocZMem(ui32BytesToTrackIndices);
 	if (paui8TrackedIndices == NULL)
 	{
 		return PVRSRV_ERROR_OUT_OF_MEMORY;
@@ -333,8 +333,8 @@ PVRSRV_ERROR PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
 
 /* Checks the input parameters and adjusts them if possible and necessary */
 PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
-                                   IMG_UINT32 ui32NumPhysChunks,
-                                   IMG_UINT32 ui32NumVirtChunks,
+                                   IMG_UINT32 ui32PhysChunkCount,
+                                   IMG_UINT32 ui32LogicalChunkCount,
                                    IMG_UINT32 *pui32MappingTable,
                                    PVRSRV_MEMALLOCFLAGS_T uiFlags,
                                    IMG_PID uiPid,
@@ -346,8 +346,8 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 	IMG_DEVMEM_SIZE_T uiSize = *puiSize;
 	/* Sparse if we have different number of virtual and physical chunks plus
 	 * in general all allocations with more than one virtual chunk */
-	IMG_BOOL bIsSparse = (ui32NumVirtChunks != ui32NumPhysChunks ||
-			ui32NumVirtChunks > 1) ? IMG_TRUE : IMG_FALSE;
+	IMG_BOOL bIsSparse = (ui32LogicalChunkCount != ui32PhysChunkCount ||
+			ui32LogicalChunkCount > 1) ? IMG_TRUE : IMG_FALSE;
 
 	/* Sparse allocations must be backed immediately as the requested
 	 * pui32MappingTable is not retained in any structure if not immediately
@@ -380,9 +380,9 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 	PVR_UNREFERENCED_PARAMETER(uiPid);
 #endif
 
-	if (ui32NumVirtChunks == 0)
+	if (ui32LogicalChunkCount == 0)
 	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Number of virtual chunks cannot be 0",
+		PVR_DPF((PVR_DBG_ERROR, "%s: Number of logical chunks cannot be 0",
 		         __func__));
 
 		return PVRSRV_ERROR_INVALID_PARAMS;
@@ -400,7 +400,7 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 	{
 		PVR_LOG_VA(PVR_DBG_ERROR,
 				   "PMR size exceeds limit #Chunks: %u ChunkSz 0x%08X",
-				   ui32NumVirtChunks,
+				   ui32LogicalChunkCount,
 				   IMG_PAGE2BYTES32(uiLog2AllocPageSize));
 		return PVRSRV_ERROR_PMR_TOO_LARGE;
 	}
@@ -445,27 +445,27 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 			return PVRSRV_ERROR_INVALID_PARAMS;
 		}
 
-		if (IMG_PAGES2BYTES64(ui32NumVirtChunks, uiLog2AllocPageSize) != uiSize)
+		if (IMG_PAGES2BYTES64(ui32LogicalChunkCount, uiLog2AllocPageSize) != uiSize)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
 					 "%s: Total alloc size (%#" IMG_UINT64_FMTSPECx ") "
-					 "is not equal to virtual chunks * chunk size "
+					 "is not equal to logical chunks * chunk size "
 					 "(%#" IMG_UINT64_FMTSPECx ")",
 					 __func__,
 					 uiSize,
-					 IMG_PAGES2BYTES64(ui32NumVirtChunks, uiLog2AllocPageSize)));
+					 IMG_PAGES2BYTES64(ui32LogicalChunkCount, uiLog2AllocPageSize)));
 
 			return PVRSRV_ERROR_PMR_NOT_PAGE_MULTIPLE;
 		}
 
-		if (ui32NumPhysChunks > ui32NumVirtChunks)
+		if (ui32PhysChunkCount > ui32LogicalChunkCount)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
 					"%s: Number of physical chunks (%u) must not be greater "
 					"than number of virtual chunks (%u)",
 					__func__,
-					ui32NumPhysChunks,
-					ui32NumVirtChunks));
+					ui32PhysChunkCount,
+					ui32LogicalChunkCount));
 
 			return PVRSRV_ERROR_INVALID_PARAMS;
 		}
@@ -497,9 +497,9 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 
 	/* Parameter validation - Mapping table entries */
 	{
-		PVRSRV_ERROR eErr = PhysMemValidateMappingTable(ui32NumVirtChunks,
-		                                                ui32NumPhysChunks,
-		                                                pui32MappingTable);
+		PVRSRV_ERROR eErr = _ValidateMappingTable(ui32LogicalChunkCount,
+		                                          ui32PhysChunkCount,
+		                                          pui32MappingTable);
 		PVR_RETURN_IF_ERROR(eErr);
 	}
 
@@ -566,8 +566,8 @@ PVRSRV_ERROR
 PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
                        PVRSRV_DEVICE_NODE *psDevNode,
                        IMG_DEVMEM_SIZE_T uiSize,
-                       IMG_UINT32 ui32NumPhysChunks,
-                       IMG_UINT32 ui32NumVirtChunks,
+                       IMG_UINT32 ui32PhysChunkCount,
+                       IMG_UINT32 ui32LogicalChunkCount,
                        IMG_UINT32 *pui32MappingTable,
                        IMG_UINT32 uiLog2AllocPageSize,
                        PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -600,8 +600,8 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 	}
 
 	eError = PhysMemValidateParams(psDevNode,
-	                               ui32NumPhysChunks,
-	                               ui32NumVirtChunks,
+	                               ui32PhysChunkCount,
+	                               ui32LogicalChunkCount,
 	                               pui32MappingTable,
 	                               uiFlags,
 	                               uiPid,
@@ -623,10 +623,10 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 	PVR_RETURN_IF_ERROR(eError);
 #endif
 
-	for (i = 0; i < ui32NumPhysChunks; i++)
+	for (i = 0; i < ui32PhysChunkCount; i++)
 	{
-		PVR_LOG_RETURN_IF_FALSE(pui32MappingTable[i] < ui32NumVirtChunks,
-		                        "Mapping table value exceeds ui32NumVirtChunks",
+		PVR_LOG_RETURN_IF_FALSE(pui32MappingTable[i] < ui32LogicalChunkCount,
+		                        "Mapping table value exceeds ui32LogicalChunkCount",
 		                        PVRSRV_ERROR_INVALID_PARAMS);
 	}
 
@@ -641,6 +641,7 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 
 	if (ePhysHeapIdx == PVRSRV_PHYS_HEAP_GPU_LOCAL)
 	{
+#if defined(PVRSRV_PHYSHEAP_ENABLE_GPUPRIVATE_PROMOTION)
 		if ((uiFlags & PVRSRV_MEMALLOCFLAGS_CPU_MAPPABLE_MASK) == 0)
 		{
 			ePhysHeapIdx = PVRSRV_PHYS_HEAP_GPU_PRIVATE;
@@ -649,8 +650,10 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 			        " Implicit conversion to GPU PRIVATE performed",
 			        __func__, pszAnnotation));
 		}
-		else if (PVRSRV_CHECK_GPU_CACHE_COHERENT(uiFlags) &&
-				 PVRSRVSystemSnoopingOfCPUCache(psDevNode->psDevConfig))
+		else
+#endif
+		if (PVRSRV_CHECK_GPU_CACHE_COHERENT(uiFlags) &&
+		    PVRSRVSystemSnoopingOfCPUCache(psDevNode->psDevConfig))
 		{
 			ePhysHeapIdx = PVRSRV_PHYS_HEAP_GPU_COHERENT;
 			PVRSRV_SET_PHYS_HEAP_HINT(GPU_COHERENT, uiPMRFlags);
@@ -714,8 +717,8 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 	eError = PhysHeapCreatePMR(psDevNode->apsPhysHeap[ePhysHeapIdx],
 							   psConnection,
 							   uiSize,
-							   ui32NumPhysChunks,
-							   ui32NumVirtChunks,
+							   ui32PhysChunkCount,
+							   ui32LogicalChunkCount,
 							   pui32MappingTable,
 							   uiLog2AllocPageSize,
 							   uiPMRFlags,
@@ -747,8 +750,8 @@ PVRSRV_ERROR
 PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
                        PVRSRV_DEVICE_NODE *psDevNode,
                        IMG_DEVMEM_SIZE_T uiSize,
-                       IMG_UINT32 ui32NumPhysChunks,
-                       IMG_UINT32 ui32NumVirtChunks,
+                       IMG_UINT32 ui32PhysChunkCount,
+                       IMG_UINT32 ui32LogicalChunkCount,
                        IMG_UINT32 *pui32MappingTable,
                        IMG_UINT32 uiLog2AllocPageSize,
                        PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -779,8 +782,8 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
 	return PhysmemNewRamBackedPMR_direct(psConnection,
 	                                     psDevNode,
 	                                     uiSize,
-	                                     ui32NumPhysChunks,
-	                                     ui32NumVirtChunks,
+	                                     ui32PhysChunkCount,
+	                                     ui32LogicalChunkCount,
 	                                     pui32MappingTable,
 	                                     uiLog2AllocPageSize,
 	                                     uiFlags,
@@ -807,23 +810,7 @@ PVRSRVPhysHeapGetMemInfoKM(CONNECTION_DATA *psConnection,
                            PVRSRV_DEVICE_NODE *psDevNode,
                            IMG_UINT32 ui32PhysHeapCount,
                            PVRSRV_PHYS_HEAP *paePhysHeapID,
-                           PHYS_HEAP_MEM_STATS_V1 *paPhysHeapMemStats)
-{
-	PVR_UNREFERENCED_PARAMETER(psConnection);
-	PVR_UNREFERENCED_PARAMETER(psDevNode);
-	PVR_UNREFERENCED_PARAMETER(ui32PhysHeapCount);
-	PVR_UNREFERENCED_PARAMETER(paePhysHeapID);
-	PVR_UNREFERENCED_PARAMETER(paPhysHeapMemStats);
-
-	return PVRSRV_ERROR_NOT_IMPLEMENTED;
-}
-
-PVRSRV_ERROR
-PVRSRVPhysHeapGetMemInfo2KM(CONNECTION_DATA *psConnection,
-                            PVRSRV_DEVICE_NODE *psDevNode,
-                            IMG_UINT32 ui32PhysHeapCount,
-                            PVRSRV_PHYS_HEAP *paePhysHeapID,
-                            PHYS_HEAP_MEM_STATS_V2 *paPhysHeapMemStats)
+                           PHYS_HEAP_MEM_STATS *paPhysHeapMemStats)
 {
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 	return PhysHeapGetMemInfo(psDevNode,

@@ -97,12 +97,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "pdump_km.h"
 
-#define PMR_FLAG_INTERNAL_SPARSE_ALLOC     (1 << 0)
-#define PMR_FLAG_INTERNAL_NO_LAYOUT_CHANGE (1 << 1)
+#define PMR_FLAG_INTERNAL_SPARSE_ALLOC        (1 << 0)
+#define PMR_FLAG_INTERNAL_NO_LAYOUT_CHANGE    (1 << 1)
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
-#define PMR_FLAG_INTERNAL_DEFER_FREE       (1 << 2)
-#define PMR_FLAG_INTERNAL_IS_ZOMBIE        (1 << 3)
+#define PMR_FLAG_INTERNAL_DEFER_FREE          (1 << 2)
+#define PMR_FLAG_INTERNAL_IS_ZOMBIE_PMR       (1 << 3)
+#define PMR_FLAG_INTERNAL_IS_ZOMBIE_PMR_EMPTY (1 << 5)
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+#define PMR_FLAG_INTERNAL_IS_EXCLUSIVE        (1 << 4)
 
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
 /* Indicates PMR should be destroyed immediately and not deferred. */
 #define PMR_NO_ZOMBIE_FENCE IMG_UINT64_MAX
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
@@ -179,16 +183,8 @@ typedef struct _PMR_ZOMBIE_PAGES_
 	PMR_HEADER sHeader;
 	PMR_IMPL_ZOMBIEPAGES pvFactoryPages;
 	PFN_FREE_ZOMBIE_PAGES_FN pfnFactoryFreeZombies;
+	PMR_IMPL_TYPE ePagesFlavour;
 } PMR_ZOMBIE_PAGES;
-#endif
-
-#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-typedef enum _PMR_STATE_
-{
-	PMR_STATE_INIT,
-	PMR_STATE_ACTIVE,
-	PMR_STATE_PAGES_IN_MIGRATE
-} PMR_STATE;
 #endif
 
 #if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE)
@@ -199,6 +195,15 @@ typedef struct _PMR_DEVICE_IMPORT_
 	PVRSRV_DEVICE_NODE *psDevNode;  /* Device this import is representing. */
 	PMR *psParent;                  /* PMR the import belongs to. */
 } PMR_DEVICE_IMPORT;
+#endif
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+typedef enum _PMR_STATE_
+{
+	PMR_STATE_INIT,
+	PMR_STATE_ACTIVE,
+	PMR_STATE_PAGES_IN_MIGRATE
+} PMR_STATE;
 #endif
 
 /* A PMR. One per physical allocation. May be "shared".
@@ -278,13 +283,13 @@ struct _PMR_
 	 */
 	IMG_INT32 iAssociatedResCount;
 
-	/* Lock count - this is the number of times PMRLockSysPhysAddresses()
-	 * has been called, less the number of PMRUnlockSysPhysAddresses()
+	/* Lock count - this is the number of times PMRLockPhysAddresses()
+	 * has been called, less the number of PMRUnlockPhysAddresses()
 	 * calls. This is arguably here for debug reasons only, as the refcount
 	 * is already incremented as a matter of course.
 	 * Really, this just allows us to trap protocol errors: i.e. calling
-	 * PMRSysPhysAddr(), without a lock, or calling
-	 * PMRUnlockSysPhysAddresses() too many or too few times.
+	 * PMR_DevPhysAddr(), without a lock, or calling
+	 * PMRUnlockPhysAddresses() too many or too few times.
 	 */
 	ATOMIC_T iLockCount;
 
@@ -443,9 +448,9 @@ struct _PMR_PAGELIST_
 };
 
 static INLINE IMG_UINT32
-_GetRef(const PMR *const psPMR)
+_GetRef(PMR *const psPMR)
 {
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 	IMG_UINT32 uiRefCount;
 
 	OSSpinLockAcquire(psPMR->hRefCountLock, uiFlags);
@@ -499,6 +504,7 @@ IMG_INT32 PMRGetLiveCount(void)
 	return OSAtomicRead(&_gsSingletonPMRContext.uiNumLivePMRs);
 }
 
+#if defined(SUPPORT_INSECURE_EXPORT)
 PPVRSRV_DEVICE_NODE PMRGetExportDeviceNode(PMR_EXPORT *psExportPMR)
 {
 	PPVRSRV_DEVICE_NODE psReturnedDeviceNode = NULL;
@@ -525,6 +531,7 @@ PPVRSRV_DEVICE_NODE PMRGetExportDeviceNode(PMR_EXPORT *psExportPMR)
 
 	return psReturnedDeviceNode;
 }
+#endif /* defined(SUPPORT_INSECURE_EXPORT) */
 
 static PVRSRV_ERROR
 _PMRCreate(PMR_SIZE_T uiLogicalSize,
@@ -580,8 +587,8 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 	psMappingTable->uiChunkSize = uiChunkSize;
 	psMappingTable->ui32NumLogicalChunks = ui32NumLogicalChunks;
 	psMappingTable->ui32NumPhysChunks = ui32NumPhysChunks;
-	OSCachedMemSet(&psMappingTable->aui32Translation[0], 0xFF, sizeof(psMappingTable->aui32Translation[0])*
-	               ui32NumLogicalChunks);
+	OSCachedMemSet(psMappingTable->aui32Translation, 0xFF,
+	               sizeof(psMappingTable->aui32Translation[0]) * ui32NumLogicalChunks);
 	for (i=0; i<ui32NumPhysChunks; i++)
 	{
 		ui32Temp = pui32MappingTable[i];
@@ -667,7 +674,7 @@ ErrFreePMR:
 static PVRSRV_ERROR
 _Ref(PMR *psPMR, IMG_UINT32 uiRefCount)
 {
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	OSSpinLockAcquire(psPMR->hRefCountLock, uiFlags);
 
@@ -706,7 +713,7 @@ _Ref(PMR *psPMR, IMG_UINT32 uiRefCount)
 static PVRSRV_ERROR
 _Unref(PMR *psPMR, IMG_INT32 uiRefCount, IMG_UINT32 *pui32RefCount)
 {
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	OSSpinLockAcquire(psPMR->hRefCountLock, uiFlags);
 
@@ -757,7 +764,7 @@ PMRUnlockPMR(const PMR *psPMR)
 
 static INLINE void _IntFlagSet(PMR *psPMR, const IMG_UINT32 uiValue)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
 	BITMASK_SET(psPMR->uiInternalFlags, uiValue);
@@ -766,16 +773,16 @@ static INLINE void _IntFlagSet(PMR *psPMR, const IMG_UINT32 uiValue)
 
 static INLINE void _IntFlagClr(PMR *psPMR, const IMG_UINT32 uiValue)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
 	BITMASK_UNSET(psPMR->uiInternalFlags, uiValue);
 	OSSpinLockRelease(psPMR->hBitmapLock, uiLockingFlags);
 }
 
-static INLINE IMG_BOOL _IntFlagIsSet(const PMR *psPMR, const IMG_UINT32 uiValue)
+static INLINE IMG_BOOL _IntFlagIsSet(PMR *psPMR, const IMG_UINT32 uiValue)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 	IMG_BOOL bIsSet;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
@@ -783,6 +790,22 @@ static INLINE IMG_BOOL _IntFlagIsSet(const PMR *psPMR, const IMG_UINT32 uiValue)
 	OSSpinLockRelease(psPMR->hBitmapLock, uiLockingFlags);
 
 	return bIsSet;
+}
+
+static INLINE IMG_BOOL _IntFlagSetIfNotSet(PMR *psPMR, const IMG_UINT32 uiValue)
+{
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
+	IMG_BOOL bIsSet;
+
+	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
+	bIsSet = BITMASK_HAS(psPMR->uiInternalFlags, uiValue);
+	if (!bIsSet)
+	{
+		BITMASK_SET(psPMR->uiInternalFlags, uiValue);
+	}
+	OSSpinLockRelease(psPMR->hBitmapLock, uiLockingFlags);
+
+	return !bIsSet;
 }
 
 static INLINE void
@@ -808,9 +831,13 @@ _FactoryUnlock(const PMR_IMPL_FUNCTAB *psFuncTable)
  * - `psDevNode->sPMRZombieList`
  * - `uiPMRZombieCount`
  * - `uiPMRZombieCountInCleanup`
- *
- * and all `PMR_ZOMBIE_CLEANUP_ITEM::sZombieList` where
- * `PMR_ZOMBIE_CLEANUP_ITEM::psDevNode == psDevNode` */
+ */
+
+void PMR_SetZombieIsPMREmptyFlag(PMR *psPMR)
+{
+	(void) _IntFlagSetIfNotSet(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE_PMR_EMPTY);
+}
+
 static INLINE void
 _ZombieListLock(PPVRSRV_DEVICE_NODE psDevNode)
 {
@@ -844,9 +871,9 @@ static IMG_BOOL _IsDeviceOnAndOperating(PVRSRV_DEVICE_NODE *psDevNode)
 
 #if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) || defined(PVRSRV_ENABLE_XD_MEM)
 static IMG_UINT64
-_DeviceImportBitmapGet(const PMR *psPMR)
+_DeviceImportBitmapGet(PMR *psPMR)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 	IMG_UINT64 uiDevImportBitmap;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
@@ -873,7 +900,7 @@ _DeviceImportBitmapSet(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 static void
 _DeviceImportBitmapClr(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
 	BITMASK_UNSET(psPMR->uiDevImportBitmap, IMG_UINT64_C(1) << psDevNode->sDevId.ui32InternalID);
@@ -881,9 +908,9 @@ _DeviceImportBitmapClr(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 }
 
 static IMG_BOOL
-_DeviceImportBitmapIsSet(const PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
+_DeviceImportBitmapIsSet(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 	IMG_BOOL bIsSet;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
@@ -898,7 +925,7 @@ static IMG_BOOL
 /* Atomically, return if the `psDevNode` is set in the bitmap and then set it. */
 _DeviceImportBitmapFetchAndSet(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 	IMG_BOOL bIsSet;
 
 	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
@@ -977,6 +1004,8 @@ static IMG_BOOL
 _DeviceImportEnqueueZombie(PMR_DEVICE_IMPORT *psImport)
 {
 	PVR_ASSERT(_DeviceImportBitmapIsSet(psImport->psParent, psImport->psDevNode));
+	PMRLockHeldAssert(psImport->psParent);
+
 
 	if (!_IsDeviceOnAndOperating(psImport->psDevNode))
 	{
@@ -991,25 +1020,6 @@ _DeviceImportEnqueueZombie(PMR_DEVICE_IMPORT *psImport)
 	_ZombieListUnlock(psImport->psDevNode);
 
 	return IMG_TRUE;
-}
-
-static void
-_DeviceImportsReviveZombies(PMR *psPMR)
-{
-	PDLLIST_NODE psNode, psNext;
-	PMR_DEVICE_IMPORT *psImport;
-
-	dllist_foreach_node(&psPMR->sXDeviceImports, psNode, psNext)
-	{
-		psImport = IMG_CONTAINER_OF(psNode, PMR_DEVICE_IMPORT, sNext);
-		_ZombieListLock(psImport->psDevNode);
-		if (!dllist_is_empty(&psImport->sHeader.sZombieNode))
-		{
-			dllist_remove_node(&psImport->sHeader.sZombieNode);
-			psImport->psDevNode->uiPMRZombieCount--;
-		}
-		_ZombieListUnlock(psImport->psDevNode);
-	}
 }
 
 static IMG_BOOL
@@ -1035,7 +1045,7 @@ _DeviceImportsEnqueueZombies(PMR *psPMR)
 static void
 _DeviceImportsUnregisterAll(PMR *psPMR)
 {
-	OS_SPINLOCK_FLAGS uiLockingFlags;
+	OS_SPINLOCK_FLAGS uiLockingFlags = 0;
 	PDLLIST_NODE psNode, psNext;
 
 	PMRLockPMR(psPMR);
@@ -1222,12 +1232,16 @@ _UnrefAndMaybeDestroy(PMR *psPMR, IMG_UINT32 uiRefCount)
 	{
 		_PMRDestroy(psPMR);
 	}
+	else if (_IntFlagIsSet(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE_PMR_EMPTY))
+	{
+		_PMRDestroy(psPMR);
+	}
 	else
 	{
 		/* Defer freeing the PMR until the Firmware invalidates the caches. */
 		_ZombieListLock(psDevNode);
 
-		_IntFlagSet(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE);
+		_IntFlagSet(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE_PMR);
 
 		dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMR->sHeader.sZombieNode);
 		psDevNode->uiPMRZombieCount++;
@@ -1259,11 +1273,63 @@ ErrFactoryUnlock:
 	return eError;
 }
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+/*
+   If possible, free zombie pages immediately (and free the wrapper).
+   If not possible, wrap and queue the zombie pages object for deferred freeing.
+   If there are no zombie pages free the provided wrapper (if allocated) */
+static PVRSRV_ERROR
+_ProcessZombiePages(void* pvFactoryZombiePages, PMR_ZOMBIE_PAGES* psPMRZombiePagesWrapper, PMR* psPMR)
+{
+	PVRSRV_ERROR eError;
+
+	if (pvFactoryZombiePages != NULL)
+	{
+		PVRSRV_DEVICE_NODE *psDevNode = PhysHeapDeviceNode(psPMR->psPhysHeap);
+		if (psPMRZombiePagesWrapper == NULL)
+		{
+			PVR_LOG_GOTO_WITH_ERROR("Error when processing zombies", eError,
+			    PVRSRV_ERROR_INVALID_PARAMS, e0);
+		}
+
+		if (!_IsDeviceOnAndOperating(psDevNode))
+		{
+			/* Free psPMRZombiePages as these won't be used*/
+			OSFreeMem(psPMRZombiePagesWrapper);
+
+			eError = psPMR->psFuncTab->pfnFreeZombiePages(pvFactoryZombiePages);
+			PVR_LOG_GOTO_IF_ERROR(eError, "Error when trying to free zombies immediately.", e0);
+		}
+		else
+		{
+			psPMRZombiePagesWrapper->sHeader.eZombieType = PMR_ZOMBIE_TYPE_PAGES;
+			psPMRZombiePagesWrapper->pfnFactoryFreeZombies = psPMR->psFuncTab->pfnFreeZombiePages;
+			psPMRZombiePagesWrapper->pvFactoryPages = pvFactoryZombiePages;
+			psPMRZombiePagesWrapper->ePagesFlavour = psPMR->eFlavour;
+
+			OSLockAcquire(psDevNode->hPMRZombieListLock);
+			dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMRZombiePagesWrapper->sHeader.sZombieNode);
+			psDevNode->uiPMRZombieCount++;
+			OSLockRelease(psDevNode->hPMRZombieListLock);
+		}
+	}
+	else if (psPMRZombiePagesWrapper != NULL)
+	{
+		/* Free psPMRZombiePages as change sparse has not produced any zombie pages */
+		OSFreeMem(psPMRZombiePagesWrapper);
+	}
+
+	return PVRSRV_OK;
+e0:
+	return eError;
+}
+#endif
+
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 typedef struct _PMR_ZOMBIE_CLEANUP_ITEM_
 {
 	PVRSRV_CLEANUP_THREAD_WORK sCleanupThreadFn;
-	DLLIST_NODE sZombieList;                     /*!< See _ZombieListLock */
+	DLLIST_NODE sZombieList;
 	PPVRSRV_DEVICE_NODE psDevNode;
 	PVRSRV_CLIENT_SYNC_PRIM *psSync;
 	IMG_UINT32 uiRequiredSyncValue;
@@ -1300,21 +1366,16 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 
 	do
 	{
-		/* hPMRZombieListLock will prevent removing a node while the list is
-		 * processed. If the lock is already acquired by other process which
-		 * intends to remove an item from the list it'll assure the list
-		 * consistency.
-		 * If this thread acquires the lock first it's possible that another
-		 * thread might be holding PMR factory lock. */
-
-		_ZombieListLock(psCleanupItem->psDevNode);
 		psNode = dllist_get_next_node(&psCleanupItem->sZombieList);
-		_ZombieListUnlock(psCleanupItem->psDevNode);
-
 		if (psNode == NULL)
 		{
 			continue;
 		}
+
+		dllist_remove_node(psNode);
+		_ZombieListLock(psCleanupItem->psDevNode);
+		psCleanupItem->psDevNode->uiPMRZombieCountInCleanup--;
+		_ZombieListUnlock(psCleanupItem->psDevNode);
 
 		switch (PMR_GetZombieTypeFromNode(psNode))
 		{
@@ -1323,10 +1384,6 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 			{
 				PMR_ZOMBIE_PAGES* psZombiePages = PMR_GetZombiePagesFromNode(psNode);
 				eError = psZombiePages->pfnFactoryFreeZombies(psZombiePages->pvFactoryPages);
-				_ZombieListLock(psCleanupItem->psDevNode);
-				dllist_remove_node(psNode);
-				psCleanupItem->psDevNode->uiPMRZombieCountInCleanup--;
-				_ZombieListUnlock(psCleanupItem->psDevNode);
 				if (eError != PVRSRV_OK)
 				{
 					PVR_DPF((PVR_DBG_ERROR, "Cannot free zombie pages! Skipping object %p", psZombiePages));
@@ -1345,10 +1402,6 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 			case PMR_ZOMBIE_TYPE_DEVICE_IMPORT:
 			{
 				PMR_DEVICE_IMPORT *psImport = PMR_GetDeviceImportFromNode(psNode);
-				_ZombieListLock(psCleanupItem->psDevNode);
-				dllist_remove_node(psNode);
-				psCleanupItem->psDevNode->uiPMRZombieCountInCleanup--;
-				_ZombieListUnlock(psCleanupItem->psDevNode);
 				_DeviceImportFreeImportZombie(psImport);
 				break;
 			}
@@ -1360,44 +1413,25 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 				const PMR_IMPL_FUNCTAB *psFuncTable = psPMR->psFuncTab;
 
 				_FactoryLock(psFuncTable);
-				_ZombieListLock(psCleanupItem->psDevNode);
-				/* It is possible that the element might have been removed so
-				 * we have to check if the PMR is still a zombie.
-				 * It's also possible that the PMR has been revived
-				 * (PMRReviveZombieAndRef()), mapped, unmapped and zombified
-				 * again while the lock was not held.
-				 * Considering above only immediately free the PMR if the
-				 * PMR is still a part of this cleanup item. */
-				if (psNode == dllist_get_next_node(&psCleanupItem->sZombieList))
-				{
-					dllist_remove_node(psNode);
-					psCleanupItem->psDevNode->uiPMRZombieCountInCleanup--;
 
 #if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE)
-					/* The PMR cannot be freed if other devices are
-					 * still waiting for the cache flush. */
-					if (_DeviceImportBitmapGet(psPMR) != 0)
-					{
-						/* Request it to be retried and continue
-						 * to the next zombie item. */
-						dllist_add_to_tail(&sRetryHead, psNode);
-						uiRetryCount++;
-						_ZombieListUnlock(psCleanupItem->psDevNode);
-						_FactoryUnlock(psFuncTable);
-						continue;
-					}
+				/* The PMR cannot be freed if other devices are
+				 * still waiting for the cache flush. */
+				if (_DeviceImportBitmapGet(psPMR) != 0)
+				{
+					/* Request it to be retried and continue
+					 * to the next zombie item. */
+					dllist_add_to_tail(&sRetryHead, psNode);
+					uiRetryCount++;
+					_FactoryUnlock(psFuncTable);
+					continue;
+				}
 #endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) */
 
-					/* Unlock here to avoid locking dependency with the power lock.
-					 * It's okay to do it here since the factory lock is the one
-					 * that needs to be held during PMR destruction. */
-					_ZombieListUnlock(psCleanupItem->psDevNode);
-					_PMRDestroy(psPMR);
-				}
-				else
-				{
-					_ZombieListUnlock(psCleanupItem->psDevNode);
-				}
+				/* Unlock here to avoid locking dependency with the power lock.
+				 * It's okay to do it here since the factory lock is the one
+				 * that needs to be held during PMR destruction. */
+				_PMRDestroy(psPMR);
 				_FactoryUnlock(psFuncTable);
 				break;
 			}
@@ -1407,12 +1441,12 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 	if (uiRetryCount)
 	{
 		eError = PVRSRV_ERROR_RETRY;
-		_ZombieListLock(psCleanupItem->psDevNode);
 		/* Add the retry items back to this cleanup item for when the
 		 * cleanup item is retried. Oldest items will reside at the head of
 		 * the list. The cleanup item will be placed at the back of the cleanup
 		 * queue to process other dependencies first. */
 		dllist_insert_list_at_head(&psCleanupItem->sZombieList, &sRetryHead);
+		_ZombieListLock(psCleanupItem->psDevNode);
 		psCleanupItem->psDevNode->uiPMRZombieCountInCleanup += uiRetryCount;
 		_ZombieListUnlock(psCleanupItem->psDevNode);
 	}
@@ -1476,71 +1510,6 @@ IMG_BOOL PMRQueueZombiesForCleanup(PPVRSRV_DEVICE_NODE psDevNode)
 }
 
 void
-PMRReviveZombieAndRef(PMR *psPMR)
-{
-	PVRSRV_DEVICE_NODE *psDeviceNode;
-	DLLIST_NODE *psThis, *psNext;
-	IMG_BOOL bIsOnZombieList = IMG_FALSE;
-	OS_SPINLOCK_FLAGS uiFlags;
-
-	PVR_ASSERT(psPMR != NULL);
-
-	psDeviceNode = PhysHeapDeviceNode(psPMR->psPhysHeap);
-
-	/* If this was on a list then it's brought back to life. */
-	_ZombieListLock(psDeviceNode);
-
-	/* Need to reference this PMR since it was about to be destroyed and its
-	 * reference count must be 0 (can't use _Ref() due to the warning). */
-	OSSpinLockAcquire(psPMR->hRefCountLock, uiFlags);
-	psPMR->uiRefCount++;
-	OSSpinLockRelease(psPMR->hRefCountLock, uiFlags);
-
-#if  defined(DEBUG)
-	PVR_LOG(("%s: 0x%p, key:0x%016" IMG_UINT64_FMTSPECX ", numLive:%d",
-			__func__, psPMR, psPMR->uiKey, OSAtomicRead(&psPMR->psContext->uiNumLivePMRs)));
-#endif
-
-	/* If we got to this point the PMR must be on a list. If it's not
-	 * it should mean a race of some sort. */
-	PVR_ASSERT(!dllist_is_empty(&psPMR->sHeader.sZombieNode));
-
-	/* For the sake of correct accounting check if the PMR is in the zombie
-	 * list or in the cleanup item. */
-	dllist_foreach_node(&psDeviceNode->sPMRZombieList, psThis, psNext)
-	{
-		if (psThis == &psPMR->sHeader.sZombieNode)
-		{
-			bIsOnZombieList = IMG_TRUE;
-			break;
-		}
-	}
-#if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE)
-	if (_DeviceImportBitmapGet(psPMR) != 0) {
-		PMRLockPMR(psPMR);
-		_DeviceImportsReviveZombies(psPMR);
-		PMRUnlockPMR(psPMR);
-	}
-#endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) */
-
-	/* Revive the PMR (remove it from the zombie list) and therefore
-	 * prevent it's destruction. */
-	dllist_remove_node(&psPMR->sHeader.sZombieNode);
-	_IntFlagClr(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE);
-
-	if (bIsOnZombieList)
-	{
-		psDeviceNode->uiPMRZombieCount--;
-	}
-	else
-	{
-		psDeviceNode->uiPMRZombieCountInCleanup--;
-	}
-
-	_ZombieListUnlock(psDeviceNode);
-}
-
-void
 PMRMarkForDeferFree(PMR *psPMR)
 {
 	PVR_ASSERT(psPMR != NULL);
@@ -1549,7 +1518,7 @@ PMRMarkForDeferFree(PMR *psPMR)
 	{
 		/* If PMR pages are allocated on demand the freeing is handled
 		 * by `SUPPORT_PMR_PAGES_DEFERRED_FREE` path in
-		 * `PMRUnlockSysPhysAddressesNested()`. */
+		 * `PMRUnlockPhysAddressesNested()`. */
 		return;
 	}
 
@@ -1557,7 +1526,7 @@ PMRMarkForDeferFree(PMR *psPMR)
 }
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
-static INLINE IMG_BOOL _PMRIsSparse(const PMR *psPMR)
+static INLINE IMG_BOOL _PMRIsSparse(PMR *psPMR)
 {
 	return _IntFlagIsSet(psPMR, PMR_FLAG_INTERNAL_SPARSE_ALLOC);
 }
@@ -1649,18 +1618,18 @@ e0:
 }
 
 PVRSRV_ERROR
-PMRLockSysPhysAddresses(PMR *psPMR)
+PMRLockPhysAddresses(PMR *psPMR)
 {
-	return PMRLockSysPhysAddressesNested(psPMR, 1, 0);
+	return PMRLockPhysAddressesNested(psPMR, 1, 0);
 }
 
 PVRSRV_ERROR
-PMRLockSysPhysAddressesN(PMR *psPMR, IMG_UINT32 uiLockCount)
+PMRLockPhysAddressesN(PMR *psPMR, IMG_UINT32 uiLockCount)
 {
-	return PMRLockSysPhysAddressesNested(psPMR, uiLockCount, 0);
+	return PMRLockPhysAddressesNested(psPMR, uiLockCount, 0);
 }
 
-PVRSRV_ERROR PMRLockSysPhysAddressesNested(PMR *psPMR,
+PVRSRV_ERROR PMRLockPhysAddressesNested(PMR *psPMR,
                                         IMG_UINT32 uiLockCount,
                                         IMG_UINT32 ui32NestingLevel)
 {
@@ -1680,7 +1649,7 @@ PVRSRV_ERROR PMRLockSysPhysAddressesNested(PMR *psPMR,
 	 * "lock" here simply means incrementing the refcount. It means the
 	 * refcount is multipurpose, but that's okay. We only have to promise
 	 * that physical addresses are valid after this point, and remain valid
-	 * until the corresponding PMRUnlockSysPhysAddressesOSMem()
+	 * until the corresponding PMRUnlockPhysAddressesOSMem()
 	 */
 	eError = _Ref(psPMR, uiLockCount);
 	if (eError != PVRSRV_OK)
@@ -1718,24 +1687,29 @@ e1:
 	PVR_ASSERT(_GetRef(psPMR) != 0);
 	OSLockRelease(psPMR->hLock);
 	PVR_ASSERT(eError != PVRSRV_OK);
+	/* The ref was taken after the lock above (as we are also
+	 * using it to count the number of times the phys addrs have
+	 * been locked), but it is safer to drop the reference last
+	 * here, just in case other references were already dropped.
+	 */
 	(void) _Unref(psPMR, uiLockCount, NULL);
 	return eError;
 }
 
 PVRSRV_ERROR
-PMRUnlockSysPhysAddresses(PMR *psPMR)
+PMRUnlockPhysAddresses(PMR *psPMR)
 {
-	return PMRUnlockSysPhysAddressesNested(psPMR, 1, 2);
+	return PMRUnlockPhysAddressesNested(psPMR, 1, 2);
 }
 
 PVRSRV_ERROR
-PMRUnlockSysPhysAddressesN(PMR *psPMR, IMG_UINT32 uiLockCount)
+PMRUnlockPhysAddressesN(PMR *psPMR, IMG_UINT32 uiLockCount)
 {
-	return PMRUnlockSysPhysAddressesNested(psPMR, uiLockCount, 2);
+	return PMRUnlockPhysAddressesNested(psPMR, uiLockCount, 2);
 }
 
 PVRSRV_ERROR
-PMRUnlockSysPhysAddressesNested(PMR *psPMR,
+PMRUnlockPhysAddressesNested(PMR *psPMR,
                              IMG_UINT32 uiLockCount,
                              IMG_UINT32 ui32NestingLevel)
 {
@@ -1782,46 +1756,8 @@ PMRUnlockSysPhysAddressesNested(PMR *psPMR,
 	OSLockRelease(psPMR->hLock);
 
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
-	if (pvZombiePages != NULL)
-	{
-		PVRSRV_DEV_POWER_STATE ePowerState;
-		PVRSRV_DEVICE_NODE *psDevNode;
-
-		psDevNode = PhysHeapDeviceNode(psPMR->psPhysHeap);
-		eError = PVRSRVGetDevicePowerState(psDevNode, &ePowerState);
-		if (eError != PVRSRV_OK)
-		{
-			/* Treat unknown power state as ON. */
-			ePowerState = PVRSRV_DEV_POWER_STATE_ON;
-		}
-
-		if (ePowerState == PVRSRV_DEV_POWER_STATE_OFF ||
-			psDevNode->eDevState == PVRSRV_DEVICE_STATE_PCI_ERROR)
-		{
-			/* Free preallocated psPMRZombiePages as these won't be used*/
-			OSFreeMem(psPMRZombiePages);
-
-			eError = psPMR->psFuncTab->pfnFreeZombiePages(pvZombiePages);
-			PVR_LOG_GOTO_IF_ERROR(eError, "Error when trying to free zombies immediately.",
-			                      ErrReturn);
-		}
-		else
-		{
-			PVR_ASSERT(psPMRZombiePages != NULL);
-			psPMRZombiePages->sHeader.eZombieType = PMR_ZOMBIE_TYPE_PAGES;
-			psPMRZombiePages->pfnFactoryFreeZombies = psPMR->psFuncTab->pfnFreeZombiePages;
-			psPMRZombiePages->pvFactoryPages = pvZombiePages;
-
-			_ZombieListLock(psDevNode);
-			dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMRZombiePages->sHeader.sZombieNode);
-			psDevNode->uiPMRZombieCount++;
-			_ZombieListUnlock(psDevNode);
-		}
-	}
-	else
-	{
-		OSFreeMem(psPMRZombiePages);
-	}
+	eError = _ProcessZombiePages(pvZombiePages, psPMRZombiePages, psPMR);
+	PVR_GOTO_IF_ERROR(eError, ErrReturn);
 #endif
 
 	/* We also count the locks as references, so that the PMR is not
@@ -1897,6 +1833,13 @@ PMRLocalImportPMR(PMR *psPMR,
 	*puiAlign = IMG_PAGE2BYTES64(psPMR->uiLog2ContiguityGuarantee);
 	return PVRSRV_OK;
 }
+
+#if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
+IMG_UINT64 PMRGetSerialNum(PMR *psPMR)
+{
+	return psPMR != NULL ? psPMR->uiSerialNum : (IMG_UINT64) -1ULL;
+}
+#endif
 
 inline IMG_UINT64
 PMRInternalGetUID(PMR *psPMR)
@@ -2407,7 +2350,7 @@ _PMR_ReadBytesPhysical(PMR *psPMR,
 	{
 		/* defer to callback if present */
 
-		eError = PMRLockSysPhysAddresses(psPMR);
+		eError = PMRLockPhysAddresses(psPMR);
 		PVR_GOTO_IF_ERROR(eError, e0);
 
 		eError = psPMR->psFuncTab->pfnReadBytes(psPMR->pvFlavourData,
@@ -2415,7 +2358,7 @@ _PMR_ReadBytesPhysical(PMR *psPMR,
 		                                        pcBuffer,
 		                                        uiBufSz,
 		                                        puiNumBytes);
-		PMRUnlockSysPhysAddresses(psPMR);
+		PMRUnlockPhysAddresses(psPMR);
 		PVR_GOTO_IF_ERROR(eError, e0);
 	}
 	else if (psPMR->psFuncTab->pfnAcquireKernelMappingData)
@@ -2565,7 +2508,7 @@ _PMR_WriteBytesPhysical(PMR *psPMR,
 	{
 		/* defer to callback if present */
 
-		eError = PMRLockSysPhysAddresses(psPMR);
+		eError = PMRLockPhysAddresses(psPMR);
 		PVR_GOTO_IF_ERROR(eError, e0);
 
 		eError = psPMR->psFuncTab->pfnWriteBytes(psPMR->pvFlavourData,
@@ -2573,7 +2516,7 @@ _PMR_WriteBytesPhysical(PMR *psPMR,
 		                                         pcBuffer,
 		                                         uiBufSz,
 		                                         puiNumBytes);
-		PMRUnlockSysPhysAddresses(psPMR);
+		PMRUnlockPhysAddresses(psPMR);
 		PVR_GOTO_IF_ERROR(eError, e0);
 	}
 	else if (psPMR->psFuncTab->pfnAcquireKernelMappingData)
@@ -2713,7 +2656,10 @@ PMRMMapPMR(PMR *psPMR, PMR_MMAP_DATA pOSMMapData, PVRSRV_MEMALLOCFLAGS_T uiFlags
 	                    !PVRSRV_CHECK_CPU_WRITEABLE(uiFlags),
 	                    PVRSRV_ERROR_PMR_NOT_PERMITTED);
 
-	PVR_LOG_RETURN_IF_TRUE(PMR_PhysicalSize(psPMR) == 0, "PVRSRV_ERROR_BAD_MAPPING can not map PMR of 0 physical size", PVRSRV_ERROR_BAD_MAPPING);
+	/* if readable mapping is requested on non-readable PMR then fail */
+	PVR_RETURN_IF_FALSE(PVRSRV_CHECK_CPU_READABLE(psPMR->uiFlags) ||
+	                    !PVRSRV_CHECK_CPU_READABLE(uiFlags),
+	                    PVRSRV_ERROR_PMR_NOT_PERMITTED);
 
 	if (psPMR->psFuncTab->pfnMMap)
 	{
@@ -2756,7 +2702,7 @@ PMRUnrefPMRN(PMR *psPMR, IMG_UINT32 uiRefCount)
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
 PVRSRV_ERROR PMRTryRefPMR(PMR *psPMR)
 {
-	OS_SPINLOCK_FLAGS uiFlags;
+	OS_SPINLOCK_FLAGS uiFlags = 0;
 
 	PVR_ASSERT(psPMR != NULL);
 
@@ -2971,7 +2917,7 @@ PMR_Flags(const PMR *psPMR)
 }
 
 IMG_BOOL
-PMR_IsSparse(const PMR *psPMR)
+PMR_IsSparse(PMR *psPMR)
 {
 	PVR_ASSERT(psPMR != NULL);
 
@@ -2980,13 +2926,34 @@ PMR_IsSparse(const PMR *psPMR)
 
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 IMG_BOOL
-PMR_IsZombie(const PMR *psPMR)
+PMR_IsZombie(PMR *psPMR)
 {
 	PVR_ASSERT(psPMR != NULL);
 
-	return _IntFlagIsSet(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE);
+	return _IntFlagIsSet(psPMR, PMR_FLAG_INTERNAL_IS_ZOMBIE_PMR);
 }
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+
+/* Exclusive flag tracks if the PMR is supporting or is used by another bridge resource */
+
+/* Function to set the exclusive use flag.
+   Returns IMG_FALSE if flag couldn't be set because it is already set.
+   IMG_TRUE otherwise. */
+IMG_BOOL
+PMR_SetExclusiveUse(PMR *psPMR, IMG_BOOL bFlag)
+{
+	PVR_ASSERT(psPMR != NULL);
+
+	if (bFlag)
+	{
+		return _IntFlagSetIfNotSet(psPMR, PMR_FLAG_INTERNAL_IS_EXCLUSIVE);
+	}
+	else
+	{
+		_IntFlagClr(psPMR, PMR_FLAG_INTERNAL_IS_EXCLUSIVE);
+		return IMG_TRUE;
+	}
+}
 
 /* Function that alters the mutability property
  * of the PMR
@@ -3016,7 +2983,7 @@ IMG_BOOL PMR_IsMemLayoutFixed(PMR *psPMR)
 }
 
 IMG_DEVMEM_SIZE_T
-PMR_PhysicalSize(const PMR *psPMR)
+PMR_PhysicalSize(PMR *psPMR)
 {
 	PVR_ASSERT(psPMR != NULL);
 
@@ -3134,28 +3101,45 @@ PMR_GetType(const PMR *psPMR)
 	return psPMR->eFlavour;
 }
 
-IMG_CHAR *
-PMR_GetTypeStr(const PMR *psPMR)
+static IMG_CHAR*
+_GetFlavourStr(PMR_IMPL_TYPE eFlavour)
 {
 	static IMG_CHAR *pszFlavour[] = {
 #define X(type) #type
 		PMR_IMPL_TYPES
 #undef X
 	};
-
-	if (psPMR->eFlavour >= PMR_TYPE_LAST)
+	if (eFlavour >= PMR_TYPE_LAST)
 	{
 		return "INVALID";
 	}
+	return pszFlavour[eFlavour];
+}
 
-	return pszFlavour[psPMR->eFlavour];
+IMG_CHAR *
+PMR_GetTypeStr(const PMR *psPMR)
+{
+	return _GetFlavourStr(psPMR->eFlavour);
 }
 
 IMG_INT32
-PMR_GetRefCount(const PMR *psPMR)
+PMR_GetRefCount(PMR *psPMR)
 {
 	PVR_ASSERT(psPMR != NULL);
 	return _GetRef(psPMR);
+}
+
+PVRSRV_ERROR
+PMR_IsExportable(const PMR *psPMR)
+{
+	PVR_ASSERT(psPMR != NULL);
+
+	if (!PMR_DeviceNode(psPMR)->pfnValidateExportableFlags(psPMR->uiFlags))
+	{
+		return PVRSRV_ERROR_INVALID_FLAGS;
+	}
+
+	return PVRSRV_OK;
 }
 
 #if defined(PVRSRV_INTERNAL_IPA_FEATURE_TESTING)
@@ -3232,7 +3216,7 @@ PMRModifyIPAPolicy(PMR *psPMR,
 }
 #endif /* defined(PVRSRV_INTERNAL_IPA_FEATURE_TESTING) */
 
-/* must have called PMRLockSysPhysAddresses() before calling this! */
+/* must have called PMRLockPhysAddresses() before calling this! */
 PVRSRV_ERROR
 PMR_DevPhysAddr(const PMR *psPMR,
                 IMG_UINT32 ui32Log2PageSize,
@@ -3440,9 +3424,9 @@ FreeOffsetArray:
 	return eError;
 }
 
-/* must have called PMRLockSysPhysAddresses() before calling this! */
+/* must have called PMRLockPhysAddresses() before calling this! */
 PVRSRV_ERROR
-PMR_CpuPhysAddr(const PMR *psPMR,
+PMR_CpuPhysAddr(PMR *psPMR,
                 IMG_UINT32 ui32Log2PageSize,
                 IMG_UINT32 ui32NumOfPages,
                 IMG_DEVMEM_OFFSET_T uiLogicalOffset,
@@ -3559,7 +3543,7 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
 	{
 		/* Speculatively preallocate in order to simplify error handling later */
 		psPMRZombiePages = OSAllocZMem(sizeof(PMR_ZOMBIE_PAGES));
-		PVR_GOTO_IF_NOMEM(psPMRZombiePages, eError, e0);
+		PVR_GOTO_IF_NOMEM(psPMRZombiePages, eError, returnErr);
 	}
 #endif
 
@@ -3584,50 +3568,20 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
 									  OSGetCurrentClientProcessIDKM());
 		}
 #endif
-		goto e1;
+		PVR_LOG_GOTO_ERROR(eError, "pfnChangeSparseMem", freePmrZombiePages);
 	}
 
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
-	if (pvZombiePages != NULL)
-	{
-		PVRSRV_DEV_POWER_STATE ePowerState;
-		PVRSRV_DEVICE_NODE *psDevNode;
+	/* This PVR_ASSERT is only relevant when uiSparseFlags does not have the
+	 * SPARSE_RESIZE_FREE bit set. */
+	PVR_ASSERT((uiSparseFlags & SPARSE_RESIZE_FREE) ? IMG_TRUE : pvZombiePages == NULL);
 
-		psDevNode = PhysHeapDeviceNode(psPMR->psPhysHeap);
-		eError = PVRSRVGetDevicePowerState(psDevNode, &ePowerState);
-		if (eError != PVRSRV_OK)
-		{
-			/* Treat unknown power state as ON. */
-			ePowerState = PVRSRV_DEV_POWER_STATE_ON;
-		}
-
-		if (ePowerState == PVRSRV_DEV_POWER_STATE_OFF ||
-			psDevNode->eDevState == PVRSRV_DEVICE_STATE_PCI_ERROR)
-		{
-			/* Free preallocated psPMRZombiePages as these won't be used*/
-			OSFreeMem(psPMRZombiePages);
-
-			eError = psPMR->psFuncTab->pfnFreeZombiePages(pvZombiePages);
-			PVR_LOG_GOTO_IF_ERROR(eError, "Error when trying to free zombies immediately.", e0);
-		}
-		else
-		{
-			PVR_ASSERT(psPMRZombiePages != NULL);
-			psPMRZombiePages->sHeader.eZombieType = PMR_ZOMBIE_TYPE_PAGES;
-			psPMRZombiePages->pfnFactoryFreeZombies = psPMR->psFuncTab->pfnFreeZombiePages;
-			psPMRZombiePages->pvFactoryPages = pvZombiePages;
-
-			_ZombieListLock(psDevNode);
-			dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMRZombiePages->sHeader.sZombieNode);
-			psDevNode->uiPMRZombieCount++;
-			_ZombieListUnlock(psDevNode);
-		}
-	}
-	else
-	{
-		/* Free psPMRZombiePages as change sparse has not produced zombie pages */
-		OSFreeMem(psPMRZombiePages);
-	}
+	/* Call _ProcessZombiePage() to either queue the excess pages for deferred free or if
+	 * no excess pages then free the pre-allocated psPMRZombiePages which is no longer needed.
+	 * This explains why the error check/path after call goes to e0.
+	 */
+	eError = _ProcessZombiePages(pvZombiePages, psPMRZombiePages, psPMR);
+	PVR_LOG_GOTO_IF_ERROR(eError, "_ProcessZombiePages", returnErr);
 #endif
 
 #if defined(PDUMP)
@@ -3659,13 +3613,14 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
 #endif
 
 	return PVRSRV_OK;
-e1:
+
+freePmrZombiePages:
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
 	if (uiSparseFlags & SPARSE_RESIZE_FREE)
 	{
 		OSFreeMem(psPMRZombiePages);
 	}
-e0:
+returnErr:
 #endif
 	return eError;
 }
@@ -3673,7 +3628,7 @@ e0:
 #if defined(PDUMP)
 
 static PVRSRV_ERROR
-_PMR_PDumpSymbolicAddrPhysical(const PMR *psPMR,
+_PMR_PDumpSymbolicAddrPhysical(PMR *psPMR,
                                IMG_DEVMEM_OFFSET_T uiPhysicalOffset,
                                IMG_UINT32 ui32MemspaceNameLen,
                                IMG_CHAR *pszMemspaceName,
@@ -3731,7 +3686,7 @@ _PMR_PDumpSymbolicAddrPhysical(const PMR *psPMR,
 
 
 PVRSRV_ERROR
-PMR_PDumpSymbolicAddr(const PMR *psPMR,
+PMR_PDumpSymbolicAddr(PMR *psPMR,
                       IMG_DEVMEM_OFFSET_T uiLogicalOffset,
                       IMG_UINT32 ui32MemspaceNameLen,
                       IMG_CHAR *pszMemspaceName,
@@ -3820,7 +3775,7 @@ PMRPDumpLoadMemValue32(PMR *psPMR,
 	PVR_ASSERT(( ((uiLogicalOffset & (uiPMRPageSize-1)) + sizeof(ui32Value))
 			<= uiPMRPageSize));
 
-	eError = PMRLockSysPhysAddresses(psPMR);
+	eError = PMRLockPhysAddresses(psPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	/* Get the symbolic address of the PMR */
@@ -3843,7 +3798,7 @@ PMRPDumpLoadMemValue32(PMR *psPMR,
 	                       uiPDumpFlags);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
-	eError = PMRUnlockSysPhysAddresses(psPMR);
+	eError = PMRUnlockPhysAddresses(psPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	return PVRSRV_OK;
@@ -3888,7 +3843,7 @@ PMRPDumpCopyMem32(PMR *psDstPMR,
 	PVR_ASSERT(( ((uiDstLogicalOffset & (uiDstPMRPageSize-1)) + sizeof(IMG_UINT32))
 			<= uiDstPMRPageSize));
 
-	eError = PMRLockSysPhysAddresses(psSrcPMR);
+	eError = PMRLockPhysAddresses(psSrcPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	/* Get the symbolic address of the source PMR */
@@ -3911,12 +3866,12 @@ PMRPDumpCopyMem32(PMR *psDstPMR,
 	                                       uiPDumpFlags);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
-	eError = PMRUnlockSysPhysAddresses(psSrcPMR);
+	eError = PMRUnlockPhysAddresses(psSrcPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 
 
-	eError = PMRLockSysPhysAddresses(psDstPMR);
+	eError = PMRLockPhysAddresses(psDstPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 
@@ -3942,7 +3897,7 @@ PMRPDumpCopyMem32(PMR *psDstPMR,
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 
-	eError = PMRUnlockSysPhysAddresses(psDstPMR);
+	eError = PMRUnlockPhysAddresses(psDstPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	return PVRSRV_OK;
@@ -3984,7 +3939,7 @@ PMRPDumpLoadMemValue64(PMR *psPMR,
 	PVR_ASSERT(( ((uiLogicalOffset & (ui64PMRPageSize-1)) + sizeof(ui64Value))
 			<= ui64PMRPageSize));
 
-	eError = PMRLockSysPhysAddresses(psPMR);
+	eError = PMRLockPhysAddresses(psPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	/* Get the symbolic address of the PMR */
@@ -4007,7 +3962,7 @@ PMRPDumpLoadMemValue64(PMR *psPMR,
 	                       uiPDumpFlags);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
-	eError = PMRUnlockSysPhysAddresses(psPMR);
+	eError = PMRUnlockPhysAddresses(psPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	return PVRSRV_OK;
@@ -4052,7 +4007,7 @@ PMRPDumpCopyMem64(PMR *psDstPMR,
 	PVR_ASSERT(( ((uiDstLogicalOffset & (ui64DstPMRPageSize-1)) + sizeof(IMG_UINT32))
 			<= ui64DstPMRPageSize));
 
-	eError = PMRLockSysPhysAddresses(psSrcPMR);
+	eError = PMRLockPhysAddresses(psSrcPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	/* Get the symbolic address of the source PMR */
@@ -4075,12 +4030,12 @@ PMRPDumpCopyMem64(PMR *psDstPMR,
 	                                       uiPDumpFlags);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
-	eError = PMRUnlockSysPhysAddresses(psSrcPMR);
+	eError = PMRUnlockPhysAddresses(psSrcPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 
 
-	eError = PMRLockSysPhysAddresses(psDstPMR);
+	eError = PMRLockPhysAddresses(psDstPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 
@@ -4106,7 +4061,7 @@ PMRPDumpCopyMem64(PMR *psDstPMR,
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 
-	eError = PMRUnlockSysPhysAddresses(psDstPMR);
+	eError = PMRUnlockPhysAddresses(psDstPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
 	return PVRSRV_OK;
@@ -4193,7 +4148,7 @@ PMRPDumpLoadMem(PMR *psPMR,
 
 		PVR_LOG_RETURN_IF_NOMEM(pcBuffer, "OSAllocMem");
 
-		eError = PMRLockSysPhysAddresses(psPMR);
+		eError = PMRLockPhysAddresses(psPMR);
 		PVR_ASSERT(eError == PVRSRV_OK);
 
 		pszParamStreamFileName = aszParamStreamFilename;
@@ -4289,7 +4244,7 @@ PMRPDumpLoadMem(PMR *psPMR,
 
 	if (!bZero)
 	{
-		eError = PMRUnlockSysPhysAddresses(psPMR);
+		eError = PMRUnlockPhysAddresses(psPMR);
 		PVR_ASSERT(eError == PVRSRV_OK);
 
 		OSFreeMem(pcBuffer);
@@ -4298,15 +4253,31 @@ PMRPDumpLoadMem(PMR *psPMR,
 	return PVRSRV_OK;
 }
 
-
-
 PVRSRV_ERROR
-PMRPDumpSaveToFile(const PMR *psPMR,
+PMRPDumpSaveToFile(PMR *psPMR,
                    IMG_DEVMEM_OFFSET_T uiLogicalOffset,
                    IMG_DEVMEM_SIZE_T uiSize,
                    IMG_UINT32 uiArraySize,
                    const IMG_CHAR *pszFilename,
                    IMG_UINT32 uiFileOffset)
+{
+	return PMRPDumpSaveToFileWFlags(psPMR,
+	                                uiLogicalOffset,
+	                                uiSize,
+	                                uiArraySize,
+	                                pszFilename,
+	                                uiFileOffset,
+	                                0);
+}
+
+PVRSRV_ERROR
+PMRPDumpSaveToFileWFlags(PMR *psPMR,
+                         IMG_DEVMEM_OFFSET_T uiLogicalOffset,
+                         IMG_DEVMEM_SIZE_T uiSize,
+                         IMG_UINT32 uiArraySize,
+                         const IMG_CHAR *pszFilename,
+                         IMG_UINT32 uiFileOffset,
+                         IMG_UINT32 uiPDumpFlags)
 {
 	PVRSRV_ERROR eError;
 	IMG_CHAR aszMemspaceName[PHYSMEM_PDUMP_MEMSPACE_MAX_LENGTH];
@@ -4353,7 +4324,8 @@ PMRPDumpSaveToFile(const PMR *psPMR,
 		                     uiOutOffset,
 		                     uiReadOffset,
 		                     pszFilename,
-		                     uiCurrentFileOffset);
+		                     uiCurrentFileOffset,
+		                     uiPDumpFlags);
 		PVR_ASSERT(eError == PVRSRV_OK);
 
 		uiCurrentFileOffset += uiNextSymName - uiCurrentOffset;
@@ -4364,7 +4336,7 @@ PMRPDumpSaveToFile(const PMR *psPMR,
 }
 
 PVRSRV_ERROR
-PMRPDumpPol32(const PMR *psPMR,
+PMRPDumpPol32(PMR *psPMR,
               IMG_DEVMEM_OFFSET_T uiLogicalOffset,
               IMG_UINT32 ui32Value,
               IMG_UINT32 ui32Mask,
@@ -4424,7 +4396,7 @@ e0:
 }
 
 PVRSRV_ERROR
-PMRPDumpCheck32(const PMR *psPMR,
+PMRPDumpCheck32(PMR *psPMR,
 				IMG_DEVMEM_OFFSET_T uiLogicalOffset,
 				IMG_UINT32 ui32Value,
 				IMG_UINT32 ui32Mask,
@@ -4487,7 +4459,7 @@ e0:
 }
 
 PVRSRV_ERROR
-PMRPDumpCBP(const PMR *psPMR,
+PMRPDumpCBP(PMR *psPMR,
             IMG_DEVMEM_OFFSET_T uiReadOffset,
             IMG_DEVMEM_OFFSET_T uiWriteOffset,
             IMG_DEVMEM_SIZE_T uiPacketSize,
@@ -4734,7 +4706,6 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 	IMG_DEVMEM_SIZE_T uiWordSize;
 	IMG_UINT32 uiNumPages;
 	IMG_UINT32 uiPageIndex;
-	PMR_FLAGS_T uiFlags = psPageListPMR->uiFlags;
 	PMR_PAGELIST *psPageList;
 #if defined(PDUMP)
 	IMG_CHAR aszTableEntryMemspaceName[PHYSMEM_PDUMP_MEMSPACE_MAX_LENGTH];
@@ -4747,20 +4718,15 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 #endif
 #if !defined(NO_HARDWARE)
 	PMR_SIZE_T ui64PageListPageSize = IMG_PAGE2BYTES64(psPageListPMR->uiLog2ContiguityGuarantee);
-	IMG_UINT64 uiPageListPMRPage = 0;
-	IMG_UINT64 uiPrevPageListPMRPage = 0;
-	IMG_HANDLE hPrivData = NULL;
-	void *pvKernAddr = NULL;
-	IMG_UINT32 *pui32DataPtr = NULL;
+	IMG_UINT32 uiPageBase = 0;
 	IMG_DEV_PHYADDR asDevPAddr[PMR_MAX_TRANSLATION_STACK_ALLOC];
+	IMG_UINT32 aui32AddrShifted[PMR_MAX_TRANSLATION_STACK_ALLOC];
 	IMG_BOOL abValid[PMR_MAX_TRANSLATION_STACK_ALLOC];
 	IMG_DEV_PHYADDR *pasDevAddrPtr;
+	IMG_UINT32 *paui32AddrShifted;
 	IMG_BOOL *pbPageIsValid;
+	IMG_BOOL bUseAlloc;
 #endif
-	PVRSRV_DEVICE_NODE *psDevNode = PhysHeapDeviceNode(psPageListPMR->psPhysHeap);
-	IMG_BOOL bCPUCacheSnoop =
-		(PVRSRVSystemSnoopingOfCPUCache(psDevNode->psDevConfig) &&
-		 psDevNode->pfnGetDeviceSnoopMode(psDevNode) == PVRSRV_DEVICE_SNOOP_CPU_ONLY);
 
 	uiWordSize = PMR_PM_WORD_SIZE;
 
@@ -4787,38 +4753,6 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 	/* Check we're not being asked to write off the end of the PMR */
 	PVR_GOTO_IF_INVALID_PARAM(uiTableOffset + uiTableLength <= psPageListPMR->uiLogicalSize, eError, return_error);
 
-	/* the PMR into which we are writing must not be user CPU mappable: */
-	if (PVRSRV_CHECK_CPU_READABLE(uiFlags) || PVRSRV_CHECK_CPU_WRITEABLE(uiFlags))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Masked flags = 0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC,
-		         (PMR_FLAGS_T)(uiFlags & (PVRSRV_MEMALLOCFLAG_CPU_READABLE | PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE))));
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Page list PMR allows CPU mapping (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
-		         uiFlags));
-		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
-	}
-
-	/* the PMR into which we are writing must not be user CPU cacheable: */
-	if (!bCPUCacheSnoop &&
-		(PVRSRV_CHECK_CPU_CACHE_INCOHERENT(uiFlags) ||
-		 PVRSRV_CHECK_CPU_CACHE_COHERENT(uiFlags) ||
-		 PVRSRV_CHECK_CPU_CACHED(uiFlags)))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Masked flags = 0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC,
-		         (PMR_FLAGS_T)(uiFlags &  PVRSRV_MEMALLOCFLAG_CPU_CACHE_MODE_MASK)));
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Page list PMR allows CPU caching (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
-		         uiFlags));
-		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
-	}
-
-	if (_PMRIsSparse(psPageListPMR))
-	{
-		PVR_LOG_GOTO_WITH_ERROR("psPageListPMR", eError, PVRSRV_ERROR_INVALID_PARAMS, return_error);
-	}
-
 	if (_PMRIsSparse(psReferencePMR))
 	{
 		PVR_LOG_GOTO_WITH_ERROR("psReferencePMR", eError, PVRSRV_ERROR_INVALID_PARAMS, return_error);
@@ -4831,21 +4765,29 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 
 	/* Need to lock down the physical addresses of the reference PMR */
 	/* N.B.  This also checks that the requested "contiguity" is achievable */
-	eError = PMRLockSysPhysAddresses(psReferencePMR);
+	eError = PMRLockPhysAddresses(psReferencePMR);
 	PVR_GOTO_IF_ERROR(eError, free_page_list);
 
 #if !defined(NO_HARDWARE)
 	if (uiNumPages > PMR_MAX_TRANSLATION_STACK_ALLOC)
 	{
+		bUseAlloc = IMG_TRUE;
+
 		pasDevAddrPtr = OSAllocMem(uiNumPages * sizeof(IMG_DEV_PHYADDR));
 		PVR_LOG_GOTO_IF_NOMEM(pasDevAddrPtr, eError, unlock_phys_addrs);
 
+		paui32AddrShifted = OSAllocMem(uiNumPages * sizeof(IMG_UINT32));
+		PVR_LOG_GOTO_IF_NOMEM(paui32AddrShifted, eError, free_devaddr_array);
+
 		pbPageIsValid = OSAllocMem(uiNumPages * sizeof(IMG_BOOL));
-		PVR_LOG_GOTO_IF_NOMEM(pbPageIsValid, eError, free_devaddr_array);
+		PVR_LOG_GOTO_IF_NOMEM(pbPageIsValid, eError, free_addrshift_array);
 	}
 	else
 	{
+		bUseAlloc = IMG_FALSE;
+
 		pasDevAddrPtr = asDevPAddr;
+		paui32AddrShifted = aui32AddrShifted;
 		pbPageIsValid = abValid;
 	}
 
@@ -4857,6 +4799,10 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 	for (uiPageIndex = 0; uiPageIndex < uiNumPages; uiPageIndex++)
 	{
 		IMG_DEVMEM_OFFSET_T uiPMROffset = uiTableOffset + (uiWordSize * uiPageIndex);
+#if !defined(NO_HARDWARE)
+		IMG_UINT64 uiNextPageListPMRPage = 0;
+		IMG_UINT64 uiPageListPMRPage = 0;
+#endif
 
 #if defined(PDUMP)
 		eError = PMR_PDumpSymbolicAddr(psPageListPMR,
@@ -4914,17 +4860,21 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 		PVR_ASSERT(((pasDevAddrPtr[uiPageIndex].uiAddr >> uiLog2PageSize) & 0xFFFFFFFF00000000LL) == 0);
 
 		uiPageListPMRPage = uiPMROffset >> psReferencePMR->uiLog2ContiguityGuarantee;
+		uiNextPageListPMRPage = (uiPMROffset + uiWordSize) >> psReferencePMR->uiLog2ContiguityGuarantee;
 
-		if ((pui32DataPtr == NULL) || (uiPageListPMRPage != uiPrevPageListPMRPage))
+		paui32AddrShifted[uiPageIndex] = TRUNCATE_64BITS_TO_32BITS(pasDevAddrPtr[uiPageIndex].uiAddr >> uiLog2PageSize);
+
+		/* Last page or new page so memcpy */
+		if (uiPageIndex == (uiNumPages - 1) || (uiNextPageListPMRPage != uiPageListPMRPage))
 		{
-			size_t uiMappingOffset = uiPMROffset & (~(ui64PageListPageSize - 1));
+			IMG_DEVMEM_OFFSET_T uiPMROffsetBase = uiTableOffset + (uiWordSize * uiPageBase);
+			size_t uiMappingOffset = uiPMROffsetBase & (~(ui64PageListPageSize - 1));
+			void *pvKernAddr = NULL;
 			size_t uiMappedSize;
-
-			/* If we already had a page list mapped, we need to unmap it... */
-			if (pui32DataPtr != NULL)
-			{
-				PMRReleaseKernelMappingData(psPageListPMR, hPrivData);
-			}
+			IMG_HANDLE hPrivData = NULL;
+			IMG_UINT32 *pui32Src;
+			IMG_UINT32 *pui32Dst;
+			IMG_UINT32 ui32Copysize;
 
 			eError = PMRAcquireKernelMappingData(psPageListPMR,
 			                                     uiMappingOffset,
@@ -4939,22 +4889,18 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 				goto free_valid_array;
 			}
 
-			uiPrevPageListPMRPage = uiPageListPMRPage;
 			PVR_ASSERT(uiMappedSize >= ui64PageListPageSize);
 			PVR_ASSERT(pvKernAddr != NULL);
 
-			pui32DataPtr = IMG_OFFSET_ADDR(pvKernAddr, (uiPMROffset & (ui64PageListPageSize - 1)));
-		}
+			pui32Src = paui32AddrShifted + uiPageBase;
+			pui32Dst = IMG_OFFSET_ADDR(pvKernAddr, (uiPMROffsetBase & (ui64PageListPageSize - 1)));
+			ui32Copysize = ((uiPageIndex + 1) - uiPageBase) * sizeof(IMG_UINT32);
 
-		PVR_ASSERT(((pasDevAddrPtr[uiPageIndex].uiAddr >> uiLog2PageSize) & 0xFFFFFFFF00000000LL) == 0);
+			OSCachedMemCopy(pui32Dst, pui32Src, ui32Copysize);
 
-		/* Write the physical page index into the page list PMR */
-		*pui32DataPtr++ = TRUNCATE_64BITS_TO_32BITS(pasDevAddrPtr[uiPageIndex].uiAddr >> uiLog2PageSize);
-
-		/* Last page so unmap */
-		if (uiPageIndex == (uiNumPages - 1))
-		{
 			PMRReleaseKernelMappingData(psPageListPMR, hPrivData);
+
+			uiPageBase = uiPageIndex + 1;
 		}
 #endif
 	}
@@ -4962,9 +4908,10 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 	OSWriteMemoryBarrier(NULL);
 
 #if !defined(NO_HARDWARE)
-	if (pasDevAddrPtr != asDevPAddr)
+	if (bUseAlloc)
 	{
 		OSFreeMem(pbPageIsValid);
+		OSFreeMem(paui32AddrShifted);
 		OSFreeMem(pasDevAddrPtr);
 	}
 #endif
@@ -4975,19 +4922,25 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 #if !defined(NO_HARDWARE)
 
 free_valid_array:
-	if (pbPageIsValid != abValid)
+	if (bUseAlloc)
 	{
 		OSFreeMem(pbPageIsValid);
 	}
 
+free_addrshift_array:
+	if (bUseAlloc)
+	{
+		OSFreeMem(paui32AddrShifted);
+	}
+
 free_devaddr_array:
-	if (pasDevAddrPtr != asDevPAddr)
+	if (bUseAlloc)
 	{
 		OSFreeMem(pasDevAddrPtr);
 	}
 
 unlock_phys_addrs:
-	PMRUnlockSysPhysAddresses(psReferencePMR);
+	PMRUnlockPhysAddresses(psReferencePMR);
 #endif
 
 free_page_list:
@@ -5004,7 +4957,7 @@ PMRUnwritePMPageList(PMR_PAGELIST *psPageList)
 {
 	PVRSRV_ERROR eError;
 
-	eError = PMRUnlockSysPhysAddresses(psPageList->psReferencePMR);
+	eError = PMRUnlockPhysAddresses(psPageList->psReferencePMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 	OSFreeMem(psPageList);
 
@@ -5390,7 +5343,8 @@ PMRDumpZombies(PPVRSRV_DEVICE_NODE psDeviceNode)
 			case PMR_ZOMBIE_TYPE_PAGES:
 			{
 				PMR_ZOMBIE_PAGES* psZombiePages = PMR_GetZombiePagesFromNode(psThis);
-				PVR_DPF((PVR_DBG_ERROR, "Zombie Pages = %p", psZombiePages));
+				PVR_DPF((PVR_DBG_ERROR, "Zombie Pages = %p, Flavour = %s",
+				         psZombiePages, _GetFlavourStr(psZombiePages->ePagesFlavour)));
 				break;
 			}
 #endif
@@ -5432,9 +5386,10 @@ PMRDeInitDevice(PPVRSRV_DEVICE_NODE psDeviceNode)
 
 #if defined(PVRSRV_ENABLE_XD_MEM)
 IMG_UINT64
-PMR_ImportedDevicesMask(const PMR* psPMR)
+PMR_ImportedDevicesMask(PMR* psPMR)
 {
-	return _DeviceImportBitmapGet(psPMR) & ((IMG_UINT64_C(1) << PVRSRV_MAX_DEVICES) - 1);
+	static_assert(PVRSRV_MAX_DEVICES <= 64, "Code works under assumption that PVRSRV_MAX_DEVICES cannot be more than 64.");
+	return _DeviceImportBitmapGet(psPMR) & ((PVRSRV_MAX_DEVICES == 64) ? ~IMG_UINT64_C(0) : ((IMG_UINT64_C(1) << PVRSRV_MAX_DEVICES) - 1));
 }
 #endif /* defined(PVRSRV_ENABLE_XD_MEM) */
 

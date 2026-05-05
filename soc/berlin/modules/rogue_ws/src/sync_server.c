@@ -546,6 +546,11 @@ PVRSRVSyncRecordAddKM(CONNECTION_DATA *psConnection,
 
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
+	if (!(GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED))
+	{
+		PVR_LOG_RETURN_ERROR(PVRSRV_ERROR_NOT_SUPPORTED, "Full sync tracking debug feature not enabled!");
+	}
+
 	RGXSRV_HWPERF_ALLOC(psDevNode, SYNC,
 	                    ui32FwBlockAddr + ui32SyncOffset,
 	                    pszClassName,
@@ -615,6 +620,11 @@ PVRSRVSyncRecordRemoveByHandleKM(
 	struct SYNC_RECORD **ppFreedSync;
 	struct SYNC_RECORD *pSync = (struct SYNC_RECORD*)hRecord;
 	PVRSRV_DEVICE_NODE *psDevNode;
+
+	if (!(GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED))
+	{
+		PVR_LOG_RETURN_ERROR(PVRSRV_ERROR_NOT_SUPPORTED, "Full sync tracking debug feature not enabled!");
+	}
 
 	PVR_RETURN_IF_INVALID_PARAM(hRecord);
 
@@ -1007,7 +1017,9 @@ void SyncRecordLookup(PVRSRV_DEVICE_NODE *psDevNode, IMG_UINT32 ui32FwAddr,
 	{
 		struct SYNC_RECORD *psSyncRec =
 			IMG_CONTAINER_OF(psNode, struct SYNC_RECORD, sNode);
-		if ((psSyncRec->ui32FwBlockAddr+psSyncRec->ui32SyncOffset) == ui32FwAddr
+
+		if ((psSyncRec->ui32FwBlockAddr+psSyncRec->ui32SyncOffset) ==
+				PVRSRV_UFO_GET_FWADDR(ui32FwAddr)
 			&& SYNC_RECORD_TYPE_UNKNOWN != psSyncRec->eRecordType
 			&& psSyncRec->psServerSyncPrimBlock
 			&& psSyncRec->psServerSyncPrimBlock->pui32LinAddr
@@ -1016,10 +1028,11 @@ void SyncRecordLookup(PVRSRV_DEVICE_NODE *psDevNode, IMG_UINT32 ui32FwAddr,
 			IMG_UINT32 *pui32SyncAddr;
 			pui32SyncAddr = psSyncRec->psServerSyncPrimBlock->pui32LinAddr
 				+ (psSyncRec->ui32SyncOffset/sizeof(IMG_UINT32));
-			iEnd = OSSNPrintf(pszSyncInfo, len, "Cur=0x%08x %s:%05u (%s)",
+			iEnd = OSSNPrintf(pszSyncInfo, len, "Cur=0x%08x %s:%05u %s(%s)",
 				*pui32SyncAddr,
 				((SYNC_RECORD_TYPE_SERVER==psSyncRec->eRecordType)?"Server":"Client"),
 				psSyncRec->uiPID,
+				PVRSRV_UFO_IS_MIRROR_FWADDR(ui32FwAddr) ? "(M) " : "",
 				psSyncRec->szClassName
 				);
 			if (iEnd >= 0 && iEnd < len)
@@ -1206,23 +1219,16 @@ static void SyncRecordListDeinit(PVRSRV_DEVICE_NODE *psDevNode)
 
 PVRSRV_ERROR SyncServerInit(PVRSRV_DEVICE_NODE *psDevNode)
 {
-	PVRSRV_ERROR eError;
-
-	if (GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED)
+	if (!(GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED))
 	{
-		eError = SyncRecordListInit(psDevNode);
-		PVR_GOTO_IF_ERROR(eError, fail_record_list);
+		return PVRSRV_OK;
 	}
 
-	return PVRSRV_OK;
-
-fail_record_list:
-	return eError;
+	return SyncRecordListInit(psDevNode);
 }
 
 void SyncServerDeinit(PVRSRV_DEVICE_NODE *psDevNode)
 {
-
 	if (GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED)
 	{
 		SyncRecordListDeinit(psDevNode);

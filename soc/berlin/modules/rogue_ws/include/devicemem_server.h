@@ -53,14 +53,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "connection_server.h"
 #include "pmr.h"
 
-typedef struct _DEVMEMINT_CTX_ DEVMEMINT_CTX;
-typedef struct _DEVMEMINT_CTX_EXPORT_ DEVMEMINT_CTX_EXPORT;
-typedef struct _DEVMEMINT_HEAP_ DEVMEMINT_HEAP;
-
-typedef struct _DEVMEMINT_RESERVATION_ DEVMEMINT_RESERVATION;
-typedef struct _DEVMEMXINT_RESERVATION_ DEVMEMXINT_RESERVATION;
-typedef struct _DEVMEMINT_PF_NOTIFY_ DEVMEMINT_PF_NOTIFY;
-
 /*
  * DevmemServerGetImportHandle()
  *
@@ -141,6 +133,20 @@ PVRSRV_ERROR
 DevmemIntCtxDestroy(DEVMEMINT_CTX *psDevmemCtx);
 
 /*
+ * DevmemIntCtxRef()
+ *
+ * Increases the reference count on the given DEVMEMINT_CTX by one.
+ */
+PVRSRV_ERROR DevmemIntCtxRef(DEVMEMINT_CTX *psDevmemCtx);
+
+/*
+ * DevmemIntCtxUnref()
+ *
+ * Decreases the reference count on the given DEVMEMINT_CTX by one.
+ */
+void DevmemIntCtxUnref(DEVMEMINT_CTX *psDevmemCtx);
+
+/*
  * DevmemIntHeapCreate()
  *
  * Creates a new heap in this device memory context.  This will cause a call
@@ -167,6 +173,7 @@ DevmemIntHeapCreate(DEVMEMINT_CTX *psDevmemCtx,
                     IMG_UINT32 uiHeapConfigIndex,
                     IMG_UINT32 uiHeapIndex,
                     DEVMEMINT_HEAP **ppsDevmemHeapPtr);
+
 /*
  * DevmemIntHeapDestroy()
  *
@@ -782,5 +789,10 @@ PVRSRV_ERROR
 DevmemIntAcquireRemoteCtx(PMR *psPMR,
                           DEVMEMINT_CTX **ppsContext,
                           IMG_HANDLE *phPrivData);
+
+PVRSRV_ERROR DevmemIntFindCPUAddress(DEVMEMINT_HEAP *psDevmemHeap,
+                                     IMG_UINT64 ui64Size,
+                                     IMG_UINT64 ui64AddrHint,
+                                     IMG_UINT64 *pui64Addr);
 
 #endif /* DEVICEMEM_SERVER_H */

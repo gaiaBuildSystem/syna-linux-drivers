@@ -260,7 +260,7 @@ static void CacheOpStatsExecLogWrite(CACHEOP_WORK_ITEM *psCacheOpWorkItem)
 		PVR_GOTO_IF_ERROR(eError, e0);
 
 		/* (Re)lock here as some PMR might have not been locked */
-		eLockError = PMRLockSysPhysAddresses(psCacheOpWorkItem->psPMR);
+		eLockError = PMRLockPhysAddresses(psCacheOpWorkItem->psPMR);
 		PVR_GOTO_IF_ERROR(eLockError, e0);
 
 		eError = PMR_CpuPhysAddr(psCacheOpWorkItem->psPMR,
@@ -271,8 +271,8 @@ static void CacheOpStatsExecLogWrite(CACHEOP_WORK_ITEM *psCacheOpWorkItem)
 								 &bValid,
 								 CPU_USE);
 
-		eLockError = PMRUnlockSysPhysAddresses(psCacheOpWorkItem->psPMR);
-		PVR_LOG_IF_ERROR(eLockError, "PMRUnlockSysPhysAddresses");
+		eLockError = PMRUnlockPhysAddresses(psCacheOpWorkItem->psPMR);
+		PVR_LOG_IF_ERROR(eLockError, "PMRUnlockPhysAddresses");
 
 		PVR_GOTO_IF_ERROR(eError, e0);
 
@@ -900,7 +900,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 	OS_CACHE_OP_ADDR_TYPE eCacheOpAddrType;
 
 	psDevNode = PMR_DeviceNode(psPMR);
-	eCacheOpAddrType = OSCPUCacheOpAddressType(psDevNode);
+
+	eCacheOpAddrType = OSCPUCacheOpAddressType(psDevNode,
+	                                           PhysHeapGetType(PMR_PhysHeap(psPMR)));
 
 	if (uiCacheOp == PVRSRV_CACHE_OP_NONE || uiCacheOp == PVRSRV_CACHE_OP_TIMELINE)
 	{
@@ -922,8 +924,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 		                        CACHEOP_DEVMEM_OOR_ERROR_STRING,
 		                        PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE);
 
-		eError = PMRLockSysPhysAddresses(psPMR);
-		PVR_LOG_RETURN_IF_ERROR(eError, "PMRLockSysPhysAddresses");
+		eError = PMRLockPhysAddresses(psPMR);
+		PVR_LOG_RETURN_IF_ERROR(eError, "PMRLockPhysAddresses");
 	}
 
 	/* Fast track the request if a CPU VA is provided and CPU ISA supports VA only maintenance */
@@ -938,8 +940,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 
 			if (!bIsRequestValidated)
 			{
-				eError = PMRUnlockSysPhysAddresses(psPMR);
-				PVR_LOG_IF_ERROR(eError, "PMRUnlockSysPhysAddresses");
+				eError = PMRUnlockPhysAddresses(psPMR);
+				PVR_LOG_IF_ERROR(eError, "PMRUnlockPhysAddresses");
 			}
 #if defined(CACHEOP_DEBUG)
 			gsCwq.ui32ServerOpUsedUMVA += 1;
@@ -1245,8 +1247,8 @@ e0:
 
 	if (! bIsRequestValidated)
 	{
-		eError = PMRUnlockSysPhysAddresses(psPMR);
-		PVR_LOG_IF_ERROR(eError, "PMRUnlockSysPhysAddresses");
+		eError = PMRUnlockPhysAddresses(psPMR);
+		PVR_LOG_IF_ERROR(eError, "PMRUnlockPhysAddresses");
 	}
 
 	return eError;

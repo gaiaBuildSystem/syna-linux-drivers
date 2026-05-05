@@ -128,20 +128,20 @@ IMG_UINT64 _GetPremappedVA(PMR *psPMR, PVRSRV_DEVICE_NODE *psDevNode)
 }
 #endif
 
-	eError = PMRLockSysPhysAddresses(psPMR);
-	PVR_LOG_GOTO_IF_ERROR(eError, "PMRLockSysPhysAddr", fail);
+	eError = PMRLockPhysAddresses(psPMR);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PMRLockPhysAddresses", fail);
 
 	eError = PMR_DevPhysAddr(psPMR, OSGetPageShift(), 1, 0, &sDevAddr, &bValid, DEVICE_USE);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_LOG_IF_ERROR(eError, "PMR_DevPhysAddr");
-		eError = PMRUnlockSysPhysAddresses(psPMR);
-		PVR_LOG_IF_ERROR(eError, "PMRUnlockSysPhysAddr");
+		eError = PMRUnlockPhysAddresses(psPMR);
+		PVR_LOG_IF_ERROR(eError, "PMRUnlockPhysAddresses");
 		goto fail;
 	}
 
-	eError = PMRUnlockSysPhysAddresses(psPMR);
-	PVR_LOG_IF_ERROR(eError, "PMRUnlockSysPhysAddr");
+	eError = PMRUnlockPhysAddresses(psPMR);
+	PVR_LOG_IF_ERROR(eError, "PMRUnlockPhysAddresses");
 
 	ui64OptionalMapAddress = RGX_FIRMWARE_RAW_HEAP_BASE | (sDevAddr.uiAddr - sHeapAddr.uiAddr);
 
@@ -961,6 +961,11 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
 	psHeap->bPremapped = IMG_FALSE;
 	OSAtomicWrite(&psHeap->hImportCount, 0);
 
+	psHeap->ui32SVMBasePaddingCount = 0;
+	psHeap->uiSVMBasePaddingSize = 0;
+	psHeap->ui64LastMappedSVMAddress = 0;
+	psHeap->bSVMFallbackEnabled = IMG_FALSE;
+
 	OSSNPrintf(aszBuf, sizeof(aszBuf),
 			"NDM heap '%s' (suballocs) ctx:%p",
 			pszName, psCtx);
@@ -1193,6 +1198,7 @@ DevmemDestroyHeap(DEVMEM_HEAP *psHeap)
 {
 	PVRSRV_ERROR eError;
 	IMG_INT uiImportCount;
+	IMG_UINT32 i;
 #if defined(PVRSRV_FORCE_UNLOAD_IF_BAD_STATE)
 	IMG_BOOL bDoCheck = IMG_TRUE;
 #if defined(__KERNEL__)
@@ -1204,6 +1210,12 @@ DevmemDestroyHeap(DEVMEM_HEAP *psHeap)
 #endif
 
 	PVR_RETURN_IF_INVALID_PARAM(psHeap);
+
+	for (i = 0; i < psHeap->ui32SVMBasePaddingCount; i++)
+	{
+		RA_BASE_T uiAddr = psHeap->sBaseAddress.uiAddr + (psHeap->uiSVMBasePaddingSize * i);
+		RA_Free(psHeap->psQuantizedVMRA, uiAddr);
+	}
 
 	uiImportCount = OSAtomicRead(&psHeap->hImportCount);
 	if (uiImportCount > 0)
@@ -1538,7 +1550,7 @@ DevmemSubAllocate(IMG_UINT8 uiPreAllocMultiplier,
 		/* Attach RI information */
 		eError = BridgeRIWriteMEMDESCEntry (GetBridgeHandle(psMemDesc->psImport->hDevConnection),
 				psMemDesc->psImport->hPMR,
-				OSStringNLength(psMemDesc->szText, DEVMEM_ANNOTATION_MAX_LEN),
+				OSStringNLength(psMemDesc->szText, DEVMEM_ANNOTATION_MAX_LEN - 1) + 1,
 				psMemDesc->szText,
 				psMemDesc->uiOffset,
 				uiAllocatedSize,
@@ -1662,8 +1674,8 @@ DevmemAllocateExportable(SHARED_DEV_CONNECTION hDevConnection,
 		/* Attach RI information */
 		eError = BridgeRIWriteMEMDESCEntry (GetBridgeHandle(psImport->hDevConnection),
 				psImport->hPMR,
-				sizeof("^"),
-				"^",
+				OSStringNLength(psMemDesc->szText, DEVMEM_ANNOTATION_MAX_LEN - 1) + 1,
+				psMemDesc->szText,
 				psMemDesc->uiOffset,
 				uiSize,
 				uiFlags,
@@ -1771,8 +1783,8 @@ DevmemAllocateSparse(SHARED_DEV_CONNECTION hDevConnection,
 		/* Attach RI information */
 		eError = BridgeRIWriteMEMDESCEntry (GetBridgeHandle(psMemDesc->psImport->hDevConnection),
 				psMemDesc->psImport->hPMR,
-				sizeof("^"),
-				"^",
+				OSStringNLength(psMemDesc->szText, DEVMEM_ANNOTATION_MAX_LEN - 1) + 1,
+				psMemDesc->szText,
 				psMemDesc->uiOffset,
 				uiSize,
 				uiFlags,

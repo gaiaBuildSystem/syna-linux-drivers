@@ -62,9 +62,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PVRSRV_BRIDGE_RGXTQ2_RGXTDMSUBMITTRANSFER2			PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+4
 #define PVRSRV_BRIDGE_RGXTQ2_RGXTDMGETSHAREDMEMORY			PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+5
 #define PVRSRV_BRIDGE_RGXTQ2_RGXTDMRELEASESHAREDMEMORY			PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+6
-#define PVRSRV_BRIDGE_RGXTQ2_RGXTDMSETTRANSFERCONTEXTPROPERTY			PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+7
-#define PVRSRV_BRIDGE_RGXTQ2_RGXTDMSUBMITTRANSFER3			PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+8
-#define PVRSRV_BRIDGE_RGXTQ2_CMD_LAST			(PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+8)
+#define PVRSRV_BRIDGE_RGXTQ2_CMD_LAST			(PVRSRV_BRIDGE_RGXTQ2_CMD_FIRST+6)
 
 /*******************************************
             RGXTDMCreateTransferContext
@@ -157,6 +155,7 @@ typedef struct PVRSRV_BRIDGE_IN_RGXTDMSUBMITTRANSFER2_TAG
 	IMG_HANDLE *phSyncPMRs;
 	IMG_HANDLE *phUpdateUFOSyncPrimBlock;
 	PVRSRV_FENCE hCheckFenceFD;
+	PVRSRV_FENCE hExportFenceToSignal;
 	PVRSRV_TIMELINE hUpdateTimeline;
 	IMG_UINT32 ui32Characteristic1;
 	IMG_UINT32 ui32Characteristic2;
@@ -206,59 +205,5 @@ typedef struct PVRSRV_BRIDGE_OUT_RGXTDMRELEASESHAREDMEMORY_TAG
 {
 	PVRSRV_ERROR eError;
 } __packed PVRSRV_BRIDGE_OUT_RGXTDMRELEASESHAREDMEMORY;
-
-/*******************************************
-            RGXTDMSetTransferContextProperty
- *******************************************/
-
-/* Bridge in structure for RGXTDMSetTransferContextProperty */
-typedef struct PVRSRV_BRIDGE_IN_RGXTDMSETTRANSFERCONTEXTPROPERTY_TAG
-{
-	IMG_UINT64 ui64Input;
-	IMG_HANDLE hTransferContext;
-	IMG_UINT32 ui32Property;
-} __packed PVRSRV_BRIDGE_IN_RGXTDMSETTRANSFERCONTEXTPROPERTY;
-
-/* Bridge out structure for RGXTDMSetTransferContextProperty */
-typedef struct PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPROPERTY_TAG
-{
-	IMG_UINT64 ui64Output;
-	PVRSRV_ERROR eError;
-} __packed PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPROPERTY;
-
-/*******************************************
-            RGXTDMSubmitTransfer3
- *******************************************/
-
-/* Bridge in structure for RGXTDMSubmitTransfer3 */
-typedef struct PVRSRV_BRIDGE_IN_RGXTDMSUBMITTRANSFER3_TAG
-{
-	IMG_UINT64 ui64DeadlineInus;
-	IMG_HANDLE hTransferContext;
-	IMG_UINT32 *pui32SyncPMRFlags;
-	IMG_UINT32 *pui32UpdateSyncOffset;
-	IMG_UINT32 *pui32UpdateValue;
-	IMG_UINT8 *pui8FWCommand;
-	IMG_CHAR *puiUpdateFenceName;
-	IMG_HANDLE *phSyncPMRs;
-	IMG_HANDLE *phUpdateUFOSyncPrimBlock;
-	PVRSRV_FENCE hCheckFenceFD;
-	PVRSRV_FENCE hExportFenceToSignal;
-	PVRSRV_TIMELINE hUpdateTimeline;
-	IMG_UINT32 ui32Characteristic1;
-	IMG_UINT32 ui32Characteristic2;
-	IMG_UINT32 ui32ClientUpdateCount;
-	IMG_UINT32 ui32CommandSize;
-	IMG_UINT32 ui32ExternalJobReference;
-	IMG_UINT32 ui32PDumpFlags;
-	IMG_UINT32 ui32SyncPMRCount;
-} __packed PVRSRV_BRIDGE_IN_RGXTDMSUBMITTRANSFER3;
-
-/* Bridge out structure for RGXTDMSubmitTransfer3 */
-typedef struct PVRSRV_BRIDGE_OUT_RGXTDMSUBMITTRANSFER3_TAG
-{
-	PVRSRV_ERROR eError;
-	PVRSRV_FENCE hUpdateFence;
-} __packed PVRSRV_BRIDGE_OUT_RGXTDMSUBMITTRANSFER3;
 
 #endif /* COMMON_RGXTQ2_BRIDGE_H */

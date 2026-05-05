@@ -413,7 +413,7 @@ LMA_PhyContigPagesFree(PHYS_HEAP *psPhysHeap,
 	PVR_LOG_RETURN_VOID_IF_ERROR(eError, "PhysmemGetArenaLMA");
 #endif
 
-	RAMemDoPhyContigPagesFree(pArena, psMemHandle);
+	RAMemDoPhyContigPagesFree(pArena, psPhysHeap, psMemHandle);
 }
 
 static PVRSRV_ERROR
@@ -454,7 +454,7 @@ LMAPhysmemNewRAMemRamBackedPMR(PHYS_HEAP *psPhysHeap,
 	return PVRSRV_OK;
 }
 
-static PHEAP_IMPL_FUNCS _sPHEAPImplFuncs =
+static const PHEAP_IMPL_FUNCS _sPHEAPImplFuncs =
 {
 	.pfnDestroyData = &_DestroyImplData,
 	.pfnGetDevPAddr = &_GetDevPAddr,

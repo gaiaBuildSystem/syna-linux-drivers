@@ -556,8 +556,8 @@ _CompressMemoryUsage(void)
 		if (i32ItemsRemaining < 0)
 		{
 			/* This is the last allowed process, cut the linked list here! */
-			dllist_remove_node(psNode);
-			dllist_add_to_tail(&sToBeFreedHead, psNode);
+			dllist_split(psNode, &gsDeadList, &sToBeFreedHead);
+			break;
 		}
 	}
 
@@ -1998,10 +1998,7 @@ PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 
 free_record:
 	_decrease_global_stat(eAllocType, uiBytes);
-	if (psRecord != NULL)
-	{
-		OSFreeMemNoStats(psRecord);
-	}
+	OSFreeMemNoStats(psRecord);
 #else /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
 	PVR_UNREFERENCED_PARAMETER(eAllocType);
 	PVR_UNREFERENCED_PARAMETER(pvCpuVAddr);

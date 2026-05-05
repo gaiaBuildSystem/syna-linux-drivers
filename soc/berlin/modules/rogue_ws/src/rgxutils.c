@@ -54,6 +54,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxlayer.h"
 #include "rgxmmudefs_km.h"
 #include "rgxta3d.h"
+#include "devicemem_server.h"
 
 PVRSRV_ERROR RGXQueryAPMState(const PVRSRV_DEVICE_NODE *psDeviceNode,
 	const void *pvPrivateData,
@@ -387,7 +388,8 @@ IMG_UINT32 RGXCalcMListSize(PVRSRV_DEVICE_NODE *psDeviceNode,
  * Critical PMRs are PMRs that are created by client that might contain physical page addresses.
  * We need to validate if they were allocated with proper flags.
  */
-PVRSRV_ERROR ValidateCriticalPMR(PMR* psPMR, IMG_DEVMEM_SIZE_T ui64MinSize)
+static PVRSRV_ERROR
+_ValidateCriticalPMR(PMR* psPMR, IMG_DEVMEM_SIZE_T ui64MinSize)
 {
 	PVRSRV_ERROR eError;
 	PVRSRV_DEVICE_NODE *psDevNode = PMR_DeviceNode(psPMR);
@@ -398,13 +400,21 @@ PVRSRV_ERROR ValidateCriticalPMR(PMR* psPMR, IMG_DEVMEM_SIZE_T ui64MinSize)
 
 	PMR_FLAGS_T uiFlags = PMR_Flags(psPMR);
 
+	if (PMR_IsSparse(psPMR))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: Critical PMR cannot be sparse!",
+		         __func__));
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, return_error);
+	}
+
 	/* Critical PMR cannot be user CPU mappable */
 	if (PVRSRV_CHECK_CPU_READABLE(uiFlags) ||
 	    PVRSRV_CHECK_CPU_WRITEABLE(uiFlags))
 	{
 		PVR_DPF((PVR_DBG_ERROR,
-		         "Critical PMR allows CPU mapping (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
-		         uiFlags));
+		         "%s: Critical PMR allows CPU mapping (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
+		         __func__, uiFlags));
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
 	}
 
@@ -415,8 +425,8 @@ PVRSRV_ERROR ValidateCriticalPMR(PMR* psPMR, IMG_DEVMEM_SIZE_T ui64MinSize)
 	     PVRSRV_CHECK_CPU_CACHED(uiFlags)))
 	{
 		PVR_DPF((PVR_DBG_ERROR,
-		         "Critical PMR allows CPU caching (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
-		         uiFlags));
+		         "%s: Critical PMR allows CPU caching (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
+		         __func__, uiFlags));
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
 	}
 
@@ -511,16 +521,30 @@ AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
 
 
 	/* Check buffer sizes and flags are as required */
-	eError = ValidateCriticalPMR(*ppsPMR, ui64MinSize);
+	eError = _ValidateCriticalPMR(*ppsPMR, ui64MinSize);
 	PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservation,
 	    "%s: Validation of critical PMR failed: %s",
 	    __func__, PVRSRVGetErrorString(eError));
 
+	/* Check exclusive flag and set if possible */
+	if (!PMR_SetExclusiveUse(*ppsPMR, IMG_TRUE))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		     "%s: Critical PMR already in use (exclusive flag)!",
+		     __func__));
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, RollbackReservation);
+	}
+
 	/* If no error on validation ref the PMR */
-	(void) PMRRefPMR(*ppsPMR);
+	eError = PMRRefPMR(*ppsPMR);
+	PVR_LOG_GOTO_IF_ERROR_VA(eError, UnsetExclusive,
+	    "%s: Cannot ref critical PMR: %s",
+	    __func__, PVRSRVGetErrorString(eError));
 
 	return PVRSRV_OK;
 
+UnsetExclusive:
+	PMR_SetExclusiveUse(*ppsPMR, IMG_FALSE);
 RollbackReservation:
 	DevmemIntReservationRelease(psReservation);
 ReturnError:
@@ -531,16 +555,17 @@ void UnrefAndReleaseCriticalBuffer(DEVMEMINT_RESERVATION* psReservation)
 {
 	PVRSRV_ERROR eError;
 	PMR* psPMR;
-	IMG_DEV_VIRTADDR sDummy;
+	IMG_DEV_VIRTADDR sUnused;
 	/* Skip error check. If this function is called it means we already
 	   Acquired a reservation and confirmed that mapping exists. */
-	eError = DevmemIntGetReservationData(psReservation, &psPMR, &sDummy);
-	PVR_LOG_IF_ERROR_VA(PVR_DBG_ERROR, eError,
-	    "Error when trying to obtain reservation data in %s", __func__);
+	eError = DevmemIntGetReservationData(psReservation, &psPMR, &sUnused);
+	PVR_LOG_IF_ERROR(eError, "DevmemIntGetReservationData");
+
+	/* Ignore return value. Clearing the flag cannot fail. */
+	PMR_SetExclusiveUse(psPMR, IMG_FALSE);
 
 	eError = PMRUnrefPMR(psPMR);
-	PVR_LOG_IF_ERROR_VA(PVR_DBG_ERROR, eError,
-	    "Error on PMR unref in %s", __func__);
+	PVR_LOG_IF_ERROR(eError, "PMRUnrefPMR");
 
 	DevmemIntReservationRelease(psReservation);
 }

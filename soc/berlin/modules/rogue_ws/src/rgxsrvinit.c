@@ -75,6 +75,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxlayer_impl.h"
 #include "rgxfwimageutils.h"
 #include "rgxfwutils.h"
+#include "rgxpower.h"
 
 #include "rgx_hwperf.h"
 #include "rgx_bvnc_defs_km.h"
@@ -233,7 +234,7 @@ static INLINE void GetApphints(PVRSRV_RGXDEV_INFO *psDevInfo, RGX_INIT_APPHINTS 
 	IMG_UINT32 ui32AppHintDefault;
 	IMG_BOOL bAppHintDefault;
 	IMG_UINT32 ui32ParamTemp;
-#if defined(__linux__)
+#if defined(SUPPORT_DI_APPHINT_IMPL)
 	IMG_UINT64 ui64AppHintDefault;
 #endif
 
@@ -325,13 +326,7 @@ static INLINE void GetApphints(PVRSRV_RGXDEV_INFO *psDevInfo, RGX_INIT_APPHINTS 
 	}
 
 
-#if defined(PVR_ARCH_VOLCANIC)
-	ui32AppHintDefault = PVRSRV_APPHINT_ISPSCHEDULINGLATENCYMODE;
-	OSGetAppHintUINT32(APPHINT_NO_DEVICE,    pvAppHintState,  ISPSchedulingLatencyMode,
-	                     &ui32AppHintDefault,  &psHints->ui32ISPSchedulingLatencyMode);
-#endif
-
-#if defined(__linux__)
+#if defined(SUPPORT_DI_APPHINT_IMPL)
 	/* name changes */
 	{
 		IMG_UINT64 ui64Tmp;
@@ -533,9 +528,6 @@ static INLINE void GetFWConfigFlags(PVRSRV_DEVICE_NODE *psDeviceNode,
 	ui32FWConfigFlags |= (psHints->ui32HWPerfFilter0 != 0 || psHints->ui32HWPerfFilter1 != 0) ? RGXFWIF_INICFG_HWPERF_EN : 0;
 	ui32FWConfigFlags |= psHints->bHWPerfDisableCounterFilter ? RGXFWIF_INICFG_HWP_DISABLE_FILTER : 0;
 	ui32FWConfigFlags |= (psHints->ui32FWContextSwitchProfile << RGXFWIF_INICFG_CTXSWITCH_PROFILE_SHIFT) & RGXFWIF_INICFG_CTXSWITCH_PROFILE_MASK;
-#if defined(PVR_ARCH_VOLCANIC)
-	ui32FWConfigFlags |= (psHints->ui32ISPSchedulingLatencyMode << RGXFWIF_INICFG_ISPSCHEDMODE_SHIFT) & RGXFWIF_INICFG_ISPSCHEDMODE_MASK;
-#endif
 
 	{
 		ui32FWConfigFlags |= psDeviceNode->pfnHasFBCDCVersion31(psDeviceNode) ? RGXFWIF_INICFG_FBCDC_V3_1_EN : 0;
@@ -876,6 +868,7 @@ static PVRSRV_ERROR InitFirmware(PVRSRV_DEVICE_NODE *psDeviceNode)
 	sFWParams.pvFirmware       = OSFirmwareData(psRGXFW);
 	sFWParams.ui32FirmwareSize = OSFirmwareSize(psRGXFW);
 
+#if defined(SUPPORT_CUSTOMER_SIGNING)
 	/*
 	 * Allow it to be pre-processed by the platform hook
 	 */
@@ -886,6 +879,7 @@ static PVRSRV_ERROR InitFirmware(PVRSRV_DEVICE_NODE *psDeviceNode)
 		if (eError != PVRSRV_OK)
 			goto cleanup_initfw;
 	}
+#endif
 
 	/*
 	 * Allocate Firmware memory
@@ -1699,6 +1693,14 @@ PVRSRV_ERROR RGXInit(PVRSRV_DEVICE_NODE *psDeviceNode)
 		goto cleanup;
 	}
 
+
+	if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode))
+	{
+		RGXInitGpuUtilStats(psDeviceNode, &psDevInfo->sGpuUtilStats);
+#if defined(SUPPORT_LINUX_DVFS)
+		RGXInitGpuUtilStats(psDeviceNode, &psDevInfo->sDVFSGpuUtilStats);
+#endif
+	}
 
 	eError = PVRSRV_OK;
 

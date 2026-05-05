@@ -189,6 +189,8 @@ typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_FENCE_RESOLVE_FN)(PSYNC_CHECKPOINT_CO
 
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_RESOLVE_FN)(PVRSRV_FENCE export_fence, PSYNC_CHECKPOINT_CONTEXT checkpoint_context, PSYNC_CHECKPOINT *checkpoint_handle);
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_ROLLBACK_FN)(PVRSRV_FENCE export_fence);
+typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_FINALISE_FN)(PVRSRV_FENCE export_fence);
+
 
 #ifndef CHECKPOINT_PFNS
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_FENCE_CREATE_FN)(
@@ -255,6 +257,7 @@ typedef struct {
 #endif
 	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_RESOLVE_FN pfnExportFenceResolve;
 	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_ROLLBACK_FN pfnExportFenceRollback;
+	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_FINALISE_FN pfnExportFenceFinalise;
 } PFN_SYNC_CHECKPOINT_STRUCT;
 
 enum PVRSRV_ERROR_TAG SyncCheckpointRegisterFunctions(PFN_SYNC_CHECKPOINT_STRUCT *psSyncCheckpointPfns);
@@ -268,6 +271,7 @@ enum PVRSRV_ERROR_TAG SyncCheckpointContextDestroy(PSYNC_CHECKPOINT_CONTEXT hSyn
 void SyncCheckpointContextRef(PSYNC_CHECKPOINT_CONTEXT psContext);
 void SyncCheckpointContextUnref(PSYNC_CHECKPOINT_CONTEXT psContext);
 enum PVRSRV_ERROR_TAG SyncCheckpointAlloc(PSYNC_CHECKPOINT_CONTEXT psSyncContext, PVRSRV_TIMELINE timeline, PVRSRV_FENCE fence, const char *pszCheckpointName, PSYNC_CHECKPOINT *ppsSyncCheckpoint);
+enum PVRSRV_ERROR_TAG SyncCheckpointAllocProxy(PSYNC_CHECKPOINT_CONTEXT psSyncContext, PVRSRV_FENCE fence, IMG_HANDLE hEnvFenceObjPtr, IMG_BOOL bIsPVRSWFence, const char *pszCheckpointName, PSYNC_CHECKPOINT *ppsSyncCheckpoint);
 void SyncCheckpointSignal(PSYNC_CHECKPOINT psSyncCheckpoint, u32 fence_sync_flags);
 void SyncCheckpointError(PSYNC_CHECKPOINT psSyncCheckpoint, u32 fence_sync_flags);
 bool SyncCheckpointIsSignalled(PSYNC_CHECKPOINT psSyncCheckpoint, u32 fence_sync_flags);
@@ -287,6 +291,7 @@ struct _PVRSRV_DEVICE_NODE_ *SyncCheckpointGetAssociatedDevice(PSYNC_CHECKPOINT_
 #endif
 IMG_BOOL SyncCheckpointCommonDeviceIDs(PSYNC_CHECKPOINT_CONTEXT psSyncContext, IMG_HANDLE hDevRef);
 enum PVRSRV_ERROR_TAG SyncCheckpointGetCounters(struct _PVRSRV_DEVICE_NODE_ *psDevNode, IMG_UINT32 *puiInUse, IMG_UINT32 *puiMax, IMG_UINT32 *puiXDInUse, IMG_UINT32*puiXDMax);
+enum PVRSRV_ERROR_TAG SyncCheckpointGetDevIDs(PSYNC_CHECKPOINT psSyncContext, IMG_INT32 *piKernelDevId, IMG_UINT32 *puiInternalDevId);
 
 #endif
 
