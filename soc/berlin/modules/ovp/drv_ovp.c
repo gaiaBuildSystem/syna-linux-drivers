@@ -602,7 +602,10 @@ static int ovp_drv_suspend(struct device *dev)
 
 	ovp_drv_disable_irq();
 
-	ret = syna_ovpd_ca_suspend(true);
+	/* Invoke syna_ovpd_ca_suspend with optimize false
+	 * this requests "Full suspend from Kernel" in the TA
+	 */
+	ret = syna_ovpd_ca_suspend(false);
 	if (ret) {
 		ovp_error("%s OVP Suspend failed\n", __func__);
 		/*
@@ -622,7 +625,10 @@ static int ovp_drv_resume(struct device *dev)
 	if (!atomic_read(&ovp_dev_refcnt))
 		return ret;
 
-	ret = syna_ovpd_ca_resume(true);
+	/* Invoke syna_ovpd_ca_resume with optimize false
+	 * this requests "Full resume from Kernel" in the TA
+	 */
+	ret = syna_ovpd_ca_resume(false);
 	if (ret) {
 		ovp_error("%s OVP Resume failed\n", __func__);
 		return ret;

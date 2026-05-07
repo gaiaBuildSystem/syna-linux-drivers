@@ -84,7 +84,14 @@ int wrap_ovp_drv_get_isr_msg(CC_MSG_t *msg)
 	/* wait for the ISR to sem up */
 	rc = down_interruptible(&ptr_ovp_ctx->ovp_sem);
 	if (rc < 0) {
-		ovp_error("%s: down_interruptible failed (0x%x)\n", __func__, rc);
+		/* -EINTR & -ERESTARTSYS are expected during suspend flow interruption
+		 * Reduce logging severity for these compared to other errors
+		 */
+		if (rc == -EINTR || rc == -ERESTARTSYS)
+			ovp_trace("%s: interrupted while waiting for ISR msg (rc=%d)\n",
+				  __func__, rc);
+		else
+			ovp_error("%s: down_interruptible failed (rc=%d)\n", __func__, rc);
 		return rc;
 	}
 
