@@ -314,14 +314,14 @@ static int VPP_Init_Recovery_vpp_ta(VPP_MEM_LIST *vpp_shm_list,
 			if (res == MV_VPP_OK) {
 				// Keep bootup mode matching fixedModeSetting configuration
 				if (sinkCaps & ((1<<VPP_HDMI_SINKCAP_BITMASK_FULL4K)|(1<<VPP_HDMI_SINKCAP_BITMASK_4K30))) {
-					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-						HDMI_MAX_RES_ENABLED_50_25:HDMI_MAX_RES_ENABLED_60_30;
+					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_60FPS)) ?
+						HDMI_MAX_RES_ENABLED_60_30: HDMI_MAX_RES_ENABLED_50_25;
 				} else if (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_FHD)) {
-					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-						RES_1080P50:RES_1080P60;
+					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_60FPS)) ?
+						RES_1080P60:RES_1080P50;
 				} else {
-					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) ?
-						RES_720P50:RES_720P60;
+					dispParams.uiResId = (sinkCaps & (1<<VPP_HDMI_SINKCAP_BITMASK_60FPS)) ?
+						RES_720P60:RES_720P50;
 				}
 				/*Set the resolution as set in dts if Sink supports it
 				else set maximium resolution supported by sink*/

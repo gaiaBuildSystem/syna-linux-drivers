@@ -31,7 +31,7 @@ struct drm_edid {
 
 #define MAX_EDID_BLOCKS 8 //Max EDID blocks supported by syna driver
 #define VPP_HDMI_SINKCAP_BITMASK_FALLBACK 0xFFFFFFFF //If no resolution is supported, default fallback will be 480p
-#define VPP_CHECK_BITMASK(VAL, MASK) ((VAL & MASK) == MASK)
+#define VPP_CHECK_BITMASK(VAL, MASK) (((VAL) & (MASK)) == (MASK))
 #define VPP_IS_SINK_SUPPORT_MODE(I, N, SINK_CAPS) \
         ((I == (N - 1)) || VPP_CHECK_BITMASK(SINK_CAPS, supported_forced_mode[I].sinkcap_bitmask))
 
@@ -40,9 +40,9 @@ static char forced_mode[DRM_DISPLAY_MODE_LEN] = "\0";
 //TODO: add 4K60/50 after interop tests
 static const struct syna_hdmi_mode_map supported_forced_mode[] = {
 	{ "4K30", RES_4Kx2K30,   (1 << VPP_HDMI_SINKCAP_BITMASK_4K30) },
-	{ "2K60", RES_1080P60,   (1 << VPP_HDMI_SINKCAP_BITMASK_FHD) },
-	{ "2K50", RES_1080P50,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FHD) | (1 << VPP_HDMI_SINKCAP_BITMASK_PREF50FPS)) },
-	{ "720p", RES_720P60,    (1 << VPP_HDMI_SINKCAP_BITMASK_720P) },
+	{ "2K60", RES_1080P60,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FHD) | (1 << VPP_HDMI_SINKCAP_BITMASK_60FPS)) },
+	{ "2K50", RES_1080P50,   ((1 << VPP_HDMI_SINKCAP_BITMASK_FHD) | (1 << VPP_HDMI_SINKCAP_BITMASK_50FPS)) },
+	{ "720p", RES_720P60,    ((1 << VPP_HDMI_SINKCAP_BITMASK_720P)| (1 << VPP_HDMI_SINKCAP_BITMASK_60FPS)) },
 	{ "576p", RES_625P50,    (1 << VPP_HDMI_SINKCAP_BITMASK_576P) },
 	{ "480p", RES_525P60,    VPP_HDMI_SINKCAP_BITMASK_FALLBACK },
 };
