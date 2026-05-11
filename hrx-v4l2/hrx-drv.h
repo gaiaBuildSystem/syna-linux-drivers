@@ -690,6 +690,7 @@ struct syna_hrx_v4l2_dev {
 	bool vip_enable_scaler;
 	bool vip_first_frame;
 	bool vip_first_intr;
+	bool vip_submit_delay;
 	int vip_bits_per_pixel;
 	u32 ui_tunnel_mode;
 	u32 ui_md_dump_enable;

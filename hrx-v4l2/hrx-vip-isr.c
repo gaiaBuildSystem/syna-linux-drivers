@@ -340,11 +340,18 @@ static int vip_isr_service(struct syna_hrx_v4l2_dev *hrx_dev)
 			/* Observed DHUB write was not completed in some cases.
 			 * So let give DHUB one more frame time for write operation
 			 * so that no partial frame will be notified to AVIN
+			 * This can be controlled via vip_submit_delay DTS property
 			 */
 
-			if (!hrx_dev->vip_first_frame)
-				hrx_dev->vip_first_frame = 1;
-			else {
+			if (hrx_dev->vip_submit_delay) {
+				if (!hrx_dev->vip_first_frame)
+					hrx_dev->vip_first_frame = 1;
+				else {
+					void *frame_descr;
+					vip_frmq_pop(&hrx_dev->frmq, &frame_descr);
+					syna_hrx_buf_validate_and_process(hrx_dev,frame_descr);
+				}
+			} else {
 				void *frame_descr;
 				vip_frmq_pop(&hrx_dev->frmq, &frame_descr);
 				syna_hrx_buf_validate_and_process(hrx_dev,frame_descr);

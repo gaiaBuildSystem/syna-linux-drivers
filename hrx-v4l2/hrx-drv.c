@@ -2468,6 +2468,9 @@ static int syna_hrx_parse_dt(struct platform_device *pdev)
 		return ret;
 	}
 
+	/* Parse VIP frame delay option from device tree (default: false) */
+	hrx_dev->vip_submit_delay = of_property_read_bool(pdev->dev.of_node, "vip-submit-delay");
+
 	return 0;
 }
 
