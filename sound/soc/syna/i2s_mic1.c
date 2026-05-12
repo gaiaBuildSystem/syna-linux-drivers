@@ -14,7 +14,15 @@
 #include "mic.h"
 #include "avio_common.h"
 
-#define I2S_MIC1_RATES      (SNDRV_PCM_RATE_8000_96000)
+/*
+ * Max BCLK verified in VS640(platypus) is 24.576MHz,
+ * based on this below list is derived.
+ * 1. MIC1 (I2S 2ch x 1/2/3/4 lanes) - 192KHz can be supported
+ * 2. MIC1 (TDM 4ch x 1/2 lanes) - 192KHz can be supported
+ * 3. MIC1 (TDM 8ch x 1 lane) - 192KHz can not be supported
+*/
+
+#define I2S_MIC1_RATES      (SNDRV_PCM_RATE_8000_192000)
 #define I2S_MIC1_FORMATS    (SNDRV_PCM_FMTBIT_S16_LE \
 					| SNDRV_PCM_FMTBIT_S24_3LE \
 					| SNDRV_PCM_FMTBIT_S24_LE \
