@@ -1027,8 +1027,10 @@ void syna_vpp_push_fastlogo_frame(struct drm_device *dev)
 	crtcs = GET_MAX_CRTC_FOR_MODE(dev_priv->vpp_config_param.display_mode);
 
 	for (i = 0; i < crtcs; i++) {
-		if (!MV_VPP_IsValidCrtcIndex(i))
+		if (!MV_VPP_IsValidCrtcIndex(i)) {
+			dev_priv->is_fl_frame_freed[i] = 1;
 			continue;
+		}
 
 		virt_crtc_ndx = MV_VPP_GetVirtCrtcIndex(i);
 
