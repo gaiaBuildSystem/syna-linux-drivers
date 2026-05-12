@@ -262,6 +262,18 @@ int berlin_capture_spdif_control_status_buffer_get(struct snd_kcontrol *kcontrol
 	return 0;
 }
 
+/* Reset all SPDIF capture tracking state */
+static void spdif_capture_state_reset(struct berlin_capture *bc)
+{
+	bc->spdif_bit_index = 0;
+	memset(bc->spdif_channel_status, 0, sizeof(bc->spdif_channel_status));
+	memset(bc->spdif_channel_status_pending, 0,
+		sizeof(bc->spdif_channel_status_pending));
+	bc->spdif_sample_rate = 0;
+	bc->spdif_block_synced = false;
+	bc->spdif_csb_ready = false;
+}
+
 static unsigned int spdif_decode_sample_rate(u8 fs_code)
 {
 	switch (fs_code) {
@@ -1563,14 +1575,8 @@ int berlin_capture_prepare(struct snd_pcm_substream *ss)
 	bc->cnt = 0;
 	bc->runtime_offset = 0;
 
-	/* Reset S/PDIF state tracking */
-	bc->spdif_bit_index = 0;
-	memset(bc->spdif_channel_status, 0, sizeof(bc->spdif_channel_status));
-	memset(bc->spdif_channel_status_pending, 0,
-		sizeof(bc->spdif_channel_status_pending));
-	bc->spdif_sample_rate = 0;
-	bc->spdif_block_synced = false;
-	bc->spdif_csb_ready = false;
+	spdif_capture_state_reset(bc);
+
 	spin_unlock_irqrestore(&bc->lock, flags);
 	return 0;
 }
@@ -1752,15 +1758,7 @@ int berlin_capture_open(struct snd_pcm_substream *ss)
 		bc->dma_addr[i] = 0;
 	}
 
-	/* Initialize S/PDIF state tracking */
-	bc->spdif_bit_index = 0;
-	memset(bc->spdif_channel_status, 0, sizeof(bc->spdif_channel_status));
-	memset(bc->spdif_channel_status_pending, 0,
-		sizeof(bc->spdif_channel_status_pending));
-	bc->spdif_sample_rate = 0;
-	bc->spdif_block_synced = false;
-	bc->spdif_csb_ready = false;
-
+	spdif_capture_state_reset(bc);
 	INIT_WORK(&bc->spdif_snd_notify_work, berlin_spdif_snd_notify_work_fn);
 
 	berlin_capture_set_kcontrol(ss, &bc->spdif_rate_ctl,
@@ -1838,14 +1836,9 @@ int berlin_capture_close(struct snd_pcm_substream *ss)
 		cancel_work_sync(&bc->spdif_snd_notify_work);
 
 		spin_lock_irq(&bc->lock);
-		bc->spdif_sample_rate = 0;
-		bc->spdif_block_synced = false;
-		bc->spdif_csb_ready = false;
+		spdif_capture_state_reset(bc);
 		bc->spdif_rate_ctl = NULL;
 		bc->spdif_csb_ctl = NULL;
-		memset(bc->spdif_channel_status, 0, sizeof(bc->spdif_channel_status));
-		memset(bc->spdif_channel_status_pending, 0,
-			sizeof(bc->spdif_channel_status_pending));
 		spin_unlock_irq(&bc->lock);
 
 		kfree(bc);
