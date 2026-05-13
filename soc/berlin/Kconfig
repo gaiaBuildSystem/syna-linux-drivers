@@ -233,6 +233,13 @@ config SYNA_WSPANEL_1080P
 	help
 	  syna compatible waveshare 13.3 inch 1080P panel
 
+config SYNA_WSPANEL_10P1
+	tristate "syna compatible ws 10.1 inch panel"
+	default n
+	depends on SYNA_DRM
+	help
+	  syna compatible waveshare 10.1 inch panel
+
 config SYNA_MC_DFC
 	tristate "Support MC hwcc"
 	default n

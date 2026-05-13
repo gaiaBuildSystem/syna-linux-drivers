@@ -123,3 +123,4 @@ else
 syna_drm-y += port/ion/drm_syna_port.o
 endif
 obj-$(CONFIG_SYNA_WSPANEL_1080P) +=panel/panel-waveshare-dsi.o
+obj-$(CONFIG_SYNA_WSPANEL_10P1) +=panel/panel-waveshare-dsi-v2.o

@@ -35,5 +35,15 @@ config REGULATOR_RPI_PANEL_ATTINY
 	help
 	  This driver provides support for the ATtiny RPI panel regulator.
 
+config REGULATOR_WAVESHARE_TOUCHSCREEN
+	tristate "Waveshare touchscreen panel regulator"
+	depends on I2C && (OF || COMPILE_TEST)
+	depends on BACKLIGHT_CLASS_DEVICE
+	select REGMAP_I2C
+	help
+	  This driver supports regulator on the waveshare
+	  touchscreen unit. The regulator is used to enable power to the
+	  display and to control backlight.
+
 endif
 
