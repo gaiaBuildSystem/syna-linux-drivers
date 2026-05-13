@@ -124,6 +124,8 @@ struct drm_connector *syna_lcdc_connector_create(struct drm_device *dev);
 void drm_syna_encoder_suspend(struct syna_drm_private *dev_priv,
  							bool suspend);
 
+int syna_dsi_send_standby_commands(void);
+
 int syna_modeset_early_init(struct syna_drm_private *dev_priv);
 int syna_modeset_late_init(struct syna_drm_private *dev_priv);
 void syna_modeset_early_cleanup(struct syna_drm_private *dev_priv);

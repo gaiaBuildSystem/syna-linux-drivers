@@ -12,6 +12,8 @@
 #include <drm/drm_atomic_helper.h>
 #include "syna_vpp.h"
 #include "vpp_api.h"
+#include "hal_vpp_wrap.h"
+#include "vpp_mem.h"
 #include "avio_common.h"
 #include "avio_core.h"
 
@@ -308,10 +310,33 @@ int syna_vpp_get_bm_details(struct dma_buf *dma_buf,
 	return ret;
 }
 
-int syna_dsi_panel_send_cmd (unsigned int cmdsize, unsigned char *pcmd)
+int syna_dsi_panel_send_cmd(unsigned int cmdsize, unsigned char *pcmd)
 {
-	/* Currently VSXXX has the TA to send the commands */
-	return 0;
+	VPP_MEM_LIST *mem_list = syna_vpp_get_shm_list();
+	VPP_MEM cmd_shm_handle = {};
+	VPP_MIPI_CMD_PARAMS cmd_params;
+	int ret;
+
+	if (!pcmd || !cmdsize)
+		return -EINVAL;
+
+	if (!mem_list)
+		return -ENODEV;
+
+	cmd_shm_handle.size = ALIGN(cmdsize, SZ_4K);
+	ret = VPP_MEM_AllocateMemory(mem_list, VPP_MEM_TYPE_DMA, &cmd_shm_handle, 0);
+	if (ret)
+		return ret;
+
+	memcpy(cmd_shm_handle.k_addr, pcmd, cmdsize);
+
+	cmd_params.bufsize = cmdsize;
+	cmd_params.pcmd = (ARCH_PTR_TYPE)cmd_shm_handle.p_addr;
+
+	ret = wrap_MV_VPPOBJ_MipiPanelSendCmd(&cmd_params);
+	VPP_MEM_FreeMemory(mem_list, VPP_MEM_TYPE_DMA, &cmd_shm_handle);
+
+	return ret;
 }
 
 void syna_push_buildin_frame(u32 plane)

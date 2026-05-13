@@ -1093,6 +1093,11 @@ err_memory_cleanup:
 		syna_vpp_fl_clear(dev, i, i);
 }
 
+VPP_MEM_LIST *syna_vpp_get_shm_list(void)
+{
+	return shm_list;
+}
+
 void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID)
 {
 	struct syna_drm_private *dev_priv = dev->dev_private;

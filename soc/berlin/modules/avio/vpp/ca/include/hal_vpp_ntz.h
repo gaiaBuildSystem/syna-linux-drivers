@@ -24,6 +24,7 @@ int NTZ_MV_VPPOBJ_Destroy(void);
 int NTZ_MV_VPPOBJ_IsrHandler(unsigned int MsgId, unsigned int IntSts);
 int NTZ_MV_VPPOBJ_GetCPCBOutputPixelClock(int resID, int *pixel_clock);
 int NTZ_MV_VPP_LoadConfigTable(ENUM_VOUT_ID voutid, int Id, void *pConfig);
+int NTZ_MV_VPPOBJ_MipiPanelSendCmd(VPP_MIPI_CMD_PARAMS *pCmdParams);
 int NTZ_MV_VPPOBJ_DisplayFrame(int planeID, void *frame);
 int NTZ_MV_VPPOBJ_GetResolutionDescription(int ResId, VPP_RESOLUTION_DESCRIPTION *pResDesc);
 int NTZ_MV_VPPOBJ_Create(int base_addr, int *handle);

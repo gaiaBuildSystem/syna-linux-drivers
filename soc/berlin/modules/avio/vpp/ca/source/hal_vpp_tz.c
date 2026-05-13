@@ -4,6 +4,10 @@
 #include "tee_ca_vpp.h"
 #include "hal_vpp_tz.h"
 
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/sizes.h>
+
 static int is_vpp_ta;
 
 int TZ_MV_VPP_InitVPPS(ENUM_TA_UUID_TYPE uuidType, unsigned int *vpp_init_parm)
@@ -562,6 +566,15 @@ int TZ_MV_VPPOBJ_SetDispOutParams(void *pdispParams, int size)
 int TZ_MV_VPPOBJ_LoadMipiConfig(VPP_MIPI_LOAD_CONFIG *pConfigParams)
 {
 	return VPP_CA_PassShm_InBuffer(pConfigParams, VPP_MIPI_CONFIG, sizeof(VPP_MIPI_LOAD_CONFIG));
+}
+
+int TZ_MV_VPPOBJ_MipiPanelSendCmd(VPP_MIPI_CMD_PARAMS *pCmdParams)
+{
+	if (!pCmdParams || !pCmdParams->pcmd || !pCmdParams->bufsize)
+		return MV_VPP_EBADPARAM;
+
+	return VPP_CA_PassShm_InBuffer(pCmdParams, VPP_MIPI_SENDCMD,
+				       sizeof(VPP_MIPI_CMD_PARAMS));
 }
 
 int TZ_MV_VPPOBJ_GetHPDStatus(unsigned char *pHpdStatus)

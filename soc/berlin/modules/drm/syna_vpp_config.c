@@ -25,6 +25,9 @@ static int syna_encoder_parse_dsi_dt(struct syna_drm_private *dev_priv, vpp_conf
 	VPP_MIPI_LOAD_CONFIG *pLoadcfg;
 	VPP_MIPI_CMD_HEADER  *pHeader;
 	VPP_MIPI_CONFIG_PARAMS *pResCfg;
+	int standby_cmdsize = 0;
+	int total_cmdsize = 0;
+	VPP_MIPI_CMD_HEADER *pStandbyHeader;
 
 	dsi_node = of_find_compatible_node(NULL, NULL, "syna,drm-dsi");
 
@@ -113,18 +116,28 @@ static int syna_encoder_parse_dsi_dt(struct syna_drm_private *dev_priv, vpp_conf
         pResCfg->infoparams.resInfo.vsyncwidth +
         pResCfg->infoparams.resInfo.vbackporch;
 
+	/* Parse init commands */
 	pResCfg->vppMipiCmd.bufsize = of_property_count_u8_elems(dsi_node, "command");
 
-	if (pResCfg->vppMipiCmd.bufsize) {
-		pMipiConfig->vpp_cmdinfo_shm_handle.size = VPP_SHM_4K_ALIGN_ROUNDUP(pResCfg->vppMipiCmd.bufsize);
+	/* Check for standby commands */
+	standby_cmdsize = of_property_count_u8_elems(dsi_node, "standby-cmds");
 
-		ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
-				&pMipiConfig->vpp_cmdinfo_shm_handle, 0);
-		if (ret != 0) {
-			DRM_ERROR("%s %d  gem alloc failed!\n", __func__, __LINE__);
-			goto EXIT_FREE_DSI;
-		}
+	/* Total buffer: init commands + standby commands (both with headers) */
+	total_cmdsize = pResCfg->vppMipiCmd.bufsize + MIPI_CMD_HEADER_SIZE;
+	if (standby_cmdsize > 0) {
+		total_cmdsize += standby_cmdsize + MIPI_CMD_HEADER_SIZE;
+	}
 
+	pMipiConfig->vpp_cmdinfo_shm_handle.size = VPP_SHM_4K_ALIGN_ROUNDUP(total_cmdsize);
+
+	ret = VPP_MEM_AllocateMemory(dev_priv->mem_list, VPP_MEM_TYPE_DMA,
+			&pMipiConfig->vpp_cmdinfo_shm_handle, 0);
+	if (ret != 0) {
+		DRM_ERROR("%s %d  gem alloc failed!\n", __func__, __LINE__);
+		goto EXIT_FREE_DSI;
+	}
+
+		/* Load init commands at offset 0 + header */
 		of_property_read_u8_array(dsi_node, "command",
 			((UINT8*) pMipiConfig->vpp_cmdinfo_shm_handle.k_addr) + MIPI_CMD_HEADER_SIZE,
 			pResCfg->vppMipiCmd.bufsize);
@@ -133,9 +146,24 @@ static int syna_encoder_parse_dsi_dt(struct syna_drm_private *dev_priv, vpp_conf
 		pHeader->cmd_type = VPP_CMD_TYPE_INIT;
 		pHeader->cmd_size = pResCfg->vppMipiCmd.bufsize;
 
+		/* Load standby commands if present */
+		if (standby_cmdsize > 0) {
+			UINT8 *standby_buf_start = ((UINT8*) pMipiConfig->vpp_cmdinfo_shm_handle.k_addr) +
+									   pResCfg->vppMipiCmd.bufsize + MIPI_CMD_HEADER_SIZE;
+
+			of_property_read_u8_array(dsi_node, "standby-cmds",
+				standby_buf_start + MIPI_CMD_HEADER_SIZE,
+				standby_cmdsize);
+
+			pStandbyHeader = (VPP_MIPI_CMD_HEADER *) standby_buf_start;
+			pStandbyHeader->cmd_type = VPP_CMD_TYPE_STANDBY;
+			pStandbyHeader->cmd_size = standby_cmdsize;
+
+			DRM_INFO("Loaded %d bytes of standby commands for TA\n", standby_cmdsize);
+		}
+
 		/* Update the PA for the driver*/
 		pResCfg->vppMipiCmd.pcmd = (ARCH_PTR_TYPE)pMipiConfig->vpp_cmdinfo_shm_handle.p_addr;
-	}
 
 	pMipiConfig->mipi_config_params =  (void *) pMipiConfig->vpp_dsi_info_shm_handle.k_addr;
 	pMipiConfig->mipi_resinfo_params = (void *) pMipiConfig->vpp_resinfo_shm_handle.k_addr;

@@ -79,3 +79,7 @@ int __weak NTZ_MV_VPP_GetBrightness(int Id, int channel, uint64_t *val)
 {
 	return 0;
 }
+int __weak NTZ_MV_VPPOBJ_MipiPanelSendCmd(VPP_MIPI_CMD_PARAMS *pCmdParams)
+{
+	return 0;
+}

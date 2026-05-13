@@ -474,6 +474,16 @@ int wrap_MV_VPP_LoadConfigTable(ENUM_VOUT_ID voutid, int Id, void *pConfig)
 	return MV_VPP_OK;
 }
 
+int wrap_MV_VPPOBJ_MipiPanelSendCmd(VPP_MIPI_CMD_PARAMS *pCmdParams)
+{
+	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
+
+	if (hDhubCtx->isTeeEnabled)
+		return TZ_MV_VPPOBJ_MipiPanelSendCmd(pCmdParams);
+	else
+		return NTZ_MV_VPPOBJ_MipiPanelSendCmd(pCmdParams);
+}
+
 int wrap_MV_VPP_iSTeeEnabled(void)
 {
 	DHUB_CTX *hDhubCtx = (DHUB_CTX *) avio_sub_module_get_ctx(AVIO_MODULE_TYPE_DHUB);
@@ -668,6 +678,7 @@ EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetCPCBOutputPixelClock);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_GetDispOutParams);
 EXPORT_SYMBOL(wrap_MV_VPP_MIPI_Reset);
 EXPORT_SYMBOL(wrap_MV_VPP_LoadConfigTable);
+EXPORT_SYMBOL(wrap_MV_VPPOBJ_MipiPanelSendCmd);
 EXPORT_SYMBOL(wrap_MV_VPP_iSTeeEnabled);
 EXPORT_SYMBOL(wrap_MV_VPP_RegisterWaitForVppVsyncCb);
 EXPORT_SYMBOL(wrap_MV_VPPOBJ_SetDispOutParams);

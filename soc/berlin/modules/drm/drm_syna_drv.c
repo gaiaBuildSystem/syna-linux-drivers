@@ -66,6 +66,8 @@ MODULE_PARM_DESC(display_enable, "Enable all displays (default: Y)");
  * - 0: Don't push builtin frame, continue to display last frame (fbdev frame)
  */
 bool en_builtin_frame_on_reset = 1;
+int __weak syna_panel_lcdc_init(struct platform_device *pdev);
+void __weak syna_panel_lcdc_deinit(void);
 
 int __weak syna_panel_lcdc_init(struct platform_device *pdev)
 {

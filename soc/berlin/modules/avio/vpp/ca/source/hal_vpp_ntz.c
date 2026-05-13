@@ -199,3 +199,8 @@ int NTZ_MV_VPP_GetBrightness(int Id, int channel, uint64_t *val)
 {
 	return syna_lcdc_get_brightness(Id, channel, val);
 }
+
+int NTZ_MV_VPPOBJ_MipiPanelSendCmd(VPP_MIPI_CMD_PARAMS *pCmdParams)
+{
+	return MV_VPP_OK;
+}

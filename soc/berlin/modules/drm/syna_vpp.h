@@ -95,6 +95,7 @@ int syna_load_uboot_logo(VPP_MEM_LIST *vpp_mem_list,
 			 int disp_id,
 			 VPP_WIN *vpp_res_info);
 void syna_vpp_fl_clear(struct drm_device *dev, int crtcID, int planeID);
+VPP_MEM_LIST *syna_vpp_get_shm_list(void);
 void syna_vpp_pop_fl_frame(int crtcID, int planeID);
 void syna_fbcon_start_work(struct work_struct *work);
 void syna_vpp_isr_process(struct drm_device *dev);

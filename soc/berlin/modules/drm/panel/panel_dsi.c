@@ -30,6 +30,7 @@
 #include "bridge/syna_bridge.h"
 #include "avio_common.h"
 #include "avio_core.h"
+#include "drm_syna_drv.h"
 
 typedef struct panel_timing_info_t {
 	unsigned int hact;
@@ -50,16 +51,21 @@ typedef struct panel_desc_t {
 	int                 byteclock;
 	int                 cmdsize;
 	unsigned char		*cmd;
+	int                 standby_cmdsize;
+	unsigned char		*standby_cmd;
 
 	struct gpio_desc 	*mipibl;
 	struct regulator	*supply;
 	const char *compatible_panel;
 	struct drm_panel *sub_panel;
+	void                *pMipiDsiInfo;  /* Pointer to MIPI DSI info for standby commands */
 } SYNA_PANEL_DESC;
 
 static struct display_timing synaPanelTimings;
 static SYNA_PANEL_DESC  	synaPanelInfo;
 static 	struct drm_panel *dsi_panel;
+
+void syna_panel_dsi_set_mipi_info(void *pMipiDsiInfo);
 
 static const struct of_device_id platform_of_match[] = {
 	{
@@ -78,12 +84,18 @@ static int syna_panel_dsi_get_timings (struct drm_panel *panel, unsigned int num
 static int syna_panel_dsi_enable(struct drm_panel *panel)
 {
 	int err;
+	avio_fastlogo_info display_info;
+
+	display_info = avio_get_fastlogo_status();
 
 	if (synaPanelInfo.supply) {
 		err = regulator_enable(synaPanelInfo.supply);
 		if (err < 0)
 			pr_info("failed to enable supply: %d\n", err);
 	}
+
+	if (!display_info.u.status)
+		syna_dsi_panel_send_cmd(synaPanelInfo.cmdsize, synaPanelInfo.cmd);
 
 	if (synaPanelInfo.sub_panel)
 		drm_panel_enable(synaPanelInfo.sub_panel);
@@ -94,6 +106,9 @@ static int syna_panel_dsi_enable(struct drm_panel *panel)
 static int syna_panel_dsi_disable(struct drm_panel *panel)
 {
 	int err;
+
+	/* Send standby commands before disabling panel */
+	syna_dsi_send_standby_commands();
 
 	if (synaPanelInfo.supply) {
 		err = regulator_disable(synaPanelInfo.supply);
@@ -128,8 +143,6 @@ static int syna_panel_dsi_prepare(struct drm_panel *panel)
 
 	/* Release MIPI from Reset */
 	avio_module_mipirst_set_gpio_val(0);
-	if (!display_info.u.status)
-		syna_dsi_panel_send_cmd(synaPanelInfo.cmdsize, synaPanelInfo.cmd);
 
 	syna_bridge_modeset(&synaPanelTimings);
 
@@ -209,12 +222,13 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 	struct device_node *np;
 
 	mipi_dev = devm_kmalloc(&pdev->dev, sizeof(struct device), GFP_KERNEL);
+	if (!mipi_dev)
+		return -ENOMEM;
+
 	mipi_dev->of_node = of_find_compatible_node(NULL, NULL, "syna,drm-dsi");
 
-	if (!mipi_dev->of_node) {
-		pr_err("panel node not found \n");
+	if (!mipi_dev->of_node)
 		return -ENODEV;
-	}
 
 	dsi_panel = devm_kzalloc(&pdev->dev, sizeof(struct drm_panel), GFP_KERNEL);
 	if (!dsi_panel)
@@ -243,6 +257,18 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 	}
 
 	of_property_read_u8_array(mipi_dev->of_node, "command", synaPanelInfo.cmd, synaPanelInfo.cmdsize);
+
+	/* Parse standby commands if present */
+	synaPanelInfo.standby_cmdsize = of_property_count_u8_elems(mipi_dev->of_node, "standby-cmds");
+	if (synaPanelInfo.standby_cmdsize > 0) {
+		synaPanelInfo.standby_cmd = devm_kzalloc(&pdev->dev, synaPanelInfo.standby_cmdsize, GFP_KERNEL);
+		if (!synaPanelInfo.standby_cmd)
+			return -ENOMEM;
+		of_property_read_u8_array(mipi_dev->of_node, "standby-cmds", synaPanelInfo.standby_cmd, synaPanelInfo.standby_cmdsize);
+	} else {
+		synaPanelInfo.standby_cmd = NULL;
+		synaPanelInfo.standby_cmdsize = 0;
+	}
 
 	synaPanelTimings.hactive.min = synaPanelTimings.hactive.typ = \
 					synaPanelTimings.hactive.max = synaPanelInfo.panel_timing.hact;
@@ -318,14 +344,35 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 	drm_panel_add(dsi_panel);
 
 	err = syna_bridge_init(pdev);
-	if (err) {
-		pr_warn("Bridge init failed\n");
-	}
+	if (err)
+		pr_warn("syna_panel_dsi_init: bridge init failed err=%d\n", err);
 
 	if (of_device_is_available(of_find_compatible_node(NULL, NULL, synaPanelInfo.compatible_panel)))
 		synaPanelInfo.sub_panel = of_drm_find_panel(of_find_compatible_node(NULL, NULL, synaPanelInfo.compatible_panel));
 
 	return err;
+}
+
+void syna_panel_dsi_set_mipi_info(void *pMipiDsiInfo)
+{
+	synaPanelInfo.pMipiDsiInfo = pMipiDsiInfo;
+}
+
+/**
+ * syna_dsi_send_standby_commands - Send MIPI DSI standby commands to panel
+ *
+ * Sends the standby command sequence configured in device tree to the panel.
+ * Uses standby commands parsed in panel_dsi.c from device tree.
+ * Returns 0 on success, negative error code on failure.
+ */
+int syna_dsi_send_standby_commands(void)
+{
+	if (!synaPanelInfo.standby_cmd || synaPanelInfo.standby_cmdsize <= 0)
+		return 0;
+
+	syna_dsi_panel_send_cmd(synaPanelInfo.standby_cmdsize, synaPanelInfo.standby_cmd);
+
+	return 0;
 }
 
 void syna_panel_dsi_deinit(void)
