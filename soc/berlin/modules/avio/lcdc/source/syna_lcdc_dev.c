@@ -736,6 +736,7 @@ int syna_lcdc_update_brightness(int lcdcID, int channel, uint64_t val)
 	struct syna_lcdc_dev *dev;
 	int64_t signed_val = (int64_t)val;
 	uint8_t reg_val;
+	int i;
 
 	dev = syna_lcdc[SYNA_LCDC_GET_DEV_NDX(lcdcID)];
 	if (!dev) {
@@ -748,7 +749,7 @@ int syna_lcdc_update_brightness(int lcdcID, int channel, uint64_t val)
 
 	dev->brightness[channel] = val;
 	if (channel == SYNA_LCDC_BRIGHT_CH_ALL) {
-		for (int i = 0; i < SYNA_LCDC_BRIGHTNESS_LUT_ENTRIES; i++) {
+		for (i = 0; i < SYNA_LCDC_BRIGHTNESS_LUT_ENTRIES; i++) {
 			syna_lcdc_set_brightness(dev, i, reg_val);
 			dev->brightness[i] = val;
 		}
