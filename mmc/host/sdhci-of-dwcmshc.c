@@ -729,7 +729,7 @@ static void dwcmshc_set_uhs_signaling(struct sdhci_host *host,
 		phy_wrb(host, phy_offset, DLL_CTRL, valb);
 	}
 
-	if (timing == MMC_TIMING_UHS_SDR104)
+	if (timing == MMC_TIMING_UHS_SDR104 || timing == MMC_TIMING_UHS_SDR50)
 		txdelay = priv->sdclkdl_dc;
 	else if (timing == MMC_TIMING_MMC_HS)
 		txdelay = 100;
