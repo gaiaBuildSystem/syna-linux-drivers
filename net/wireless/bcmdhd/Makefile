@@ -566,6 +566,13 @@ ifeq ($(CONFIG_BCMDHD_WFB),y)
   $(warning : ** DHD_WFB defined, skip building ko module **)
 endif
 
+ifneq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
+ifneq ($(CONFIG_BCMDHD_SDIO),)
+  DRIVER_TYPE :=
+  $(warning : ** Android+SDIO defined, skip building ko module **)
+endif
+endif
+
 #########################
 # Chip dependent feature
 #########################

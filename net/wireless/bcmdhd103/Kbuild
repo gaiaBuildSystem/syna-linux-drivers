@@ -1208,7 +1208,7 @@ else ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS += -DDHD_NVRAM_NAME="\"bcmdhd.cal\""
 	DHDCFLAGS += -DDHD_CLM_NAME="\"bcmdhd_clm.blob\""
 	DHDCFLAGS += -DDHD_MAP_NAME="\"fw_bcmdhd.map\""
-	DHDCFLAGS += -Wno-stringop-truncation -Wno-missing-prototypes -Wno-address-of-packed-member -Wno-empty-body -Wno-missing-declarations -Wno-address
+	DHDCFLAGS += -Wno-missing-prototypes -Wno-address-of-packed-member -Wno-empty-body -Wno-missing-declarations -Wno-address
 	DHDCFLAGS += -Wno-unused-variable -Wno-format-truncation -Wno-format -Wno-unused-function -Wno-unused-label
 else ifneq ($(CONFIG_ARCH_MESON),)
 	DHDCFLAGS += -DBOARD_MODULAR_INIT

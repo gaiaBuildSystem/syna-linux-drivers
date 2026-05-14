@@ -1203,7 +1203,7 @@ else ifneq ($(CONFIG_ARCH_ASTRA),)
 	DHDCFLAGS += -DDHD_CLM_NAME="\"bcmdhd_clm.blob\""
 	DHDCFLAGS += -DDHD_MAP_NAME="\"fw_bcmdhd.map\""
 	DHDCFLAGS += -DWIFI_TURNOFF_DELAY=100
-	DHDCFLAGS += -Wno-stringop-truncation -Wno-missing-prototypes -Wno-address-of-packed-member -Wno-empty-body -Wno-missing-declarations -Wno-address
+	DHDCFLAGS += -Wno-missing-prototypes -Wno-address-of-packed-member -Wno-empty-body -Wno-missing-declarations -Wno-address
 	DHDCFLAGS += -Wno-unused-variable -Wno-format-truncation -Wno-format -Wno-unused-function -Wno-unused-label
 ifneq ($(CONFIG_ASTRA_SL1620),)
 	DHDCFLAGS += -DCONFIG_ARCH_ASTRA_1620
@@ -1280,7 +1280,6 @@ endif
 
 	DHDCFLAGS += -DCONFIG_ARCH_ASTRA
 	DHDCFLAGS += -DEMPTY_CARD_DETECT -DRMMOD_CARD_DETECT
-	DHDCFLAGS += -DDHD_ASTRA_CUST_CHIP_SUPPORT
 	DHDCFLAGS += -DCUSTOM_LOG_DUMP_BUFSIZE_MB=1
 	DHDCFLAGS += -DDHD_APPLY_NL_BW
 
@@ -1288,6 +1287,7 @@ endif
 	DHDCFLAGS += -DDHD_AUTOSEL_BINARY_FILENAME
 
 ifeq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
+	DHDCFLAGS += -DDHD_ASTRA_CUST_CHIP_SUPPORT
 	DHDCFLAGS := $(filter-out -DWL_STATIC_IF, $(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DWL_NAN, $(DHDCFLAGS))
 	DHDCFLAGS := $(filter-out -DWL_NAN_DISC_CACHE, $(DHDCFLAGS))
@@ -1413,7 +1413,23 @@ ifneq ($(filter -DDHD_EVENT_LOG_FILTER, $(DHDCFLAGS)),)
 DHDOFILES += dhd_event_log_filter.o
 endif
 
-DHD_MODULE_NAME=synadhd361
+ifeq ($(VERSION), 6)
+    # For Kernel 6.x
+    UBSAN_SANITIZE := n
+    $(info KERNEL 6.x detected: Disabling UBSAN for this driver.)
+else
+    $(info kernel version $(VERSION))
+endif
+
+ifneq ($(CONFIG_ANDROID_VENDOR_OEM_DATA),)
+  ifneq ($(CONFIG_BCMDHD_SDIO),)
+    DHD_MODULE_NAME=bcmdhd
+  else
+    DHD_MODULE_NAME=synadhd361
+  endif
+else
+  DHD_MODULE_NAME=synadhd361
+endif
 
 $(DHD_MODULE_NAME)$(BCM_WLAN_CHIP_SUFFIX)-objs := $(DHDOFILES)
 obj-$(DRIVER_TYPE)   += $(DHD_MODULE_NAME)$(BCM_WLAN_CHIP_SUFFIX).o
