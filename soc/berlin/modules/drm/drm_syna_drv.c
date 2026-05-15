@@ -360,6 +360,27 @@ static ssize_t builtin_frame_store(struct device *dev,
 DEVICE_ATTR(en_builtin_frame_on_reset, (S_IRUGO | S_IWUSR | S_IWGRP), NULL,
 	    builtin_frame_store);
 
+static ssize_t panel_power_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	int ret, power;
+
+	ret = sscanf(buf, "%d", &power);
+	if (ret <= 0)
+		return -EINVAL;
+
+	if (power)
+		syna_dsi_send_init_commands();
+	else
+		syna_dsi_send_standby_commands();
+
+	return count;
+}
+
+static DEVICE_ATTR(panel_power, (S_IRUGO | S_IWGRP | S_IWUSR), NULL,
+		   panel_power_store);
+
 static int syna_probe(struct platform_device *pdev)
 {
 	struct drm_device *ddev;
@@ -402,6 +423,10 @@ static int syna_probe(struct platform_device *pdev)
 	if (ret)
 		DRM_ERROR("Sysfs en_builtin_frame_on_reset entry not created %d",
 			  ret);
+
+	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_panel_power.attr);
+	if (ret)
+		DRM_ERROR("Sysfs panel_power entry not created %d", ret);
 
 	if (IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION) &&
 			IS_ENABLED(CONFIG_FRAMEBUFFER_CONSOLE)) {

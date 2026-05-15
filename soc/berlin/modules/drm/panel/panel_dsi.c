@@ -359,20 +359,35 @@ void syna_panel_dsi_set_mipi_info(void *pMipiDsiInfo)
 }
 
 /**
+ * syna_dsi_send_init_commands - Send MIPI DSI init commands to power on panel
+ *
+ * Sends the init command sequence configured in device tree to the panel.
+ * Uses init commands parsed in panel_dsi.c from device tree.
+ */
+void syna_dsi_send_init_commands(void)
+{
+	if (!synaPanelInfo.cmd || synaPanelInfo.cmdsize <= 0)
+		return;
+
+	syna_dsi_panel_send_cmd(synaPanelInfo.cmdsize, synaPanelInfo.cmd);
+
+	return;
+}
+
+/**
  * syna_dsi_send_standby_commands - Send MIPI DSI standby commands to panel
  *
  * Sends the standby command sequence configured in device tree to the panel.
  * Uses standby commands parsed in panel_dsi.c from device tree.
- * Returns 0 on success, negative error code on failure.
  */
-int syna_dsi_send_standby_commands(void)
+void syna_dsi_send_standby_commands(void)
 {
 	if (!synaPanelInfo.standby_cmd || synaPanelInfo.standby_cmdsize <= 0)
-		return 0;
+		return;
 
 	syna_dsi_panel_send_cmd(synaPanelInfo.standby_cmdsize, synaPanelInfo.standby_cmd);
 
-	return 0;
+	return;
 }
 
 void syna_panel_dsi_deinit(void)

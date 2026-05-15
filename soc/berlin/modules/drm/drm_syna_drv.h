@@ -124,8 +124,6 @@ struct drm_connector *syna_lcdc_connector_create(struct drm_device *dev);
 void drm_syna_encoder_suspend(struct syna_drm_private *dev_priv,
  							bool suspend);
 
-int syna_dsi_send_standby_commands(void);
-
 int syna_modeset_early_init(struct syna_drm_private *dev_priv);
 int syna_modeset_late_init(struct syna_drm_private *dev_priv);
 void syna_modeset_early_cleanup(struct syna_drm_private *dev_priv);
@@ -138,5 +136,7 @@ void __weak syna_vpp_add_debugfs_entry(struct syna_drm_private *dev_priv);
 void __weak syna_vpp_remove_debugfs_entry(struct syna_drm_private *dev_priv);
 void __weak syna_hdmi_add_debugfs_entry(struct syna_drm_private *dev_priv);
 void __weak syna_hdmi_remove_debugfs_entry(struct syna_drm_private *dev_priv);
+void syna_dsi_send_init_commands(void);
+void syna_dsi_send_standby_commands(void);
 
 #endif /* !defined(__DRM_SYNA_DRV_H__) */
