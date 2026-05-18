@@ -323,49 +323,6 @@ static int tzd_fastcall_secure_cache(struct tzd_dev_file *dev,
 	return SMC_RET(result, func_id);
 }
 
-static int tzd_fastcall_generic_cmd(struct tzd_dev_file *dev,
-		unsigned long arg, unsigned long func_id)
-{
-	struct fastcall_generic_param __user *argp;
-	struct fastcall_generic_param param_header;
-	struct fastcall_generic_param *param;
-	struct tzd_shm *shm;
-	int total_param_len;
-	unsigned long result;
-
-	argp = (struct fastcall_generic_param  __user *)arg;
-	/* copy the command to communication channel */
-	if (copy_from_user((void *)&param_header, argp,
-				sizeof(param_header))) {
-		tz_error("copy from user failed");
-		return -EFAULT;
-	}
-
-	total_param_len = param_header.param_len + sizeof(param_header);
-	shm = tzd_shm_new(dev, total_param_len, GFP_KERNEL);
-	if (NULL == shm) {
-		tz_error("out of share memory");
-		return -EFAULT;
-	}
-	param = (struct fastcall_generic_param *)shm->k_addr;
-	if (copy_from_user((void *)param, (void __user *)argp,
-				total_param_len)) {
-		tzd_shm_free(dev, shm->p_addr);
-		tz_error("copy from user failed");
-		return -EFAULT;
-	}
-	result = __smc(func_id, shm->p_addr, total_param_len);
-	if (copy_to_user((void __user *)argp->param, param->param,
-			param->param_len)) {
-		tzd_shm_free(dev, shm->p_addr);
-		tz_error("copy to user failed");
-		return -EFAULT;
-	}
-	tzd_shm_free(dev, shm->p_addr);
-
-	return SMC_RET(result, func_id);
-}
-
 static int tzd_create_instance(struct tzd_dev_file *dev, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
@@ -431,6 +388,9 @@ static int open_session(struct tzd_dev_file *dev,
 		TASysCmdOpenSessionParamExt *p;
 		cmd = tzd_shm_phys_to_virt(dev,
 				(void *)((unsigned long)open_param->param));
+		if (!cmd)
+			return -EFAULT;
+
 		p = (void *)cmd->param_ext;
 
 		new_info = kzalloc(sizeof(*new_info), GFP_KERNEL);
@@ -463,14 +423,15 @@ static int close_session(struct tzd_dev_file *dev,
 		struct tee_comm_param *cmd;
 		cmd = tzd_shm_phys_to_virt(dev,
 				(void *)((unsigned long)close_param->param));
+		if (!cmd)
+			return -EFAULT;
 
 		mutex_lock(&dev->tz_mutex);
 		list_for_each_entry_safe(temp_info, temp_pos,
 				&dev->session_list, head) {
 			if (temp_info->session_id == cmd->session_id) {
 				list_del(&temp_info->head);
-				if (temp_info)
-					kfree(temp_info);
+				kfree(temp_info);
 				break;
 			}
 		}
@@ -561,11 +522,6 @@ long tzd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case TZ_CLIENT_IOCTL_CMD:
 		ret = tzd_cmd_req(dev, arg);
-		break;
-
-	case TZ_CLIENT_IOCTL_FASTCALL_GENERIC_CMD:
-		ret = tzd_fastcall_generic_cmd(dev, arg,
-				SMC_FUNC_TOS_FASTCALL_GENERIC);
 		break;
 
 	case TZ_CLIENT_IOCTL_FASTCALL_MEMMOVE:
@@ -694,6 +650,8 @@ static int tzd_release_session(struct tzd_dev_file *temp_dev_file,
 
 	cmd = tzd_shm_phys_to_virt_nolock(temp_dev_file,
 			(void *)((unsigned long)info->param));
+	if (!cmd)
+		return -EFAULT;
 
 	/* FIXME: it introduce too much TEE code here */
 	/* close session */
@@ -749,8 +707,7 @@ static void tzd_release_all_session(void *private_data)
 				session_list, head) {
 		list_del(&temp_info->head);
 		tzd_release_session(temp_dev_file, temp_info);
-		if (temp_info)
-			kfree(temp_info);
+		kfree(temp_info);
 	}
 	mutex_unlock(&temp_dev_file->tz_mutex);
 
