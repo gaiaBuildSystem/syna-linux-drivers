@@ -138,7 +138,7 @@ static int spdifi_set_fs(struct aio_priv *aio, u32 fs)
 static int aio_spdifi_wait_lock(struct aio_priv *aio, u32 timeout)
 {
 	u32 address;
-	u32 val;
+	u32 val = 0;
 
 	if (timeout > 10000)
 		timeout = 10000;
