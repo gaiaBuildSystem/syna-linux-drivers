@@ -190,6 +190,8 @@ static int dolphin_hwmon_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	hwmon->cfg = of_device_get_match_data(dev);
+	if (!hwmon->cfg)
+		return -EINVAL;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hwmon->base = devm_ioremap_resource(&pdev->dev, res);
