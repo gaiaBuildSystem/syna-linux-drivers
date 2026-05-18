@@ -458,6 +458,8 @@ static int berlin_pinctrl_build_state(struct platform_device *pdev)
 	pctrl->functions = devm_krealloc(&pdev->dev, pctrl->functions,
 					 pctrl->nfunctions * sizeof(*pctrl->functions),
 					 GFP_KERNEL);
+	if (!pctrl->functions)
+		return -ENOMEM;
 
 	/* map functions to theirs groups */
 	for (i = 0; i < pctrl->desc->ngroups; i++) {
