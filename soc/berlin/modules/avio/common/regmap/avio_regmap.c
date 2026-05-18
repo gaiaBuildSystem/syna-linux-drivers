@@ -32,6 +32,9 @@ int avio_create_devioremap(struct platform_device *pdev)
 
 	if (!hAvioCtx->avio_base && pdev) {
 		hAvioCtx->pAvioRes = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (!hAvioCtx->pAvioRes)
+			return -EINVAL;
+
 		hAvioCtx->avio_base = hAvioCtx->pAvioRes->start;
 		hAvioCtx->avio_size = resource_size(hAvioCtx->pAvioRes);
 	}
