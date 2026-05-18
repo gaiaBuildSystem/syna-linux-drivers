@@ -208,7 +208,6 @@ static int bsm_link_msg(MV_SM_MsgQ *q, MV_SM_Message *m, spinlock_t *lock)
 
 static int bsm_unlink_msg_nolock(MV_SM_MsgQ *q, MV_SM_Message *m)
 {
-	MV_SM_Message *p;
 	int ret = -EAGAIN; /* means no data */
 
 	if (q->m_iRead < 0 || q->m_iRead > SM_MSGQ_SIZE - SM_MSG_SIZE ||
@@ -233,8 +232,7 @@ static int bsm_unlink_msg_nolock(MV_SM_MsgQ *q, MV_SM_Message *m)
 		/* alright get one message */
 		if (unlikely(q->m_iRead < 0 || q->m_iRead > SM_MSGQ_SIZE - SM_MSG_SIZE))
 			return -EIO;
-		p = (MV_SM_Message*)(&(q->m_Queue[q->m_iRead]));
-		memcpy(m, p, sizeof(*m));
+		memcpy(m, &q->m_Queue[q->m_iRead], sizeof(*m));
 		mb();
 		SM_Q_POP(q);
 		ret = 0;
