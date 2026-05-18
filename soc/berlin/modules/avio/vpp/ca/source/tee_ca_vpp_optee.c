@@ -839,9 +839,8 @@ int VPP_CA_ChangeDispWin(int PlaneId, int WinX, int WinY, int WinW, int WinH, in
 	param[2].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT;
 	param[3].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT;
 
-	param[0].u.value.a = 0;
-	VPP_ATTR_PARAM_SET_GLOBALPHA(param[0].u.value.a, (u32)globalAlphaFlag);
-	VPP_ATTR_PARAM_SET_PLANEID(param[0].u.value.a, (u32)PlaneId);
+	param[0].u.value.a = ((u64)((u32)globalAlphaFlag & 0xFFFFU) << 16) |
+			     ((u64)((u32)PlaneId & 0xFFFFU));
 	param[0].u.value.b = WinX;
 	param[1].u.value.a = WinY;
 	param[1].u.value.b = WinW;
