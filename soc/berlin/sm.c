@@ -406,7 +406,7 @@ static void call_sm_ir_handler(int ir_key)
 
 int bsm_msg_send(int id, void *msg, int len)
 {
-	MV_SM_Message m = {0};
+	MV_SM_Message m = {};
 	int ret;
 	int cnt_timeout = 3 * 100;
 
@@ -436,7 +436,7 @@ EXPORT_SYMBOL(bsm_msg_send);
 
 int bsm_msg_recv(int id, void *msg, int *len)
 {
-	MV_SM_Message m;
+	MV_SM_Message m = {};
 	int ret;
 
 	m.m_iModuleID = id;
