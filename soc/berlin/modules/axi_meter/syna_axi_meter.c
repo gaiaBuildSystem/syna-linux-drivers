@@ -608,7 +608,7 @@ struct axi_meter_priv {
 	spinlock_t mc_lock;
 	u32 cnt_ids[MAX_AXI_CNT_NUM];
 	u32 mc_evt[MAX_MC_CNT_NUM];
-	u64 cnt_en;
+	u32 cnt_en;
 	const struct cnt_hw_data *hw;
 
 	/* cdev */
