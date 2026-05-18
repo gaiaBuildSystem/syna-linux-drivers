@@ -286,7 +286,7 @@ static void MV_VPP_GetFrameSize(ENUM_PLANE_ID plane_id, int *pWidth, int *pHeigh
 
 void MV_VPP_GetOutResolutionSize(ENUM_CPCB_ID cpcbID, int *p_width, int *p_height)
 {
-	VPP_RESOLUTION_DESCRIPTION  ResDesc;
+	VPP_RESOLUTION_DESCRIPTION  ResDesc = {};
 	int res;
 
 	res = wrap_MV_VPPOBJ_GetResolutionDescription(curr_disp_res_params[cpcbID].uiResId, &ResDesc);
@@ -421,7 +421,7 @@ void MV_VPP_DisplayFrame(int uiPlaneId, int isVideoFormat, VBUF_INFO *pVppDesc)
 			wrap_MV_VPPOBJ_SetStillPicture(uiPlaneId, pVppDesc);
 	} else {
 		VPP_VBUF *pVppVbufDesc;
-		vpp_plane_info plane_info;
+		vpp_plane_info plane_info = {};
 
 		pVppVbufDesc = pVppDesc->pVppVbufInfo_virt;
 
@@ -449,7 +449,7 @@ int MV_VPP_SetHdmiTxControl(int enable)
 
 static int VPP_Init_Normal_vpp_ta(vpp_config_params vpp_config_params)
 {
-	VPP_DISP_OUT_PARAMS pdispParams[MAX_NUM_CPCBS];
+	VPP_DISP_OUT_PARAMS pdispParams[MAX_NUM_CPCBS] = {};
 	unsigned int vppInitParam[2];
 	int ret = MV_VPP_OK, i;
 

@@ -324,7 +324,7 @@ EXPORT_SYMBOL(MV_VPP_FB_Init);
 
 void MV_VPP_FB_ConfigParams(vpp_config_params *param)
 {
-	vpp_plane_info pinfo;
+	vpp_plane_info pinfo = {};
 	int maxFrameSizeNdx;
 	int uiPlaneId = PLANE_GFX1;
 	mrvl_frame_size frameSize[] = {

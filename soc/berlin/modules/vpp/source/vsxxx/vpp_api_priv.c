@@ -75,8 +75,8 @@ static int VPP_Init_Recovery_fastlogo_ta(VPP_MEM_LIST *vpp_shm_list,
 					vpp_config_params vpp_config_param)
 {
 	VPP_INIT_PARM vpp_init_parm;
-	VPP_WIN_ATTR fb_attr;
-	VPP_WIN disp_win;
+	VPP_WIN_ATTR fb_attr = {};
+	VPP_WIN disp_win = {};
 	int disp_width;
 	int disp_height;
 	int res = 0;
