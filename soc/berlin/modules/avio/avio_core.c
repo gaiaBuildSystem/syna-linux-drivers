@@ -503,6 +503,9 @@ int avio_module_avio_probe(struct platform_device *pdev)
 	sema_init(&hAvioCtx->resume_sem, 0);
 
 	hAvioCtx->pAvioRes = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!hAvioCtx->pAvioRes)
+		return -EINVAL;
+
 	hAvioCtx->avio_base = hAvioCtx->pAvioRes->start;
 	hAvioCtx->avio_size = resource_size(hAvioCtx->pAvioRes);
 
