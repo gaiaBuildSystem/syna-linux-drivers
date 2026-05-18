@@ -178,7 +178,7 @@ static int bsm_link_msg_nolock(MV_SM_MsgQ *q, MV_SM_Message *m)
 {
 	MV_SM_Message *p;
 
-	if (q->m_iWrite < 0 || q->m_iWrite >= SM_MSGQ_SIZE)
+	if (q->m_iWrite < 0 || q->m_iWrite > SM_MSGQ_SIZE - SM_MSG_SIZE)
 		/* buggy ? */
 		return -EIO;
 
@@ -211,7 +211,7 @@ static int bsm_unlink_msg_nolock(MV_SM_MsgQ *q, MV_SM_Message *m)
 	MV_SM_Message *p;
 	int ret = -EAGAIN; /* means no data */
 
-	if (q->m_iRead < 0 || q->m_iRead >= SM_MSGQ_SIZE ||
+	if (q->m_iRead < 0 || q->m_iRead > SM_MSGQ_SIZE - SM_MSG_SIZE ||
 			q->m_iReadTotal > q->m_iWriteTotal)
 		/* buggy ? */
 		return -EIO;
@@ -408,6 +408,9 @@ int bsm_msg_send(int id, void *msg, int len)
 	int ret;
 	int cnt_timeout = 3 * 100;
 
+	if (!msg)
+		return -EINVAL;
+
 	if (unlikely(len < 4) || unlikely(len > SM_MSG_BODY_SIZE))
 		return -EINVAL;
 
@@ -597,8 +600,11 @@ static long bsm_unlocked_ioctl(struct file *file,
 
 	if (copy_from_user(&m, (void __user *)arg, SM_MSG_SIZE))
 		return -EFAULT;
-	id = m.m_iModuleID;
 
+	if (m.m_iMsgLen < 1 || m.m_iMsgLen > SM_MSG_BODY_SIZE)
+		return -EINVAL;
+
+	id = m.m_iModuleID;
 	module = bsm_search_module(id);
 	if (!module)
 		return -EINVAL;
@@ -636,30 +642,30 @@ static long bsm_unlocked_ioctl(struct file *file,
 	return ret;
 }
 
-static int64_t get_sm_time(struct device *dev)
+static uint64_t get_sm_time(struct device *dev)
 {
 	int msg, rcv[4], len;
-	int64_t  ret;
+	uint64_t  ret;
 
 	msg = MV_SM_GET_SUSPEND_RESUME_TIME;
 	ret = bsm_msg_send(MV_SM_ID_POWER, &msg, sizeof(msg));
-	if (ret < 0)
+	if (!ret)
 		return ret;
 
 	ret = bsm_msg_recv(MV_SM_ID_POWER, rcv, &len);
-	if (ret < 0)
+	if (!ret)
 		return ret;
 
 	if (len != 8)
 		return -EIO;
 
-	ret = (rcv[0] + ((u64)rcv[1] << 32));
+	ret = (rcv[0] + (rcv[1] << 32);
 	return ret;
 }
 
 static int smrtc_read_time(struct device *dev, struct rtc_time *tm)
 {
-	u64 ms;
+	s64 ms;
 	time64_t secs;
 
 	ms = get_sm_time(dev);
