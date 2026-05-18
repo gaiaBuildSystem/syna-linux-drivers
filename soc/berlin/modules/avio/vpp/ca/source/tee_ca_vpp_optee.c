@@ -318,8 +318,10 @@ int VPP_CA_GetResDescription(void *pOutBuffer, VPP_SHM_ID shmCmdId,
 	if (!pOutBuffer)
 		return MV_VPP_EBADPARAM;
 
+	index = VPP_CA_GetInstanceID();
+
 	pShm = TAVPPInstance[index].Shm;
-	if (pShm && TAVPP_PASS_SHMSIZE < sOutBufferSize) {
+	if (!pShm || TAVPP_PASS_SHMSIZE < sOutBufferSize) {
 		pr_err("%s:%d: pShm->size %x, sOutBufferSize %d\n",
 			__func__, __LINE__, TAVPP_PASS_SHMSIZE, sOutBufferSize);
 		return -EINVAL;
@@ -327,7 +329,6 @@ int VPP_CA_GetResDescription(void *pOutBuffer, VPP_SHM_ID shmCmdId,
 
 	mutex_lock(&(TAVPPInstance[index].shm_mutex));
 
-	index = VPP_CA_GetInstanceID();
 	pSession = &(TAVPPInstance[index].session);
 
 	memset(param, 0, sizeof(param));
@@ -839,8 +840,8 @@ int VPP_CA_ChangeDispWin(int PlaneId, int WinX, int WinY, int WinW, int WinH, in
 	param[3].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT;
 
 	param[0].u.value.a = 0;
-	VPP_ATTR_PARAM_SET_GLOBALPHA(param[0].u.value.a, globalAlphaFlag);
-	VPP_ATTR_PARAM_SET_PLANEID(param[0].u.value.a, PlaneId);
+	VPP_ATTR_PARAM_SET_GLOBALPHA(param[0].u.value.a, (u32)globalAlphaFlag);
+	VPP_ATTR_PARAM_SET_PLANEID(param[0].u.value.a, (u32)PlaneId);
 	param[0].u.value.b = WinX;
 	param[1].u.value.a = WinY;
 	param[1].u.value.b = WinW;
@@ -1140,7 +1141,7 @@ static int VPP_CA_PassShm(struct tee_shm *pShm, unsigned int shmCmdId, unsigned 
 	int index;
 	u32 *pSession;
 
-	if (pShm && TAVPP_PASS_SHMSIZE < sBufferSize) {
+	if (!pShm || TAVPP_PASS_SHMSIZE < sBufferSize) {
 		pr_err("%s:%d: pShm->size %x, sOutBufferSize %d\n",
 			__func__, __LINE__, TAVPP_PASS_SHMSIZE, sBufferSize);
 		return -EINVAL;
@@ -1178,9 +1179,9 @@ int VPP_CA_PassShm_InBuffer(void *pBuffer, unsigned int shmCmdId, unsigned int s
 	index = VPP_CA_GetInstanceID();
 
 	pShm = (TAVPPInstance[index].Shm);
-	if (pShm && pShm->size < sInBufferSize) {
+	if (!pShm || pShm->size < sInBufferSize) {
 		pr_err("%s:%d: pShm->size %zu, sInBufferSize %d\n",
-			__func__, __LINE__, pShm->size, sInBufferSize);
+			__func__, __LINE__, pShm ? pShm->size : 0, sInBufferSize);
 		return -EINVAL;
 	}
 
@@ -1201,9 +1202,9 @@ int VPP_CA_PassShm_OutBuffer(void *pOutBuffer, unsigned int shmCmdId, unsigned i
 	index = VPP_CA_GetInstanceID();
 
 	pShm = (TAVPPInstance[index].Shm);
-	if (pShm && pShm->size < sOutBufferSize) {
+	if (!pShm || pShm->size < sOutBufferSize) {
 		pr_err("%s:%d: pShm->size %zu, sOutBufferSize %d\n",
-			__func__, __LINE__, pShm->size, sOutBufferSize);
+			__func__, __LINE__, pShm ? pShm->size : 0, sOutBufferSize);
 		return -EINVAL;
 	}
 
@@ -1230,9 +1231,9 @@ int VPP_CA_PassShm_InOutBuffer(void *pInBuffer, void *pOutBuffer,
 	index = VPP_CA_GetInstanceID();
 
 	pShm = (TAVPPInstance[index].Shm);
-	if (pShm && pShm->size < sInBufferSize) {
+	if (!pShm || pShm->size < sInBufferSize || pShm->size < sOutBufferSize) {
 		pr_err("%s:%d: pShm->size %zu, sInBufferSize %d\n",
-			__func__, __LINE__, pShm->size, sInBufferSize);
+			__func__, __LINE__, pShm ? pShm->size : 0, sInBufferSize);
 		return -EINVAL;
 	}
 

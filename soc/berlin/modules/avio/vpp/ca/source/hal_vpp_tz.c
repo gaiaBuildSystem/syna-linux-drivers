@@ -404,10 +404,13 @@ int TZ_MV_VPPOBJ_ChangeZOrder(int cpcbID, VPP_ZORDER_CTRL *pZorderCtrl)
 {
 	UINT32 *pZctrl_buf, pzctrl_buf_size;
     int Ret;
+	if (!pZorderCtrl)
+		return MV_VPP_EBADPARAM;
+
     pzctrl_buf_size = sizeof(UINT32) + sizeof(VPP_ZORDER_CTRL);
 	pZctrl_buf = kzalloc(pzctrl_buf_size, GFP_KERNEL);
     if (!pZctrl_buf)
-		*pZctrl_buf = -1;
+		return -ENOMEM;
 
 	*pZctrl_buf = cpcbID;
 	memcpy(pZctrl_buf + 1, pZorderCtrl, sizeof(VPP_ZORDER_CTRL));
@@ -421,10 +424,13 @@ int TZ_MV_VPPOBJ_GetZOrder(int cpcbID, VPP_ZORDER_CTRL *pZorderCtrl)
 {
 	UINT32 *pZctrl_buf, pzctrl_buf_size;
     int Ret;
+	if (!pZorderCtrl)
+		return MV_VPP_EBADPARAM;
+
     pzctrl_buf_size = sizeof(UINT32) + sizeof(VPP_ZORDER_CTRL);
 	pZctrl_buf = kzalloc(pzctrl_buf_size, GFP_KERNEL);
     if (!pZctrl_buf)
-		*pZctrl_buf = -1;
+		return -ENOMEM;
 
 	Ret = VPP_CA_PassShm_InOutBuffer(pZctrl_buf, pZctrl_buf,
 				GET_ZORDER, pzctrl_buf_size, pzctrl_buf_size);
