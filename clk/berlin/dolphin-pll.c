@@ -728,11 +728,17 @@ static int dolphin_pll_setup(struct platform_device *pdev)
 		return -ENOMEM;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -EINVAL;
+
 	pll->ctrl = devm_ioremap(dev, res->start, resource_size(res));
 	if (!pll->ctrl)
 		return -ENOMEM;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res)
+		return -EINVAL;
+
 	pll->bypass = devm_ioremap(dev, res->start, resource_size(res));
 	if (!pll->bypass)
 		return -ENOMEM;

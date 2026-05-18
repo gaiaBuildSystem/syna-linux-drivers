@@ -310,6 +310,9 @@ int berlin_clk_setup(struct platform_device *pdev,
 		return -ENOMEM;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -EINVAL;
+
 	base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (WARN_ON(!base))
 		return -ENOMEM;
