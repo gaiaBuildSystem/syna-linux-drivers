@@ -231,6 +231,8 @@ static int bsm_unlink_msg_nolock(MV_SM_MsgQ *q, MV_SM_Message *m)
 
 	if (q->m_iReadTotal < q->m_iWriteTotal) {
 		/* alright get one message */
+		if (unlikely(q->m_iRead < 0 || q->m_iRead > SM_MSGQ_SIZE - SM_MSG_SIZE))
+			return -EIO;
 		p = (MV_SM_Message*)(&(q->m_Queue[q->m_iRead]));
 		memcpy(m, p, sizeof(*m));
 		mb();
