@@ -307,6 +307,9 @@ static int vpp_drv_check_and_clear_interrupt(VPP_CTX *hVppCtx, int intr_num_ndx)
 	intr_num = hVppCtx->vpp_interrupt_list[intr_num_ndx].intr_num;
 	intr_type = hVppCtx->vpp_interrupt_list[intr_num_ndx].intr_type;
 
+	if (intr_num < 0 || intr_num >= MAX_INTR_NUM)
+		return -EINVAL;
+
 	if (bTST(hVppCtx->instat, intr_num) &&
 			(hVppCtx->vpp_intr_status[intr_num])) {
 		bSET(hVppCtx->instat_used, intr_num);
