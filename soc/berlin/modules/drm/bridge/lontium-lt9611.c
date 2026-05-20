@@ -539,6 +539,12 @@ int syna_bridge_probe(struct platform_device *pdev, SYNA_BRIDGE_FUNC_TABLE *psyn
 		goto EXIT_DEFAULT;
 	}
 
+	if (!of_device_is_available(lt9611_dev->of_node)) {
+		pr_info("lt9611: bridge node is disabled, skipping\n");
+		ret = -ENODEV;
+		goto EXIT_DEFAULT;
+	}
+
 	of_property_read_u32(lt9611_dev->of_node, "i2c_bus", &bridge_i2c_bus);
 
 	adapter = i2c_get_adapter(bridge_i2c_bus);
