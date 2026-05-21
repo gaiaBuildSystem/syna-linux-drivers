@@ -450,7 +450,7 @@ static const struct dev_pm_ops vvcam_dw_pm_ops = {
 };
 
 static const struct of_device_id vvcam_dw_of_match[] = {
-	{.compatible = "verislicon,dw200",},
+	{.compatible = "verisilicon,dw200",},
 	{ /* sentinel */ },
 };
 

@@ -388,7 +388,7 @@ static const struct dev_pm_ops vvcam_vi_pm_ops = {
 };
 
 static const struct of_device_id vvcam_vi_of_match[] = {
-    {.compatible = "verislicon,vi",},
+    {.compatible = "verisilicon,vi",},
     { /* sentinel */ },
 };
 

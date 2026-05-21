@@ -300,7 +300,7 @@ static const struct dev_pm_ops vvcam_mss_pm_ops = {
 };
 
 static const struct of_device_id vvcam_mss_of_match[] = {
-    {.compatible = "verislicon,mss",},
+    {.compatible = "verisilicon,mss",},
     { /* sentinel */ },
 };
 

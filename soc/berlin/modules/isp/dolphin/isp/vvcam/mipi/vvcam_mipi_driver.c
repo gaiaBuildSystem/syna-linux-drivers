@@ -275,7 +275,7 @@ static const struct dev_pm_ops vvcam_mipi_pm_ops = {
 };
 
 static const struct of_device_id vvcam_mipi_of_match[] = {
-	{.compatible = "verislicon,mipi",},
+	{.compatible = "verisilicon,mipi",},
 	{ /* sentinel */ },
 };
 
