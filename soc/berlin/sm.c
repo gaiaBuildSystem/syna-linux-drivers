@@ -230,9 +230,11 @@ static int bsm_unlink_msg_nolock(MV_SM_MsgQ *q, MV_SM_Message *m)
 
 	if (q->m_iReadTotal < q->m_iWriteTotal) {
 		/* alright get one message */
-		if (unlikely(q->m_iRead < 0 || q->m_iRead > SM_MSGQ_SIZE - SM_MSG_SIZE))
+		int idx = q->m_iRead;
+
+		if (idx < 0 || idx > SM_MSGQ_SIZE - SM_MSG_SIZE)
 			return -EIO;
-		memcpy(m, &q->m_Queue[q->m_iRead], sizeof(*m));
+		memcpy(m, &q->m_Queue[idx], SM_MSG_SIZE);
 		mb();
 		SM_Q_POP(q);
 		ret = 0;
@@ -416,7 +418,7 @@ int bsm_msg_send(int id, void *msg, int len)
 
 	m.m_iModuleID = id;
 	m.m_iMsgLen   = len;
-	memcpy(m.m_pucMsgBody, msg, len);
+	memcpy(&m.m_pucMsgBody[0], msg, len);
 	for (;;) {
 		ret = bsm_link_msg_to_sm(&m);
 		if (ret != -EBUSY)
