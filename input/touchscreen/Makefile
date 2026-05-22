@@ -7,3 +7,5 @@
 obj-$(CONFIG_TOUCHSCREEN_FT7421)	+= ft7421/
 obj-$(CONFIG_TOUCHSCREEN_FT5X06)	+= ft5x06/
 obj-$(CONFIG_TOUCHSCREEN_DVF9A)		+= dvf9a-ts.o
+goodix_ts-y := goodix.o goodix_fwupload.o
+obj-$(CONFIG_TOUCHSCREEN_GOODIX_TS)	+= goodix_ts.o
