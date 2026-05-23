@@ -661,7 +661,7 @@ static uint64_t get_sm_time(struct device *dev)
 	if (len != 8)
 		return -EIO;
 
-	ret = (rcv[0] + (rcv[1] << 32);
+	ret = (rcv[0] + (rcv[1] << 32));
 	return ret;
 }
 
