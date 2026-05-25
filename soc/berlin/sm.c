@@ -644,10 +644,9 @@ static long bsm_unlocked_ioctl(struct file *file,
 	return ret;
 }
 
-static uint64_t get_sm_time(struct device *dev)
+static int get_sm_time(struct device *dev, u64 *ms)
 {
-	int msg, rcv[4], len;
-	uint64_t  ret;
+	int msg, rcv[4], len, ret;
 
 	msg = MV_SM_GET_SUSPEND_RESUME_TIME;
 	ret = bsm_msg_send(MV_SM_ID_POWER, &msg, sizeof(msg));
@@ -661,17 +660,18 @@ static uint64_t get_sm_time(struct device *dev)
 	if (len != 8)
 		return -EIO;
 
-	ret = (rcv[0] + (rcv[1] << 32));
-	return ret;
+	*ms = rcv[0] + ((u64)rcv[1] << 32);
+	return 0;
 }
 
 static int smrtc_read_time(struct device *dev, struct rtc_time *tm)
 {
-	s64 ms;
+	int ret;
+	u64 ms;
 	time64_t secs;
 
-	ms = get_sm_time(dev);
-	if (ms < 0) {
+	ret = get_sm_time(dev, &ms);
+	if (ret < 0) {
 		dev_err(dev, "Failed to get time from SM\n");
 		return -EIO;
 	}
