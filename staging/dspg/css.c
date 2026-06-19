@@ -26,7 +26,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/firmware.h>
-#include <linux/gpio.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -40,8 +39,8 @@
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/reset.h>
@@ -221,7 +220,7 @@ struct loader_private {
 	struct reset_control *rst_css;
 	struct reset_control *rst_css_etm;
 	int debug_disabled;
-	unsigned rf_reset;
+	struct gpio_desc *rf_reset;
 	int uart;
 	unsigned int tdm_ownership_mask;
 	int is_dvf97;
@@ -230,15 +229,15 @@ struct loader_private {
 static inline void css_rf_reset_release(struct loader_private *p)
 {
 	/* release RF from reset */
-	if (gpio_is_valid(p->rf_reset))
-		gpio_set_value(p->rf_reset, 1);
+	if (!IS_ERR_OR_NULL(p->rf_reset))
+		gpiod_set_value(p->rf_reset, 1);
 }
 
 static inline void css_rf_reset_set(struct loader_private *p)
 {
 	/* put RF into reset */
-	if (gpio_is_valid(p->rf_reset))
-		gpio_set_value(p->rf_reset, 0);
+	if (!IS_ERR_OR_NULL(p->rf_reset))
+		gpiod_set_value(p->rf_reset, 0);
 }
 
 #ifdef CONFIG_DEBUG_FS
@@ -1203,7 +1202,7 @@ static int __init css_probe(struct platform_device *pdev)
 	p->dtcm.res = dtcm_res;
 	p->ahbram.res = ahbram_res;
 
-	p->rf_reset = of_get_named_gpio(np, "rf-reset-gpio", 0);
+	p->rf_reset = devm_gpiod_get_optional(&pdev->dev, "rf-reset", GPIOD_ASIS);
 	p->debug_disabled = of_property_read_bool(np, "debug-disabled");
 	ret = of_property_read_u32(np, "uart", &value);
 	p->uart = ret ? -1 : value;
@@ -1287,17 +1286,14 @@ static int __init css_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (gpio_is_valid(p->rf_reset)) {
-		ret = devm_gpio_request(&pdev->dev, p->rf_reset,
-					"dect-rf-reset");
+	if (!IS_ERR_OR_NULL(p->rf_reset)) {
+		/* keep in reset */
+		ret = gpiod_direction_output(p->rf_reset, 0);
 		if (ret) {
 			dev_err(&pdev->dev,
-				"failed to request RF reset GPIO\n");
+				"failed to configure RF reset GPIO\n");
 			goto out_err;
 		}
-
-		/* keep in reset */
-		gpio_direction_output(p->rf_reset, 0);
 	}
 
 	ret = -ENOENT;

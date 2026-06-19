@@ -66,7 +66,8 @@
 #endif
 #ifdef CONFIG_DTS
 #include<linux/regulator/consumer.h>
-#include<linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
+#include <linux/of.h>
 #endif /* CONFIG_DTS */
 #define WIFI_PLAT_NAME		"bcmdhd_wlan"
 #define WIFI_PLAT_NAME2		"bcm4329_wlan"
@@ -333,7 +334,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	struct resource *resource;
 	wifi_adapter_info_t *adapter;
 #ifdef CONFIG_DTS
-	int irq, gpio;
+	int irq;
 #endif /* CONFIG_DTS */
 
 	/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
@@ -363,18 +364,21 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	}
 
 	/* This is to get the irq for the OOB */
-	gpio = of_get_gpio(pdev->dev.of_node, 0);
+	{
+		struct gpio_desc *gpio_desc;
 
-	if (gpio < 0) {
-		DHD_ERROR(("%s gpio information is incorrect\n", __FUNCTION__));
-		return -1;
+		gpio_desc = devm_gpiod_get_index(&pdev->dev, NULL, 0, GPIOD_IN);
+		if (IS_ERR(gpio_desc)) {
+			DHD_ERROR(("%s gpio information is incorrect\n", __FUNCTION__));
+			return -1;
+		}
+		irq = gpiod_to_irq(gpio_desc);
+		if (irq < 0) {
+			DHD_ERROR(("%s irq information is incorrect\n", __FUNCTION__));
+			return -1;
+		}
+		adapter->irq_num = irq;
 	}
-	irq = gpio_to_irq(gpio);
-	if (irq < 0) {
-		DHD_ERROR(("%s irq information is incorrect\n", __FUNCTION__));
-		return -1;
-	}
-	adapter->irq_num = irq;
 
 	/* need to change the flags according to our requirement */
 	adapter->intr_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL |

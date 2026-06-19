@@ -24,13 +24,12 @@
 #include <linux/file.h>
 #include <linux/mutex.h>
 #include <linux/wait.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 #include <linux/delay.h>
-#include <linux/of_gpio.h>
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 #include <linux/workqueue.h>
@@ -96,9 +95,9 @@ struct mpmc {
 	struct mutex transfer_lock;
 
 	atomic_t vblanks;
-	int cd_gpio;
-	int cs_gpio;
-	int reset_gpio;
+	struct gpio_desc *cd_gpio;
+	struct gpio_desc *cs_gpio;
+	struct gpio_desc *reset_gpio;
 
 	DECLARE_BITMAP(rows_changed, LCD_HEIGHT);
 };
@@ -144,9 +143,9 @@ mpmc_command(struct mpmc *mpmc, unsigned char *buf, int nr_params)
 
 	/* set DCX to 0 (control) */
 	dev_dbg(mpmc->dev, "command 0x%x\n", buf[0]);
-	gpio_set_value(mpmc->cs_gpio, 0);
+	gpiod_set_value(mpmc->cs_gpio, 0);
 	ndelay(100);
-	gpio_set_value(mpmc->cd_gpio, 0);
+	gpiod_set_value(mpmc->cd_gpio, 0);
 	ndelay(100);
 
 	mpmc_writeb(mpmc, buf[0]);
@@ -155,7 +154,7 @@ mpmc_command(struct mpmc *mpmc, unsigned char *buf, int nr_params)
 		/* set DCX to 1 (data) */
 		dev_dbg(mpmc->dev, "data mode\n");
 		ndelay(100);
-		gpio_set_value(mpmc->cd_gpio, 1);
+		gpiod_set_value(mpmc->cd_gpio, 1);
 		ndelay(100);
 
 		for (i = 0; i < nr_params - 1; i++)
@@ -163,7 +162,7 @@ mpmc_command(struct mpmc *mpmc, unsigned char *buf, int nr_params)
 	}
 
 	ndelay(100);
-	gpio_set_value(mpmc->cs_gpio, 1);
+	gpiod_set_value(mpmc->cs_gpio, 1);
 }
 
 static void
@@ -174,10 +173,10 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 	unsigned char *buf;
 	int i, len, width = mpmc->info->var.bits_per_pixel / 8;
 
-	gpio_set_value(mpmc->cs_gpio, 0);
+	gpiod_set_value(mpmc->cs_gpio, 0);
 
 	/* set DCX to 0 (control) */
-	gpio_set_value(mpmc->cd_gpio, 0);
+	gpiod_set_value(mpmc->cd_gpio, 0);
 
 	ndelay(100);
 
@@ -187,7 +186,7 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 
 	/* set DCX to 1 (data) */
 	ndelay(100);
-	gpio_set_value(mpmc->cd_gpio, 1);
+	gpiod_set_value(mpmc->cd_gpio, 1);
 	ndelay(100);
 
 	dev_dbg(mpmc->dev, "data mode\n");
@@ -197,7 +196,7 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 	mpmc_writeb(mpmc, col_end & 0xff);
 
 	ndelay(100);
-	gpio_set_value(mpmc->cd_gpio, 0);
+	gpiod_set_value(mpmc->cd_gpio, 0);
 	ndelay(100);
 
 	/* set row address */
@@ -205,7 +204,7 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 	mpmc_writeb(mpmc, 0x2b);
 
 	ndelay(100);
-	gpio_set_value(mpmc->cd_gpio, 1);
+	gpiod_set_value(mpmc->cd_gpio, 1);
 	ndelay(100);
 
 	dev_dbg(mpmc->dev, "data mode\n");
@@ -215,7 +214,7 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 	mpmc_writeb(mpmc, row_end & 0xff);
 
 	ndelay(100);
-	gpio_set_value(mpmc->cd_gpio, 0);
+	gpiod_set_value(mpmc->cd_gpio, 0);
 	ndelay(100);
 
 	/* memory write */
@@ -224,7 +223,7 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 
 	dev_dbg(mpmc->dev, "data mode\n");
 	ndelay(100);
-	gpio_set_value(mpmc->cd_gpio, 1);
+	gpiod_set_value(mpmc->cd_gpio, 1);
 	ndelay(100);
 
 	if ((col_start == 0) && (col_end == mpmc->width - 1)) {
@@ -251,7 +250,7 @@ mpmc_do_transfer_rect(struct mpmc *mpmc, unsigned int row_start,
 	}
 
 	ndelay(100);
-	gpio_set_value(mpmc->cs_gpio, 1);
+	gpiod_set_value(mpmc->cs_gpio, 1);
 }
 
 static void
@@ -599,8 +598,8 @@ mpmc_parse_display_sequence(struct mpmc *mpmc, const char *sequence)
 			state = INIT_CMD;
 			break;
 		case INIT_RST:
-			if (mpmc->reset_gpio >= 0)
-				gpio_set_value(mpmc->reset_gpio, !!key);
+			if (!IS_ERR_OR_NULL(mpmc->reset_gpio))
+				gpiod_set_value(mpmc->reset_gpio, !!key);
 			state = INIT_CMD;
 			break;
 		}
@@ -696,20 +695,20 @@ mpmc_probe(struct platform_device *pdev)
 	mpmc_var.yres_virtual = mpmc->height;
 	mpmc_fix.line_length = mpmc->width * (mpmc_var.bits_per_pixel / 8);
 
-	mpmc->cd_gpio = of_get_named_gpio(np, "cd-gpio", 0);
-	if (mpmc->cd_gpio < 0) {
+	mpmc->cd_gpio = devm_gpiod_get(&pdev->dev, "cd", GPIOD_OUT_LOW);
+	if (IS_ERR(mpmc->cd_gpio)) {
 		dev_err(&pdev->dev, "cd gpio not specified in devicetree\n");
-		return ret;
+		return PTR_ERR(mpmc->cd_gpio);
 	}
 
-	mpmc->cs_gpio = of_get_named_gpio(np, "cs-gpio", 0);
-	if (mpmc->cs_gpio < 0) {
+	mpmc->cs_gpio = devm_gpiod_get(&pdev->dev, "cs", GPIOD_OUT_HIGH);
+	if (IS_ERR(mpmc->cs_gpio)) {
 		dev_err(&pdev->dev, "cs gpio not specified in devicetree\n");
-		return ret;
+		return PTR_ERR(mpmc->cs_gpio);
 	}
 
 	/* The reset GPIO is optional. */
-	mpmc->reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
+	mpmc->reset_gpio = devm_gpiod_get_optional(&pdev->dev, "reset", GPIOD_OUT_LOW);
 
 	mutex_init(&mpmc->transfer_lock);
 	init_waitqueue_head(&mpmc->vblank_wq);
@@ -740,35 +739,6 @@ mpmc_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_free_info;
 
-	/* request gpio for CD line */
-	ret = devm_gpio_request(&pdev->dev, mpmc->cd_gpio, "mpmc cd");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to request CD gpio %d\n",
-			mpmc->cd_gpio);
-		goto err_free_cmap;
-	}
-	gpio_direction_output(mpmc->cd_gpio, 0);
-
-	/* request gpio for CS line */
-	ret = devm_gpio_request(&pdev->dev, mpmc->cs_gpio, "mpmc cs");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to request CS gpio %d\n",
-			mpmc->cs_gpio);
-		goto err_free_cmap;
-	}
-	gpio_direction_output(mpmc->cs_gpio, 1);
-
-	/* request gpio for reset line */
-	if (mpmc->reset_gpio >= 0) {
-		ret = devm_gpio_request(&pdev->dev, mpmc->reset_gpio,
-					"mpmc reset");
-		if (ret < 0) {
-			dev_err(&pdev->dev, "failed to request reset gpio %d\n",
-				mpmc->reset_gpio);
-			goto err_free_cmap;
-		}
-		gpio_direction_output(mpmc->reset_gpio, 0);
-	}
 
 	info->screen_size = info->fix.line_length * info->var.yres_virtual;
 	alloc_size = PAGE_ALIGN(info->screen_size);

@@ -17,12 +17,11 @@
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/leds.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/rfkill.h>
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/pinctrl/consumer.h>
-#include <linux/of_gpio.h>
 #include <linux/io.h>
 #include <linux/random.h>
 
@@ -48,10 +47,10 @@
 
 
 struct bt_dev_data {
-	int gpio_reset;
-	int gpio_en;
-	int gpio_hostwake;
-	int gpio_btwakeup;
+	struct gpio_desc *gpio_reset;
+	struct gpio_desc *gpio_en;
+	struct gpio_desc *gpio_hostwake;
+	struct gpio_desc *gpio_btwakeup;
 	int power_low_level;
 	int power_on_pin_OD;
 	int power_off_flag;
@@ -76,38 +75,38 @@ static int btpower_evt;
 static void bt_device_off(struct bt_dev_data *pdata)
 {
 	if (pdata->power_down_disable == 0) {
-		if ((btpower_evt == 1) && (pdata->gpio_reset > 0)) {
+		if ((btpower_evt == 1) && pdata->gpio_reset) {
 			if ((pdata->power_on_pin_OD)
 				&& (pdata->power_low_level)) {
-				gpio_direction_input(pdata->gpio_reset);
+				gpiod_direction_input(pdata->gpio_reset);
 			} else {
-				gpio_direction_output(pdata->gpio_reset,
+				gpiod_direction_output(pdata->gpio_reset,
 					pdata->power_low_level);
 			}
 		}
-		if ((btpower_evt == 1) && (pdata->gpio_en > 0)) {
+		if ((btpower_evt == 1) && pdata->gpio_en) {
 			if ((pdata->power_on_pin_OD)
 				&& (pdata->power_low_level)) {
-				gpio_direction_input(pdata->gpio_en);
+				gpiod_direction_input(pdata->gpio_en);
 			} else {
-				gpio_direction_output(pdata->gpio_en,
+				gpiod_direction_output(pdata->gpio_en,
 					pdata->power_low_level);
 			}
 		}
 
-		if ((btpower_evt == 0) && (pdata->gpio_reset > 0)) {
+		if ((btpower_evt == 0) && pdata->gpio_reset) {
 			if ((pdata->power_on_pin_OD)
 				&& (pdata->power_low_level)) {
-				gpio_direction_input(pdata->gpio_reset);
+				gpiod_direction_input(pdata->gpio_reset);
 			} else {
-				gpio_direction_output(pdata->gpio_reset,
+				gpiod_direction_output(pdata->gpio_reset,
 					pdata->power_low_level);
 			}
 		}
-		if ((btpower_evt == 0) && (pdata->gpio_en > 0)) {
+		if ((btpower_evt == 0) && pdata->gpio_en) {
 			if ((pdata->power_on_pin_OD)
 				&& (pdata->power_low_level)) {
-				gpio_direction_input(pdata->gpio_en);
+				gpiod_direction_input(pdata->gpio_en);
 			}
 		}
 		msleep(20);
@@ -121,21 +120,11 @@ static void bt_device_init(struct bt_dev_data *pdata)
 	btpower_evt = 0;
 	btirq_flag = 0;
 
-	if (pdata->gpio_reset > 0)
-		gpio_request(pdata->gpio_reset, BT_RFKILL);
+	if (pdata->gpio_hostwake)
+		gpiod_direction_output(pdata->gpio_hostwake, 1);
 
-	if (pdata->gpio_en > 0)
-		gpio_request(pdata->gpio_en, BT_RFKILL);
-
-	if (pdata->gpio_hostwake > 0) {
-		gpio_request(pdata->gpio_hostwake, BT_RFKILL);
-		gpio_direction_output(pdata->gpio_hostwake, 1);
-	}
-
-	if (pdata->gpio_btwakeup > 0) {
-		gpio_request(pdata->gpio_btwakeup, BT_RFKILL);
-		gpio_direction_input(pdata->gpio_btwakeup);
-	}
+	if (pdata->gpio_btwakeup)
+		gpiod_direction_input(pdata->gpio_btwakeup);
 
 	tmp = pdata->power_down_disable;
 	pdata->power_down_disable = 0;
@@ -146,53 +135,45 @@ static void bt_device_init(struct bt_dev_data *pdata)
 
 static void bt_device_deinit(struct bt_dev_data *pdata)
 {
-	if (pdata->gpio_reset > 0)
-		gpio_free(pdata->gpio_reset);
-	if (pdata->gpio_en > 0)
-		gpio_free(pdata->gpio_en);
-
 	btpower_evt = 0;
-	if (pdata->gpio_hostwake > 0)
-		gpio_free(pdata->gpio_hostwake);
-
 }
 
 static void bt_device_on(struct bt_dev_data *pdata)
 {
-	if ((btpower_evt == 1) && (pdata->gpio_reset > 0)) {
+	if ((btpower_evt == 1) && pdata->gpio_reset) {
 		if ((pdata->power_on_pin_OD)
 			&& (!pdata->power_low_level)) {
-			gpio_direction_input(pdata->gpio_reset);
+			gpiod_direction_input(pdata->gpio_reset);
 		} else {
-			gpio_direction_output(pdata->gpio_reset,
+			gpiod_direction_output(pdata->gpio_reset,
 				!pdata->power_low_level);
 		}
 	}
 
-	if ((btpower_evt == 1) && (pdata->gpio_en > 0)) {
+	if ((btpower_evt == 1) && pdata->gpio_en) {
 		if ((pdata->power_on_pin_OD)
 			&& (!pdata->power_low_level)) {
-			gpio_direction_input(pdata->gpio_en);
+			gpiod_direction_input(pdata->gpio_en);
 		} else {
-			gpio_direction_output(pdata->gpio_en,
+			gpiod_direction_output(pdata->gpio_en,
 				!pdata->power_low_level);
 		}
 	}
 
-	if ((btpower_evt == 0) && (pdata->gpio_reset > 0)) {
+	if ((btpower_evt == 0) && pdata->gpio_reset) {
 		if ((pdata->power_on_pin_OD)
 			&& (!pdata->power_low_level)) {
-			gpio_direction_input(pdata->gpio_reset);
+			gpiod_direction_input(pdata->gpio_reset);
 		} else {
-			gpio_direction_output(pdata->gpio_reset,
+			gpiod_direction_output(pdata->gpio_reset,
 				!pdata->power_low_level);
 		}
 	}
 
-	if ((btpower_evt == 0) && (pdata->gpio_en > 0)) {
+	if ((btpower_evt == 0) && pdata->gpio_en) {
 		if ((pdata->power_on_pin_OD)
 			&& (!pdata->power_low_level)) {
-			gpio_direction_input(pdata->gpio_en);
+			gpiod_direction_input(pdata->gpio_en);
 		}
 	}
 
@@ -251,54 +232,37 @@ static int bt_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 	if (pdev && pdev->dev.of_node) {
-		const char *str;
-		struct gpio_desc *desc;
-
 		BT_INFO("enter bt_probe of_node\n");
 		pdata = kzalloc(sizeof(struct bt_dev_data), GFP_KERNEL);
-		ret = of_property_read_string(pdev->dev.of_node,
-			"gpio_reset", &str);
-		if (ret) {
+
+		/* DT properties must use "-gpios" suffix: gpio_reset-gpios, gpio_en-gpios, etc. */
+		pdata->gpio_reset = devm_gpiod_get_optional(&pdev->dev,
+			"gpio_reset", GPIOD_ASIS);
+		if (IS_ERR(pdata->gpio_reset)) {
 			pr_warn("not get gpio_reset\n");
-			pdata->gpio_reset = 0;
-		} else {
-			desc = gpiod_get_from_of_node(pdev->dev.of_node,
-				"gpio_reset", 0, GPIOD_ASIS, NULL);
-			pdata->gpio_reset = desc_to_gpio(desc);
+			pdata->gpio_reset = NULL;
 		}
 
-		ret = of_property_read_string(pdev->dev.of_node,
-			"gpio_en", &str);
-		if (ret) {
+		pdata->gpio_en = devm_gpiod_get_optional(&pdev->dev,
+			"gpio_en", GPIOD_ASIS);
+		if (IS_ERR(pdata->gpio_en)) {
 			pr_warn("not get gpio_en\n");
-			pdata->gpio_en = 0;
-		} else {
-			desc = gpiod_get_from_of_node(pdev->dev.of_node,
-				"gpio_en", 0, GPIOD_ASIS, NULL);
-			pdata->gpio_en = desc_to_gpio(desc);
+			pdata->gpio_en = NULL;
 		}
 
-		ret = of_property_read_string(pdev->dev.of_node,
-			"gpio_hostwake", &str);
-		if (ret) {
+		pdata->gpio_hostwake = devm_gpiod_get_optional(&pdev->dev,
+			"gpio_hostwake", GPIOD_ASIS);
+		if (IS_ERR(pdata->gpio_hostwake)) {
 			pr_warn("not get gpio_hostwake\n");
-			pdata->gpio_hostwake = 0;
-		} else {
-			desc = gpiod_get_from_of_node(pdev->dev.of_node,
-				"gpio_hostwake", 0, GPIOD_ASIS, NULL);
-			pdata->gpio_hostwake = desc_to_gpio(desc);
+			pdata->gpio_hostwake = NULL;
 		}
 
 		/*gpio_btwakeup = BT_WAKE_HOST*/
-		ret = of_property_read_string(pdev->dev.of_node,
-			"gpio_btwakeup", &str);
-		if (ret) {
+		pdata->gpio_btwakeup = devm_gpiod_get_optional(&pdev->dev,
+			"gpio_btwakeup", GPIOD_ASIS);
+		if (IS_ERR(pdata->gpio_btwakeup)) {
 			pr_warn("not get gpio_btwakeup\n");
-			pdata->gpio_btwakeup = 0;
-		} else {
-			desc = gpiod_get_from_of_node(pdev->dev.of_node,
-				"gpio_btwakeup", 0, GPIOD_ASIS, NULL);
-			pdata->gpio_btwakeup = desc_to_gpio(desc);
+			pdata->gpio_btwakeup = NULL;
 		}
 
 		prop = of_get_property(pdev->dev.of_node,

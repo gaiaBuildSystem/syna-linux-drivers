@@ -29,8 +29,7 @@
 #include <linux/param.h>
 #include <linux/bitops.h>
 #include <linux/termios.h>
-#include <linux/gpio.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of_irq.h>
 #include <linux/serial_core.h>
 
@@ -56,11 +55,10 @@
 
 struct bluesleep_info {
 	unsigned int host_wake;
-	int ext_wake;
+	struct gpio_desc *ext_wake;
 	unsigned int host_wake_irq;
 	struct wakeup_source *p_wake_lock;
 	int irq_polarity;
-	int has_ext_wake;
 };
 
 static const struct of_device_id bt_bluesleep_table[] = {
@@ -90,7 +88,7 @@ static DECLARE_DELAYED_WORK(bs_work, bluesleep_dev_wake_work);
 
 static void bluesleep_dev_wake_work(struct work_struct *work)
 {
-	gpio_direction_output(bsi->ext_wake, 1);
+	gpiod_set_value(bsi->ext_wake, 1);
 }
 
 static ssize_t bluesleep_read_proc_lpm(struct file *file,
@@ -148,7 +146,7 @@ static ssize_t bluesleep_read_proc_btwrite(struct file *file,
 	int ret;
 	int bt_dev_wake_value = 0;
 
-	if (bsi->has_ext_wake == 1) {
+	if (!IS_ERR_OR_NULL(bsi->ext_wake)) {
 		if (test_bit(BT_EXT_WAKE, &flags)) {
 			BT_DBG("BT_EXT_WAKE is set!");
 			bt_dev_wake_value = 1;
@@ -181,7 +179,7 @@ static ssize_t bluesleep_write_proc_btwrite(struct file *file,
 		return -EFAULT;
 
 	if (b == '1')
-		gpio_direction_output(bsi->ext_wake, 1);
+		gpiod_set_value(bsi->ext_wake, 1);
 
 	return count;
 }
@@ -244,14 +242,9 @@ static void bluesleep_rm_node(void)
 
 static int bluesleep_probe(struct platform_device *pdev)
 {
-	int ret, gpio_ext_wake;
+	int ret;
 
 	BT_DBG("bluesleep probe!\n");
-
-	gpio_ext_wake = of_get_named_gpio(pdev->dev.of_node,
-		"bt-dev-wake-gpio", 0);
-	if (gpio_ext_wake < 0)
-		return gpio_ext_wake;
 
 	bsi = devm_kzalloc(&pdev->dev, sizeof(struct bluesleep_info), GFP_KERNEL);
 	if (!bsi) {
@@ -259,30 +252,17 @@ static int bluesleep_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	bsi->ext_wake = gpio_ext_wake;
-	BT_DBG("[BT] bt device wake gpio is %d", bsi->ext_wake);
-
-	ret = gpio_request(bsi->ext_wake, "bt_ext_wake");
-	if (ret) {
-		BT_ERR("%s gpio_request for bt_wake is failed, ret = %d",
-			__func__, ret);
-		return ret;
+	bsi->ext_wake = devm_gpiod_get(&pdev->dev, "bt-dev-wake", GPIOD_OUT_HIGH);
+	if (IS_ERR(bsi->ext_wake)) {
+		BT_ERR("%s failed to get bt-dev-wake gpio", __func__);
+		return PTR_ERR(bsi->ext_wake);
 	}
-	bsi->has_ext_wake = 1;
 
-	ret = gpio_direction_output(bsi->ext_wake, 1);
-	if (ret) {
-		BT_ERR("%s set input for bt_wake is failed, ret = %d",
-			__func__, ret);
-		gpio_free(bsi->ext_wake);
-		return ret;
-	}
+	BT_DBG("[BT] bt device wake gpio acquired");
 
 	ret = bluesleep_make_node();
 	if (ret) {
-		gpio_free(bsi->ext_wake);
-		BT_ERR("%s proc node create failed, ret = %d",
-			__func__, ret);
+		BT_ERR("%s proc node create failed, ret = %d", __func__, ret);
 		return ret;
 	}
 
@@ -294,7 +274,6 @@ static int bluesleep_probe(struct platform_device *pdev)
 static void bluesleep_remove(struct platform_device *pdev)
 {
 	bluesleep_rm_node();
-	gpio_free(bsi->ext_wake);
 }
 
 
@@ -314,7 +293,7 @@ static int bluesleep_suspend(struct platform_device *pdev, pm_message_t state)
 
 	flush_delayed_work(&bs_work);
 
-	gpio_direction_output(bsi->ext_wake, 0);
+	gpiod_set_value(bsi->ext_wake, 0);
 
 	return 0;
 }
@@ -354,8 +333,8 @@ static void __exit bluesleep_exit(void)
 {
 	if (bsi) {
 		/* assert bt wake */
-		if (bsi->has_ext_wake == 1)
-			gpio_direction_output(bsi->ext_wake, 1);
+		if (!IS_ERR_OR_NULL(bsi->ext_wake))
+			gpiod_set_value(bsi->ext_wake, 1);
 
 		set_bit(BT_EXT_WAKE, &flags);
 	}

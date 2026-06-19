@@ -6,11 +6,10 @@
 
 #include <linux/leds.h>
 #include <linux/module.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-#include <linux/of_gpio.h>
 #include <linux/delay.h>
-#include <linux/gpio.h>
 #include <linux/spi/spi.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
@@ -41,8 +40,8 @@ struct tlc5917_priv {
 	struct tlc5917_led leds[TLC5917_MAX_LEDS];
 	struct spi_device *spi;
 	struct mutex mutex;
-	unsigned int cs_gpio;
-	unsigned int oe_gpio;
+	struct gpio_desc *cs_gpio;
+	struct gpio_desc *oe_gpio;
 	u8 led_state;
 };
 
@@ -62,9 +61,9 @@ tlc5917_brightness_set_blocking(struct led_classdev *led_cdev,
 
 	mutex_lock(&priv->mutex);
 	ret = spi_write(priv->spi, &mask, sizeof(mask));
-	gpio_set_value_cansleep(priv->cs_gpio, 1);
+	gpiod_set_value_cansleep(priv->cs_gpio, 1);
 	udelay(1);
-	gpio_set_value_cansleep(priv->cs_gpio, 0);
+	gpiod_set_value_cansleep(priv->cs_gpio, 0);
 	mutex_unlock(&priv->mutex);
 
 	return ret;
@@ -99,33 +98,17 @@ tlc5917_probe(struct spi_device *spi)
 
 	priv->spi = spi;
 
-	priv->cs_gpio = of_get_named_gpio(np, "cs-gpio", 0);
-	if (!gpio_is_valid(priv->cs_gpio)) {
+	priv->cs_gpio = devm_gpiod_get(dev, "cs", GPIOD_OUT_LOW);
+	if (IS_ERR(priv->cs_gpio)) {
 		dev_err(dev, "cannot request 'cs' gpio\n");
-		return -EINVAL;
+		return PTR_ERR(priv->cs_gpio);
 	}
 
-	err = gpio_request(priv->cs_gpio, "tlc5917 cs gpio");
-	if (err < 0) {
-		dev_err(dev, "cannot request 'cs' gpio\n");
-		return -EINVAL;
-	}
-
-	gpio_direction_output(priv->cs_gpio, 0);
-
-	priv->oe_gpio = of_get_named_gpio(np, "oe-gpio", 0);
-	if (!gpio_is_valid(priv->oe_gpio)) {
-		dev_err(dev, "cannot request 'cs' gpio\n");
-		return -EINVAL;
-	}
-
-	err = gpio_request(priv->oe_gpio, "tlc5917 oe gpio");
-	if (err < 0) {
+	priv->oe_gpio = devm_gpiod_get(dev, "oe", GPIOD_OUT_LOW);
+	if (IS_ERR(priv->oe_gpio)) {
 		dev_err(dev, "cannot request 'oe' gpio\n");
-		return -EINVAL;
+		return PTR_ERR(priv->oe_gpio);
 	}
-
-	gpio_direction_output(priv->oe_gpio, 0);
 
 	for_each_available_child_of_node(np, child) {
 		struct tlc5917_led *led;

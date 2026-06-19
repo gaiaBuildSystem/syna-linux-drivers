@@ -999,8 +999,8 @@ mipi_dsih_parse_display_sequence(struct mipi_dsi_dev *dev,
 			state = INIT_CMD;
 			break;
 		case INIT_RST:
-			if (dev->reset_gpio_panel >= 0)
-				gpio_set_value(dev->reset_gpio_panel,
+			if (!IS_ERR_OR_NULL(dev->reset_gpio_panel))
+				gpiod_set_value(dev->reset_gpio_panel,
 					       !!key);
 			state = INIT_CMD;
 			break;

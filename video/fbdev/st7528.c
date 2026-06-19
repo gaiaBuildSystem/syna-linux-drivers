@@ -25,11 +25,10 @@
 #include <linux/mutex.h>
 #include <linux/wait.h>
 #include <linux/spi/spi.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
-#include <linux/of_gpio.h>
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 #include <linux/st7528.h>
@@ -44,7 +43,7 @@ struct st7528fb {
 	struct spi_message spi_msg;
 	struct spi_transfer spi_xfer;
 
-	unsigned int cs_gpio, reset_gpio;
+	struct gpio_desc *cs_gpio, *reset_gpio;
 	unsigned int fps;
 	unsigned int bruteforce;
 
@@ -94,12 +93,13 @@ static struct fb_var_screeninfo st7528fb_var = {
 static void
 st7528fb_do_seq(struct st7528fb *st7528fb, unsigned char *cmd, int num_cmds)
 {
-	unsigned int cs_gpio = st7528fb->cs_gpio;
+	struct gpio_desc *cs_gpio = st7528fb->cs_gpio;
 
 	if (num_cmds <= 0)
 		return;
 
-	gpio_set_value(cs_gpio, 0);
+	if (cs_gpio)
+		gpiod_set_value(cs_gpio, 0);
 	ndelay(100);
 
 	st7528fb->spi_xfer.tx_buf = (void *)cmd;
@@ -110,7 +110,8 @@ st7528fb_do_seq(struct st7528fb *st7528fb, unsigned char *cmd, int num_cmds)
 	spi_sync(st7528fb->dev, &st7528fb->spi_msg);
 
 	ndelay(100);
-	gpio_set_value(cs_gpio, 1);
+	if (cs_gpio)
+		gpiod_set_value(cs_gpio, 1);
 }
 
 static void
@@ -152,12 +153,13 @@ st7528fb_send_data(struct st7528fb *st7528fb, int page, int column, int len,
 		   unsigned char *buf)
 {
 	unsigned char cmds[6];
-	unsigned int cs_gpio = st7528fb->cs_gpio;
+	struct gpio_desc *cs_gpio = st7528fb->cs_gpio;
 
 	if (len <= 0)
 		return;
 
-	gpio_set_value(cs_gpio, 0);
+	if (cs_gpio)
+		gpiod_set_value(cs_gpio, 0);
 	ndelay(100);
 
 	st7528fb->spi_xfer.len = 5;
@@ -180,7 +182,8 @@ st7528fb_send_data(struct st7528fb *st7528fb, int page, int column, int len,
 	spi_sync(st7528fb->dev, &st7528fb->spi_msg);
 
 	ndelay(100);
-	gpio_set_value(cs_gpio, 1);
+	if (cs_gpio)
+		gpiod_set_value(cs_gpio, 1);
 }
 
 static void
@@ -519,7 +522,7 @@ static struct device_attribute st7528fb_attrs[] = {
 static int
 st7528fb_probe(struct spi_device *spi)
 {
-	int i, ret, reset_gpio, cs_gpio;
+	int i, ret;
 	unsigned int alloc_size;
 	struct st7528fb *st7528fb;
 	struct fb_info *info;
@@ -528,16 +531,6 @@ st7528fb_probe(struct spi_device *spi)
 	np = spi->dev.of_node;
 	if (np == NULL)
 		dev_info(&spi->dev, "of node is null\n");
-
-	reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
-	if (reset_gpio < 0) {
-		dev_err(&spi->dev, "Reset value not specified in devtree\n");
-		return -ENODEV;
-	}
-
-	cs_gpio = of_get_named_gpio(np, "cs-gpio", 0);
-	if (cs_gpio < 0)
-		cs_gpio = -1;
 
 	spi->mode = SPI_MODE_3;
 	spi->bits_per_word = 8;
@@ -557,10 +550,17 @@ st7528fb_probe(struct spi_device *spi)
 
 	memset(st7528fb, 0, sizeof(*st7528fb));
 
+	st7528fb->reset_gpio = devm_gpiod_get(&spi->dev, "reset", GPIOD_ASIS);
+	if (IS_ERR(st7528fb->reset_gpio)) {
+		dev_err(&spi->dev, "Reset value not specified in devtree\n");
+		ret = PTR_ERR(st7528fb->reset_gpio);
+		goto err_st7528fb;
+	}
+
+	st7528fb->cs_gpio = devm_gpiod_get_optional(&spi->dev, "cs", GPIOD_ASIS);
+
 	atomic_set(&st7528fb->vblanks, 0);
 
-	st7528fb->cs_gpio = cs_gpio;
-	st7528fb->reset_gpio = reset_gpio;
 	st7528fb->fps = CONFIG_FB_ST7528_FPS;
 	if (st7528fb->fps == 0)
 		st7528fb->fps = 1;

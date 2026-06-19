@@ -33,7 +33,6 @@
 #include <linux/i2c.h>
 #include <linux/reset.h>
 #include <linux/gpio.h>
-#include <linux/of_gpio.h>
 
 #include "dsih_core.h"
 #include "avio_io.h"

@@ -48,11 +48,12 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/err.h>
-#include <linux/gpio.h>
+
 #include <linux/skbuff.h>
 #include <linux/fcntl.h>
 #include <linux/fs.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
+#include <linux/of.h>
 #ifdef CONFIG_WIFI_CONTROL_FUNC
 #include <linux/wlan_plat.h>
 #else
@@ -88,9 +89,9 @@ extern void *dhd_wlan_mem_prealloc(int section, unsigned long size);
 #define MSM_PCIE_CH_NUM                1
 #endif /* MSM PCIE Platforms */
 
-#define DHD_GPIO_INVALID               (-1)
+#define DHD_GPIO_INVALID               NULL
 
-static int wlan_reg_on = DHD_GPIO_INVALID;
+static struct gpio_desc *wlan_reg_on = NULL;
 #ifdef BCMPCIE
 #ifndef DHD_DT_COMPAT_ENTRY
 #define DHD_DT_COMPAT_ENTRY        "android,bcmdhd_wlan"  /* "android,bcmdhd_pcie" */
@@ -116,7 +117,7 @@ static int wlan_reg_on = DHD_GPIO_INVALID;
 #endif /* CUSTOMER_HW2 */
 
 #ifdef DHD_USE_HOST_WAKE
-static int wlan_host_wake_up = DHD_GPIO_INVALID;
+static struct gpio_desc *wlan_host_wake_up = NULL;
 static int wlan_host_wake_irq = 0;
 #ifdef CUSTOMER_HW2
 #define WIFI_WLAN_HOST_WAKE_PROPNAME    "wl_host_wake"
@@ -205,16 +206,19 @@ int dhd_wifi_init_gpio(void)
 
 	root_node = of_find_compatible_node(NULL, NULL, wlan_node);
 	if (root_node) {
-		wlan_reg_on = of_get_named_gpio(root_node, WIFI_WL_REG_ON_PROPNAME, 0);
+		struct fwnode_handle *fwnode = of_fwnode_handle(root_node);
+		wlan_reg_on = fwnode_gpiod_get_index(fwnode, WIFI_WL_REG_ON_PROPNAME,
+						    0, GPIOD_OUT_HIGH, DHD_GPIO_REGON_NAME);
+		if (IS_ERR(wlan_reg_on))
+			wlan_reg_on = NULL;
 #ifdef DHD_USE_HOST_WAKE
-		wlan_host_wake_up = of_get_named_gpio(root_node, WIFI_WLAN_HOST_WAKE_PROPNAME, 0);
+		wlan_host_wake_up = fwnode_gpiod_get_index(fwnode, WIFI_WLAN_HOST_WAKE_PROPNAME,
+							0, GPIOD_IN, DHD_GPIO_HOSTW_NAME);
+		if (IS_ERR(wlan_host_wake_up))
+			wlan_host_wake_up = NULL;
 #endif /* DHD_USE_HOST_WAKE */
 	} else {
-		DHD_ERROR(("Warning: no device node of BRCM WLAN, use default GPIOs\n"));
-		wlan_reg_on = WLAN_REG_ON_GPIO_DEFAULT;
-#ifdef DHD_USE_HOST_WAKE
-		wlan_host_wake_up = WLAN_HOST_WAKE_GPIO_DEFAULT;
-#endif /* DHD_USE_HOST_WAKE */
+		DHD_ERROR(("Warning: no device node of BRCM WLAN\n"));
 	}
 
 	/* add to dump the DTS to confirm in case some platform special changes */
@@ -231,50 +235,21 @@ int dhd_wifi_init_gpio(void)
 		}
 	}
 
-	/*
-	// extra test
-	{
-		const char * name = NULL;
-		name="pinctrl-0";
-		printk(KERN_INFO "%s: gpio_wlan_power('%s') : %d\n",
-		       __FUNCTION__, name, of_get_named_gpio(root_node, name, 0));
-		name="pinctrl-1";
-		printk(KERN_INFO "%s: gpio_wlan_power('%s') : %d\n",
-		       __FUNCTION__, name, of_get_named_gpio(root_node, name, 0));
-		name="gpios";
-		printk(KERN_INFO "%s: gpio_wlan_power('%s') : %d\n", __FUNCTION__,
-		       name, of_get_named_gpio(root_node, name, 0));
-	}
-	*/
-
-	if (wlan_reg_on == DHD_GPIO_INVALID) {
+	if (!wlan_reg_on) {
 		DHD_ERROR(("%s: gpio_wlan_power('%s'): %d is not connected - skip\n",
 			__FUNCTION__, WIFI_WL_REG_ON_PROPNAME, wlan_reg_on));
 	} else {
 		/* ========== WLAN_PWR_EN ============ */
-		DHD_ERROR(("%s: gpio_wlan_power('%s'): %d\n",
-		           __FUNCTION__, WIFI_WL_REG_ON_PROPNAME, wlan_reg_on));
+		DHD_ERROR(("%s: gpio_wlan_power('%s') acquired\n",
+		           __FUNCTION__, WIFI_WL_REG_ON_PROPNAME));
 
-		/*
-		 * For reg_on, gpio_request will fail if the gpio is configured to output-high
-		 * in the dts using gpio-hog, so do not return error for failure.
-		 */
-		if (gpio_request_one(wlan_reg_on, GPIOF_OUT_INIT_HIGH, DHD_GPIO_REGON_NAME)) {
-			DHD_ERROR(("%s: Failed to request gpio %d for WL_REG_ON, "
-			           "might have configured in the dts\n",
-			           __FUNCTION__, wlan_reg_on));
-		} else {
-			DHD_ERROR(("%s: gpio_request WL_REG_ON done - WLAN_EN: GPIO %d\n",
-			           __FUNCTION__, wlan_reg_on));
-		}
-
-		gpio_reg_on_val = gpio_get_value_cansleep(wlan_reg_on);
+		gpio_reg_on_val = gpiod_get_value_cansleep(wlan_reg_on);
 		DHD_INFO(("%s: Initial WL_REG_ON: [%d]\n",
 		          __FUNCTION__, gpio_reg_on_val));
 
 		if (gpio_reg_on_val == 0) {
 			DHD_INFO(("%s: WL_REG_ON is LOW, drive it HIGH\n", __FUNCTION__));
-			if (gpio_direction_output(wlan_reg_on, 1)) {
+			if (gpiod_direction_output(wlan_reg_on, 1)) {
 				DHD_ERROR(("%s: WL_REG_ON is failed to pull up\n", __FUNCTION__));
 				return -EIO;
 			}
@@ -285,33 +260,14 @@ int dhd_wifi_init_gpio(void)
 	msleep(WIFI_TURNON_DELAY);
 
 #ifdef DHD_USE_HOST_WAKE
-	if (wlan_host_wake_up == DHD_GPIO_INVALID) {
-		DHD_ERROR(("%s: gpio_wlan_host_wake('%s'): %d, skip\n",
-		           __FUNCTION__, WIFI_WLAN_HOST_WAKE_PROPNAME, wlan_host_wake_up));
+	if (!wlan_host_wake_up) {
+		DHD_ERROR(("%s: gpio_wlan_host_wake('%s') not connected, skip\n",
+		           __FUNCTION__, WIFI_WLAN_HOST_WAKE_PROPNAME));
 		wlan_host_wake_irq = 0;
 	} else {
-		/* ========== WLAN_HOST_WAKE ============ */
-		DHD_ERROR(("%s: gpio_wlan_host_wake('%s'): %d\n",
-		           __FUNCTION__, WIFI_WLAN_HOST_WAKE_PROPNAME, wlan_host_wake_up));
-
-		if (gpio_request_one(wlan_host_wake_up, GPIOF_IN, DHD_GPIO_HOSTW_NAME)) {
-			DHD_ERROR(("%s: Failed to request gpio %d for WLAN_HOST_WAKE "
-			           "might have configured in the dts\n",
-			           __FUNCTION__, wlan_host_wake_up));
-			return -ENODEV;
-		} else {
-			DHD_ERROR(("%s: gpio_request WLAN_HOST_WAKE done"
-			           " - WLAN_HOST_WAKE: GPIO %d\n",
-			           __FUNCTION__, wlan_host_wake_up));
-		}
-
-		if (gpio_direction_input(wlan_host_wake_up)) {
-			DHD_ERROR(("%s: Failed to set WL_HOST_WAKE gpio direction\n",
-			           __FUNCTION__));
-			return -EIO;
-		}
-
-		wlan_host_wake_irq = gpio_to_irq(wlan_host_wake_up);
+		DHD_ERROR(("%s: gpio_wlan_host_wake('%s') acquired\n",
+		           __FUNCTION__, WIFI_WLAN_HOST_WAKE_PROPNAME));
+		wlan_host_wake_irq = gpiod_to_irq(wlan_host_wake_up);
 	}
 #endif /* DHD_USE_HOST_WAKE */
 	return 0;
@@ -319,13 +275,15 @@ int dhd_wifi_init_gpio(void)
 
 int dhd_wifi_deinit_gpio(void)
 {
-	if (wlan_reg_on >= 0) {
-		gpio_free(wlan_reg_on);
+	if (wlan_reg_on) {
+		gpiod_put(wlan_reg_on);
+		wlan_reg_on = NULL;
 	}
 
 #ifdef DHD_USE_HOST_WAKE
-	if (wlan_host_wake_up >= 0) {
-		gpio_free(wlan_host_wake_up);
+	if (wlan_host_wake_up) {
+		gpiod_put(wlan_host_wake_up);
+		wlan_host_wake_up = NULL;
 	}
 #endif /* DHD_USE_HOST_WAKE */
 
@@ -349,29 +307,29 @@ int
 dhd_wlan_power(int onoff)
 {
 	DHD_INFO(("------------------------------------------------\n"));
-	DHD_INFO(("%s Enter: wlan_reg_on=%d, power %s\n",
-	          __func__, wlan_reg_on, onoff ? "on" : "off"));
+	DHD_INFO(("%s Enter: wlan_reg_on=%s, power %s\n",
+	          __func__, wlan_reg_on ? "ok" : "none", onoff ? "on" : "off"));
 
 #ifdef SKIP_REGON_GPIO
 	DHD_ERROR(("%s-%d: ***** skip action for REG_ON *****\n", __FUNCTION__, __LINE__));
 	return 0;
 #endif /* SKIP_REGON_GPIO */
-	if (wlan_reg_on == DHD_GPIO_INVALID) {
+	if (!wlan_reg_on) {
 		DHD_ERROR(("%s-%d: ***** REG_ON hard wired, skip *****\n", __FUNCTION__, __LINE__));
 		return BCME_OK;
 	}
 
 	if (onoff) {
-		if (gpio_direction_output(wlan_reg_on, 1)) {
+		if (gpiod_direction_output(wlan_reg_on, 1)) {
 			DHD_ERROR(("%s: WL_REG_ON is failed to pull up\n", __FUNCTION__));
 			return -EIO;
 		}
-		if (gpio_get_value_cansleep(wlan_reg_on)) {
+		if (gpiod_get_value_cansleep(wlan_reg_on)) {
 			DHD_INFO(("WL_REG_ON on-step-2 : [%d]\n",
-			          gpio_get_value_cansleep(wlan_reg_on)));
+			          gpiod_get_value_cansleep(wlan_reg_on)));
 		} else {
 			DHD_ERROR(("[%s] gpio value is 0. We need reinit.\n", __func__));
-			if (gpio_direction_output(wlan_reg_on, 1)) {
+			if (gpiod_direction_output(wlan_reg_on, 1)) {
 				DHD_ERROR(("%s: WL_REG_ON is failed to pull up\n", __func__));
 			}
 		}
@@ -400,13 +358,13 @@ dhd_wlan_power(int onoff)
 		/*  END: customer can add some platform related deinitialization: END  */
 		/***********************************************************************/
 
-		if (gpio_direction_output(wlan_reg_on, 0)) {
+		if (gpiod_direction_output(wlan_reg_on, 0)) {
 			DHD_ERROR(("%s: WL_REG_ON is failed to pull up\n", __FUNCTION__));
 			return -EIO;
 		}
-		if (gpio_get_value_cansleep(wlan_reg_on)) {
+		if (gpiod_get_value_cansleep(wlan_reg_on)) {
 			DHD_INFO(("WL_REG_ON on-step-2 : [%d]\n",
-			          gpio_get_value_cansleep(wlan_reg_on)));
+			          gpiod_get_value_cansleep(wlan_reg_on)));
 		}
 	}
 	return 0;
@@ -478,13 +436,13 @@ dhd_wlan_set_carddetect(int val)
 #ifdef DHD_USE_HOST_WAKE
 static int dhd_wlan_get_wake_irq(void)
 {
-	return gpio_to_irq(wlan_host_wake_up);
+	return wlan_host_wake_up ? gpiod_to_irq(wlan_host_wake_up) : -1;
 }
 
 static int dhd_get_wlan_oob_gpio_level(void)
 {
-	return gpio_is_valid(wlan_host_wake_up) ?
-		gpio_get_value_cansleep(wlan_host_wake_up) : -1;
+	return wlan_host_wake_up ?
+		gpiod_get_value_cansleep(wlan_host_wake_up) : -1;
 }
 
 int dhd_get_wlan_oob_gpio(void)

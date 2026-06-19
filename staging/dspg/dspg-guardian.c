@@ -17,14 +17,14 @@
 
 #include <linux/platform_device.h>
 #include <linux/module.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
 
 struct piog_data {
-	struct device	*dev;
-	int		protectee;
-	bool		high;
-	bool		low;
-	bool		dir;
+	struct device		*dev;
+	struct gpio_desc	*protectee;
+	bool			high;
+	bool			low;
+	bool			dir;
 };
 
 static int
@@ -32,14 +32,14 @@ piog_parse_dt(struct piog_data *data)
 {
 	struct device_node *pnode = data->dev->of_node;
 
-	data->protectee = of_get_named_gpio(pnode, "protectee", 0);
-	if (data->protectee >= 0 && gpio_is_valid(data->protectee)) {
-		data->high = of_property_read_bool(pnode, "high");
-		data->low = of_property_read_bool(pnode, "low");
-		data->dir = of_property_read_bool(pnode, "out");
-	} else {
+	data->high = of_property_read_bool(pnode, "high");
+	data->low  = of_property_read_bool(pnode, "low");
+	data->dir  = of_property_read_bool(pnode, "out");
+
+	data->protectee = devm_gpiod_get(data->dev, "protectee", GPIOD_ASIS);
+	if (IS_ERR(data->protectee)) {
 		dev_err(data->dev, "could not parse 'protectee' property\n");
-		return -EIO;
+		return PTR_ERR(data->protectee);
 	}
 
 	return 0;
@@ -50,7 +50,6 @@ piog_probe(struct platform_device *pdev)
 {
 	struct piog_data *data = pdev->dev.platform_data;
 	int ret;
-	unsigned long flags = 0;
 
 	dev_info(&pdev->dev, "probing DSPG PIO Guardian");
 
@@ -69,26 +68,17 @@ piog_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (data->high)
-		flags |= GPIOF_INIT_HIGH;
-	else if (data->low)
-		flags |= GPIOF_INIT_LOW;
-
 	if (data->dir)
-		flags |= GPIOF_DIR_OUT;
+		ret = gpiod_direction_output(data->protectee, data->high ? 1 : 0);
 	else
-		flags |= GPIOF_DIR_IN;
+		ret = gpiod_direction_input(data->protectee);
 
-	ret = devm_gpio_request_one(data->dev, data->protectee, flags,
-				    "dspg-piog");
 	if (ret) {
-		dev_err(data->dev,
-			"failed to request protected gpio %d\n",
-			data->protectee);
-		return -EIO;
+		dev_err(data->dev, "failed to configure protected gpio\n");
+		return ret;
 	}
 
-	return ret;
+	return 0;
 }
 
 static int
@@ -118,14 +108,14 @@ static int __init piog_init(void)
 {
 	return platform_driver_register(&piog_driver);
 }
-fs_initcall(piog_init);
 
 static void __exit piog_exit(void)
 {
 	platform_driver_unregister(&piog_driver);
 }
+
+module_init(piog_init);
 module_exit(piog_exit);
 
-MODULE_DESCRIPTION("PIO guardian");
-MODULE_AUTHOR("DSP Group, Inc.");
-MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("DSPG PIO Guardian");
+MODULE_LICENSE("GPL v2");

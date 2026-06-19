@@ -19,9 +19,9 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
 #include <linux/slab.h>
@@ -33,7 +33,7 @@ struct gpio_reset_line {
 	struct kobject kobj;
 	struct gpio_reset_priv *priv;
 	const char *name;
-	int gpio;
+	struct gpio_desc *gpio;
 	uint32_t asserted_value;
 	uint32_t duration_ms;
 #ifdef CONFIG_RESET_CONTROLLER
@@ -63,12 +63,12 @@ struct gpio_reset_attribute {
 
 static void gpio_reset_assert(struct gpio_reset_line *line)
 {
-	gpio_set_value(line->gpio, line->asserted_value);
+	gpiod_set_value(line->gpio, line->asserted_value);
 }
 
 static void gpio_reset_deassert(struct gpio_reset_line *line)
 {
-	gpio_set_value(line->gpio, !line->asserted_value);
+	gpiod_set_value(line->gpio, !line->asserted_value);
 }
 
 static void gpio_reset_reset(struct gpio_reset_line *line)
@@ -330,19 +330,23 @@ static int gpio_reset_init_line(
 
 	line->name = np->name;
 
-	line->gpio = of_get_gpio(np, 0);
-	if (!gpio_is_valid(line->gpio)) {
-		dev_warn(dev, "Invalid reset gpio for '%s'", np->name);
-		return 0;
-	}
-
 	line->duration_ms = 1;
 	of_property_read_u32(np, "asserted-state", &line->asserted_value);
 	of_property_read_u32(np, "duration-ms", &line->duration_ms);
 
-	ret = devm_gpio_request_one(dev, line->gpio,
-		line->asserted_value ? GPIOF_OUT_INIT_LOW : GPIOF_OUT_INIT_HIGH,
-		line->name);
+	line->gpio = devm_fwnode_gpiod_get_index(dev, of_fwnode_handle(np),
+						 NULL, 0, GPIOD_ASIS,
+						 line->name);
+	if (IS_ERR(line->gpio)) {
+		ret = PTR_ERR(line->gpio);
+		if (ret != -ENOENT)
+			dev_warn(dev, "Invalid reset gpio for '%s': %d",
+				 np->name, ret);
+		line->gpio = NULL;
+		return ret == -ENOENT ? 0 : ret;
+	}
+
+	ret = gpiod_direction_output(line->gpio, !line->asserted_value);
 	if (ret)
 		return ret;
 
@@ -378,12 +382,6 @@ static int gpio_reset_probe(struct platform_device *pdev)
 	num_lines = of_get_available_child_count(np);
 	if (!num_lines)
 		return -ENODEV;
-
-	for_each_available_child_of_node(np, child) {
-		ret = of_get_gpio(child, 0);
-		if (ret == -EPROBE_DEFER)
-			return ret;
-	}
 
 	priv = kzalloc(sizeof(*priv) + sizeof(*line) * num_lines, GFP_KERNEL);
 	if (!priv)

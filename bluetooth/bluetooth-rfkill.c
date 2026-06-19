@@ -10,12 +10,11 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/device.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/rfkill.h>
@@ -27,42 +26,22 @@
 #define BT_PWR_ERR(fmt, arg...)  pr_err("%s: " fmt "\n", __func__, ## arg)
 
 struct bluetooth_plat_data {
-	int power_gpio;
+	struct gpio_desc *power_gpio;
 	struct rfkill *rfkill;
 };
-
-static struct bluetooth_plat_data *get_dt_data(struct device *dev)
-{
-	struct bluetooth_plat_data *dt_pdata;
-	int power_gpio;
-
-	power_gpio = of_get_named_gpio(dev->of_node,
-				"bt-power-gpio", 0);
-	if (power_gpio < 0)
-		return ERR_PTR(power_gpio);
-
-	dt_pdata = devm_kzalloc(dev, sizeof(*dt_pdata), GFP_KERNEL);
-	if (!dt_pdata)
-		return ERR_PTR(-ENOMEM);
-
-	dt_pdata->power_gpio = power_gpio;
-
-	BT_PWR_INFO("[BT] bt power gpio is %d", dt_pdata->power_gpio);
-
-	return dt_pdata;
-}
 
 static int bluetooth_set_power(void *data, bool blocked)
 {
 	struct bluetooth_plat_data *pdata = data;
+
 	if (!blocked) {
-		gpio_direction_output(pdata->power_gpio, 0);
+		gpiod_set_value(pdata->power_gpio, 0);
 		mdelay(10);
 		BT_PWR_INFO("%s: power up = %d\n", __func__, blocked);
-		gpio_direction_output(pdata->power_gpio, 1);
+		gpiod_set_value(pdata->power_gpio, 1);
 		mdelay(150);
 	} else {
-		gpio_direction_output(pdata->power_gpio, 0);
+		gpiod_set_value(pdata->power_gpio, 0);
 		BT_PWR_INFO("%s: power down = %d\n", __func__, blocked);
 		mdelay(10);
 	}
@@ -84,19 +63,17 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
 
 	BT_PWR_INFO("%s\n", __func__);
 
-	pdata = get_dt_data(&pdev->dev);
-	if (IS_ERR(pdata))
-		return PTR_ERR(pdata);
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return -ENOMEM;
 
-	ret = gpio_request(pdata->power_gpio, "bt_power");
-	if (ret)
-		return ret;
-
-	ret = gpio_direction_output(pdata->power_gpio, 0);
-	if (ret) {
-		gpio_free(pdata->power_gpio);
-		return ret;
+	pdata->power_gpio = devm_gpiod_get(&pdev->dev, "bt-power", GPIOD_OUT_LOW);
+	if (IS_ERR(pdata->power_gpio)) {
+		dev_err(&pdev->dev, "cannot get bt-power gpio\n");
+		return PTR_ERR(pdata->power_gpio);
 	}
+
+	BT_PWR_INFO("[BT] bt power gpio acquired");
 
 	pdata->rfkill = rfkill_alloc("bt_power", &pdev->dev,
 				     RFKILL_TYPE_BLUETOOTH,
@@ -106,7 +83,6 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
 
 	ret = rfkill_register(pdata->rfkill);
 	if (ret) {
-		gpio_free(pdata->power_gpio);
 		rfkill_destroy(pdata->rfkill);
 		return ret;
 	}
@@ -126,7 +102,6 @@ static void rfkill_bluetooth_remove(struct platform_device *pdev)
 	rfkill_unregister(pdata->rfkill);
 	rfkill_destroy(pdata->rfkill);
 	platform_set_drvdata(pdev, NULL);
-	gpio_free(pdata->power_gpio);
 }
 
 static const struct of_device_id rfkill_of_match[] = {

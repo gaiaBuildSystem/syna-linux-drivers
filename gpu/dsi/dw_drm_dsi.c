@@ -17,7 +17,6 @@
 
 #include <linux/clk.h>
 #include <linux/reset.h>
-#include <linux/of_gpio.h>
 #include <linux/component.h>
 #include <linux/of_graph.h>
 #include <linux/delay.h>
@@ -655,9 +654,9 @@ dw_dsi_parse_display_sequence(struct dw_dsi *dev, const char *sequence)
 			state = INIT_CMD;
 			break;
 		case INIT_RST:
-			if (dev->reset_gpio_panel >= 0)
-				gpio_set_value(dev->reset_gpio_panel,
-					       !!key);
+			if (!IS_ERR_OR_NULL(dev->reset_gpio_panel))
+				gpiod_set_value(dev->reset_gpio_panel,
+						!!key);
 			else
 				dev_warn(dev->parent_dev, "no have panel reset\n");
 			state = INIT_CMD;
@@ -704,15 +703,13 @@ dsi_parse_dt(struct platform_device *pdev, struct dw_dsi *dsi)
 		return PTR_ERR(ctx->base);
 	}
 
-	dsi->reset_gpio_panel = of_get_named_gpio(np, "panel-reset", 0);
-	if (gpio_is_valid(dsi->reset_gpio_panel)) {
-		ret = devm_gpio_request(&pdev->dev, dsi->reset_gpio_panel,
-					"dsi-panel-rst");
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request panel reset\n");
-			return ret;
-		}
-		gpio_direction_output(dsi->reset_gpio_panel, 0);
+	/* DT property: "panel-reset-gpios" */
+	dsi->reset_gpio_panel = devm_gpiod_get_optional(&pdev->dev,
+							"panel-reset",
+							GPIOD_OUT_LOW);
+	if (IS_ERR(dsi->reset_gpio_panel)) {
+		dev_err(&pdev->dev, "failed to request panel reset\n");
+		return PTR_ERR(dsi->reset_gpio_panel);
 	}
 
 	ret = of_property_read_u32(np, "dsi-lanes", &dsi->lanes);

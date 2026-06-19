@@ -16,7 +16,7 @@
 #include <linux/mfd/core.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/uaccess.h>
 #include <video/dspgfb.h>
@@ -58,13 +58,12 @@ struct dspgfb {
 	struct fb_info		*info1;
 	int			cur_fb;
 	int			dual_display;
-	unsigned		gpio;
+	struct gpio_desc	*gpio;
 	struct fb_videomode	mode;
 	int			irq;
 	struct clk		*clk;
 	struct reset_control	*reset;
-	int			enable_gpio;
-	enum of_gpio_flags	enable_flags;
+	struct gpio_desc	*enable_gpio;
 
 	void __iomem		*vidmem;
 
@@ -832,7 +831,7 @@ static irqreturn_t dspgfb_irq(int irq, void *priv)
 
 	if (stat & INT_FRAME_DONE) {
 		if (dspgfb->dual_display) {
-			gpio_set_value(dspgfb->gpio, dspgfb->cur_fb);
+			gpiod_set_value(dspgfb->gpio, dspgfb->cur_fb);
 
 			dspgfb->cur_fb = dspgfb->cur_fb ? 0 : 1;
 			dspgfb_writel(dspgfb, LCDC_REG_DISPIDXR,
@@ -1123,28 +1122,15 @@ dspgfb_probe(struct platform_device *pdev)
 		dspgfb->dual_display = val;
 
 		if (dspgfb->dual_display) {
-			val = of_get_named_gpio(np,
-						"dspg,dual_display_gpio", 0);
-			if (val < 0) {
+			/* DT property: "dspg,dual_display-gpios" */
+			dspgfb->gpio = devm_gpiod_get(&pdev->dev,
+						      "dspg,dual_display",
+						      GPIOD_OUT_LOW);
+			if (IS_ERR(dspgfb->gpio)) {
 				dev_err(&pdev->dev,
-					"invalid 'dspg,dual_display_gpio'\n");
+					"invalid 'dspg,dual_display-gpios'\n");
 				dspgfb->dual_display = 0;
-			}
-			dspgfb->gpio = val;
-
-			if (!gpio_is_valid(dspgfb->gpio)) {
-				dev_err(&pdev->dev, "gpio invalid\n");
-				dspgfb->dual_display = 0;
-			} else {
-				ret = gpio_request(dspgfb->gpio,
-						   "hookswitch_gpio");
-				if (ret < 0) {
-					dev_err(&pdev->dev,
-						"cannot request gpio\n");
-					dspgfb->dual_display = 0;
-				} else {
-					gpio_direction_output(dspgfb->gpio, 0);
-				}
+				dspgfb->gpio = NULL;
 			}
 		}
 
@@ -1169,20 +1155,13 @@ dspgfb_probe(struct platform_device *pdev)
 		}
 		dspgfb->pdata.iclk = val;
 
-		dspgfb->enable_gpio = of_get_named_gpio_flags(np,
-							"enable-gpio", 0,
-							&dspgfb->enable_flags);
-
-		if (dspgfb->enable_gpio >= 0 &&
-		    gpio_is_valid(dspgfb->enable_gpio))
-			devm_gpio_request_one(&pdev->dev, dspgfb->enable_gpio,
-					      (dspgfb->enable_flags &
-					       OF_GPIO_ACTIVE_LOW) ?
-					      GPIOF_OUT_INIT_LOW :
-					      GPIOF_OUT_INIT_HIGH,
-					      "enable");
-		else
-			dspgfb->enable_gpio = -1;
+		dspgfb->enable_gpio = devm_gpiod_get_optional(&pdev->dev,
+							      "enable",
+							      GPIOD_OUT_HIGH);
+		if (IS_ERR(dspgfb->enable_gpio)) {
+			dev_err(&pdev->dev, "cannot get 'enable-gpios'\n");
+			dspgfb->enable_gpio = NULL;
+		}
 	} else {
 		dspgfb->pdata = *pdata;
 	}
@@ -1539,9 +1518,8 @@ dspgfb_dev_suspend(struct platform_device *pdev, pm_message_t state)
 	if (dspgfb->panel && dspgfb->panel->ops.power_off)
 		dspgfb->panel->ops.power_off(dspgfb->panel, dspgfb->info0);
 
-	if (dspgfb->enable_gpio >= 0)
-		gpio_set_value(dspgfb->enable_gpio,
-			(dspgfb->enable_flags & OF_GPIO_ACTIVE_LOW) ? 1 : 0);
+	if (!IS_ERR_OR_NULL(dspgfb->enable_gpio))
+		gpiod_set_value(dspgfb->enable_gpio, 0);
 
 	dspgfb_writel(dspgfb, LCDC_REG_DISPCR, 0);
 	dspgfb_hw_param_update(dspgfb);
@@ -1566,9 +1544,8 @@ dspgfb_dev_resume(struct platform_device *pdev)
 	dspgfb_hw_param_update(dspgfb);
 	dspgfb_hw_param_update(dspgfb);
 
-	if (dspgfb->enable_gpio >= 0)
-		gpio_set_value(dspgfb->enable_gpio,
-			(dspgfb->enable_flags & OF_GPIO_ACTIVE_LOW) ? 0 : 1);
+	if (!IS_ERR_OR_NULL(dspgfb->enable_gpio))
+		gpiod_set_value(dspgfb->enable_gpio, 1);
 
 	if (dspgfb->panel && dspgfb->panel->ops.power_on)
 		dspgfb->panel->ops.power_on(dspgfb->panel, dspgfb->info0);

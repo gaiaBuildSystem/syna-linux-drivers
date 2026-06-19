@@ -2606,20 +2606,12 @@ int dsi_screen_init(struct mipi_dsi_dev *dev, int screen)
 	case HH060IA:
 		pr_info("%s: device tree sequence\n", __func__);
 
-		np = dev->parent_dev->of_node;
-		dev->reset_gpio_panel = of_get_named_gpio(np,
-							  "panel-reset", 0);
-		if (!gpio_is_valid(dev->reset_gpio_panel)) {
+		dev->reset_gpio_panel = devm_gpiod_get_optional(dev->parent_dev,
+			"panel-reset", GPIOD_OUT_LOW);
+		if (IS_ERR(dev->reset_gpio_panel)) {
 			dev_warn(dev->parent_dev,
-				 "panel reset GPIO not valid\n");
-			dev->reset_gpio_panel = -1;
-		} else {
-			if (devm_gpio_request(dev->parent_dev,
-					      dev->reset_gpio_panel,
-					      "dsi-panel-rst"))
-				dev_warn(dev->parent_dev,
-					 "failed to request panel reset\n");
-			gpio_direction_output(dev->reset_gpio_panel, 0);
+				 "failed to get panel reset GPIO\n");
+			dev->reset_gpio_panel = NULL;
 		}
 
 		dev->read_display_status = of_property_read_bool(np,

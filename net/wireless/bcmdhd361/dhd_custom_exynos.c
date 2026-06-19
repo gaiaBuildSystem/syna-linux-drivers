@@ -44,8 +44,9 @@
  */
 
 #include <linux/device.h>
-#include <linux/gpio.h>
-#include <linux/of_gpio.h>
+
+#include <linux/gpio/consumer.h>
+#include <linux/of.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -106,11 +107,11 @@ extern void *dhd_wlan_mem_prealloc(int section, unsigned long size);
 #endif /* CONFIG_BROADCOM_WIFI_RESERVED_MEM */
 
 #define WIFI_TURNON_DELAY	200
-static int wlan_pwr_on = -1;
+static struct gpio_desc *wlan_pwr_on = NULL;
 
 #ifdef DHD_USE_HOST_WAKE
 static int wlan_host_wake_irq = 0;
-static unsigned int wlan_host_wake_up = -1;
+static struct gpio_desc *wlan_host_wake_up = NULL;
 #endif /* DHD_USE_HOST_WAKE */
 
 #if defined(CONFIG_MACH_A7LTE) || defined(CONFIG_NOBLESSE) || \
@@ -143,7 +144,7 @@ dhd_wlan_power(int onoff)
 
 	printk(KERN_INFO"%s Enter: power %s\n", __FUNCTION__, onoff ? "on" : "off");
 
-	if (gpio_direction_output(wlan_pwr_on, onoff)) {
+	if (gpiod_direction_output(wlan_pwr_on, onoff)) {
 		printk(KERN_ERR "%s failed to control WLAN_REG_ON to %s\n",
 			__FUNCTION__, onoff ? "HIGH" : "LOW");
 		return -EIO;
@@ -225,25 +226,24 @@ dhd_wlan_init_gpio(void)
 	}
 
 	/* ========== WLAN_PWR_EN ============ */
-	wlan_pwr_on = of_get_gpio(root_node, 0);
-	if (!gpio_is_valid(wlan_pwr_on)) {
-		WARN(1, "Invalied gpio pin : %d\n", wlan_pwr_on);
-		return -ENODEV;
+	{
+		struct fwnode_handle *fwnode = of_fwnode_handle(root_node);
+		wlan_pwr_on = fwnode_gpiod_get_index(fwnode, NULL, 0,
+						   GPIOD_OUT_LOW, "WLAN_REG_ON");
 	}
-
-	if (gpio_request(wlan_pwr_on, "WLAN_REG_ON")) {
-		WARN(1, "fail to request gpio(WLAN_REG_ON)\n");
+	if (IS_ERR_OR_NULL(wlan_pwr_on)) {
+		WARN(1, "failed to get WLAN_REG_ON gpio\n");
 		return -ENODEV;
 	}
 #ifdef BCMPCIE
-	gpio_direction_output(wlan_pwr_on, 1);
+	gpiod_direction_output(wlan_pwr_on, 1);
 	msleep(WIFI_TURNON_DELAY);
 #else
-	gpio_direction_output(wlan_pwr_on, 0);
+	gpiod_direction_output(wlan_pwr_on, 0);
 #endif /* BCMPCIE */
-	gpio_export(wlan_pwr_on, 1);
+	gpiod_export(wlan_pwr_on, true);
 	if (wlan_dev)
-		gpio_export_link(wlan_dev, "WLAN_REG_ON", wlan_pwr_on);
+		gpiod_export_link(wlan_dev, "WLAN_REG_ON", wlan_pwr_on);
 
 #ifdef BCMPCIE
 	exynos_pcie_pm_resume(pcie_ch_num);
@@ -251,22 +251,20 @@ dhd_wlan_init_gpio(void)
 
 #ifdef DHD_USE_HOST_WAKE
 	/* ========== WLAN_HOST_WAKE ============ */
-	wlan_host_wake_up = of_get_gpio(root_node, 1);
-	if (!gpio_is_valid(wlan_host_wake_up)) {
-		WARN(1, "Invalied gpio pin : %d\n", wlan_host_wake_up);
+	{
+		struct fwnode_handle *fwnode = of_fwnode_handle(root_node);
+		wlan_host_wake_up = fwnode_gpiod_get_index(fwnode, NULL, 1,
+							   GPIOD_IN, "WLAN_HOST_WAKE");
+	}
+	if (IS_ERR_OR_NULL(wlan_host_wake_up)) {
+		WARN(1, "failed to get WLAN_HOST_WAKE gpio\n");
 		return -ENODEV;
 	}
-
-	if (gpio_request(wlan_host_wake_up, "WLAN_HOST_WAKE")) {
-		WARN(1, "fail to request gpio(WLAN_HOST_WAKE)\n");
-		return -ENODEV;
-	}
-	gpio_direction_input(wlan_host_wake_up);
-	gpio_export(wlan_host_wake_up, 1);
+	gpiod_export(wlan_host_wake_up, false);
 	if (wlan_dev)
-		gpio_export_link(wlan_dev, "WLAN_HOST_WAKE", wlan_host_wake_up);
+		gpiod_export_link(wlan_dev, "WLAN_HOST_WAKE", wlan_host_wake_up);
 
-	wlan_host_wake_irq = gpio_to_irq(wlan_host_wake_up);
+	wlan_host_wake_irq = gpiod_to_irq(wlan_host_wake_up);
 #endif /* DHD_USE_HOST_WAKE */
 
 	return 0;
@@ -275,13 +273,13 @@ dhd_wlan_init_gpio(void)
 #ifdef DHD_USE_HOST_WAKE
 static int dhd_wlan_get_wake_irq(void)
 {
-	return gpio_to_irq(wlan_host_wake_up);
+	return wlan_host_wake_up ? gpiod_to_irq(wlan_host_wake_up) : -1;
 }
 
 static int dhd_get_wlan_oob_gpio_level(void)
 {
-	return gpio_is_valid(wlan_host_wake_up) ?
-		gpio_get_value_cansleep(wlan_host_wake_up) : -1;
+	return wlan_host_wake_up ?
+		gpiod_get_value_cansleep(wlan_host_wake_up) : -1;
 }
 
 int dhd_get_wlan_oob_gpio(void)
@@ -349,9 +347,9 @@ void
 dhd_wlan_deinit(void)
 {
 #ifdef DHD_USE_HOST_WAKE
-	gpio_free(wlan_host_wake_up);
+	gpiod_put(wlan_host_wake_up);
 #endif /* DHD_USE_HOST_WAKE */
-	gpio_free(wlan_pwr_on);
+	gpiod_put(wlan_pwr_on);
 
 #ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
 	dhd_exit_wlan_mem();

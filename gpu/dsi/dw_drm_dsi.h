@@ -1,6 +1,7 @@
 #ifndef __DW_DRM_DSI_H
 #define __DW_DRM_DSI_H
 
+#include <linux/gpio/consumer.h>
 #include <linux/types.h>
 #include <linux/fb.h>
 
@@ -54,7 +55,7 @@ struct dw_dsi {
 	struct fb_videomode		mode;
 	struct dsi_hw_ctx		*ctx;
 	struct mipi_phy_params		phy;
-	int				reset_gpio_panel;
+	struct gpio_desc		*reset_gpio_panel;
 	struct device			*parent_dev;
 	u32				timeout;
 

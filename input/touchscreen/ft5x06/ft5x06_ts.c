@@ -34,7 +34,7 @@
 #include <linux/timer.h>
 #include <linux/input/mt.h>
 #include <linux/timer.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
 
 #include <mach/gpio.h>
 //#include <mach/map.h>
@@ -83,7 +83,6 @@ struct ft5x0x_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
 	struct ts_event event;
-	int reset_gpio;
 	#ifdef CONFIG_PM
 	struct early_suspend *early_suspend;
 	#endif
@@ -352,44 +351,27 @@ static void ft5x0x_Enable_IRQ(struct i2c_client *client, int enable)
 
 static int fts_init_gpio_hw(struct ft5x0x_ts_data *ft5x0x_ts)
 {
-	int ret;
-	int floating_gpio;
+	struct device *dev = &ft5x0x_ts->client->dev;
+	struct gpio_desc *reset_desc;
+	struct gpio_desc *floating_desc;
 
-	ft5x0x_ts->reset_gpio = of_get_named_gpio(ft5x0x_ts->client->dev.of_node,
-						  "reset-gpio", 0);
-	if (!gpio_is_valid(ft5x0x_ts->reset_gpio)) {
+	reset_desc = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(reset_desc)) {
 		pr_err("%s: reset GPIO not valid\n", __func__);
-		return -1;
-	}
-	ret = devm_gpio_request_one(&ft5x0x_ts->client->dev,
-				ft5x0x_ts->reset_gpio,
-				GPIOF_OUT_INIT_HIGH,
-				FT5X0X_RESET_PIN_NAME);
-	if (ret) {
-		pr_err("%s: request GPIO %s for reset failed, ret = %d\n",
-				__func__, FT5X0X_RESET_PIN_NAME, ret);
-		return ret;
+		return PTR_ERR(reset_desc);
 	}
 
 	/* On 455HD, the interrupt has been reworked and is forced to be also
 	 * connected to this "floating_gpio" which has to be configured as
 	 * input as not to influence the interrupt line
 	 */
-	floating_gpio = of_get_named_gpio(ft5x0x_ts->client->dev.of_node,
-					  "floating-gpio", 0);
-	if (gpio_is_valid(floating_gpio)) {
-		ret = devm_gpio_request_one(&ft5x0x_ts->client->dev,
-					    floating_gpio, GPIOF_IN,
-					    "ts-int-floating");
-		if (ret)
-			pr_err("%s: could not request floating GPIO %d\n",
-			       __func__, floating_gpio);
-		else
-			pr_info("%s: successfully requested floating GPIO %d\n",
-				__func__, floating_gpio);
-	}
+	floating_desc = devm_gpiod_get_optional(dev, "floating", GPIOD_IN);
+	if (IS_ERR(floating_desc))
+		pr_err("%s: could not request floating GPIO\n", __func__);
+	else if (floating_desc)
+		pr_info("%s: successfully requested floating GPIO\n", __func__);
 
-	return ret;
+	return 0;
 }
 
 #ifdef FT5336_DOWNLOAD
@@ -446,18 +428,20 @@ static int ft5x0x_ts_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, ft5x0x_ts);
 
-	ft5x0x_ts->irq = of_get_named_gpio(client->dev.of_node, "int-gpio", 0);
-	if (ft5x0x_ts->irq < 0 || !gpio_is_valid(ft5x0x_ts->irq)) {
-		pr_err("%s: irq GPIO %d not valid\n", __func__,
-		       ft5x0x_ts->irq);
-		err = -1;
-		goto exit_alloc_data_failed;
-	}
-	ft5x0x_ts->irq = gpio_to_irq(ft5x0x_ts->irq);
-	if (ft5x0x_ts->irq < 0) {
-		pr_err("%s: gpio to irq failed\n", __func__);
-		err = ft5x0x_ts->irq;
-		goto exit_alloc_data_failed;
+	{
+		struct gpio_desc *irq_desc = devm_gpiod_get(&client->dev,
+							    "int", GPIOD_IN);
+		if (IS_ERR(irq_desc)) {
+			pr_err("%s: irq GPIO not valid\n", __func__);
+			err = PTR_ERR(irq_desc);
+			goto exit_alloc_data_failed;
+		}
+		ft5x0x_ts->irq = gpiod_to_irq(irq_desc);
+		if (ft5x0x_ts->irq < 0) {
+			pr_err("%s: gpio to irq failed\n", __func__);
+			err = ft5x0x_ts->irq;
+			goto exit_alloc_data_failed;
+		}
 	}
 
 	ft5x0x_ts->client = client;

@@ -43,8 +43,6 @@
 #include <linux/timer.h>
 #include <linux/input/mt.h>
 //#include <linux/switch.h>
-#include <linux/gpio.h>
-#include <linux/of_gpio.h>
 #if TPD_PROXIMITY
   #include <linux/hwmsensor.h>
   #include <linux/hwmsen_dev.h>
@@ -709,41 +707,22 @@ irqreturn_t fts_ts_interrupt(int irq, void *dev_id)
 void
 fts_reset_tp(int high_or_low)
 {
-	if (fts_wq_data->rst_gpio >= 0) {
+	if (!IS_ERR_OR_NULL(fts_wq_data->rst_gpio)) {
 		pr_info("[Focal] %s : set tp reset pin to %d\n", __func__,
 			high_or_low);
-		gpio_set_value(fts_wq_data->rst_gpio, high_or_low);
+		gpiod_set_value(fts_wq_data->rst_gpio, high_or_low);
 	}
 }
 
 static int
 fts_init_gpio_hw(struct fts_ts_data *fts_wq_data)
 {
-	int ret = 0;
-
-	ret = gpio_request(fts_wq_data->rst_gpio, FTS_RESET_PIN_NAME);
-	if (ret) {
-		dev_err(fts_wq_data->dev,
-			"%s: request GPIO %s for reset failed %d\n",
-		       __func__, FTS_RESET_PIN_NAME, ret);
-		return ret;
-	}
-	/* change reset to high */
-	ret = gpio_direction_output(fts_wq_data->rst_gpio, 1);
-	if (ret) {
-		dev_err(fts_wq_data->dev,
-			"%s: set %s gpio to out put high failed %d\n",
-		       __func__, FTS_RESET_PIN_NAME, ret);
-		return ret;
-	}
-
-	return ret;
+	return gpiod_direction_output(fts_wq_data->rst_gpio, 1);
 }
 
 static void
 fts_un_init_gpio_hw(struct fts_ts_data *fts_wq_data)
 {
-	gpio_free(fts_wq_data->rst_gpio);
 }
 
 static int
@@ -770,30 +749,18 @@ focaltech_parse_dt(struct fts_ts_data *dev_data)
 	}
 	dev_data->y_max = tmp;
 
-	gpio = of_get_named_gpio(pnode, "int-gpio", 0);
-	if (gpio < 0) {
-		dev_err(dev_data->dev,
-			"failed to get interrupt gpio\n");
-		return -EINVAL;
+	dev_data->irq_gpio = devm_gpiod_get(dev_data->dev, "int", GPIOD_IN);
+	if (IS_ERR(dev_data->irq_gpio)) {
+		dev_err(dev_data->dev, "failed to get interrupt gpio\n");
+		return PTR_ERR(dev_data->irq_gpio);
 	}
-	if (!gpio_is_valid(gpio)) {
-		dev_err(dev_data->dev, "interrupt gpio %d is not valid\n",
-			gpio);
-		return -EINVAL;
-	}
-	dev_data->irq = gpio;
+	dev_data->irq = gpiod_to_irq(dev_data->irq_gpio);
 
-	gpio = of_get_named_gpio(pnode, "rst-gpio", 0);
-	if (gpio < 0) {
-		dev_warn(dev_data->dev,
-			"failed to get reset gpio\n");
-		dev_data->rst_gpio = -1;
-	} else if (!gpio_is_valid(gpio)) {
-		dev_err(dev_data->dev, "reset gpio %d is not valid\n",
-			tmp);
-		return -EINVAL;
-	} else {
-		dev_data->rst_gpio = gpio;
+	dev_data->rst_gpio = devm_gpiod_get_optional(dev_data->dev, "rst",
+						      GPIOD_ASIS);
+	if (IS_ERR(dev_data->rst_gpio)) {
+		dev_warn(dev_data->dev, "failed to get reset gpio\n");
+		dev_data->rst_gpio = NULL;
 	}
 
 	return 0;
@@ -845,18 +812,11 @@ fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (0 >= fts_wq_data->y_max)
 		fts_wq_data->y_max = TOUCH_MAX_Y;
 
-	if (fts_wq_data->rst_gpio >= 0 && fts_init_gpio_hw(fts_wq_data) < 0)
+	if (!IS_ERR_OR_NULL(fts_wq_data->rst_gpio) &&
+	    fts_init_gpio_hw(fts_wq_data) < 0)
 		goto exit_init_gpio;
 
-	if (gpio_request(fts_wq_data->irq, FTS_INT_PIN_NAME)) {
-		dev_err(&client->dev,
-			"%s: gpio %d request for interrupt fail.\n",
-			__func__, fts_wq_data->irq);
-		goto exit_irq_request_failed;
-	}
-	gpio_direction_input(fts_wq_data->irq);
-
-	fts_wq_data->client->irq = gpio_to_irq(fts_wq_data->irq);
+	fts_wq_data->client->irq = fts_wq_data->irq;
 	err = request_threaded_irq(fts_wq_data->client->irq, NULL,
 				   fts_ts_interrupt,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -1017,8 +977,9 @@ fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	dev_info(fts_wq_data->dev, "client name %s, irq %d\n",
 		 client->name, client->irq);
 	dev_info(fts_wq_data->dev,
-		 "X-RES %d, Y-RES %d, RST gpio %d, gpio irq %d, client irq %d\n",
-		 fts_wq_data->x_max, fts_wq_data->y_max, fts_wq_data->rst_gpio,
+		 "X-RES %d, Y-RES %d, RST gpio %s, irq %d, client irq %d\n",
+		 fts_wq_data->x_max, fts_wq_data->y_max,
+		 !IS_ERR_OR_NULL(fts_wq_data->rst_gpio) ? "ok" : "none",
 		 fts_wq_data->irq, fts_wq_data->client->irq);
 
 	return 0;
@@ -1029,7 +990,7 @@ exit_input_dev_alloc_failed:
 	free_irq(client->irq, fts_wq_data);
 
 exit_init_gpio:
-	if (fts_wq_data->rst_gpio >= 0)
+	if (!IS_ERR_OR_NULL(fts_wq_data->rst_gpio))
 		fts_un_init_gpio_hw(fts_wq_data);
 
 exit_irq_request_failed:
@@ -1136,10 +1097,10 @@ fts_ts_resume(struct early_suspend *handler)
 	queue_delayed_work(gtp_esd_check_workqueue, &gtp_esd_check_work,
 			   TPD_ESD_CHECK_CIRCLE);
 #endif
-	if (ts->rst_gpio >= 0) {
-		gpio_set_value(ts->rst_gpio, 0);
+	if (!IS_ERR_OR_NULL(ts->rst_gpio)) {
+		gpiod_set_value(ts->rst_gpio, 0);
 		msleep(20);
-		gpio_set_value(ts->rst_gpio, 1);
+		gpiod_set_value(ts->rst_gpio, 1);
 	}
 	msleep(300);
 	enable_irq(ts->intr_gpio);
@@ -1163,10 +1124,6 @@ static int fts_ts_remove(struct i2c_client *client)
 	fts_wq_data = i2c_get_clientdata(client);
 	input_unregister_device(fts_wq_data->input_dev);
 
-#ifdef CONFIG_PM
-	if (fts_wq_data->rst_gpio >= 0)
-		gpio_free(fts_wq_data->rst_gpio);
-#endif
 #if FTS_CTL_IIC_EN
 	fts_rw_iic_drv_exit();
 #endif

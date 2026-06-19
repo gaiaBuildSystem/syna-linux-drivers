@@ -23,6 +23,7 @@
 *   Created: 2015-01-29
 *******************************************************************************/
 
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/semaphore.h>
@@ -171,7 +172,8 @@ struct fts_ts_data {
 	u8 fw_vendor_id;
 	int touchs;
 
-	int rst_gpio;
+	struct gpio_desc *rst_gpio;
+	struct gpio_desc *irq_gpio;
 	int intr_gpio;
 	uint16_t version;
 

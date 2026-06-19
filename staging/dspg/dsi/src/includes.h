@@ -29,8 +29,7 @@
 #include <linux/mm.h>
 #include <linux/uaccess.h>
 #include <linux/i2c.h>
-#include <linux/gpio.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <asm/io.h>
 
@@ -118,7 +117,7 @@ struct mipi_dsi_dev {
 	dsih_cmd_mode_video_t   cmd_mode_video_old;
 	/* parameter count is included in first two bytes for long writes */
 	u8		cmd_buf[MIPI_DSIH_MAX_PARAMS + 2];
-	int		reset_gpio_panel;
+	struct gpio_desc *reset_gpio_panel;
 	bool		read_display_status;
 	/* LDO DSI regulator */
 	struct regulator *ldo_dsi;
