@@ -418,7 +418,6 @@ static int syna_drm_suspend(struct device *dev)
 	avio_set_fastlogo_status(0);
 
 	ddev = platform_get_drvdata(to_platform_device(dev));
-	drm_fb_helper_set_suspend_unlocked(ddev->fb_helper, 1);
 	drm_mode_config_helper_suspend(ddev);
 
 	return 0;
@@ -432,7 +431,7 @@ static int syna_drm_resume(struct device *dev)
 
 	ddev = platform_get_drvdata(to_platform_device(dev));
 	drm_mode_config_helper_resume(ddev);
-	drm_fb_helper_set_suspend_unlocked(ddev->fb_helper, 0);
+
 	return 0;
 }
 
