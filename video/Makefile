@@ -5,3 +5,7 @@
 obj-$(CONFIG_SYNAPTICS_VIDEO) 		+= syna/
 obj-y								+= backlight/
 obj-y								+= fbdev/
+
+ifdef CONFIG_SYNAPTICS_VIDEO
+$(error Remember we disable: source "drivers/synaptics/gpu/arm/mali/Kconfig")
+endif
