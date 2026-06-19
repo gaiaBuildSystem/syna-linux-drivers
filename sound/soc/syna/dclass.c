@@ -771,8 +771,8 @@ static void dclass_pcm_free(struct snd_soc_component *component,
 
 static const struct snd_soc_component_driver dclass_pcm_component = {
 	.name		= "syna-dclass-pcm",
-	.pcm_construct	= dclass_pcm_new,
-	.pcm_destruct	= dclass_pcm_free,
+	.pcm_new	= dclass_pcm_new,
+	.pcm_free	= dclass_pcm_free,
 	.open		= dclass_pcm_open,
 	.close		= dclass_pcm_close,
 	.hw_params	= dclass_pcm_hw_params,

@@ -1339,8 +1339,8 @@ static void drt_pcm_free(struct snd_soc_component *component,
 
 static const struct snd_soc_component_driver drt_pcm_component = {
 	.name		= "syna-drt-pcm",
-	.pcm_construct	= drt_pcm_new,
-	.pcm_destruct	= drt_pcm_free,
+	.pcm_new	= drt_pcm_new,
+	.pcm_free	= drt_pcm_free,
 	.open		= drt_pcm_open,
 	.close		= drt_pcm_close,
 	.hw_params	= drt_pcm_hw_params,

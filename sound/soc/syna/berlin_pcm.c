@@ -573,8 +573,8 @@ static struct snd_kcontrol_new berlin_pcm_controls[] = {
 
 static struct snd_soc_component_driver berlin_pcm_component = {
 	.name		= "syna-berlin-pcm",
-	.pcm_construct = berlin_pcm_new,
-	.pcm_destruct = berlin_pcm_free,
+	.pcm_new = berlin_pcm_new,
+	.pcm_free = berlin_pcm_free,
 	.open		= berlin_pcm_open,
 	.close		= berlin_pcm_close,
 	.hw_params	= berlin_pcm_hw_params,
