@@ -379,11 +379,11 @@ fail:
 int
 dhd_wlan_deinit(void)
 {
-	if (gpio_is_valid(wlan_host_wake_up))
-		gpio_free(wlan_host_wake_up);
+	if (wlan_host_wake_up)
+		gpiod_put(wlan_host_wake_up);
 
-	if (gpio_is_valid(wlan_reg_on))
-		gpio_free(wlan_reg_on);
+	if (wlan_reg_on)
+		gpiod_put(wlan_reg_on);
 	return 0;
 }
 #ifndef BCMDHD_MODULAR

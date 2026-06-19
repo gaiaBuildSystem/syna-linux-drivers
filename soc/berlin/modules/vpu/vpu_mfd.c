@@ -45,7 +45,6 @@ struct syna_vpu_mfd_parent {
 
 static struct platform_driver syna_vpu_driver;
 
-static DEFINE_MUTEX(vpu_firmware_mutex);
 
 static const struct syna_vpu_variant vpu_v4g_data = {
 	.hw_type = VPU_V2G,
