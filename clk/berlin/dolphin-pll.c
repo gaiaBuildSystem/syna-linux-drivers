@@ -16,6 +16,7 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #include <linux/of_device.h>
 
 #include "clk.h"
@@ -695,15 +696,43 @@ dolphin_pll_clko_set_rate(struct clk_hw *hw, unsigned long rate,
 	return ret;
 }
 
+static int dolphin_pll_clko_determine_rate(struct clk_hw *hw,
+					   struct clk_rate_request *req)
+{
+	long rate = dolphin_pll_clko_round_rate(hw, req->rate,
+						&req->best_parent_rate);
+	if (rate < 0)
+		return rate;
+	req->rate = rate;
+	return 0;
+}
+
+static int dolphin_pll_clko1_determine_rate(struct clk_hw *hw,
+					    struct clk_rate_request *req)
+{
+	long rate = dolphin_pll_clko1_round_rate(hw, req->rate,
+						 &req->best_parent_rate);
+	if (rate < 0)
+		return rate;
+	req->rate = rate;
+	return 0;
+}
+
 static const struct clk_ops dolphin_pll_clko_ops = {
 	.recalc_rate	= dolphin_pll_clko_recalc_rate,
+	.determine_rate	= dolphin_pll_clko_determine_rate,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate	= dolphin_pll_clko_round_rate,
+#endif
 	.set_rate	= dolphin_pll_clko_set_rate,
 };
 
 static const struct clk_ops dolphin_pll_clko1_ops = {
 	.recalc_rate	= dolphin_pll_clko1_recalc_rate,
+	.determine_rate	= dolphin_pll_clko1_determine_rate,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate	= dolphin_pll_clko1_round_rate,
+#endif
 	.set_rate	= dolphin_pll_clko1_set_rate,
 };
 

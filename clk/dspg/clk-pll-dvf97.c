@@ -20,6 +20,7 @@
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/of.h>
+#include <linux/version.h>
 
 #include "clk-pll.h"
 
@@ -212,6 +213,32 @@ static long _dvf97_pll_round_rate(unsigned long in_rate, unsigned long rate,
 	return match_rate;
 }
 
+static int dvf97_pll_determine_rate(struct clk_hw *hw,
+				    struct clk_rate_request *req)
+{
+	struct dspg_pll *pll = to_dspg_pll(hw);
+	struct dspg_pll_precomp *precomp = pll->precomp;
+	long rate;
+	int i;
+
+	for (i = 0; i < pll->precomp_count; i++) {
+		if (req->best_parent_rate == precomp->in &&
+		    req->rate == precomp->out_desired) {
+			req->rate = precomp->out_actual;
+			return 0;
+		}
+		precomp++;
+	}
+
+	rate = _dvf97_pll_round_rate(req->best_parent_rate, req->rate,
+				     NULL, NULL, NULL);
+	if (rate < 0)
+		return rate;
+	req->rate = rate;
+	return 0;
+}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 static long dvf97_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 				 unsigned long *parent_rate)
 {
@@ -228,6 +255,7 @@ static long dvf97_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 
 	return _dvf97_pll_round_rate(*parent_rate, rate, NULL, NULL, NULL);
 }
+#endif
 
 static int dvf97_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 			      unsigned long parent_rate)
@@ -265,7 +293,10 @@ static const struct clk_ops dspg_dvf97_pll_ops = {
 	.disable = dvf97_pll_disable,
 	.is_enabled = dvf97_pll_is_enabled,
 	.recalc_rate = dvf97_pll_recalc_rate,
+	.determine_rate = dvf97_pll_determine_rate,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate = dvf97_pll_round_rate,
+#endif
 	.set_rate = dvf97_pll_set_rate,
 };
 

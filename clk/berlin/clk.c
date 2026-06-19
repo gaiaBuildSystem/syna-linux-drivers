@@ -139,7 +139,6 @@ static long berlin_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 	return parent / div;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,5,0))
 static int berlin_clk_determine_rate(struct clk_hw *hw, struct clk_rate_request *req)
 {
 	long rate;
@@ -151,7 +150,6 @@ static int berlin_clk_determine_rate(struct clk_hw *hw, struct clk_rate_request 
 	req->rate = rate;
 	return 0;
 }
-#endif
 
 static int berlin_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 			    unsigned long parent_rate)
@@ -229,13 +227,13 @@ static int berlin_clk_is_enabled(struct clk_hw *hw)
 }
 
 static const struct clk_ops berlin_clk_ops = {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,5,0))
 	.determine_rate	= berlin_clk_determine_rate,
-#endif
 	.recalc_rate	= berlin_clk_recalc_rate,
 	.get_parent	= berlin_clk_get_parent,
 	.set_parent	= berlin_clk_set_parent,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate	= berlin_clk_round_rate,
+#endif
 	.set_rate	= berlin_clk_set_rate,
 	.enable		= berlin_clk_enable,
 	.disable	= berlin_clk_disable,

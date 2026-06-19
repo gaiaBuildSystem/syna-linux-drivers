@@ -23,6 +23,7 @@
 #include <linux/err.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/version.h>
 
 #include "clk-common.h"
 #include "clk-gate.h"
@@ -61,6 +62,31 @@ static unsigned long clk_divider_recalc_rate(struct clk_hw *hw,
 /*
  * try to round to the requested rate but do not get below it
  */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,5,0))
+static int clk_divider_determine_rate(struct clk_hw *hw,
+				      struct clk_rate_request *req)
+{
+	struct clk_rate_request tmp_req;
+	unsigned long target = req->rate;
+	unsigned long tmp_rate = target;
+	unsigned long prate = req->best_parent_rate;
+
+	do {
+		tmp_req = *req;
+		tmp_req.rate = tmp_rate;
+		if (clk_divider_ops.determine_rate(hw, &tmp_req))
+			break;
+		tmp_rate++;
+	} while (tmp_req.rate < target && tmp_rate <= prate);
+
+	req->rate = tmp_req.rate;
+	req->best_parent_rate = tmp_req.best_parent_rate;
+	req->best_parent_hw = tmp_req.best_parent_hw;
+	return 0;
+}
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 static long clk_divider_round_rate(struct clk_hw *hw, unsigned long rate,
 				unsigned long *prate)
 {
@@ -75,6 +101,7 @@ static long clk_divider_round_rate(struct clk_hw *hw, unsigned long rate,
 
 	return rrate;
 }
+#endif
 
 static int clk_divider_set_rate(struct clk_hw *hw, unsigned long rate,
 				unsigned long parent_rate)
@@ -84,7 +111,12 @@ static int clk_divider_set_rate(struct clk_hw *hw, unsigned long rate,
 
 static const struct clk_ops dspg_clk_divider_ops = {
 	.recalc_rate = clk_divider_recalc_rate,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,5,0))
+	.determine_rate = clk_divider_determine_rate,
+#endif
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate = clk_divider_round_rate,
+#endif
 	.set_rate = clk_divider_set_rate,
 };
 

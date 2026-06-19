@@ -23,6 +23,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 #include <dt-bindings/clk/dvf101-clk.h>
 
 #define DVF_TX_PAD_SRC_SEL(x)	(((x) & 0x3) << 30)
@@ -415,6 +416,16 @@ dvf_eth_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 	return int_rate;
 }
 
+static int dvf_eth_clk_determine_rate(struct clk_hw *hw,
+				      struct clk_rate_request *req)
+{
+	long rate = dvf_eth_clk_round_rate(hw, req->rate, &req->best_parent_rate);
+	if (rate < 0)
+		return rate;
+	req->rate = rate;
+	return 0;
+}
+
 static const struct clk_ops dspg_dvf_eth_clk_ops = {
 	.prepare = dvf_eth_clk_prepare,
 	.enable = dvf_eth_clk_enable,
@@ -422,7 +433,10 @@ static const struct clk_ops dspg_dvf_eth_clk_ops = {
 	.is_enabled = dvf_eth_clk_is_enabled,
 	.set_rate = dvf_eth_clk_set_rate,
 	.recalc_rate = dvf_eth_clk_recalc_rate,
+	.determine_rate = dvf_eth_clk_determine_rate,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate = dvf_eth_clk_round_rate,
+#endif
 };
 
 static int
@@ -825,6 +839,17 @@ dvf101_eth_clk_set_phase(struct clk_hw *hw, int degrees)
 	return ret;
 }
 
+static int dvf101_eth_clk_determine_rate(struct clk_hw *hw,
+					 struct clk_rate_request *req)
+{
+	long rate = dvf101_eth_clk_round_rate(hw, req->rate,
+					      &req->best_parent_rate);
+	if (rate < 0)
+		return rate;
+	req->rate = rate;
+	return 0;
+}
+
 static const struct clk_ops dspg_dvf101_eth_clk_ops = {
 	.prepare = dvf101_eth_clk_prepare,
 	.unprepare = dvf101_eth_clk_unprepare,
@@ -834,7 +859,10 @@ static const struct clk_ops dspg_dvf101_eth_clk_ops = {
 	.set_rate = dvf101_eth_clk_set_rate,
 	.set_phase = dvf101_eth_clk_set_phase,
 	.recalc_rate = dvf101_eth_clk_recalc_rate,
+	.determine_rate = dvf101_eth_clk_determine_rate,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
 	.round_rate = dvf101_eth_clk_round_rate,
+#endif
 };
 
 static const struct of_device_id dspg_eth_clk_of_match[] = {

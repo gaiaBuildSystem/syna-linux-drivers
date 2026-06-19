@@ -16,6 +16,7 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
+#include <linux/version.h>
 
 #include "clk.h"
 
@@ -349,10 +350,24 @@ as370_pll_clko_set_rate(struct clk_hw *hw, unsigned long rate,
 	return 0;
 }
 
+static int as370_pll_clko_determine_rate(struct clk_hw *hw,
+					 struct clk_rate_request *req)
+{
+	long rate = as370_pll_clko_round_rate(hw, req->rate,
+					      &req->best_parent_rate);
+	if (rate < 0)
+		return rate;
+	req->rate = rate;
+	return 0;
+}
+
 static const struct clk_ops as370_pll_clko_ops = {
 	.recalc_rate	= as370_pll_clko_recalc_rate,
-	.round_rate		= as370_pll_clko_round_rate,
-	.set_rate		= as370_pll_clko_set_rate,
+	.determine_rate	= as370_pll_clko_determine_rate,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7,1,0))
+	.round_rate	= as370_pll_clko_round_rate,
+#endif
+	.set_rate	= as370_pll_clko_set_rate,
 };
 
 static const struct clk_ops as370_pll_clko1_ops = {
