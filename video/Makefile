@@ -8,4 +8,5 @@ obj-y								+= fbdev/
 
 ifdef CONFIG_SYNAPTICS_VIDEO
 $(error Remember we disable: source "drivers/synaptics/gpu/arm/mali/Kconfig")
+$(error Remember we disable: source "drivers/synaptics/gpu/vivante/Kconfig")
 endif

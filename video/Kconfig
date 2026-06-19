@@ -21,6 +21,6 @@ source "drivers/synaptics/gpu/dsi/Kconfig"
 
 # source "drivers/synaptics/gpu/arm/mali/Kconfig"
 
-source "drivers/synaptics/gpu/vivante/Kconfig"
+# source "drivers/synaptics/gpu/vivante/Kconfig"
 
 endif
