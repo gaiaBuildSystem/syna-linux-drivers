@@ -3,6 +3,7 @@
 # Makefile for the Linux Wireless network device drivers.
 #
 
+subdir-ccflags-y += -Wno-error
 
 obj-$(CONFIG_BCMDHD)	+= bcmdhd/
 obj-$(CONFIG_BCMDHD103)	+= bcmdhd103/

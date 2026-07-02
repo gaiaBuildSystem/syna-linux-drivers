@@ -593,7 +593,11 @@ wl_cfgoce_has_ie(const u8 *ie, const u8 **tlvs, u32 *tlvs_len, const u8 *oui, u3
 /*
  * cfg80211_ops api/callback list
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy, int radio_idx, u32 changed);
+#else
 static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0) */
 #ifdef WLAIBSS_MCHAN
 static bcm_struct_cfgdev* bcm_cfg80211_add_ibss_if(struct wiphy *wiphy, char *name);
 static s32 bcm_cfg80211_del_ibss_if(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev);
@@ -602,7 +606,11 @@ static s32 wl_cfg80211_join_ibss(struct wiphy *wiphy, struct net_device *dev,
 	struct cfg80211_ibss_params *params);
 static s32 wl_cfg80211_leave_ibss(struct wiphy *wiphy,
 	struct net_device *dev);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int wl_cfg80211_get_station(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const u8 *mac,
+	struct station_info *sinfo);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
 static s32 wl_cfg80211_get_station(struct wiphy *wiphy,
 	struct net_device *dev, const u8 *mac,
 	struct station_info *sinfo);
@@ -624,8 +632,13 @@ static s32 wl_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	u16 reason_code);
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static s32
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+wl_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int radio_idx, enum nl80211_tx_power_setting type, s32 mbm);
+#else
 wl_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
 	enum nl80211_tx_power_setting type, s32 mbm);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0) */
 #else
 static s32
 wl_cfg80211_set_tx_power(struct wiphy *wiphy,
@@ -634,7 +647,10 @@ wl_cfg80211_set_tx_power(struct wiphy *wiphy,
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static int wl_cfg80211_get_tx_power(struct wiphy *wiphy,
 	struct wireless_dev *wdev,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	int radio_idx,
+	unsigned int link_id,
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	uint link_id,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0) */
 	int *dbm);
@@ -647,6 +663,18 @@ static s32 wl_cfg80211_config_default_key(struct wiphy *wiphy,
 	int link_id,
 #endif /* LINUX_VER >= 6.1 || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool unicast, bool multicast);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+static int wl_cfg80211_add_key(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int link_id, u8 key_idx, bool pairwise, const u8 *mac_addr,
+	struct key_params *params);
+static int wl_cfg80211_del_key(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int link_id, u8 key_idx, bool pairwise, const u8 *mac_addr);
+static int wl_cfg80211_get_key(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int link_id, u8 key_idx, bool pairwise, const u8 *mac_addr,
+	void *cookie, void (*callback)(void *cookie, struct key_params *params));
+static int wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
+	struct wireless_dev *wdev, int link_id, u8 key_idx);
+#else
 static s32 wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
@@ -671,11 +699,15 @@ static s32 wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	int link_id,
 #endif /* LINUX_VER >= 6.1 || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0) */
 #if defined(WL_SUPPORT_BACKPORTED_KPATCHES) || \
 	(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0))
 static s32 wl_cfg80211_mgmt_tx_cancel_wait(struct wiphy *wiphy,
 	bcm_struct_cfgdev *cfgdev, u64 cookie);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int wl_cfg80211_del_station(struct wiphy *wiphy,
+	struct wireless_dev *wdev, struct station_del_parameters *params);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
 static s32 wl_cfg80211_del_station(
 		struct wiphy *wiphy, struct net_device *ndev,
 		struct station_del_parameters *params);
@@ -687,7 +719,10 @@ static s32 wl_cfg80211_del_station(struct wiphy *wiphy,
 
 	struct net_device *ndev, u8* mac_addr);
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int wl_cfg80211_change_station(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const u8 *mac, struct station_parameters *params);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
 static s32 wl_cfg80211_change_station(struct wiphy *wiphy,
 	struct net_device *dev, const u8 *mac, struct station_parameters *params);
 #else
@@ -3333,7 +3368,11 @@ static s32 wl_set_retry(struct net_device *dev, u32 retry, bool l)
 	return err;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy, int radio_idx, u32 changed)
+#else
 static s32 wl_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0) */
 {
 	struct bcm_cfg80211 *cfg = (struct bcm_cfg80211 *)wiphy_priv(wiphy);
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
@@ -7447,8 +7486,13 @@ exit:
 
 #if defined(WL_CFG80211_P2P_DEV_IF)
 static s32
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+wl_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int radio_idx, enum nl80211_tx_power_setting type, s32 mbm)
+#else
 wl_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
 	enum nl80211_tx_power_setting type, s32 mbm)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0) */
 #else
 static s32
 wl_cfg80211_set_tx_power(struct wiphy *wiphy,
@@ -7499,7 +7543,10 @@ static s32 wl_cfg80211_get_tx_power(struct wiphy *wiphy,
 #if defined(WL_CFG80211_P2P_DEV_IF)
 	struct wireless_dev *wdev,
 #endif /* WL_CFG80211_P2P_DEV_IF */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	int radio_idx,
+	unsigned int link_id,
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
 	uint link_id,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0) */
 	s32 *dbm)
@@ -7767,6 +7814,12 @@ wl_cfg80211_block_arp(struct net_device *dev, int enable)
 }
 #endif /* PKT_FILTER_SUPPORT && APSTA_BLOCK_ARP_DURING_DHCP */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+static int
+wl_cfg80211_add_key(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int link_id, u8 key_idx, bool pairwise, const u8 *mac_addr,
+	struct key_params *params)
+#else
 static s32
 wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
@@ -7774,6 +7827,7 @@ wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 #endif /* LINUX_VER >= 6.1 || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
 	struct key_params *params)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0) */
 {
 	struct wl_wsec_key key = {0};
 	s32 val = 0;
@@ -7782,6 +7836,9 @@ wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	u8 keybuf[8];
 	s32 bssidx = 0;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	struct net_device *dev = wdev->netdev;
+#endif
 	s32 mode = wl_get_mode_by_netdev(cfg, dev);
 	uint8 iov_buf[WLC_IOCTL_SMLEN] = {0};
 #ifdef WL_GCMP
@@ -8029,17 +8086,26 @@ exit:
 	return err;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+static int
+wl_cfg80211_del_key(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int link_id, u8 key_idx, bool pairwise, const u8 *mac_addr)
+#else
 static s32
 wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
 #endif /* LINUX_VER >= 6.1 || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0) */
 {
 	struct wl_wsec_key key = {0};
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	s32 err = 0;
 	s32 bssidx;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	struct net_device *dev = wdev->netdev;
+#endif
 #ifdef BCMDONGLEHOST
 	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
 #endif /* BCMDONGLEHOST */
@@ -8099,6 +8165,12 @@ wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 }
 
 /* NOTE : this function cannot work as is and is never called */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+static int
+wl_cfg80211_get_key(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int link_id, u8 key_idx, bool pairwise, const u8 *mac_addr, void *cookie,
+	void (*callback)(void *cookie, struct key_params *params))
+#else
 static s32
 wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
@@ -8106,6 +8178,7 @@ wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 #endif /* LINUX_VER >= 6.1 || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr, void *cookie,
 	void (*callback) (void *cookie, struct key_params * params))
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0) */
 {
 	struct key_params params;
 	struct wl_wsec_key key = {0};
@@ -8114,6 +8187,9 @@ wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	s32 wsec;
 	s32 err = 0;
 	s32 bssidx;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	struct net_device *dev = wdev->netdev;
+#endif
 
 	if ((bssidx = wl_get_bssidx_by_wdev(cfg, dev->ieee80211_ptr)) < 0) {
 		WL_ERR(("Find p2p index from wdev(%p) failed\n", dev->ieee80211_ptr));
@@ -8176,6 +8252,11 @@ wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	return err;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+static int
+wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
+	struct wireless_dev *wdev, int link_id, u8 key_idx)
+#else
 static s32
 wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	struct net_device *dev,
@@ -8183,6 +8264,7 @@ wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	int link_id,
 #endif /* LINUX_VER >= 6.1 || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0) */
 {
 #ifdef MFP
 	/* Firmware seems to use hard coded index for Group Mgmt Key.
@@ -8616,15 +8698,24 @@ fail:
 }
 #undef IF_COUNTERS_PARAM_CONTAINER_LEN_MAX
 
-static s32 wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
-	const u8 *mac,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int
+wl_cfg80211_get_station(struct wiphy *wiphy, struct wireless_dev *wdev,
+	const u8 *mac, struct station_info *sinfo)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
+static s32
+wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
+	const u8 *mac, struct station_info *sinfo)
 #else
-	u8 *mac,
+static s32
+wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
+	u8 *mac, struct station_info *sinfo)
 #endif
-	struct station_info *sinfo)
 {
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	struct net_device *dev = wdev->netdev;
+#endif
 	s32 rssi = 0;
 	int i, cnt;
 #if defined(SUPPORT_RSSI_SUM_REPORT) && \
@@ -8985,13 +9076,22 @@ error:
 	return err;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int
+wl_cfg80211_dump_station(struct wiphy *wiphy, struct wireless_dev *wdev,
+	int idx, u8 *mac, struct station_info *sinfo)
+#else
 static int
 wl_cfg80211_dump_station(struct wiphy *wiphy, struct net_device *ndev,
 	int idx, u8 *mac, struct station_info *sinfo)
+#endif
 {
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct maclist *assoc_maclist = (struct maclist *)&(cfg->assoclist);
 	int err;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	struct net_device *ndev = wdev->netdev;
+#endif
 
 	WL_DBG(("%s: enter, idx=%d\n", __FUNCTION__, idx));
 
@@ -9008,7 +9108,11 @@ wl_cfg80211_dump_station(struct wiphy *wiphy, struct net_device *ndev,
 
 	if (idx < le32_to_cpu(cfg->assoclist.count)) {
 		(void)memcpy_s(mac, ETH_ALEN, cfg->assoclist.mac[idx], ETH_ALEN);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+		return wl_cfg80211_get_station(wiphy, wdev, mac, sinfo);
+#else
 		return wl_cfg80211_get_station(wiphy, ndev, mac, sinfo);
+#endif
 	}
 
 	return -ENOENT;
@@ -11019,7 +11123,12 @@ wl_cfg80211_macaddr_sync_reqd(struct net_device *dev)
 
 #if defined(WL_SUPPORT_BACKPORTED_KPATCHES) || \
 	(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0))
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int
+wl_cfg80211_del_station(
+		struct wiphy *wiphy, struct wireless_dev *wdev,
+		struct station_del_parameters *params)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
 static s32
 wl_cfg80211_del_station(
 		struct wiphy *wiphy, struct net_device *ndev,
@@ -11039,6 +11148,9 @@ wl_cfg80211_del_station(
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)) */
 {
 	struct net_device *dev;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	struct net_device *ndev = wdev->netdev;
+#endif
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	scb_val_t scb_val;
 	s8 eabuf[ETHER_ADDR_STR_LEN];
@@ -11164,7 +11276,14 @@ wl_cfg80211_post_scb_auth(struct bcm_cfg80211 *cfg, struct net_device *dev)
 /* Currently adding support only for authorize/de-authorize flag
  * Need to be extended in future
  */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+static int
+wl_cfg80211_change_station(
+	struct wiphy *wiphy,
+	struct wireless_dev *wdev,
+	const u8 *mac,
+	struct station_parameters *params)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
 static s32
 wl_cfg80211_change_station(
 	struct wiphy *wiphy,
@@ -11182,6 +11301,9 @@ wl_cfg80211_change_station(
 {
 	int err = BCME_OK;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	struct net_device *dev = wdev->netdev;
+#endif
 #ifdef BCMSUP_4WAY_HANDSHAKE
 	struct wl_security *sec;
 #endif /* BCMSUP_4WAY_HANDSHAKE */
