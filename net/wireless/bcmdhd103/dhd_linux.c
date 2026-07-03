@@ -16506,6 +16506,47 @@ dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unuse
 
 	BCM_REFERENCE(dhdp);
 	DHD_PRINT(("%s: code = %ld\n", __FUNCTION__, code));
+	pr_info("dhd_reboot_callback: ENTER code=%ld\n", code);
+
+	/*
+	 * This notifier runs from kernel_restart_prepare(), before
+	 * device_shutdown() walks any device's .shutdown() hook. DHD's
+	 * background threads (watchdog, DPC) are otherwise only quiesced
+	 * from dhd_stop()'s callers deep inside that device list
+	 * (wifi_plat_dev_drv_shutdown, dhd_detach), so on a real reboot
+	 * they keep touching the chip on their own schedule for the entire
+	 * device_shutdown() sequence and can wedge whichever device happens
+	 * to be shutting down when they fire.
+	 *
+	 * Mirror what upstream brcmfmac does in brcmf_sdio_remove(): disable
+	 * the SDIO interrupt and mark the bus down *first*, via the same
+	 * dhd_bus_stop() the DPC thread's own normal exit path already
+	 * calls. That makes the watchdog/DPC logic a no-op even if a thread
+	 * is still technically alive when device_shutdown() starts, instead
+	 * of racing to kill threads outright (which previously corrupted
+	 * driver state and caused a kernel panic when done out of order).
+	 */
+	if (dhdp && dhdp->info && dhdp->bus) {
+		dhd_info_t *dhd_info = (dhd_info_t *)dhdp->info;
+		unsigned long flags;
+		bool timer_valid;
+
+		dhd_bus_stop(dhdp->bus, TRUE);
+
+		DHD_GENERAL_LOCK(dhdp, flags);
+		timer_valid = dhd_info->wd_timer_valid;
+		dhd_info->wd_timer_valid = FALSE;
+		DHD_GENERAL_UNLOCK(dhdp, flags);
+		if (timer_valid)
+			del_timer_sync(&dhd_info->timer);
+
+		if ((dhd_info->dhd_state & DHD_ATTACH_STATE_THREADS_CREATED) &&
+		    dhd_info->thr_wdt_ctl.thr_pid >= 0) {
+			PROC_STOP(&dhd_info->thr_wdt_ctl);
+		}
+	}
+
+	pr_info("dhd_reboot_callback: watchdog stop done\n");
 
 #ifdef OEM_ANDROID
 	if (!OSL_ATOMIC_INC_AND_TEST(dhdp->osh, &reboot_in_progress)) {
@@ -26059,6 +26100,32 @@ void wifi_plat_dev_drv_shutdown(struct platform_device *pdev)
 		ASSERT(dhd_if->net);
 		if (dhd_if && dhd_if->net) {
 			dhd_stop(dhd_if->net);
+		}
+
+		/*
+		 * dhd_stop() does not stop the watchdog timer/thread; only
+		 * dhd_detach() does, and that only runs on module remove, not
+		 * on a plain system shutdown/reboot. Left running here, it
+		 * keeps touching the chip on its own periodic schedule,
+		 * unsynchronized with the rest of device_shutdown(), and can
+		 * wedge whichever device happens to be shutting down when it
+		 * fires. Stop it the same way dhd_detach() does.
+		 */
+		{
+			unsigned long flags;
+			bool timer_valid;
+
+			DHD_GENERAL_LOCK(dhd_pub, flags);
+			timer_valid = dhd_info->wd_timer_valid;
+			dhd_info->wd_timer_valid = FALSE;
+			DHD_GENERAL_UNLOCK(dhd_pub, flags);
+			if (timer_valid)
+				del_timer_sync(&dhd_info->timer);
+
+			if ((dhd_info->dhd_state & DHD_ATTACH_STATE_THREADS_CREATED) &&
+			    dhd_info->thr_wdt_ctl.thr_pid >= 0) {
+				PROC_STOP(&dhd_info->thr_wdt_ctl);
+			}
 		}
 	}
 }
