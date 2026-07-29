@@ -820,8 +820,7 @@ static int bsm_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	priv->bsm_thermal = thermal_zone_device_register("bsm_thermal", 0, 0,
-                                                   priv, &ops, NULL, 0, 0);
+	priv->bsm_thermal = devm_thermal_of_zone_register(dev, 0, priv, &ops);
 	if (IS_ERR(priv->bsm_thermal)) {
 		dev_warn(dev,
 			 "Failed to register thermal zone device\n");
@@ -841,11 +840,7 @@ static int bsm_probe(struct platform_device *pdev)
 
 static RET bsm_remove(struct platform_device *pdev)
 {
-	struct berlin_sm *priv = platform_get_drvdata(pdev);
 	misc_deregister(&sm_dev);
-
-	if (priv->bsm_thermal)
-		thermal_zone_device_unregister(priv->bsm_thermal);
 
 	RETURN;
 }
