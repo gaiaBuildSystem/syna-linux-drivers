@@ -57,6 +57,10 @@ typedef struct panel_desc_t {
 	struct drm_panel *sub_panel;
 } SYNA_PANEL_DESC;
 
+struct syna_dsi_panel {
+	struct drm_panel base;
+};
+
 static struct display_timing synaPanelTimings;
 static SYNA_PANEL_DESC  	synaPanelInfo;
 static 	struct drm_panel *dsi_panel;
@@ -203,6 +207,7 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 	int err = 0;
 	struct device *mipi_dev;
 	struct device_node *np;
+	struct syna_dsi_panel *panel_priv;
 
 	mipi_dev = devm_kmalloc(&pdev->dev, sizeof(struct device), GFP_KERNEL);
 	mipi_dev->of_node = of_find_compatible_node(NULL, NULL, "syna,drm-dsi");
@@ -212,9 +217,11 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	dsi_panel = devm_kzalloc(&pdev->dev, sizeof(struct drm_panel), GFP_KERNEL);
-	if (!dsi_panel)
-		return -ENOMEM;
+	panel_priv = devm_drm_panel_alloc(&pdev->dev, struct syna_dsi_panel, base,
+					   &syna_panel_dsi_funcs, DRM_MODE_CONNECTOR_DSI);
+	if (IS_ERR(panel_priv))
+		return PTR_ERR(panel_priv);
+	dsi_panel = &panel_priv->base;
 
 	of_property_read_u32(mipi_dev->of_node, "ACTIVE_WIDTH", &synaPanelInfo.panel_timing.hact);
 	of_property_read_u32(mipi_dev->of_node, "HFP", &synaPanelInfo.panel_timing.hfp);
@@ -294,9 +301,6 @@ int syna_panel_dsi_init(struct platform_device *pdev)
 
 	avio_module_mipirst_set_gpio_val(0);
 	gpiod_direction_output(synaPanelInfo.mipibl, 1);
-
-	drm_panel_init(dsi_panel, mipi_dev, &syna_panel_dsi_funcs,
-					DRM_MODE_CONNECTOR_DSI);
 
 	np = of_parse_phandle(mipi_dev->of_node, "backlight", 0);
 	if (np) {
