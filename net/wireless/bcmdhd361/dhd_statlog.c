@@ -681,7 +681,7 @@ dhd_statlog_stat_name(char *buf, uint32 buflen, uint32 state, uint8 dir)
 		break;
 	}
 
-	strncpy(buf, stat_str, max_buf_len);
+	strscpy(buf, stat_str, max_buf_len);
 	buf[max_buf_len - 1] = '\0';
 }
 

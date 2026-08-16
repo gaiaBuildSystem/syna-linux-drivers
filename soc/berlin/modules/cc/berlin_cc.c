@@ -122,7 +122,7 @@ static int berlin_cc_reg(struct berlin_cc_client *client,
 	node->pid = task_tgid_vnr(current);
 	get_task_comm(node->task_comm, current->group_leader);
 	node->threadid = task_pid_vnr(current);
-	strncpy(node->threadname, current->comm, TASK_COMM_LEN);
+	strscpy(node->threadname, current->comm, TASK_COMM_LEN);
 
 	down_write(&berlin_cc.rwsem);
 	if (info->m_ServiceID == BERLIN_CC_DYNAMIC_ID) {

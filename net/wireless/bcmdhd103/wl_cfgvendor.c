@@ -10682,7 +10682,7 @@ static int wl_cfgvendor_dbg_start_logging(struct wiphy *wiphy,
 		type = nla_type(iter);
 		switch (type) {
 			case DEBUG_ATTRIBUTE_RING_NAME:
-				strncpy(ring_name, nla_data(iter),
+				strscpy(ring_name, nla_data(iter),
 					MIN(sizeof(ring_name) -1, nla_len(iter)));
 				break;
 			case DEBUG_ATTRIBUTE_LOG_LEVEL:
@@ -16343,7 +16343,7 @@ wl_cfgvendor_simple_hang_event(struct net_device *dev, u16 reason)
 	dhd = (dhd_pub_t *)(cfg->pub);
 	memset_s(hang_reason_str, sizeof(hang_reason_str), 0, DHD_MEMDUMP_LONGSTR_LEN);
 	if (reason == HANG_REASON_DONGLE_TRAP && dhd->memdump_type == DUMP_TYPE_DONGLE_TRAP) {
-		strncpy(hang_reason_str, dhd->memdump_str, DHD_MEMDUMP_LONGSTR_LEN);
+		strscpy(hang_reason_str, dhd->memdump_str, DHD_MEMDUMP_LONGSTR_LEN);
 	} else {
 		dhd_convert_hang_reason_to_str(reason, hang_reason_str, DHD_MEMDUMP_LONGSTR_LEN);
 	}

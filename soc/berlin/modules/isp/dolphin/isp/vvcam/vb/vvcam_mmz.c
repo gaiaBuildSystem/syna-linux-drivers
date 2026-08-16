@@ -301,7 +301,7 @@ static int vvcam_mmz_alloc(struct file *file,
     if (mmb == NULL)
         return -1;
 
-    strncpy(mmb->name, name, sizeof(mmb->name));
+    strscpy(mmb->name, name, sizeof(mmb->name));
     mmb->private = file;
     list_add_tail(&mmb->list, &mmz->mmb_list);
 

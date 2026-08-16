@@ -8704,7 +8704,7 @@ static int wl_cfgvendor_dbg_start_logging(struct wiphy *wiphy,
 		type = nla_type(iter);
 		switch (type) {
 			case DEBUG_ATTRIBUTE_RING_NAME:
-				strncpy(ring_name, nla_data(iter),
+				strscpy(ring_name, nla_data(iter),
 					MIN(sizeof(ring_name) -1, nla_len(iter)));
 				break;
 			case DEBUG_ATTRIBUTE_LOG_LEVEL:

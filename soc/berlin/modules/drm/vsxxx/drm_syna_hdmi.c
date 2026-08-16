@@ -161,7 +161,7 @@ static int syna_hdmi_connector_helper_get_modes(struct drm_connector *connector)
 		/* load dummy edid as bootup without sink and no hpd handling enabled*/
 		num_modes = drm_add_modes_noedid(connector, 1920, 1080);
 		if (!len) {
-			strncpy(preferred_mode_name, "1920x1080", DRM_DISPLAY_MODE_LEN);
+			strscpy(preferred_mode_name, "1920x1080", DRM_DISPLAY_MODE_LEN);
 			len = strlen(preferred_mode_name);
 		}
 	} else {

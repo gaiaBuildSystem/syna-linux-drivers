@@ -9057,9 +9057,9 @@ dhd_update_iflist_info(dhd_pub_t *dhdp, struct net_device *ndev, int ifidx,
 		dhd_dev_priv_save(ndev, dhdinfo, ifp, ifidx);
 		/* initialize the dongle provided if name */
 		if (dngl_name) {
-			strncpy(ifp->dngl_name, dngl_name, IFNAMSIZ);
+			strscpy(ifp->dngl_name, dngl_name, IFNAMSIZ);
 		} else if (ndev->name[0] != '\0') {
-			strncpy(ifp->dngl_name, ndev->name, IFNAMSIZ);
+			strscpy(ifp->dngl_name, ndev->name, IFNAMSIZ);
 		}
 		if (mac != NULL) {
 			/* To and fro locations have same size - ETHER_ADDR_LEN */
@@ -9649,7 +9649,7 @@ dhd_lookup_map(osl_t *osh, char *fname, uint32 pc, char *pc_fn,
 			if (!(count & PC_FOUND_BIT) &&
 				(pc >= addr1 && pc < addr2)) {
 				if ((cptr = strchr(func1, '$')) != NULL) {
-					(void)strncpy(func, cptr + 1,
+					(void)strscpy(func, cptr + 1,
 						DHD_FUNC_STR_LEN - 1);
 				} else {
 					(void)memcpy_s(func, DHD_FUNC_STR_LEN,
@@ -9674,7 +9674,7 @@ dhd_lookup_map(osl_t *osh, char *fname, uint32 pc, char *pc_fn,
 			if (!(count & LR_FOUND_BIT) &&
 				(lr >= addr1 && lr < addr2)) {
 				if ((cptr = strchr(func1, '$')) != NULL) {
-					(void)strncpy(func, cptr + 1,
+					(void)strscpy(func, cptr + 1,
 						DHD_FUNC_STR_LEN - 1);
 				} else {
 					(void)memcpy_s(func, DHD_FUNC_STR_LEN,
@@ -12363,7 +12363,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_ERROR(("Firmware version = %s\n", buf));
-		strncpy(fw_version, buf, FW_VER_STR_LEN);
+		strscpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
@@ -12883,7 +12883,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 		} else {
 			char tokenlim;
 			char clm_ver_temp[CLM_VER_STR_LEN] = "\0";
-			strncpy(clm_ver_temp, clm_version, strlen(clm_version));
+			strscpy(clm_ver_temp, clm_version, strlen(clm_version));
 			ptr = (ver_temp_buf + strlen("Customization:"));
 			if ((ver_temp_buf = bcmstrtok(&ptr, "(\n", &tokenlim)) == NULL) {
 				DHD_ERROR(("Couldn't find project blob version"
@@ -13373,7 +13373,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_ERROR(("Firmware version = %s\n", buf));
-		strncpy(fw_version, buf, FW_VER_STR_LEN);
+		strscpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
@@ -26767,7 +26767,7 @@ dhd_dump_file_manage_idx(dhd_dump_file_manage_t *fm_ptr, char *fname)
 	}
 
 	if (strlen(fm_ptr->elems[fm_idx].type_name) == 0) {
-		strncpy(fm_ptr->elems[fm_idx].type_name, fname, DHD_DUMP_TYPE_NAME_SIZE);
+		strscpy(fm_ptr->elems[fm_idx].type_name, fname, DHD_DUMP_TYPE_NAME_SIZE);
 		fm_ptr->elems[fm_idx].type_name[DHD_DUMP_TYPE_NAME_SIZE - 1] = '\0';
 		fm_ptr->elems[fm_idx].file_idx = 0;
 	}
@@ -26820,7 +26820,7 @@ dhd_dump_file_manage_enqueue(dhd_pub_t *dhd, char *dump_path, char *fname)
 	}
 
 	/* save dump file path */
-	strncpy(elem->file_path[fp_idx], dump_path, DHD_DUMP_FILE_PATH_SIZE);
+	strscpy(elem->file_path[fp_idx], dump_path, DHD_DUMP_FILE_PATH_SIZE);
 	elem->file_path[fp_idx][DHD_DUMP_FILE_PATH_SIZE - 1] = '\0';
 
 	/* change file index to next file index */

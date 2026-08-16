@@ -293,9 +293,9 @@ static void hdmi_spd_infoframe_log(struct hdmi_spd_infoframe *frame)
 
 	memset(buf, 0, sizeof(buf));
 
-	strncpy(buf, frame->vendor, 8);
+	strscpy(buf, frame->vendor, sizeof(frame->vendor) + 1);
 	HRX_LOG(HRX_DRV_DEBUG, "Vendor: %s\n", buf);
-	strncpy(buf, frame->product, 16);
+	strscpy(buf, frame->product, sizeof(frame->product) + 1);
 	HRX_LOG(HRX_DRV_DEBUG, "Product: %s\n", buf);
 	HRX_LOG(HRX_DRV_DEBUG, "Source Device Information: %s (0x%x)\n",
 		hdmi_spd_sdi_get_name(frame->sdi), frame->sdi);
@@ -625,8 +625,8 @@ static void hdmi_spd_infoframe_init(struct hdmi_spd_infoframe *frame,
 	frame->version = 1;
 	frame->length = HDMI_SPD_INFOFRAME_SIZE;
 
-	strncpy(frame->vendor, vendor, sizeof(frame->vendor) - 1);
-	strncpy(frame->product, product, sizeof(frame->product) - 1);
+	strscpy(frame->vendor, vendor, sizeof(frame->vendor));
+	strscpy(frame->product, product, sizeof(frame->product));
 }
 
 /**

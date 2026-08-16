@@ -9478,7 +9478,7 @@ dhd_msgbuf_dump_iovar_name(dhd_pub_t *dhd)
 		int dump_size = 128;
 		uint8 *ioctl_buf = (uint8 *)prot->ioctbuf.va;
 		memset(iovbuf, 0, sizeof(iovbuf));
-		strncpy(iovbuf, ioctl_buf, sizeof(iovbuf) - 1);
+		strscpy(iovbuf, ioctl_buf, sizeof(iovbuf) - 1);
 		iovbuf[sizeof(iovbuf) - 1] = '\0';
 		DHD_ERROR(("Current IOVAR (%s): %s\n",
 			prot->curr_ioctl_cmd == WLC_SET_VAR ?

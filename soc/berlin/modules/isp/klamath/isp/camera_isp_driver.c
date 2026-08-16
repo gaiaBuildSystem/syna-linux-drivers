@@ -688,8 +688,8 @@ static int camera_isp_querycap(struct v4l2_subdev *sd, void *arg)
 {
 	struct v4l2_capability *cap = (struct v4l2_capability *)arg;
 
-	strncpy(cap->driver, sd->name, sizeof(cap->driver));
-	strncpy(cap->card, sd->name, sizeof(cap->card));
+	strscpy_pad(cap->driver, sd->name, sizeof(cap->driver));
+	strscpy_pad(cap->card, sd->name, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info),
 			"platform:%s", sd->name);
 

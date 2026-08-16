@@ -21461,7 +21461,7 @@ s32 wl_cfg80211_up(struct net_device *net)
 		return err;
 	}
 	if (strncmp(cfg->country, cur_cspec.ccode, WL_CCODE_LEN)) {
-		strncpy(cfg->country, cur_cspec.ccode, WLC_CNTRY_BUF_SZ);
+		strscpy(cfg->country, cur_cspec.ccode, WLC_CNTRY_BUF_SZ);
 		wl_cfg80211_regd_update(cfg, cur_cspec.ccode, true);
 	}
 #endif /* EXT_REGD_INFO */

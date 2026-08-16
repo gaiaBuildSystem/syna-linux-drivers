@@ -381,8 +381,8 @@ static int vvcam_isp_querycap(struct v4l2_subdev *sd, void *arg)
 {
     struct v4l2_capability *cap = (struct v4l2_capability *)arg;
 
-    strncpy(cap->driver, sd->name, sizeof(cap->driver));
-    strncpy(cap->card, sd->name, sizeof(cap->card));
+    strscpy_pad(cap->driver, sd->name, sizeof(cap->driver));
+    strscpy_pad(cap->card, sd->name, sizeof(cap->card));
     snprintf(cap->bus_info, sizeof(cap->bus_info),
             "platform:%s", sd->name);
 
@@ -1580,15 +1580,15 @@ static int vvcam_isp_parse_params(struct vvcam_isp_dev *isp_dev,
     int port = 0;
     isp_dev->id  = pdev->id;
     for (port = 0; port < VVCAM_ISP_PORT_NR; port++) {
-        strncpy(isp_dev->sensor_info[port].sensor, VVCAM_ISP_DEFAULT_SENSOR,
-            strlen(VVCAM_ISP_DEFAULT_SENSOR));
-        strncpy(isp_dev->sensor_info[port].xml, VVCAM_ISP_DEFAULT_SENSOR_XML,
-            strlen(VVCAM_ISP_DEFAULT_SENSOR_XML));
+        strscpy(isp_dev->sensor_info[port].sensor, VVCAM_ISP_DEFAULT_SENSOR,
+            sizeof(isp_dev->sensor_info[port].sensor));
+        strscpy(isp_dev->sensor_info[port].xml, VVCAM_ISP_DEFAULT_SENSOR_XML,
+            sizeof(isp_dev->sensor_info[port].xml));
         isp_dev->sensor_info[port].mode = VVCAM_ISP_DEFAULT_SENSOR_MODE;
-        strncpy(isp_dev->sensor_info[port].manu_json, VVCAM_ISP_DEFAULT_SENSOR_MANU_JSON,
-            strlen(VVCAM_ISP_DEFAULT_SENSOR_MANU_JSON));
-        strncpy(isp_dev->sensor_info[port].auto_json, VVCAM_ISP_DEFAULT_SENSOR_AUTO_JSON,
-            strlen(VVCAM_ISP_DEFAULT_SENSOR_AUTO_JSON));
+        strscpy(isp_dev->sensor_info[port].manu_json, VVCAM_ISP_DEFAULT_SENSOR_MANU_JSON,
+            sizeof(isp_dev->sensor_info[port].manu_json));
+        strscpy(isp_dev->sensor_info[port].auto_json, VVCAM_ISP_DEFAULT_SENSOR_AUTO_JSON,
+            sizeof(isp_dev->sensor_info[port].auto_json));
 #ifdef DOLPHIN
         isp_dev->sensor_info[port].i2c_bus_id = VVCAM_ISP_DEFAULT_I2C_BUS_ID;
         isp_dev->sensor_info[port].mipi_id = VVCAM_ISP_DEFAULT_MIPI_ID;

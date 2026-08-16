@@ -303,7 +303,7 @@ extern bool dhd_pktlog_filter_existed(dhd_pktlog_filter_t *filter, char *arg, ui
 {	\
 	do {	\
 		if ((strlen(pattern) + 1) < sizeof(filter_pattern)) {	\
-			strncpy(filter_pattern, pattern, sizeof(filter_pattern));	\
+			strscpy(filter_pattern, pattern, sizeof(filter_pattern));	\
 			dhd_pktlog_filter_add(dhdp->pktlog->pktlog_filter, filter_pattern);	\
 		}	\
 	} while (0);	\

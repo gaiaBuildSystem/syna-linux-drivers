@@ -52,7 +52,7 @@
 extern "C" {
 #endif
 
-#define bcm_strncpy_s(dst, noOfElements, src, count)    strncpy((dst), (src), (count))
+#define bcm_strncpy_s(dst, noOfElements, src, count)    strscpy((dst), (src), (count))
 #ifdef FREEBSD
 #define bcm_strncat_s(dst, noOfElements, src, count)    strcat((dst), (src))
 #else

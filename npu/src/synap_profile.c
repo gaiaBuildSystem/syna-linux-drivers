@@ -42,7 +42,7 @@ bool synap_profile_parse_layers(void* model_buffer, size_t model_size,
     }
     for (i = 0; i < vsi_data.layer_count; i++) {
         layer_profile[i].uid = layer_data[i].uid;
-        strncpy(layer_profile[i].name, layer_data[i].layer_name, strlen(layer_data[i].layer_name));
+        strscpy(layer_profile[i].name, layer_data[i].layer_name, sizeof(layer_profile[i].name));
     }
 
     desc->layer_profile_buf = layer_profile;

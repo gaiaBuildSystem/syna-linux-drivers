@@ -729,8 +729,8 @@ static int vvcam_videoc_querycap(struct file *file, void *priv,
                                 struct v4l2_capability *cap)
 {
     struct vvcam_video_dev *vvcam_vdev = video_drvdata(file);
-    strncpy(cap->driver, vvcam_vdev->video->name, sizeof(cap->driver));
-    strncpy(cap->card, vvcam_vdev->video->name, sizeof(cap->card));
+    strscpy_pad(cap->driver, vvcam_vdev->video->name, sizeof(cap->driver));
+    strscpy_pad(cap->card, vvcam_vdev->video->name, sizeof(cap->card));
     snprintf(cap->bus_info, sizeof(cap->bus_info),
             "platform:%s", vvcam_vdev->video->name);
 

@@ -9972,7 +9972,7 @@ wl_cfgnan_add_ndi_data(struct bcm_cfg80211 *cfg, s32 idx, char const *name,
 
 	/* Ensure ifname string size <= IFNAMSIZ including null termination */
 	len = MIN(strlen(name), (IFNAMSIZ - 1));
-	strncpy(nancfg->ndi[idx].ifname, name, len);
+	strscpy(nancfg->ndi[idx].ifname, name, len);
 	nancfg->ndi[idx].ifname[len] = '\0';
 	nancfg->ndi[idx].in_use = true;
 	nancfg->ndi[idx].created = true;

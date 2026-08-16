@@ -139,7 +139,7 @@ static ssize_t control_store(struct gpio_reset_line *line,
 	char action[10];
 	char *eol;
 
-	strncpy(action, buf, min(count, sizeof(action)));
+	strscpy(action, buf, min(count, sizeof(action)));
 	action[sizeof(action) - 1] = '\0';
 	eol = strrchr(action, '\n');
 	if (eol)

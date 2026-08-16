@@ -301,7 +301,7 @@ static struct berlin_pte_node *create_pte_node(struct dma_buf *dmabuf,
 
 	get_task_comm(data->pte.task_comm, current->group_leader);
 	data->pte.pid = task_tgid_vnr(current);
-	strncpy(data->pte.thread_name, current->comm, TASK_COMM_LEN);
+	strscpy(data->pte.thread_name, current->comm, TASK_COMM_LEN);
 	data->pte.tid = task_pid_vnr(current);
 
 	pr_debug("%s %d %p ret %x\n", __func__, data->pte.is_pte, dmabuf, ret);

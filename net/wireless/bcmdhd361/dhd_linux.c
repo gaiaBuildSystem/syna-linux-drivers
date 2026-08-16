@@ -11096,7 +11096,7 @@ dhd_event_iflink(struct dhd_info *dhdinfo, wl_event_msg_t *event,
 	if_event->event.ifidx = event->ifidx;
 	if_event->event.opcode = WLC_E_IF_CHANGE;
 	memcpy(if_event->mac, mac, ETHER_ADDR_LEN);
-	strncpy(if_event->name, name, IFNAMSIZ);
+	strscpy(if_event->name, name, IFNAMSIZ);
 	if_event->name[IFNAMSIZ - 1] = '\0';
 	dhd_deferred_schedule_work(dhdinfo->dhd_deferred_wq,
 			(void *)if_event, DHD_WQ_WORK_IF_UPDATE,
@@ -11218,9 +11218,9 @@ dhd_update_iflist_info(dhd_pub_t *dhdp, struct net_device *ndev, int ifidx,
 		dhd_dev_priv_save(ndev, dhdinfo, ifp, ifidx);
 		/* initialize the dongle provided if name */
 		if (dngl_name) {
-			strncpy(ifp->dngl_name, dngl_name, IFNAMSIZ);
+			strscpy(ifp->dngl_name, dngl_name, IFNAMSIZ);
 		} else if (ndev->name[0] != '\0') {
-			strncpy(ifp->dngl_name, ndev->name, IFNAMSIZ);
+			strscpy(ifp->dngl_name, ndev->name, IFNAMSIZ);
 		}
 		if (mac != NULL) {
 			/* To and fro locations have same size - ETHER_ADDR_LEN */
@@ -11911,7 +11911,7 @@ struct file *filep = NULL;
 			if (!(count & PC_FOUND_BIT) &&
 				(pc >= addr1 && pc < addr2)) {
 				if ((cptr = strchr(func1, '$')) != NULL) {
-					(void)strncpy(func, cptr + 1,
+					(void)strscpy(func, cptr + 1,
 						DHD_FUNC_STR_LEN - 1);
 				} else {
 					(void)memcpy_s(func, DHD_FUNC_STR_LEN,
@@ -11936,7 +11936,7 @@ struct file *filep = NULL;
 			if (!(count & LR_FOUND_BIT) &&
 				(lr >= addr1 && lr < addr2)) {
 				if ((cptr = strchr(func1, '$')) != NULL) {
-					(void)strncpy(func, cptr + 1,
+					(void)strscpy(func, cptr + 1,
 						DHD_FUNC_STR_LEN - 1);
 				} else {
 					(void)memcpy_s(func, DHD_FUNC_STR_LEN,
@@ -14811,7 +14811,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_ERROR(("Firmware version = %s\n", buf));
-		strncpy(fw_version, buf, FW_VER_STR_LEN);
+		strscpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
@@ -15820,7 +15820,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_ERROR(("Firmware version = %s\n", buf));
-		strncpy(fw_version, buf, FW_VER_STR_LEN);
+		strscpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
@@ -18087,7 +18087,7 @@ dhd_register_if(dhd_pub_t *dhdp, int ifidx, bool need_rtnl_lock)
 		DHD_ERROR(("couldn't register the net device [%s], err %d\n", net->name, err));
 		goto fail;
 	} else {
-		strncpy(ifp->name, net->name, IFNAMSIZ);
+		strscpy(ifp->name, net->name, IFNAMSIZ);
 		ifp->name[IFNAMSIZ - 1] = '\0';
 	}
 
@@ -30749,7 +30749,7 @@ dhd_dump_file_manage_idx(dhd_dump_file_manage_t *fm_ptr, char *fname)
 	}
 
 	if (strlen(fm_ptr->elems[fm_idx].type_name) == 0) {
-		strncpy(fm_ptr->elems[fm_idx].type_name, fname, DHD_DUMP_TYPE_NAME_SIZE);
+		strscpy(fm_ptr->elems[fm_idx].type_name, fname, DHD_DUMP_TYPE_NAME_SIZE);
 		fm_ptr->elems[fm_idx].type_name[DHD_DUMP_TYPE_NAME_SIZE - 1] = '\0';
 		fm_ptr->elems[fm_idx].file_idx = 0;
 	}
@@ -30802,7 +30802,7 @@ dhd_dump_file_manage_enqueue(dhd_pub_t *dhd, char *dump_path, char *fname)
 	}
 
 	/* save dump file path */
-	strncpy(elem->file_path[fp_idx], dump_path, DHD_DUMP_FILE_PATH_SIZE);
+	strscpy(elem->file_path[fp_idx], dump_path, DHD_DUMP_FILE_PATH_SIZE);
 	elem->file_path[fp_idx][DHD_DUMP_FILE_PATH_SIZE - 1] = '\0';
 
 	/* change file index to next file index */

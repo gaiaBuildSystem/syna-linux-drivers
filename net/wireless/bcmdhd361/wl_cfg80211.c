@@ -16392,7 +16392,7 @@ wl_cfg80211_ccode_evt_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 	s32 err = BCME_OK;
 	char country_str_lookup[WLC_CNTRY_BUF_SZ + 1] = { 0 };
 
-	strncpy(country_str_lookup, data, WLC_CNTRY_BUF_SZ);
+	strscpy(country_str_lookup, data, WLC_CNTRY_BUF_SZ);
 
 	if (strncmp(cfg->country, country_str_lookup, WL_CCODE_LEN) == 0) {
 		/* If country code is updated from command context, skip wiphy update */
@@ -20379,7 +20379,7 @@ s32 wl_cfg80211_up(struct net_device *net)
 		return err;
 	}
 	if (strncmp(cfg->country, cur_cspec.ccode, WL_CCODE_LEN)) {
-		strncpy(cfg->country, cur_cspec.ccode, WLC_CNTRY_BUF_SZ);
+		strscpy(cfg->country, cur_cspec.ccode, WLC_CNTRY_BUF_SZ);
 		wl_cfg80211_regd_update(cfg, cur_cspec.ccode);
 	}
 #endif /* CUSTOMER_HW6 || WIPHY_DYNAMIC_UPDATE */

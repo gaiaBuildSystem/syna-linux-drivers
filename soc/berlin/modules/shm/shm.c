@@ -397,7 +397,7 @@ struct shm_client *shm_client_create(const char *name)
 
 	get_task_comm(client->task_comm, current->group_leader);
 	client->pid = task_tgid_vnr(current);
-	strncpy(client->thread_name, current->comm, TASK_COMM_LEN);
+	strscpy(client->thread_name, current->comm, TASK_COMM_LEN);
 	client->tid = task_pid_vnr(current);
 
 	down_write(&shm_dev.client_lock);

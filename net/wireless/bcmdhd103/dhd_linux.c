@@ -8072,9 +8072,9 @@ dhd_update_iflist_info(dhd_pub_t *dhdp, struct net_device *ndev, int ifidx,
 		dhd_dev_priv_save(ndev, dhdinfo, ifp_new, ifidx);
 		/* initialize the dongle provided if name */
 		if (dngl_name) {
-			strncpy(ifp_new->dngl_name, dngl_name, IFNAMSIZ);
+			strscpy(ifp_new->dngl_name, dngl_name, IFNAMSIZ);
 		} else if (ndev->name[0] != '\0') {
-			strncpy(ifp_new->dngl_name, ndev->name, IFNAMSIZ);
+			strscpy(ifp_new->dngl_name, ndev->name, IFNAMSIZ);
 		}
 		if (mac != NULL) {
 			eacopy(mac, &ifp_new->mac_addr);
@@ -8882,7 +8882,7 @@ dhd_lookup_map(osl_t *osh, char *fname, uint32 pc, char *pc_fn,
 				(pc >= addr1 && pc < addr2)) {
 				cptr = strchr(func1, '$');
 				if (cptr != NULL) {
-					(void)strncpy(func, cptr + 1,
+					(void)strscpy(func, cptr + 1,
 						DHD_FUNC_STR_LEN - 1);
 				} else {
 					(void)memcpy_s(func, DHD_FUNC_STR_LEN,
@@ -8908,7 +8908,7 @@ dhd_lookup_map(osl_t *osh, char *fname, uint32 pc, char *pc_fn,
 				(lr >= addr1 && lr < addr2)) {
 				cptr = strchr(func1, '$');
 				if (cptr != NULL) {
-					(void)strncpy(func, cptr + 1,
+					(void)strscpy(func, cptr + 1,
 						DHD_FUNC_STR_LEN - 1);
 				} else {
 					(void)memcpy_s(func, DHD_FUNC_STR_LEN,
@@ -11881,7 +11881,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_PRINT(("Firmware version = %s\n", buf));
-		strncpy(fw_version, buf, FW_VER_STR_LEN);
+		strscpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
@@ -12412,7 +12412,7 @@ dhd_optimised_preinit_ioctls(dhd_pub_t *dhd)
 		} else {
 			char tokenlim;
 			char clm_ver_temp[CLM_VER_STR_LEN] = "\0";
-			strncpy(clm_ver_temp, clm_version, strlen(clm_version));
+			strscpy(clm_ver_temp, clm_version, strlen(clm_version) + 1);
 			ptr = (ver_temp_buf + strlen("Customization:"));
 			ver_temp_buf = bcmstrtok(&ptr, "(\n", &tokenlim);
 			if (ver_temp_buf == NULL) {
@@ -13018,7 +13018,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_PRINT(("Firmware version = %s\n", buf));
-		strncpy(fw_version, buf, FW_VER_STR_LEN);
+		strscpy(fw_version, buf, FW_VER_STR_LEN);
 		fw_version[FW_VER_STR_LEN-1] = '\0';
 #if defined(BCMSDIO) || defined(BCMPCIE)
 		dhd_set_version_info(dhd, buf);
@@ -23167,7 +23167,7 @@ dhd_set_blob_support(dhd_pub_t *dhdp, char *fw_path)
 	const struct firmware *fw = NULL;
 	int ret = 0;
 
-	strncpy(filepath, DHD_CLM_NAME, strlen(DHD_CLM_NAME));
+	strscpy(filepath, DHD_CLM_NAME, strlen(DHD_CLM_NAME) + 1);
 
 #if defined(SUPPORT_MULTIPLE_REVISION)
 #ifdef DHD_LINUX_STD_FW_API
@@ -25843,7 +25843,7 @@ dhd_dump_file_manage_idx(dhd_dump_file_manage_t *fm_ptr, char *fname)
 	}
 
 	if (strlen(fm_ptr->elems[fm_idx].type_name) == 0) {
-		strncpy(fm_ptr->elems[fm_idx].type_name, fname, DHD_DUMP_TYPE_NAME_SIZE);
+		strscpy(fm_ptr->elems[fm_idx].type_name, fname, DHD_DUMP_TYPE_NAME_SIZE);
 		fm_ptr->elems[fm_idx].type_name[DHD_DUMP_TYPE_NAME_SIZE - 1] = '\0';
 		fm_ptr->elems[fm_idx].file_idx = 0;
 	}
@@ -25897,7 +25897,7 @@ dhd_dump_file_manage_enqueue(dhd_pub_t *dhd, char *dump_path, char *fname)
 	}
 
 	/* save dump file path */
-	strncpy(elem->file_path[fp_idx], dump_path, DHD_DUMP_FILE_PATH_SIZE);
+	strscpy(elem->file_path[fp_idx], dump_path, DHD_DUMP_FILE_PATH_SIZE);
 	elem->file_path[fp_idx][DHD_DUMP_FILE_PATH_SIZE - 1] = '\0';
 
 	/* change file index to next file index */
@@ -26572,27 +26572,27 @@ dhd_reset_clm_map_txcap_path(void)
 #ifdef DHD_COREDUMP
 	bzero(map_path, PATH_MAX);
 #ifdef DHD_LINUX_STD_FW_API
-	strncpy(map_path, DHD_MAP_NAME, strlen(DHD_MAP_NAME));
+	strscpy(map_path, DHD_MAP_NAME, strlen(DHD_MAP_NAME) + 1);
 #else
-	strncpy(map_path, VENDOR_PATH CONFIG_BCMDHD_MAP_PATH,
-		strlen(VENDOR_PATH CONFIG_BCMDHD_MAP_PATH));
+	strscpy(map_path, VENDOR_PATH CONFIG_BCMDHD_MAP_PATH,
+		strlen(VENDOR_PATH CONFIG_BCMDHD_MAP_PATH) + 1);
 #endif /* DHD_LINUX_STD_FW_API */
 #endif /* DHD_COREDUMP */
 
 	bzero(clm_path, MOD_PARAM_PATHLEN);
 #ifdef DHD_LINUX_STD_FW_API
-	strncpy(clm_path, DHD_CLM_NAME, strlen(DHD_CLM_NAME));
+	strscpy(clm_path, DHD_CLM_NAME, strlen(DHD_CLM_NAME) + 1);
 #else
-	strncpy(clm_path, VENDOR_PATH CONFIG_BCMDHD_CLM_PATH,
-		strlen(VENDOR_PATH CONFIG_BCMDHD_CLM_PATH));
+	strscpy(clm_path, VENDOR_PATH CONFIG_BCMDHD_CLM_PATH,
+		strlen(VENDOR_PATH CONFIG_BCMDHD_CLM_PATH) + 1);
 #endif /* DHD_LINUX_STD_FW_API */
 
 	bzero(txcap_path, MOD_PARAM_PATHLEN);
 #ifdef DHD_LINUX_STD_FW_API
-	strncpy(txcap_path, DHD_TXCAP_NAME, strlen(DHD_TXCAP_NAME));
+	strscpy(txcap_path, DHD_TXCAP_NAME, strlen(DHD_TXCAP_NAME) + 1);
 #else
-	strncpy(txcap_path, VENDOR_PATH CONFIG_BCMDHD_TXCAP_PATH,
-		strlen(VENDOR_PATH CONFIG_BCMDHD_TXCAP_PATH));
+	strscpy(txcap_path, VENDOR_PATH CONFIG_BCMDHD_TXCAP_PATH,
+		strlen(VENDOR_PATH CONFIG_BCMDHD_TXCAP_PATH) + 1);
 #endif /* DHD_LINUX_STD_FW_API */
 
 }

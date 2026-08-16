@@ -14043,7 +14043,7 @@ extract_hex_field(char * line, uint16 start_pos, uint16 num_chars, uint16 * valu
 {
 	char field [8];
 
-	strncpy(field, line + start_pos, num_chars);
+	strscpy(field, line + start_pos, num_chars);
 	field [num_chars] = '\0';
 
 	return (sscanf (field, "%hX", value) == 1);

@@ -92,7 +92,7 @@ static ssize_t synap_networks_store(struct device *dev,
 
     KLOGI("synap_inference_count_store for dev: %p, data: %p, count: %zu : %.*s", dev, d, count, buf);
 
-    strncpy(strbuf, buf, strlen(buf));
+    strscpy(strbuf, buf, sizeof(strbuf));
     tmp = strbuf;
 
     p = strsep(&tmp, " ");

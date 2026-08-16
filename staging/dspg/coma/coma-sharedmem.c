@@ -664,7 +664,7 @@ sharedmem_coma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (sharedmem_coma->has_dram) {
 			/* dram entry */
 			memset(info[0].name, 0, sizeof(info[0].name));
-			strncpy(info[0].name, sharedmem_coma->mem_devs[0].name,
+			strscpy(info[0].name, sharedmem_coma->mem_devs[0].name,
 				MAX_MEM_NAME);
 			info[0].base = sharedmem_coma->mem_devs[0].base;
 			info[0].size = sharedmem_coma->mem_devs[0].size;
@@ -696,7 +696,7 @@ sharedmem_coma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (ret != 0)
 				continue;
 
-			strncpy(info[app_i].name,
+			strscpy(info[app_i].name,
 				sharedmem_coma->mem_devs[app_i].name,
 				MAX_MEM_NAME);
 
