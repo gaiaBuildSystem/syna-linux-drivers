@@ -8,6 +8,7 @@
  */
 
 #include "drm_syna_drv.h"
+#include "kernel_compatibility.h"
 #include <linux/moduleparam.h>
 #include <linux/version.h>
 #include <linux/platform_device.h>

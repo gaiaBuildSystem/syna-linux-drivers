@@ -64,5 +64,9 @@ typedef int RET_TYPE;
 #define SYNA_DRM_FBDEV_SETUP(DDEV, BBP) drm_fbdev_generic_setup(DDEV, BBP)
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+#define drm_atomic_state drm_atomic_commit
+#endif
+
 #endif
 

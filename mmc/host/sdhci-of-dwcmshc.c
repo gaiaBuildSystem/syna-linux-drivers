@@ -845,7 +845,7 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	priv = sdhci_pltfm_priv(pltfm_host);
 
 	if (of_property_read_bool(np, "mux-states")) {
-		struct mux_state *mux_state = devm_mux_state_get(&pdev->dev, NULL);
+		struct mux_state *mux_state = devm_mux_state_get_from_np(&pdev->dev, NULL, NULL);
 
 		if (IS_ERR(mux_state)) {
 			err = PTR_ERR(mux_state);
