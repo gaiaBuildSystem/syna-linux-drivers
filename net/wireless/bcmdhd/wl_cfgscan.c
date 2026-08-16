@@ -5108,7 +5108,8 @@ wl_priortize_scan_over_listen(struct bcm_cfg80211 *cfg,
 #if defined(WL_CFG80211_P2P_DEV_IF)
 s32
 wl_cfgscan_remain_on_channel(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
-	struct ieee80211_channel *channel, unsigned int duration, u64 *cookie)
+	struct ieee80211_channel *channel, unsigned int duration, u64 *cookie,
+	const u8 *rx_addr)
 #else
 s32
 wl_cfgscan_remain_on_channel(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
@@ -5123,6 +5124,10 @@ wl_cfgscan_remain_on_channel(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 	struct net_device *ndev = NULL;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct wireless_dev *wdev;
+
+#if defined(WL_CFG80211_P2P_DEV_IF)
+	BCM_REFERENCE(rx_addr);
+#endif /* WL_CFG80211_P2P_DEV_IF */
 
 	RETURN_EIO_IF_NOT_UP(cfg);
 

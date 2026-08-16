@@ -4176,7 +4176,7 @@ wl_cfg80211_start_ap(
 		if (info->ht_cap) {
 			nmode = 1;
 		}
-		if (info->ht_required) {
+		if (info->beacon.ht_required) {
 			only_mode = OMC_HT;
 		}
 		WL_ERR(("need nmode=%d, only_mode=%d\n", nmode, only_mode));
@@ -4195,7 +4195,7 @@ wl_cfg80211_start_ap(
 			}
 		}
 #endif /* SUPPORT_2G_VHT */
-		if (info->vht_required) {
+		if (info->beacon.vht_required) {
 			only_mode = OMC_VHT;
 		}
 		WL_ERR(("need vhtmode=%d, only_mode=%d\n", vhtmode, only_mode));
@@ -4205,11 +4205,11 @@ wl_cfg80211_start_ap(
 		if (info->he_cap) {
 			hemode = 1;
 		}
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 		if (info->he_required) {
 			only_mode = OMC_HE;
 		}
-#endif /* ((LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)) */
+#endif /* ((LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0)) */
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)) */
 		WL_ERR(("need hemode=%d, only_mode=%d\n", hemode, only_mode));
 

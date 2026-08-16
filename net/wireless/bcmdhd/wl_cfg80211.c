@@ -1367,8 +1367,13 @@ static const u32 __wl_cipher_suites[] = {
 #ifdef WL_GCMP
 	WLAN_CIPHER_SUITE_GCMP,
 	WLAN_CIPHER_SUITE_GCMP_256,
+#if !(defined(MFP) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)))
+	/* Already advertised above under MFP && kernel >= 4.0; cfg80211's
+	 * wiphy_register() rejects duplicate cipher suites in the list.
+	 */
 	WLAN_CIPHER_SUITE_BIP_GMAC_128,
 	WLAN_CIPHER_SUITE_BIP_GMAC_256,
+#endif
 #endif /* WL_GCMP */
 };
 
@@ -11341,6 +11346,13 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 	err = wiphy_register(wdev->wiphy);
 	if (unlikely(err < 0)) {
 		WL_ERR(("Couldn not register wiphy device (%d)\n", err));
+#if defined(WL_SELF_MANAGED_REGDOM) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
+		/* regd points to a static const struct (not heap allocated).
+		 * Null it out before wiphy_free(), otherwise cfg80211_dev_free()
+		 * will kfree() this bogus pointer and corrupt the kernel heap.
+		 */
+		wdev->wiphy->regd = NULL;
+#endif /* WL_SELF_MANAGED_REGDOM && KERNEL >= 4.0 */
 		wiphy_free(wdev->wiphy);
 	}
 
