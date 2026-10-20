@@ -1011,7 +1011,7 @@ dvf_pinctrl_probe_dt(struct platform_device *pdev,
 	dvf_gpio->chip.of_xlate	= dvf_gpiolib_xlate;
 #endif
 
-	dvf_gpio->extint_domain = irq_domain_add_linear(pdev->dev.of_node,
+	dvf_gpio->extint_domain = irq_domain_create_linear(of_fwnode_handle(pdev->dev.of_node),
 		dvf_gpio->nr_extints, &extint_irq_ops, dvf_gpio);
 	if (!dvf_gpio->extint_domain) {
 		ret = -ENOMEM;

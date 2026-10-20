@@ -781,7 +781,7 @@ static s32 wl_cfg80211_external_auth(struct wiphy *wiphy,
        struct net_device *dev, struct cfg80211_external_auth_params *ext_auth);
 static s32
 wl_cfg80211_mgmt_auth_tx(struct net_device *dev, bcm_struct_cfgdev *cfgdev,
-	struct bcm_cfg80211 *cfg, const u8 *buf, size_t len, s32 bssidx, u64 *cookie);
+	struct bcm_cfg80211 *cfg, const u8 *buf, size_t len, s32 bssidx, u64 cookie);
 #endif /* WL_CLIENT_SAE */
 #if defined(WL_SAR_TX_POWER) && defined(WL_SAR_TX_POWER_CONFIG)
 static void wl_get_sar_config_info(struct bcm_cfg80211 *cfg);
@@ -11788,7 +11788,7 @@ exit:
 #ifdef WL_CLIENT_SAE
 static s32
 wl_cfg80211_mgmt_auth_tx(struct net_device *dev, bcm_struct_cfgdev *cfgdev,
-	struct bcm_cfg80211 *cfg, const u8 *buf, size_t len, s32 bssidx, u64 *cookie)
+	struct bcm_cfg80211 *cfg, const u8 *buf, size_t len, s32 bssidx, u64 cookie)
 {
 	int err = 0;
 	wl_assoc_mgr_cmd_t *cmd;
@@ -11820,13 +11820,13 @@ wl_cfg80211_mgmt_auth_tx(struct net_device *dev, bcm_struct_cfgdev *cfgdev,
 			ack = false;
 		} else {
 			WL_INFORM_MEM(("auth tx triggered (%llu), param_len %d\n",
-				*cookie, param_len));
+				cookie, param_len));
 		}
 	}
 
 	MFREE(cfg->osh, ambuf, param_len);
 
-	cfg80211_mgmt_tx_status(cfgdev, *cookie, buf, len, ack, GFP_KERNEL);
+	cfg80211_mgmt_tx_status(cfgdev, cookie, buf, len, ack, GFP_KERNEL);
 	return BCME_OK;
 }
 #endif /* WL_CLIENT_SAE */
@@ -11835,7 +11835,7 @@ wl_cfg80211_mgmt_auth_tx(struct net_device *dev, bcm_struct_cfgdev *cfgdev,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 static s32
 wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
-	struct cfg80211_mgmt_tx_params *params, u64 *cookie)
+	struct cfg80211_mgmt_tx_params *params, u64 cookie)
 #else
 static s32
 wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
@@ -11851,7 +11851,7 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)) || defined(WL_COMPAT_WIRELESS)
 	bool dont_wait_for_ack,
 #endif
-	u64 *cookie)
+	u64 cookie)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) */
 {
 	wl_action_frame_v1_t *action_frame;
@@ -11867,7 +11867,6 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 	struct net_device *dev = NULL;
 	s32 err = BCME_OK;
 	s32 bssidx = 0;
-	u32 id;
 	bool ack = false;
 	s8 eabuf[ETHER_ADDR_STR_LEN];
 #ifdef WL_MLO
@@ -11934,11 +11933,6 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 			return -EFAULT;
 		}
 	}
-	*cookie = 0;
-	id = cfg->send_action_id++;
-	if (id == 0)
-		id = cfg->send_action_id++;
-	*cookie = id;
 	mgmt = (const struct ieee80211_mgmt *)buf;
 	if (ieee80211_is_mgmt(mgmt->frame_control)) {
 		if (ieee80211_is_probe_resp(mgmt->frame_control)) {
@@ -11949,7 +11943,7 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 			}
 			wl_cfg80211_set_mgmt_vndr_ies(cfg, cfgdev, bssidx,
 				VNDR_IE_PRBRSP_FLAG, (const u8 *)(buf + ie_offset), ie_len);
-			cfg80211_mgmt_tx_status(cfgdev, *cookie, buf, len, true, GFP_KERNEL);
+			cfg80211_mgmt_tx_status(cfgdev, cookie, buf, len, true, GFP_KERNEL);
 #if defined(P2P_IE_MISSING_FIX)
 			if (!cfg->p2p_prb_noti) {
 				cfg->p2p_prb_noti = true;
@@ -11998,7 +11992,7 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 			if (num_associated > 0 && ETHER_ISBCAST(mgmt->da))
 				wl_delay(400);
 
-			cfg80211_mgmt_tx_status(cfgdev, *cookie, buf, len, true, GFP_KERNEL);
+			cfg80211_mgmt_tx_status(cfgdev, cookie, buf, len, true, GFP_KERNEL);
 			goto exit;
 
 		} else if (ieee80211_is_action(mgmt->frame_control)) {
@@ -12039,7 +12033,7 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 	action_frame = &af_params->action_frame;
 
 	/* Add the packet Id */
-	action_frame->packetId = *cookie;
+	action_frame->packetId = cookie;
 	WL_DBG(("action frame %d\n", action_frame->packetId));
 	/* Add BSSID */
 	memcpy(&action_frame->da, &mgmt->da[0], ETHER_ADDR_LEN);
@@ -12069,15 +12063,15 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 
 	ack = wl_cfg80211_send_action_frame(wiphy, dev, cfgdev, af_params,
 		action_frame, action_frame->len, bssidx, mgmt->sa);
-	cfg80211_mgmt_tx_status(cfgdev, *cookie, buf, len, ack, GFP_KERNEL);
+	cfg80211_mgmt_tx_status(cfgdev, cookie, buf, len, ack, GFP_KERNEL);
 
 	/* Send Tx mgmt expire event to supplicant to release actframe listen channel */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	if (af_params->flags & WL_ACT_FRAME_FLAG_NAN_USD) {
-		cfg80211_tx_mgmt_expired(cfgdev, *cookie, channel, GFP_KERNEL);
+		cfg80211_tx_mgmt_expired(cfgdev, cookie, channel, GFP_KERNEL);
 	}
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0) */
-	WL_DBG(("txstatus and tx expire notified for cookie:%llu. ack:%d\n", *cookie, ack));
+	WL_DBG(("txstatus and tx expire notified for cookie:%llu. ack:%d\n", cookie, ack));
 
 	MFREE(cfg->osh, af_params, WL_WIFI_AF_PARAMS_SIZE_V1);
 exit:

@@ -260,8 +260,8 @@ static int berlin_dhub_irq_init(struct platform_device *pdev,
 		goto err_release;
 	}
 	/* 32 interrupt sources per Dhub */
-	domain = irq_domain_add_linear(np, TOTAL_SEMA_NUM,
-				       &irq_generic_chip_ops, NULL);
+	domain = irq_domain_create_linear(of_fwnode_handle(np), TOTAL_SEMA_NUM,
+					  &irq_generic_chip_ops, NULL);
 	if (!domain) {
 		pr_err("%s: unable to add irq domain\n", np->full_name);
 		ret = -ENOMEM;

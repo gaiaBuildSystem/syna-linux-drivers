@@ -925,8 +925,8 @@ dvf9a_probe(struct platform_device *pdev)
 	clk_disable(dvf9a->apu_clk);
 	clk_disable(dvf9a->daif_clk);
 
-	dvf9a->anaint_domain = irq_domain_add_linear(np, dvf9a->num_irqs,
-						    &dvf9a_irq_ops, dvf9a);
+	dvf9a->anaint_domain = irq_domain_create_linear(of_fwnode_handle(np), dvf9a->num_irqs,
+						       &dvf9a_irq_ops, dvf9a);
 	if (!dvf9a->anaint_domain) {
 		dev_err(&pdev->dev, "cannot register IRQ domain!\n");
 		ret = -ENOMEM;

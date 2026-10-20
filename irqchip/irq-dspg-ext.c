@@ -271,8 +271,8 @@ dvf_extint_probe(struct platform_device *pdev)
 	extint->upstream_irq = irq;
 	extint->ctrl = dspg_extint;
 	extint->dspg_gpio = dspg_gpio;
-	extint->irq_domain = irq_domain_add_linear(np, 1, &dspg_extint_irq_ops,
-						   extint);
+	extint->irq_domain = irq_domain_create_linear(of_fwnode_handle(np), 1,
+						      &dspg_extint_irq_ops, extint);
 	if (!extint->irq_domain) {
 		dev_err(&pdev->dev, "cannot register IRQ domain\n");
 		return -ENOMEM;

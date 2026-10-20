@@ -251,7 +251,7 @@ int __init plicu_init(struct device_node *node, struct device_node *parent)
 	writel(0xffffffff, plicu_base + PLICU_CH_CLR_INT1);
 	writel(0xffffffff, plicu_base + PLICU_CH_CLR_INT2);
 
-	plicu_domain = irq_domain_add_linear(node, 64, &plicu_irq_ops, NULL);
+	plicu_domain = irq_domain_create_linear(of_fwnode_handle(node), 64, &plicu_irq_ops, NULL);
 	if (WARN_ON(!plicu_domain))
 		goto out_unmap;
 
